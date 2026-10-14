@@ -1,0 +1,16 @@
+{
+  "name": "empty",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "node tests/adventure.cjs",
+    "build": "zeus build -t \"Amazfit Bip 5 Unity\" --js2bin=false --compress=false --ip=false",
+    "preview": "zeus preview -t \"Amazfit Bip 5 Unity\" --js2bin=false --compress=false --ip=false"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@zeppos/device-types": "^3.0.0"
+  }
+}
