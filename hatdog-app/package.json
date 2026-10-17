@@ -4,7 +4,7 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "test": "node tests/adventure.cjs",
+    "test": "node tests/adventure.cjs && node tests/companion.cjs",
     "build": "zeus build -t \"Amazfit Bip 5 Unity\" --js2bin=false --compress=false --ip=false",
     "preview": "zeus preview -t \"Amazfit Bip 5 Unity\" --js2bin=false --compress=false --ip=false"
   },
@@ -12,5 +12,8 @@
   "license": "ISC",
   "devDependencies": {
     "@zeppos/device-types": "^3.0.0"
+  },
+  "dependencies": {
+    "@zeppos/zml": "0.0.27"
   }
 }

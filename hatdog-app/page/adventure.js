@@ -2,7 +2,8 @@ import { createWidget, deleteWidget, widget, align, prop, text_style, event } fr
 import { Distance, Step } from '@zos/sensor'
 import { LocalStorage } from '@zos/storage'
 import { setWakeUpRelaunch } from '@zos/display'
-import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, dexPokemon, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, paceLabel, updateSession, finishSession } from './pokemon'
+import { back } from '@zos/router'
+import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, dexPokemon, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords, hasDexDistance } from './pokemon'
 
 const ink = 0xFFFFFF
 const muted = 0x8CD3F5
@@ -11,6 +12,7 @@ const edge = 0x43B5EC
 const selectedFill = 0x0C97C5
 // Rectangular watches draw their own app-name/time header in the top 64 pixels.
 const contentTop = 64
+const historyTitles = { distance: 'Highest distance', elapsed: 'Longest elapsed time', hatch: 'Fastest 5 km hatch' }
 const themes = {
   normal: [0x201C28, 0x817581], fire: [0x301A16, 0xE97938], water: [0x102434, 0x479FE3],
   grass: [0x132B20, 0x64B862], electric: [0x2D2812, 0xEDCA46], ice: [0x153038, 0x82D4DF],
@@ -30,7 +32,7 @@ Page({
   onInit(params) {
     try {
       const options = typeof params === 'string' ? JSON.parse(params) : params
-      this.requestedView = options && ['home', 'new', 'existing'].includes(options.view) ? options.view : null
+      this.requestedView = options && ['home', 'new', 'existing', 'history', 'dex'].includes(options.view) ? options.view : null
     } catch (_) { this.requestedView = null }
   },
   build() {
@@ -40,12 +42,17 @@ Page({
     this.distance = null
     this.step = null
     this.changed = null
+    this.paceSamples = []
+    this.paceNeedsBaseline = true
     let stage = 'storage'
     try {
       this.storage = new LocalStorage()
       this.state = this.storage.getItem('zepimon-v1') || { dex: {}, records: {}, active: null }
       if (!this.state.dex || !this.state.records) throw new Error('Invalid saved data')
-      this.view = this.state.active ? 'session' : this.requestedView || 'home'
+      refreshPersonalBests(this.state)
+      repairDexRecords(this.state)
+      this.save()
+      this.view = ['history', 'dex'].includes(this.requestedView) ? this.requestedView : this.state.active ? 'session' : this.requestedView || 'home'
       this.index = 0
       this.selectedGeneration = 1
       this.megaIndex = 0
@@ -82,9 +89,24 @@ Page({
 
   save() { this.storage.setItem('zepimon-v1', this.state) },
 
+  syncPhone() {
+    try { getApp()._options.syncToPhone() }
+    catch (error) { console.log('Zepimon phone sync unavailable:', String(error)) }
+  },
+
   sync() {
-    if (!this.state.active) return
-    updateSession(this.state.active, this.distance.getCurrent(), this.step.getCurrent(), dayKey())
+    const session = this.state.active
+    if (!session) return
+    const meters = this.distance.getCurrent()
+    const previousMeters = session.lastMeters
+    const day = dayKey()
+    const last = this.paceSamples[this.paceSamples.length - 1]
+    const now = Date.now()
+    if (last && (now < last.at || now - last.at > 5000)) this.paceNeedsBaseline = true
+    if (!this.ready || session.day !== day || meters < session.lastMeters || this.paceNeedsBaseline) this.paceSamples = []
+    updateSession(session, meters, this.step.getCurrent(), day)
+    if (session.lastMeters !== previousMeters) this.paceNeedsBaseline = false
+    currentPace(this.paceSamples, session.meters, now)
     this.save()
     if (this.view === 'session' && this.stats) this.refreshStats()
   },
@@ -123,16 +145,22 @@ Page({
 
   image(y, name, shiny = false, onClick, size = 96) {
     const x = (320 - size) / 2
-    const item = createWidget(widget.IMG, { x, y, w: size, h: size, auto_scale: true, src: spritePath(name, shiny) })
+    const item = createWidget(widget.IMG, {
+      x, y, w: size, h: size, pos_x: 0, pos_y: 0,
+      auto_scale: true, auto_scale_obj_fit: true, src: spritePath(name, shiny)
+    })
     this.widgets.push(item)
     if (onClick) item.addEventListener(event.CLICK_UP, onClick)
-    this.moving.push({ item, x, y })
+    this.moving.push({ item, x, y, size })
     if (this.motionTimer === undefined) {
       let frame = 0
       const offsets = [0, -2, -4, -2, 0, 1]
       this.motionTimer = setInterval(() => {
         frame = (frame + 1) % offsets.length
-        this.moving.forEach(({ item: sprite, x: baseX, y: baseY }) => sprite.setProperty(prop.MORE, { x: baseX, y: baseY + offsets[frame] }))
+        this.moving.forEach(({ item: sprite, x: baseX, y: baseY, size: imageSize }) => sprite.setProperty(prop.MORE, {
+          x: baseX, y: baseY + offsets[frame], w: imageSize, h: imageSize,
+          pos_x: 0, pos_y: 0, auto_scale: true, auto_scale_obj_fit: true
+        }))
         if (this.view === 'session' && this.clockStats) this.refreshClock()
 
       }, 400)
@@ -169,9 +197,9 @@ Page({
     for (let gen = 1; gen <= 6; gen++) {
       const y = 116 + (gen - 1) * 43
       const selected = gen <= 5 && this.selectedGeneration === gen
-      const title = gen === 6 ? 'Back' : gen <= 4 ? 'Generation ' + gen : 'Extra Mega families'
+      const title = gen === 6 ? 'Back to title' : gen <= 4 ? 'Generation ' + gen : 'Extra Mega families'
       this.button(y, title, () => {
-        if (gen === 6) { this.show('home'); return }
+        if (gen === 6) { back(); return }
         this.selectedGeneration = gen
         this.show('choose')
       }, 24, 272, selected, 38)
@@ -197,11 +225,46 @@ Page({
     this.image(116, 'Egg')
     this.button(224, 'New Egg', () => this.show('new'), 20, 280, true, 38)
     this.button(268, 'Continue Adventure', () => this.show(this.state.active ? 'session' : 'existing'), 20, 280, false, 38)
-    this.button(312, 'Dex', () => this.show('dex'), 20, 280, false, 38)
+    this.button(312, 'Back', () => back(), 20, 280, false, 38)
     this.text(354, '5 / 10 / 15 km   |   Mega at 21 km', 14, muted, 22)
   },
 
   show(view) { this.view = view; this.index = 0; this.megaIndex = 0; this.render() },
+
+  renderHistory() {
+    this.background()
+    this.text(70, 'History', 24, ink, 30)
+    this.text(104, 'Pokemon personal bests', 16, muted, 22)
+    Object.keys(historyTitles).forEach((metric, i) => {
+      this.button(136 + i * 60, historyTitles[metric], () => {
+        this.historyMetric = metric
+        this.show('history-detail')
+      }, 20, 280, i === 0, 50)
+    })
+    this.button(332, 'Back', () => back())
+  },
+
+  renderHistoryDetail() {
+    const metric = this.historyMetric
+    const record = this.state.personalBests[metric]
+    this.background()
+    this.text(70, historyTitles[metric], 20, ink, 26)
+    if (record) {
+      const form = metric === 'hatch' ? routes[record.route][0] : record.form || currentForm(record.route, record.meters, record.mega)
+      const name = (record.shiny ? 'Shiny ' : '') + (form === 'Egg' ? routes[record.route][0] + ' egg' : form)
+      this.updateBackground(form === 'Egg' ? routes[record.route][0] : form)
+      this.text(100, name, name.length > 23 ? 15 : 20, ink, 24)
+      this.image(130, form, record.shiny, null, 144)
+      this.text(276, metric === 'distance' ? km(record.meters) : elapsedLabel(metric === 'hatch' ? record.hatchSeconds : record.elapsedSeconds), 25, ink, 30)
+      this.text(308, metric === 'hatch' ? '5 km hatch (first detected)' :
+        (metric === 'elapsed' ? 'Includes stops | ' : 'Saved ') + record.finishedAt.slice(0, 10), 12, muted, 18)
+    } else {
+      this.text(160, 'No record yet', 23, ink, 32)
+      this.text(206, metric === 'hatch' ? 'Reach 5 km, then save a new adventure.' :
+        metric === 'elapsed' ? 'Finish & save a new timed adventure.' : 'Finish & save an adventure.', 18, muted, 64)
+    }
+    this.button(332, 'Back', () => this.show('history'))
+  },
 
   render() {
     this.stopMotion()
@@ -210,6 +273,8 @@ Page({
     this.stats = null
     this.clockStats = null
     this.portrait = null
+    if (this.view === 'history') { this.renderHistory(); return }
+    if (this.view === 'history-detail') { this.renderHistoryDetail(); return }
     if (this.view === 'home') { this.renderHub(); return }
     if (this.view === 'new') { this.renderGenerationPicker(); return }
     this.background()
@@ -223,9 +288,15 @@ Page({
       this.button(104, this.dexShiny ? '> Shiny' : 'Shiny', () => { this.dexShiny = true; this.render() }, 166, 134, this.dexShiny)
       if (record) {
         this.image(152, name, this.dexShiny)
-        this.text(248, km(record.meters), 25)
-        this.text(280, record.steps + ' steps', 18, muted, 24)
-        this.text(306, record.finishedAt.slice(0, 10), 16, muted, 22)
+        if (hasDexDistance(name, record)) {
+          this.text(248, km(record.meters), 25, ink, 28)
+          this.text(276, record.steps + ' steps', 14, muted, 18)
+          this.text(294, Number.isFinite(record.elapsedSeconds) ? 'Time ' + elapsedLabel(record.elapsedSeconds) : 'Time not recorded', 14, muted, 18)
+          this.text(312, record.finishedAt.slice(0, 10), 12, muted, 16)
+        } else {
+          this.text(250, 'Distance unavailable', 19, ink, 28)
+          this.text(282, 'An older run overwrote these details.', 14, muted, 44)
+        }
       } else this.text(200, 'Not acquired', 23, muted)
       this.button(332, 'Back', () => { this.view = 'dex'; this.render() })
       return
@@ -247,6 +318,7 @@ Page({
         this.sync()
         finishSession(this.state, new Date().toISOString())
         this.save()
+        this.syncPhone()
         setWakeUpRelaunch({ relaunch: false })
         this.show('home')
       }, 20, 280, true)
@@ -260,7 +332,7 @@ Page({
     if (!items.length) {
       this.text(134, isDex ? 'No Pokemon acquired yet' : 'No saved adventures yet', 20, ink, 56)
       this.text(206, 'Choose a new egg to begin', 18, muted)
-      this.button(332, 'Back', () => this.show('home'))
+      this.button(332, 'Back', () => isDex ? back() : this.show('home'))
       return
     }
     const item = items[this.index]
@@ -288,16 +360,19 @@ Page({
     this.button(332, '>', () => move(1), 68, 44)
     this.button(332, '+10', () => move(10), 116, 56)
     if (!isDex) this.button(332, 'Start', () => this.start(item), 176, 60, true)
-    this.button(332, 'Back', () => this.show(this.view === 'choose' ? 'new' : 'home'), 240, 60)
+    this.button(332, 'Back', () => isDex ? back() : this.show(this.view === 'choose' ? 'new' : 'home'), 240, 60)
   },
 
   start(route) {
+    this.paceSamples = []
+    this.paceNeedsBaseline = false
     this.state.active = {
       route, startedAt: Date.now(), shiny: rollShiny(), mega: megaChoices(route)[this.megaIndex], meters: 0, steps: 0, day: dayKey(),
       lastMeters: this.distance.getCurrent(), lastSteps: this.step.getCurrent()
     }
     this.save()
     setWakeUpRelaunch({ relaunch: true })
+    this.syncPhone()
     this.show('session')
   },
 
@@ -310,7 +385,10 @@ Page({
       next === null ? 'Final form reached!' : km(next - session.meters) + ' to ' + (next === 21000 ? 'Mega' : form === 'Egg' ? 'hatch' : 'evolve')]
     this.stats.forEach((item, i) => item.setProperty(prop.TEXT, values[i]))
     this.stats[0].setProperty(prop.MORE, { text_size: values[0].length > 30 ? 14 : 18 })
-    if (this.portrait) this.portrait.setProperty(prop.MORE, { src: spritePath(form, session.shiny) })
+    if (this.portrait) this.portrait.setProperty(prop.MORE, {
+      src: spritePath(form, session.shiny), w: 176, h: 176,
+      pos_x: 0, pos_y: 0, auto_scale: true, auto_scale_obj_fit: true
+    })
     this.updateBackground(form === 'Egg' ? routes[session.route][0] : form)
     this.refreshClock()
   },
@@ -318,8 +396,13 @@ Page({
   refreshClock() {
     const session = this.state.active
     const seconds = elapsedSeconds(session)
+    const now = Date.now()
+    const last = this.paceSamples[this.paceSamples.length - 1]
+    // Wake timers can run before delayed sensor callbacks; wait for fresh distance.
+    if (last && (now < last.at || now - last.at > 5000)) this.paceNeedsBaseline = true
+    const pace = currentPace(this.paceSamples, session.meters, now)
     this.clockStats[0].setProperty(prop.TEXT, 'Time ' + elapsedLabel(seconds))
-    this.clockStats[1].setProperty(prop.TEXT, 'Pace ' + paceLabel(seconds, session.meters))
+    this.clockStats[1].setProperty(prop.TEXT, 'Pace ' + (this.paceNeedsBaseline ? '--:-- /km' : pace))
   },
 
   onDestroy() {

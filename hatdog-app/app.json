@@ -5,8 +5,8 @@
     "appName": "Zepimon",
     "appType": "app",
     "version": {
-      "code": 18,
-      "name": "1.5.1"
+      "code": 23,
+      "name": "1.7.2"
     },
     "icon": "gengar.png",
     "vender": "zepp",
@@ -47,6 +47,12 @@
       "module": {
         "page": {
           "pages": ["page/index", "page/adventure"]
+        },
+        "app-side": {
+          "path": "app-side/index"
+        },
+        "setting": {
+          "path": "setting/index"
         }
       },
     "platforms": [

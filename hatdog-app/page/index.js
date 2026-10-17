@@ -1,6 +1,7 @@
 import { createWidget, widget, align, prop, text_style } from '@zos/ui'
 import { push } from '@zos/router'
 import { Distance } from '@zos/sensor'
+import { LocalStorage } from '@zos/storage'
 
 const text = (x, y, w, h, value, size, color = 0xE0E9D3) => createWidget(widget.TEXT, {
   x, y, w, h, text: value, text_size: size, color,
@@ -41,7 +42,10 @@ Page({
       rect(x + 3, y + 7, 15, 14, 0x398463)
       rect(x - 2, y + 18, 25, 13, 0x164A48)
     })
-    createWidget(widget.IMG, { x: 196, y: 108, w: 96, h: 96, auto_scale: true, src: 'pokemon/443.png' })
+    createWidget(widget.IMG, {
+      x: 196, y: 108, w: 96, h: 96, pos_x: 0, pos_y: 0,
+      auto_scale: true, auto_scale_obj_fit: true, src: 'pokemon/443.png'
+    })
 
     panel(12, 205, 296, 60, 0xDAE5BF)
     text(60, 208, 228, 20, "TODAY'S DISTANCE", 15, 0x082638)
@@ -54,20 +58,28 @@ Page({
     rect(36, 235, 4, 3, 0xE5EFDB)
     this.distanceText = text(62, 225, 182, 38, '--', 32, 0x082638)
     text(244, 238, 48, 25, 'km', 20, 0x082638)
-    this.status = text(16, 267, 288, 18, 'Ready to start', 14)
+    let active = false
+    try {
+      const saved = new LocalStorage().getItem('zepimon-v1')
+      active = !!(saved && saved.active)
+    } catch (error) { console.log('Title adventure:', String(error)) }
+    this.status = text(16, 267, 288, 18, active ? 'Adventure in progress' : 'Ready to start', 14)
     panel(12, 286, 296, 40, 0xE6EAB5)
     createWidget(widget.BUTTON, {
       x: 15, y: 288, w: 290, h: 36, radius: 0,
-      text: 'Start Adventure  >', text_size: 20, color: 0x082638,
+      text: (active ? 'Continue adventure' : 'Start Adventure') + '  >', text_size: 20, color: 0x082638,
       normal_color: 0xE6EAB5, press_color: 0xB6CB96,
       click_func: () => this.navigate('home')
     })
-    panel(32, 330, 256, 40, 0x05263A)
-    createWidget(widget.BUTTON, {
-      x: 35, y: 332, w: 250, h: 36, radius: 0,
-      text: 'History  >', text_size: 18, color: 0xD7E5DB,
-      normal_color: 0x05263A, press_color: 0x174A54,
-      click_func: () => this.navigate('existing')
+    const shortcuts = [['Dex', 'dex', 20], ['History', 'history', 164]]
+    shortcuts.forEach(([label, view, x]) => {
+      panel(x, 330, 136, 40, 0x05263A)
+      createWidget(widget.BUTTON, {
+        x: x + 3, y: 332, w: 130, h: 36, radius: 0,
+        text: label + '  >', text_size: 18, color: 0xD7E5DB,
+        normal_color: 0x05263A, press_color: 0x174A54,
+        click_func: () => this.navigate(view)
+      })
     })
     try {
       this.distance = new Distance()

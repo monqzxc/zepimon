@@ -18,12 +18,29 @@ export function elapsedSeconds(session, now = Date.now()) {
 export function elapsedLabel(seconds) {
   if (seconds === null) return '--:--:--'
   const pad = (value) => ('0' + value).slice(-2)
-  return pad(Math.floor(seconds / 3600)) + ':' + pad(Math.floor(seconds / 60) % 60) + ':' + pad(seconds % 60)
+  const hours = Math.floor(seconds / 3600)
+  return (hours < 10 ? '0' : '') + hours + ':' + pad(Math.floor(seconds / 60) % 60) + ':' + pad(seconds % 60)
 }
 export function paceLabel(seconds, meters) {
-  if (seconds === null || seconds <= 0 || !Number.isFinite(meters) || meters <= 0) return '--:-- /km'
+  if (!Number.isFinite(seconds) || seconds <= 0 || !Number.isFinite(meters) || meters <= 0) return '--:-- /km'
   const pace = Math.round(seconds * 1000 / meters)
+  if (!Number.isFinite(pace)) return '--:-- /km'
   return Math.floor(pace / 60) + ':' + ('0' + pace % 60).slice(-2) + ' /km'
+}
+export function currentPace(samples, meters, now = Date.now()) {
+  const last = samples[samples.length - 1]
+  if (!Number.isFinite(meters) || meters < 0 || !Number.isFinite(now)) {
+    samples.length = 0
+    return paceLabel(null, 0)
+  }
+  // A suspended screen or a counter/clock reset needs a fresh pace baseline.
+  if (last && (now < last.at || now - last.at > 5000 || meters < last.meters)) samples.length = 0
+  if (!samples.length) samples.push({ at: now, meters })
+  else if (now === last.at) last.meters = meters
+  else if (now - last.at >= 1000) samples.push({ at: now, meters })
+  while (samples.length > 1 && samples[1].at <= now - 15000) samples.shift()
+  const first = samples[0]
+  return paceLabel(now - first.at >= 5000 ? (now - first.at) / 1000 : null, meters - first.meters)
 }
 export function spritePath(name, shiny = false) {
   if (name.indexOf('Shiny ') === 0) { name = name.slice(6); shiny = true }
@@ -55,8 +72,9 @@ export function currentForm(route, meters, mega) {
   return forms.length ? forms[forms.length - 1] : 'Egg'
 }
 
-export function updateSession(session, meters, steps, day) {
+export function updateSession(session, meters, steps, day, now = Date.now()) {
   if (!Number.isFinite(meters) || !Number.isFinite(steps) || meters < 0 || steps < 0) return
+  const previousMeters = session.meters
   // shortcut: daily totals cannot recover missed days; reopen daily on multi-day adventures.
   const sameDay = session.day === day
   session.meters += sameDay && meters >= session.lastMeters ? meters - session.lastMeters : meters
@@ -64,21 +82,109 @@ export function updateSession(session, meters, steps, day) {
   session.lastMeters = meters
   session.lastSteps = steps
   session.day = day
+  if (previousMeters < 5000 && session.meters >= 5000 && !Number.isFinite(session.hatchSeconds)) {
+    const seconds = elapsedSeconds(session, now)
+    // This is the first detected crossing; closed-app intervals cannot reveal the exact hatch instant.
+    if (seconds > 0) session.hatchSeconds = seconds
+  }
+}
+
+export function refreshPersonalBests(state) {
+  const bests = state.personalBests || {}
+  const fields = { distance: 'meters', elapsed: 'elapsedSeconds', hatch: 'hatchSeconds' }
+  const score = (record, metric) => {
+    if (!record || !Number.isInteger(record.route) || !routes[record.route] ||
+        !Number.isFinite(record.meters) || record.meters < 0) return null
+    const value = record[fields[metric]]
+    if (!Number.isFinite(value) || (metric === 'distance' ? value < 0 : value <= 0)) return null
+    if (metric === 'hatch' && (record.meters < 5000 || !Number.isFinite(record.elapsedSeconds) || value > record.elapsedSeconds)) return null
+    return value
+  }
+  const winners = {}
+  Object.keys(fields).forEach((metric) => {
+    if (score(bests[metric], metric) !== null) winners[metric] = { ...bests[metric] }
+  })
+  Object.keys(state.records).forEach((key) => {
+    const candidate = { ...state.records[key], route: Number(key) }
+    Object.keys(fields).forEach((metric) => {
+      const value = score(candidate, metric)
+      const previous = score(winners[metric], metric)
+      if (value !== null && (previous === null || (metric === 'hatch' ? value < previous : value > previous))) {
+        winners[metric] = { ...candidate }
+      }
+    })
+  })
+  state.personalBests = winners
+  return winners
+}
+
+export function hasDexDistance(name, record) {
+  name = name.replace(/^Shiny /, '')
+  const minimum = name.indexOf('Mega ') === 0 ? 21000 : routes.reduce((lowest, route) => {
+    const index = route.indexOf(name)
+    return index < 0 ? lowest : Math.min(lowest, (index + 1) * 5000)
+  }, Infinity)
+  return !!record && Number.isFinite(record.meters) && record.meters >= minimum
+}
+
+function dexRecord(record) {
+  return { meters: record.meters, steps: record.steps, finishedAt: record.finishedAt, shiny: !!record.shiny,
+    startedAt: Number.isFinite(record.startedAt) && record.startedAt >= 0 ? record.startedAt : null,
+    elapsedSeconds: Number.isFinite(record.elapsedSeconds) && record.elapsedSeconds >= 0 ? record.elapsedSeconds : null,
+    hatchSeconds: Number.isFinite(record.hatchSeconds) && record.hatchSeconds > 0 && Number.isFinite(record.elapsedSeconds) && record.elapsedSeconds >= record.hatchSeconds
+      ? record.hatchSeconds : null }
+}
+
+export function repairDexRecords(state) {
+  const damaged = {}
+  const recovered = {}
+  let changed = false
+  Object.keys(state.dex).forEach((key) => { if (!hasDexDistance(key, state.dex[key])) damaged[key] = true })
+  const candidates = Object.keys(state.records).map((key) => ({ ...state.records[key], route: Number(key) }))
+    .concat(Object.values(state.personalBests || {}))
+  candidates.forEach((record) => {
+    if (!record || !Number.isInteger(record.route) || !routes[record.route] ||
+        !Number.isFinite(record.meters) || record.meters < 5000 ||
+        !Number.isSafeInteger(record.steps) || record.steps < 0 ||
+        typeof record.finishedAt !== 'string' || !Number.isFinite(Date.parse(record.finishedAt)) ||
+        (record.shiny !== undefined && typeof record.shiny !== 'boolean')) return
+    // Old saves may identify a Mega only by their final form; never guess its variant.
+    const mega = record.mega || (megaChoices(record.route).includes(record.form) ? record.form : '')
+    const earned = acquiredForms(record.route, record.meters, mega).filter((name) => name.indexOf('Mega ') !== 0 || name === mega)
+    earned.forEach((name) => {
+      const key = (record.shiny ? 'Shiny ' : '') + name
+      const previous = state.dex[key]
+      if (!previous) return
+      const sameJourney = previous.meters === record.meters && previous.steps === record.steps && previous.finishedAt === record.finishedAt
+      if ((damaged[key] && (!recovered[key] || Date.parse(record.finishedAt) > Date.parse(recovered[key].finishedAt))) ||
+          (!damaged[key] && sameJourney && !Number.isFinite(previous.elapsedSeconds) && Number.isFinite(record.elapsedSeconds) && record.elapsedSeconds >= 0)) {
+        recovered[key] = dexRecord(record)
+      }
+    })
+  })
+  Object.keys(recovered).forEach((key) => { state.dex[key] = recovered[key]; changed = true })
+  return changed
 }
 
 export function finishSession(state, finishedAt) {
+  // Seed old saves before replacing this route's latest journey.
+  refreshPersonalBests(state)
+  repairDexRecords(state)
   const session = state.active
   const earned = acquiredForms(session.route, session.meters, session.mega)
-  const selectedMega = session.mega || megaChoices(session.route)[0]
-  routes[session.route].concat(selectedMega || []).forEach((name) => {
-    const key = session.shiny ? 'Shiny ' + name : name
-    if (earned.includes(name) || state.dex[key]) {
-      state.dex[key] = { meters: session.meters, steps: session.steps, finishedAt, shiny: !!session.shiny }
-    }
-  })
+  const seconds = elapsedSeconds(session, Date.parse(finishedAt))
+  const hatchSeconds = session.meters >= 5000 && Number.isFinite(session.hatchSeconds) &&
+    session.hatchSeconds > 0 && seconds !== null && session.hatchSeconds <= seconds ? session.hatchSeconds : null
   state.records[session.route] = {
     meters: session.meters, steps: session.steps, finishedAt,
+    startedAt: Number.isFinite(session.startedAt) ? session.startedAt : null,
+    elapsedSeconds: seconds, hatchSeconds,
     shiny: !!session.shiny, mega: session.mega, form: currentForm(session.route, session.meters, session.mega)
   }
+  earned.forEach((name) => {
+    const key = session.shiny ? 'Shiny ' + name : name
+    state.dex[key] = dexRecord(state.records[session.route])
+  })
+  refreshPersonalBests(state)
   state.active = null
 }
