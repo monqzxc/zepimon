@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Zepimon",
+    "slug": "zepimon-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "zepimon",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.zepimon.companion"
+    },
+    "android": {
+      "package": "com.zepimon.companion"
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ]
+  }
+}

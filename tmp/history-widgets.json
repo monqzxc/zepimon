@@ -1,0 +1,929 @@
+[
+  {
+    "name": "History menu",
+    "widgets": [
+      {
+        "_type": 4,
+        "x": 0,
+        "y": 64,
+        "w": 320,
+        "h": 316,
+        "color": 203308
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 64,
+        "w": 294,
+        "h": 314,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 10,
+        "y": 67,
+        "w": 300,
+        "h": 308,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 67,
+        "w": 294,
+        "h": 308,
+        "color": 401720
+      },
+      {
+        "_type": 4,
+        "x": 16,
+        "y": 70,
+        "w": 288,
+        "h": 302,
+        "color": 2104360
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 100,
+        "w": 272,
+        "h": 2,
+        "color": 8484225
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 372,
+        "w": 272,
+        "h": 2,
+        "color": 8484225
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 70,
+        "w": 280,
+        "h": 30,
+        "text": "History",
+        "text_size": 24,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 104,
+        "w": 280,
+        "h": 22,
+        "text": "Pokemon personal bests",
+        "text_size": 16,
+        "color": 9229301,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 4,
+        "x": 23,
+        "y": 136,
+        "w": 274,
+        "h": 50,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 20,
+        "y": 139,
+        "w": 280,
+        "h": 44,
+        "color": 4437484
+      },
+      {
+        "_type": 2,
+        "x": 23,
+        "y": 139,
+        "w": 274,
+        "h": 44,
+        "radius": 0,
+        "text": "Highest distance",
+        "text_size": 19,
+        "color": 16777215,
+        "normal_color": 825285,
+        "press_color": 474997
+      },
+      {
+        "_type": 4,
+        "x": 23,
+        "y": 196,
+        "w": 274,
+        "h": 50,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 20,
+        "y": 199,
+        "w": 280,
+        "h": 44,
+        "color": 4437484
+      },
+      {
+        "_type": 2,
+        "x": 23,
+        "y": 199,
+        "w": 274,
+        "h": 44,
+        "radius": 0,
+        "text": "Longest elapsed time",
+        "text_size": 19,
+        "color": 16777215,
+        "normal_color": 613541,
+        "press_color": 474997
+      },
+      {
+        "_type": 4,
+        "x": 23,
+        "y": 256,
+        "w": 274,
+        "h": 50,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 20,
+        "y": 259,
+        "w": 280,
+        "h": 44,
+        "color": 4437484
+      },
+      {
+        "_type": 2,
+        "x": 23,
+        "y": 259,
+        "w": 274,
+        "h": 44,
+        "radius": 0,
+        "text": "Fastest 5 km hatch",
+        "text_size": 19,
+        "color": 16777215,
+        "normal_color": 613541,
+        "press_color": 474997
+      },
+      {
+        "_type": 4,
+        "x": 23,
+        "y": 332,
+        "w": 274,
+        "h": 42,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 20,
+        "y": 335,
+        "w": 280,
+        "h": 36,
+        "color": 4437484
+      },
+      {
+        "_type": 2,
+        "x": 23,
+        "y": 335,
+        "w": 274,
+        "h": 36,
+        "radius": 0,
+        "text": "Back",
+        "text_size": 19,
+        "color": 16777215,
+        "normal_color": 613541,
+        "press_color": 474997
+      }
+    ]
+  },
+  {
+    "name": "distance personal best",
+    "widgets": [
+      {
+        "_type": 4,
+        "x": 0,
+        "y": 64,
+        "w": 320,
+        "h": 316,
+        "color": 203308
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 64,
+        "w": 294,
+        "h": 314,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 10,
+        "y": 67,
+        "w": 300,
+        "h": 308,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 67,
+        "w": 294,
+        "h": 308,
+        "color": 401720
+      },
+      {
+        "_type": 4,
+        "x": 16,
+        "y": 70,
+        "w": 288,
+        "h": 302,
+        "color": 3152406
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 100,
+        "w": 272,
+        "h": 2,
+        "color": 15300920
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 372,
+        "w": 272,
+        "h": 2,
+        "color": 15300920
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 70,
+        "w": 280,
+        "h": 26,
+        "text": "Highest distance",
+        "text_size": 20,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 100,
+        "w": 280,
+        "h": 24,
+        "text": "Mega Charizard X",
+        "text_size": 20,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 3,
+        "x": 88,
+        "y": 130,
+        "w": 144,
+        "h": 144,
+        "pos_x": 0,
+        "pos_y": 0,
+        "auto_scale": true,
+        "auto_scale_obj_fit": true,
+        "src": "pokemon/10034.png"
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 276,
+        "w": 280,
+        "h": 30,
+        "text": "30.00 km",
+        "text_size": 25,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 308,
+        "w": 280,
+        "h": 18,
+        "text": "Saved 2026-10-15",
+        "text_size": 12,
+        "color": 9229301,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 4,
+        "x": 23,
+        "y": 332,
+        "w": 274,
+        "h": 42,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 20,
+        "y": 335,
+        "w": 280,
+        "h": 36,
+        "color": 4437484
+      },
+      {
+        "_type": 2,
+        "x": 23,
+        "y": 335,
+        "w": 274,
+        "h": 36,
+        "radius": 0,
+        "text": "Back",
+        "text_size": 19,
+        "color": 16777215,
+        "normal_color": 613541,
+        "press_color": 474997
+      }
+    ]
+  },
+  {
+    "name": "elapsed personal best",
+    "widgets": [
+      {
+        "_type": 4,
+        "x": 0,
+        "y": 64,
+        "w": 320,
+        "h": 316,
+        "color": 203308
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 64,
+        "w": 294,
+        "h": 314,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 10,
+        "y": 67,
+        "w": 300,
+        "h": 308,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 67,
+        "w": 294,
+        "h": 308,
+        "color": 401720
+      },
+      {
+        "_type": 4,
+        "x": 16,
+        "y": 70,
+        "w": 288,
+        "h": 302,
+        "color": 1256224
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 100,
+        "w": 272,
+        "h": 2,
+        "color": 6600802
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 372,
+        "w": 272,
+        "h": 2,
+        "color": 6600802
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 70,
+        "w": 280,
+        "h": 26,
+        "text": "Longest elapsed time",
+        "text_size": 20,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 100,
+        "w": 280,
+        "h": 24,
+        "text": "Mega Venusaur",
+        "text_size": 20,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 3,
+        "x": 88,
+        "y": 130,
+        "w": 144,
+        "h": 144,
+        "pos_x": 0,
+        "pos_y": 0,
+        "auto_scale": true,
+        "auto_scale_obj_fit": true,
+        "src": "pokemon/10033.png"
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 276,
+        "w": 280,
+        "h": 30,
+        "text": "05:33:20",
+        "text_size": 25,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 308,
+        "w": 280,
+        "h": 18,
+        "text": "Includes stops | 2026-10-15",
+        "text_size": 12,
+        "color": 9229301,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 4,
+        "x": 23,
+        "y": 332,
+        "w": 274,
+        "h": 42,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 20,
+        "y": 335,
+        "w": 280,
+        "h": 36,
+        "color": 4437484
+      },
+      {
+        "_type": 2,
+        "x": 23,
+        "y": 335,
+        "w": 274,
+        "h": 36,
+        "radius": 0,
+        "text": "Back",
+        "text_size": 19,
+        "color": 16777215,
+        "normal_color": 613541,
+        "press_color": 474997
+      }
+    ]
+  },
+  {
+    "name": "hatch personal best",
+    "widgets": [
+      {
+        "_type": 4,
+        "x": 0,
+        "y": 64,
+        "w": 320,
+        "h": 316,
+        "color": 203308
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 64,
+        "w": 294,
+        "h": 314,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 10,
+        "y": 67,
+        "w": 300,
+        "h": 308,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 67,
+        "w": 294,
+        "h": 308,
+        "color": 401720
+      },
+      {
+        "_type": 4,
+        "x": 16,
+        "y": 70,
+        "w": 288,
+        "h": 302,
+        "color": 1256224
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 100,
+        "w": 272,
+        "h": 2,
+        "color": 6600802
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 372,
+        "w": 272,
+        "h": 2,
+        "color": 6600802
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 70,
+        "w": 280,
+        "h": 26,
+        "text": "Fastest 5 km hatch",
+        "text_size": 20,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 100,
+        "w": 280,
+        "h": 24,
+        "text": "Shiny Bulbasaur",
+        "text_size": 20,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 3,
+        "x": 88,
+        "y": 130,
+        "w": 144,
+        "h": 144,
+        "pos_x": 0,
+        "pos_y": 0,
+        "auto_scale": true,
+        "auto_scale_obj_fit": true,
+        "src": "pokemon/1-shiny.png"
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 276,
+        "w": 280,
+        "h": 30,
+        "text": "00:20:00",
+        "text_size": 25,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 308,
+        "w": 280,
+        "h": 18,
+        "text": "5 km hatch (first detected)",
+        "text_size": 12,
+        "color": 9229301,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 4,
+        "x": 23,
+        "y": 332,
+        "w": 274,
+        "h": 42,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 20,
+        "y": 335,
+        "w": 280,
+        "h": 36,
+        "color": 4437484
+      },
+      {
+        "_type": 2,
+        "x": 23,
+        "y": 335,
+        "w": 274,
+        "h": 36,
+        "radius": 0,
+        "text": "Back",
+        "text_size": 19,
+        "color": 16777215,
+        "normal_color": 613541,
+        "press_color": 474997
+      }
+    ]
+  },
+  {
+    "name": "No hatch record yet",
+    "widgets": [
+      {
+        "_type": 4,
+        "x": 0,
+        "y": 64,
+        "w": 320,
+        "h": 316,
+        "color": 203308
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 64,
+        "w": 294,
+        "h": 314,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 10,
+        "y": 67,
+        "w": 300,
+        "h": 308,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 67,
+        "w": 294,
+        "h": 308,
+        "color": 401720
+      },
+      {
+        "_type": 4,
+        "x": 16,
+        "y": 70,
+        "w": 288,
+        "h": 302,
+        "color": 2104360
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 100,
+        "w": 272,
+        "h": 2,
+        "color": 8484225
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 372,
+        "w": 272,
+        "h": 2,
+        "color": 8484225
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 70,
+        "w": 280,
+        "h": 26,
+        "text": "Fastest 5 km hatch",
+        "text_size": 20,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 160,
+        "w": 280,
+        "h": 32,
+        "text": "No record yet",
+        "text_size": 23,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 206,
+        "w": 280,
+        "h": 64,
+        "text": "Reach 5 km, then save a new adventure.",
+        "text_size": 18,
+        "color": 9229301,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 4,
+        "x": 23,
+        "y": 332,
+        "w": 274,
+        "h": 42,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 20,
+        "y": 335,
+        "w": 280,
+        "h": 36,
+        "color": 4437484
+      },
+      {
+        "_type": 2,
+        "x": 23,
+        "y": 335,
+        "w": 274,
+        "h": 36,
+        "radius": 0,
+        "text": "Back",
+        "text_size": 19,
+        "color": 16777215,
+        "normal_color": 613541,
+        "press_color": 474997
+      }
+    ]
+  },
+  {
+    "name": "Long name / over 99 hours",
+    "widgets": [
+      {
+        "_type": 4,
+        "x": 0,
+        "y": 64,
+        "w": 320,
+        "h": 316,
+        "color": 203308
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 64,
+        "w": 294,
+        "h": 314,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 10,
+        "y": 67,
+        "w": 300,
+        "h": 308,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 13,
+        "y": 67,
+        "w": 294,
+        "h": 308,
+        "color": 401720
+      },
+      {
+        "_type": 4,
+        "x": 16,
+        "y": 70,
+        "w": 288,
+        "h": 302,
+        "color": 1712184
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 100,
+        "w": 272,
+        "h": 2,
+        "color": 7962587
+      },
+      {
+        "_type": 4,
+        "x": 24,
+        "y": 372,
+        "w": 272,
+        "h": 2,
+        "color": 7962587
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 70,
+        "w": 280,
+        "h": 26,
+        "text": "Longest elapsed time",
+        "text_size": 20,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 100,
+        "w": 280,
+        "h": 24,
+        "text": "Shiny Mega Tatsugiri Stretchy",
+        "text_size": 15,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 3,
+        "x": 88,
+        "y": 130,
+        "w": 144,
+        "h": 144,
+        "pos_x": 0,
+        "pos_y": 0,
+        "auto_scale": true,
+        "auto_scale_obj_fit": true,
+        "src": "pokemon/10324-shiny.png"
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 276,
+        "w": 280,
+        "h": 30,
+        "text": "100:01:01",
+        "text_size": 25,
+        "color": 16777215,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 1,
+        "x": 20,
+        "y": 308,
+        "w": 280,
+        "h": 18,
+        "text": "Includes stops | 2026-10-16",
+        "text_size": 12,
+        "color": 9229301,
+        "align_h": 1,
+        "text_style": 1
+      },
+      {
+        "_type": 4,
+        "x": 23,
+        "y": 332,
+        "w": 274,
+        "h": 42,
+        "color": 4437484
+      },
+      {
+        "_type": 4,
+        "x": 20,
+        "y": 335,
+        "w": 280,
+        "h": 36,
+        "color": 4437484
+      },
+      {
+        "_type": 2,
+        "x": 23,
+        "y": 335,
+        "w": 274,
+        "h": 36,
+        "radius": 0,
+        "text": "Back",
+        "text_size": 19,
+        "color": 16777215,
+        "normal_color": 613541,
+        "press_color": 474997
+      }
+    ]
+  }
+]

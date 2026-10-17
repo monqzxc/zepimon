@@ -1,0 +1,1932 @@
+{
+  "dex": {
+    "component": "View",
+    "props": {
+      "style": {
+        "padding": "22px 16px 36px",
+        "minHeight": "100vh",
+        "background": "#061b2c",
+        "color": "#f4ebcf",
+        "fontFamily": "monospace",
+        "boxSizing": "border-box"
+      }
+    },
+    "children": [
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "12px",
+            "color": "#54c7c4",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "ZEPIMON / FIELD JOURNAL"
+        ]
+      },
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "27px",
+            "color": "#f4ebcf",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "Your adventure, up close."
+        ]
+      },
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "15px",
+            "color": "#9abfcd",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "Walk. Hatch. Evolve."
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "marginTop": "16px"
+          }
+        },
+        "children": [
+          {
+            "component": "Button",
+            "props": {
+              "label": "Sync from watch",
+              "style": {
+                "minHeight": "44px",
+                "padding": "10px 14px",
+                "borderRadius": "3px",
+                "border": "2px solid #54c7c4",
+                "background": "#135b89",
+                "color": "#ffffff",
+                "fontWeight": "bold",
+                "fontSize": "14px"
+              }
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "12px",
+            "color": "#9abfcd",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "Synced with your watch"
+        ]
+      },
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "12px",
+            "color": "#9abfcd",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "Last sync: 10/15/2026, 9:35:44 PM"
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "background": "#102d42",
+            "border": "2px solid #54c7c4",
+            "padding": "16px",
+            "marginTop": "14px",
+            "boxShadow": "4px 4px 0 #03111e"
+          }
+        },
+        "children": [
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "20px",
+                "color": "#f4ebcf",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "552 / 552 Pokemon acquired"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "14px",
+                "color": "#9abfcd",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "649 normal forms  /  649 shiny forms"
+            ]
+          }
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "marginTop": "16px"
+          }
+        },
+        "children": [
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px",
+                "alignItems": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Button",
+                "props": {
+                  "label": "Pokedex",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#f4ebcf",
+                    "color": "#102d42",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "Journeys",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "marginTop": "16px",
+            "background": "#e8efd8",
+            "padding": "10px",
+            "color": "#102d42"
+          }
+        },
+        "children": [
+          {
+            "component": "TextInput",
+            "props": {
+              "label": "Find a Pokemon",
+              "placeholder": "e.g. Gible or Mega Gengar",
+              "value": "",
+              "labelStyle": {
+                "color": "#102d42"
+              }
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "marginTop": "12px"
+          }
+        },
+        "children": [
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px",
+                "alignItems": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Button",
+                "props": {
+                  "label": "All",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "Normal",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "Shiny",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#f4ebcf",
+                    "color": "#102d42",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "All generations",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "12px",
+            "color": "#9abfcd",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "649 matching Pokemon"
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "marginTop": "16px"
+          }
+        },
+        "children": [
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px",
+                "alignItems": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Button",
+                "props": {
+                  "label": "Previous",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "14px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "1 / 55"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "Next",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "display": "flex",
+            "flexWrap": "wrap",
+            "gap": "8px",
+            "alignItems": "center"
+          }
+        },
+        "children": [
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/460.png",
+                  "alt": "Shiny Abomasnow",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Abomasnow"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/63.png",
+                  "alt": "Shiny Abra",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Abra"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/359.png",
+                  "alt": "Shiny Absol",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Absol"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/142.png",
+                  "alt": "Shiny Aerodactyl",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Aerodactyl"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/306.png",
+                  "alt": "Shiny Aggron",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Aggron"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/190.png",
+                  "alt": "Shiny Aipom",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Aipom"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/65.png",
+                  "alt": "Shiny Alakazam",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Alakazam"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/334.png",
+                  "alt": "Shiny Altaria",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Altaria"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/424.png",
+                  "alt": "Shiny Ambipom",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Ambipom"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/181.png",
+                  "alt": "Shiny Ampharos",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Ampharos"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/347.png",
+                  "alt": "Shiny Anorith",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Anorith"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "width": "calc(50% - 4px)",
+                "boxSizing": "border-box",
+                "padding": "12px 6px",
+                "marginTop": "10px",
+                "border": "2px solid #54c7c4",
+                "background": "#102d42",
+                "textAlign": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Image",
+                "props": {
+                  "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/shiny/24.png",
+                  "alt": "Shiny Arbok",
+                  "width": 112,
+                  "height": 112,
+                  "style": {
+                    "objectFit": "contain",
+                    "imageRendering": "pixelated",
+                    "display": "block",
+                    "margin": "0 auto"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "16px",
+                    "color": "#f4ebcf",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Arbok"
+                ]
+              },
+              {
+                "component": "Text",
+                "props": {
+                  "style": {
+                    "display": "block",
+                    "fontSize": "11px",
+                    "color": "#9abfcd",
+                    "lineHeight": "1.5",
+                    "overflowWrap": "anywhere"
+                  }
+                },
+                "children": [
+                  "Normal / Shiny"
+                ]
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "View records",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "marginTop": "22px"
+          }
+        },
+        "children": [
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "12px",
+                "color": "#9abfcd",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "Your last sync stays on this phone. Pokemon images load online. Syncing does not change your watch records."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "journeys": {
+    "component": "View",
+    "props": {
+      "style": {
+        "padding": "22px 16px 36px",
+        "minHeight": "100vh",
+        "background": "#061b2c",
+        "color": "#f4ebcf",
+        "fontFamily": "monospace",
+        "boxSizing": "border-box"
+      }
+    },
+    "children": [
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "12px",
+            "color": "#54c7c4",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "ZEPIMON / FIELD JOURNAL"
+        ]
+      },
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "27px",
+            "color": "#f4ebcf",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "Your adventure, up close."
+        ]
+      },
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "15px",
+            "color": "#9abfcd",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "Walk. Hatch. Evolve."
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "marginTop": "16px"
+          }
+        },
+        "children": [
+          {
+            "component": "Button",
+            "props": {
+              "label": "Sync from watch",
+              "style": {
+                "minHeight": "44px",
+                "padding": "10px 14px",
+                "borderRadius": "3px",
+                "border": "2px solid #54c7c4",
+                "background": "#135b89",
+                "color": "#ffffff",
+                "fontWeight": "bold",
+                "fontSize": "14px"
+              }
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "12px",
+            "color": "#9abfcd",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "Open Zepimon on your connected watch, then tap Sync again. Last synced records are kept."
+        ]
+      },
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "12px",
+            "color": "#9abfcd",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "Last sync: 10/15/2026, 9:35:44 PM"
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "background": "#102d42",
+            "border": "2px solid #54c7c4",
+            "padding": "16px",
+            "marginTop": "14px",
+            "boxShadow": "4px 4px 0 #03111e"
+          }
+        },
+        "children": [
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "20px",
+                "color": "#f4ebcf",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "1 / 552 Pokemon acquired"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "14px",
+                "color": "#9abfcd",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "1 normal forms  /  1 shiny forms"
+            ]
+          }
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "marginTop": "16px"
+          }
+        },
+        "children": [
+          {
+            "component": "View",
+            "props": {
+              "style": {
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px",
+                "alignItems": "center"
+              }
+            },
+            "children": [
+              {
+                "component": "Button",
+                "props": {
+                  "label": "Pokedex",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#135b89",
+                    "color": "#ffffff",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              },
+              {
+                "component": "Button",
+                "props": {
+                  "label": "Journeys",
+                  "style": {
+                    "minHeight": "44px",
+                    "padding": "10px 14px",
+                    "borderRadius": "3px",
+                    "border": "2px solid #54c7c4",
+                    "background": "#f4ebcf",
+                    "color": "#102d42",
+                    "fontWeight": "bold",
+                    "fontSize": "14px"
+                  }
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "background": "#102d42",
+            "border": "2px solid #54c7c4",
+            "padding": "16px",
+            "marginTop": "14px",
+            "boxShadow": "4px 4px 0 #03111e"
+          }
+        },
+        "children": [
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "12px",
+                "color": "#54c7c4",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "CURRENT ADVENTURE / AT LAST SYNC"
+            ]
+          },
+          {
+            "component": "Image",
+            "props": {
+              "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAA7klEQVR4nO2ZwQnDMAxFv0WG6SjdwAMECr53jN4NhQ6QDTJKt0mhNJfS0qhWgn/kdzSxA3qWnMhAo+GbYLVQPKZJ8/wwZpN3C8jprCKfbyfdxB7PeaUm6A2EzSP/RuqvKDHhz0A0iryVCYH3KhTu54/j0+GiWifPRpXVyY+BuNLeL8WPga3IylzYv4H4Y+9rq401AnI6VEpemAv7NRBXqvvfTu5/c4regIAcATkCcgTkCMgReDuJQ2Edt/52EpAjIEdAjoAcATmh1m5EWtipozfQoTKSske6fwPDHInXv2nrzNVyP7AWg7f7gUbDOw+LJlLYEqWo0gAAAABJRU5ErkJggg==",
+              "alt": "Shiny Egg",
+              "width": 160,
+              "height": 160,
+              "style": {
+                "objectFit": "contain",
+                "imageRendering": "pixelated",
+                "display": "block",
+                "margin": "0 auto"
+              }
+            },
+            "children": []
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "22px",
+                "color": "#f4ebcf",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "Shiny Bulbasaur egg"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "30px",
+                "color": "#f4ebcf",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "0.80 km"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "14px",
+                "color": "#f4ebcf",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "Time 00:10:00 / Pace 12:30 /km"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "14px",
+                "color": "#9abfcd",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "1200 steps"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "14px",
+                "color": "#54c7c4",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "4.20 km to the next milestone"
+            ]
+          }
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "marginTop": "20px"
+          }
+        },
+        "children": [
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "23px",
+                "color": "#f4ebcf",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "Latest saved journeys"
+            ]
+          }
+        ]
+      },
+      {
+        "component": "Text",
+        "props": {
+          "style": {
+            "display": "block",
+            "fontSize": "13px",
+            "color": "#9abfcd",
+            "lineHeight": "1.5",
+            "overflowWrap": "anywhere"
+          }
+        },
+        "children": [
+          "One record per egg family. Another saved run replaces that family’s previous journey."
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "background": "#102d42",
+            "border": "2px solid #54c7c4",
+            "padding": "16px",
+            "marginTop": "14px",
+            "boxShadow": "4px 4px 0 #03111e"
+          }
+        },
+        "children": [
+          {
+            "component": "Image",
+            "props": {
+              "src": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-iv/platinum/1.png",
+              "alt": "Bulbasaur",
+              "width": 136,
+              "height": 136,
+              "style": {
+                "objectFit": "contain",
+                "imageRendering": "pixelated",
+                "display": "block",
+                "margin": "0 auto"
+              }
+            },
+            "children": []
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "23px",
+                "color": "#f4ebcf",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "Bulbasaur"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "12px",
+                "color": "#54c7c4",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "Bulbasaur > Ivysaur > Venusaur"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "24px",
+                "color": "#f4ebcf",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "5.20 km"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "14px",
+                "color": "#9abfcd",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "7000 steps"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "12px",
+                "color": "#9abfcd",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "10/15/2026, 10:00:00 AM"
+            ]
+          },
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "13px",
+                "color": "#9abfcd",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "Time 01:00:00 / Pace 11:32 /km"
+            ]
+          }
+        ]
+      },
+      {
+        "component": "View",
+        "props": {
+          "style": {
+            "marginTop": "22px"
+          }
+        },
+        "children": [
+          {
+            "component": "Text",
+            "props": {
+              "style": {
+                "display": "block",
+                "fontSize": "12px",
+                "color": "#9abfcd",
+                "lineHeight": "1.5",
+                "overflowWrap": "anywhere"
+              }
+            },
+            "children": [
+              "Your last sync stays on this phone. Pokemon images load online. Syncing does not change your watch records."
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
