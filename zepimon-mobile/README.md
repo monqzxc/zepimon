@@ -7,7 +7,7 @@ A standalone iPhone and Android companion for Zepimon, built with Expo SDK 57 an
 - Gen 1–4 Pokémon and the extra Mega families, with bundled sprites and type-themed habitats.
 - Separate Normal and Shiny Dex entries, saved run details, and a selectable buddy.
 - A Journal with personal bests and completed runs retained across imports.
-- Memory Match using your acquired Pokémon variants, with a best score for each board size.
+- A Pocket Arcade with Memory Match, Who’s That Pokémon?, and Berry Catch. All three work offline and save their best scores on the phone.
 - Weekly goals for 10 km and three active days, career missions, and hidden badges. Weeks run Monday–Sunday in the phone’s local time; completed runs count on their finish date.
 
 ## Bring your watch data across
@@ -20,6 +20,16 @@ A standalone iPhone and Android companion for Zepimon, built with Expo SDK 57 an
 Importing the same file again does not double-count runs or mission progress. The watch export contains the latest completed run per family and retained personal bests. Older runs already overwritten on the watch cannot be recovered; regular imports let the phone keep runs it has seen. The Journal shows the latest 20 retained runs. Active adventures do not count toward completed-run missions.
 
 This app uses manual imports. It does not connect directly to the watch over Bluetooth, run a server, or record phone workouts.
+
+## Mini-games
+
+Open **Play**, then choose a game:
+
+- **Memory Match:** match up to six pairs from your acquired Normal/Shiny variants. Requires at least two variants in your imported Dex; fewer moves is better.
+- **Who’s That Pokémon?:** identify ten Gen 1–4 silhouettes, with four choices for each. Answers reveal the Pokemon; there is no timer. Best score is out of ten.
+- **Berry Catch:** tap a berry in the nine garden plots before it moves. Twenty berries appear over 30 seconds, with at most one catch per appearance. The game pauses when you switch tabs, leave the app, or press Pause; tap Resume to continue. Best score is out of twenty.
+
+Quiz and Berry Catch need no import. Only completed games save scores; returning to the arcade discards an unfinished round. Scores survive app restarts and journal imports. These games do not change watch distance, evolution, Shiny odds, or Dex records.
 
 ## Run locally
 

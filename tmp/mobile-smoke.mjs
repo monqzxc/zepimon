@@ -125,7 +125,7 @@ try {
   await waitFor(`document.body.innerText.includes('Shiny Bulbasaur')`)
   assert.equal((await stored()).progress.runs.length, 4)
   assert.equal(JSON.stringify((await stored()).progress.unlocked), badges)
-  await tab('Play'); await screenshot('play')
+  await tab('Play'); await click('Play Memory Match'); await screenshot('play')
   const memories = new Map()
   for (let turn = 0; turn < 45; turn++) {
     if ((await body()).includes('pairs found in')) break

@@ -4,11 +4,13 @@ import { parseJournal } from './journal'
 import type { Journal } from './journal'
 import { emptyProgress, importProgress, restoreProgress } from './progress'
 import type { Progress } from './progress'
+import { restoreScores, saveBestScore } from './games/scores'
+import type { ArcadeGame, ArcadeScores } from './games/scores'
 
 const KEY = 'zepimon-mobile-v1'
-type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress }
-type Store = Saved & { ready: boolean, error: string, importText: (text: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void> }
-const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress() }
+type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores }
+type Store = Saved & { ready: boolean, error: string, importText: (text: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void> }
+const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {} }
 const Context = createContext<Store | null>(null)
 
 export function JournalProvider({ children }: React.PropsWithChildren) {
@@ -31,7 +33,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
       const buddy = typeof value.buddy === 'string' && journal?.snapshot.dex[value.buddy] ? value.buddy : null
       const restored = restoreProgress(value.progress)
       const progress = journal ? importProgress(restored, journal) : restored
-      latest.current = { journal, buddy, bestMoves, progress }
+      latest.current = { journal, buddy, bestMoves, progress, arcadeScores: restoreScores(value.arcadeScores) }
       setSaved(latest.current)
       if (JSON.stringify(value.progress) !== JSON.stringify(progress)) {
         try { await AsyncStorage.setItem(KEY, JSON.stringify(latest.current)) }
@@ -67,7 +69,10 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     if (!Number.isInteger(pairs) || pairs < 2 || pairs > 6 || !Number.isSafeInteger(moves) || moves < pairs) return current
     return { ...current, bestMoves: { ...current.bestMoves, [pairs]: Math.min(current.bestMoves[pairs] || Infinity, moves) } }
   })
-  return <Context.Provider value={{ ...saved, ready, error, importText, chooseBuddy, recordWin }}>{children}</Context.Provider>
+  const recordArcadeScore = (game: ArcadeGame, score: number) => persist(current => ({
+    ...current, arcadeScores: saveBestScore(current.arcadeScores, game, score)
+  }))
+  return <Context.Provider value={{ ...saved, ready, error, importText, chooseBuddy, recordWin, recordArcadeScore }}>{children}</Context.Provider>
 }
 
 export function useJournal() {
