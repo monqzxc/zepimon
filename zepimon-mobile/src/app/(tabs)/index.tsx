@@ -22,15 +22,15 @@ export default function JournalScreen() {
     </Habitat>
     {!journal ? <Panel>
       <Heading>A fresh page</Heading>
-      <Copy>Import your Zepimon JSON export from Zepp to see your Pokemon, journeys and missions here.</Copy>
-      <Button title="Import my journal" onPress={() => router.push('/import')} />
+      <Copy>Link your watch through Zepp or import a JSON export to see your Pokemon, journeys and missions here.</Copy>
+      <Button title="Sync my journal" onPress={() => router.push('/import')} />
     </Panel> : <>
       <View style={styles.row}>
         <Panel style={{ flex: 1, minWidth: 130 }}><Text style={styles.stat}>{dexEntries(journal).length}</Text><Copy>Pokemon acquired</Copy></Panel>
         <Panel style={{ flex: 1, minWidth: 130 }}><Text style={styles.stat}>{badges}</Text><Copy>Badges earned</Copy></Panel>
       </View>
       <Panel>
-        <Eyebrow>IMPORTED ADVENTURES</Eyebrow>
+        <Eyebrow>SAVED ADVENTURES</Eyebrow>
         <Text style={styles.stat}>{km(total)}</Text>
         <Copy>{runs.length} completed adventures kept on this phone</Copy>
         <Copy small>Last watch snapshot: {new Date(journal.snapshot.capturedAt).toLocaleString()}</Copy>
@@ -40,7 +40,7 @@ export default function JournalScreen() {
         <Eyebrow>ON YOUR WATCH / LAST SYNC</Eyebrow>
         <Copy color={colors.ink}>{recordForm(journal.routes[journal.snapshot.active.route], journal.snapshot.active)}</Copy>
         <Copy>{km(journal.snapshot.active.meters)} · {duration(journal.snapshot.active.elapsedSeconds)}</Copy>
-        <Copy small>This is a saved snapshot. Continue the adventure on your watch, then sync and import again.</Copy>
+        <Copy small>This is a saved snapshot. Continue the adventure on your watch, then sync through Zepp.</Copy>
       </Panel>}
       <Heading>Personal bests</Heading>
       {(['distance', 'elapsed', 'hatch'] as const).map(metric => {
@@ -57,7 +57,7 @@ export default function JournalScreen() {
         </Panel>
       })}
       <Heading>Recent adventures</Heading>
-      {!runs.length && <Copy>Completed adventures will appear after you save on your watch and import a new export.</Copy>}
+      {!runs.length && <Copy>Completed adventures will appear after you save on your watch and sync through Zepp.</Copy>}
       {runs.slice(0, 20).map(run => <Panel key={run.id}>
         <View style={styles.row}><Sprite name={recordForm(run.family, run.record)} shiny={run.record.shiny} size={64} />
           <View style={{ flex: 1 }}><Copy color={colors.ink}>{run.record.shiny ? 'Shiny ' : ''}{recordForm(run.family, run.record)}</Copy>

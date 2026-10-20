@@ -2,9 +2,10 @@ import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { JournalProvider, useJournal } from '../store'
 import { Copy, Screen, colors } from '../ui'
+import { CloudProvider } from '../cloud'
 
 export default function Layout() {
-  return <JournalProvider><Navigator /></JournalProvider>
+  return <JournalProvider><CloudProvider><Navigator /></CloudProvider></JournalProvider>
 }
 
 function Navigator() {

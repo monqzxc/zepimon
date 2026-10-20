@@ -15,6 +15,10 @@ function record(value, active = false) {
       (value.shiny !== undefined && typeof value.shiny !== 'boolean') ||
       (!active && !date(value.finishedAt))) throw new Error('Invalid adventure record')
   const result = { meters: value.meters, steps: value.steps, shiny: !!value.shiny }
+  if (value.activity !== undefined && value.activity !== null) {
+    if (value.activity !== 'walking' && value.activity !== 'running') throw new Error('Invalid activity')
+    result.activity = value.activity
+  }
   if (!active) result.finishedAt = value.finishedAt
   if (value.startedAt !== undefined && value.startedAt !== null) {
     if (!number(value.startedAt)) throw new Error('Invalid start time')

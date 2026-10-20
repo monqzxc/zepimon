@@ -1,6 +1,6 @@
 # Zepimon Mobile
 
-A standalone iPhone and Android companion for Zepimon, built with Expo SDK 57 and React Native 0.86. Import your watch journal to explore your collection and adventures offline.
+A standalone iPhone and Android companion for Zepimon, built with Expo SDK 57 and React Native 0.86. Sync or import your watch journal to explore your collection and adventures offline.
 
 ## Features
 
@@ -12,14 +12,22 @@ A standalone iPhone and Android companion for Zepimon, built with Expo SDK 57 an
 
 ## Bring your watch data across
 
+### Account sync
+
+Open **Sync**, sign in using an email code, and create a one-time linking code. In the Zepp app, open Zepimon's settings → **Sync to Zepimon mobile**, paste the code and link your account. Sync from your connected watch, then return to the phone app and tap **Sync now**. The phone also checks for updates on opening and every minute while visible.
+
+Both apps must have the same Supabase project configured and the database must be installed. See [cloud setup and linking instructions](../zepimon-sync/README.md). Native sign-in sessions are stored in SecureStore. Your normal/shiny Dex entries remain separate, and failed downloads keep your offline journal.
+
+### Manual import
+
 1. Save your adventure on the watch, then sync Zepimon in the Zepp app.
 2. Open Zepimon’s settings in Zepp and choose **Export JSON**.
-3. Copy the generated text. Save it as a `.json` file, or paste it directly into this app’s **Import** tab.
+3. Copy the generated text. Save it as a `.json` file, or paste it into the manual import section of this app’s **Sync** tab.
 4. Import again after future adventures to update your collection and missions.
 
 Importing the same file again does not double-count runs or mission progress. The watch export contains the latest completed run per family and retained personal bests. Older runs already overwritten on the watch cannot be recovered; regular imports let the phone keep runs it has seen. The Journal shows the latest 20 retained runs. Active adventures do not count toward completed-run missions.
 
-This app uses manual imports. It does not connect directly to the watch over Bluetooth, run a server, or record phone workouts.
+Cloud sync uses Zepp as the watch connection. Manual imports also remain available. The app does not connect directly to the watch over Bluetooth or record phone workouts.
 
 ## Mini-games
 
@@ -56,13 +64,43 @@ npx expo-doctor
 
 `npm run sync:watch` refreshes the bundled catalog and sprites from the neighboring `hatdog-app` project after changes there.
 
+## Pokemon sprites
+
+The mobile app uses [PokeAPI/sprites](https://github.com/PokeAPI/sprites) for the Dex, buddy habitats, Memory Match and Who's That Pokemon. Normal and Shiny variants are bundled locally, so these views work offline on Android and iPhone.
+
+Gen 1-4 Pokemon use the Platinum pixel sprites; later species and Mega forms use the repository's default sprites. The mobile bundle uses the preserved 96 x 96 source canvases, rather than the watch's reduced 48 x 48 assets. Eggs are locally drawn. Mega Zygarde currently uses its base-form sprite as a fallback.
+
+Images are copied from `hatdog-app/data/original-sprites` by `npm run sync:watch`, with static asset references generated in `src/generated/sprites.js`. The shared `spriteSource` function in `src/catalog.ts` selects the Normal or Shiny image across the app.
+
+Sprite source and credits: [PokeAPI sprites README](https://github.com/PokeAPI/sprites#readme) and [upstream license notice](https://github.com/PokeAPI/sprites/blob/master/LICENCE.txt). The upstream notice credits image copyright to The Pokemon Company.
+
 ## Standalone builds
 
 `eas.json` includes a **preview** profile for internal distribution and a **production** profile for store builds. EAS requires your Expo account and project setup. No cloud build or store submission is performed by this repository’s checks.
 
+### Installable Android APK
+
+The preview profile explicitly builds an **APK**. It bundles the app and sprites,
+so the installed app runs without Expo Go or a running development server.
+From `zepimon-mobile`, sign in and start the cloud build:
+
+```sh
+npx --yes eas-cli@latest login
+npm run build:apk
+```
+
+On the first build, EAS may ask to create/link the Zepimon project and generate
+an Android signing keystore; let EAS manage that key. Once the build succeeds,
+open the provided APK download link on your Android phone and install it.
+Android may ask you to allow installations from the browser used to download it.
+The repo-root `.easignore` limits the build upload to the mobile app and excludes
+local caches, generated native folders and signing files.
+See [Expo's APK build instructions](https://docs.expo.dev/build-reference/apk/).
+
+### iPhone preview and store builds
+
 ```sh
 npx eas-cli@latest login
-npx eas-cli@latest build --platform android --profile preview
 npx eas-cli@latest build --platform ios --profile preview
 ```
 
@@ -78,6 +116,6 @@ Production Android builds use AAB; iOS builds require Apple signing. Building an
 
 ## Data and release limitations
 
-Imported journals, retained runs, mission progress, buddy selection, and game scores live in local AsyncStorage. Treat uninstalling the app or clearing its storage as deleting that data. There is no cloud sync or phone-data backup yet. Keep your original Zepp JSON exports; reimporting them restores only the data those exports contain.
+Downloaded/imported journals, retained runs, mission progress, buddy selection, and game scores live in local AsyncStorage. The cloud keeps the latest uploaded watch journal and retained Dex discoveries. It does not back up arcade scores, buddy choice, or the full phone-only run/badge archive. Treat uninstalling or clearing storage as deleting phone-only data. Keep your original Zepp JSON exports; a fresh sign-in can restore the cloud watch snapshot, while reimporting exports restores only what they contain.
 
 As of **2026-10-17**, `npm audit` reports **28 transitive findings**, mainly in build dependencies, plus the `query-string` URL-decoder dependency chain. The suggested fixes include incompatible major changes or downgrades. Review and resolve the dependency advisories before a public release; do not apply `npm audit fix --force` without checking Expo SDK compatibility.

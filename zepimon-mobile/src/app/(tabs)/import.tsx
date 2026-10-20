@@ -6,6 +6,7 @@ import { useJournal } from '../../store'
 import { dexEntries, parseJournal } from '../../journal'
 import type { Journal } from '../../journal'
 import { Button, Copy, Eyebrow, Heading, Panel, Screen, colors, styles } from '../../ui'
+import { CloudPanel } from '../../CloudPanel'
 
 export default function ImportScreen() {
   const { journal, importText, error } = useJournal()
@@ -42,10 +43,12 @@ export default function ImportScreen() {
     finally { setBusy(false) }
   }
   return <Screen>
-    <Eyebrow>WATCH → ZEPP → YOUR JOURNAL</Eyebrow><Heading>Bring your journey.</Heading>
+    <Eyebrow>YOUR CONNECTED JOURNAL</Eyebrow><Heading>Bring your journey.</Heading>
+    <CloudPanel />
+    <Eyebrow>MANUAL JSON IMPORT</Eyebrow>
     <Copy>Sync your Zepimon watch data in Zepp, then open Zepimon’s settings and choose “Export JSON”. Save the text as a .json file or paste it below.</Copy>
-    <Panel><Copy>Your data stays on this phone. Import again after a walk to update your Dex and mission progress.</Copy>
-      <Copy small>This version uses manual imports. It does not pair directly with the watch or record a phone workout.</Copy></Panel>
+    <Panel><Copy>JSON imports also work offline. Import again after a walk to update your Dex and mission progress.</Copy>
+      <Copy small>The watch stays paired with Zepp. This companion does not record phone workouts.</Copy></Panel>
     {!!error && <Copy color={colors.gold}>{error}</Copy>}
     {!!message && <Copy color={colors.gold}>{message}</Copy>}
     <Button title={busy ? 'Working…' : 'Choose JSON file'} disabled={busy} onPress={pick} />

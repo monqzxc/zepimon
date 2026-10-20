@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { parseJournal } from './journal'
+import { parseJournal, receiveCloudJournal } from './journal'
 import type { Journal } from './journal'
 import { emptyProgress, importProgress, restoreProgress } from './progress'
 import type { Progress } from './progress'
@@ -8,9 +8,9 @@ import { restoreScores, saveBestScore } from './games/scores'
 import type { ArcadeGame, ArcadeScores } from './games/scores'
 
 const KEY = 'zepimon-mobile-v1'
-type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores }
-type Store = Saved & { ready: boolean, error: string, importText: (text: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void> }
-const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {} }
+type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null }
+type Store = Saved & { ready: boolean, error: string, importText: (text: string) => Promise<void>, importCloud: (text: string, owner: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void> }
+const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null }
 const Context = createContext<Store | null>(null)
 
 export function JournalProvider({ children }: React.PropsWithChildren) {
@@ -33,7 +33,8 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
       const buddy = typeof value.buddy === 'string' && journal?.snapshot.dex[value.buddy] ? value.buddy : null
       const restored = restoreProgress(value.progress)
       const progress = journal ? importProgress(restored, journal) : restored
-      latest.current = { journal, buddy, bestMoves, progress, arcadeScores: restoreScores(value.arcadeScores) }
+      latest.current = { journal, buddy, bestMoves, progress, arcadeScores: restoreScores(value.arcadeScores),
+        cloudOwner: typeof value.cloudOwner === 'string' ? value.cloudOwner : null }
       setSaved(latest.current)
       if (JSON.stringify(value.progress) !== JSON.stringify(progress)) {
         try { await AsyncStorage.setItem(KEY, JSON.stringify(latest.current)) }
@@ -61,6 +62,11 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     return { ...current, journal, progress: importProgress(current.progress, journal),
       buddy: current.buddy && journal.snapshot.dex[current.buddy] ? current.buddy : null }
   })
+  const importCloud = (text: string, owner: string) => persist(current => {
+    const journal = receiveCloudJournal(text, current.journal, current.cloudOwner, owner)
+    return { ...current, journal, cloudOwner: owner, progress: importProgress(current.progress, journal),
+      buddy: current.buddy && journal.snapshot.dex[current.buddy] ? current.buddy : null }
+  })
   const chooseBuddy = (key: string) => persist(current => {
     if (!current.journal?.snapshot.dex[key]) throw new Error('Import this Pokemon before choosing it as your buddy.')
     return { ...current, buddy: key }
@@ -72,7 +78,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   const recordArcadeScore = (game: ArcadeGame, score: number) => persist(current => ({
     ...current, arcadeScores: saveBestScore(current.arcadeScores, game, score)
   }))
-  return <Context.Provider value={{ ...saved, ready, error, importText, chooseBuddy, recordWin, recordArcadeScore }}>{children}</Context.Provider>
+  return <Context.Provider value={{ ...saved, ready, error, importText, importCloud, chooseBuddy, recordWin, recordArcadeScore }}>{children}</Context.Provider>
 }
 
 export function useJournal() {

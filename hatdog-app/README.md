@@ -10,7 +10,15 @@ npm run build
 npm run preview
 ```
 
-## Phone companion (v1.7.2)
+## Phone companion (v1.8.0)
+
+**Cloud sync:** the Zepp settings page now includes **Sync to Zepimon mobile**.
+Sign into the standalone phone app's Sync tab, create a linking code, and paste
+it into Zepp. Watch snapshots then upload to that account when the companion
+service runs. Failed uploads retain the latest local snapshot for retry. See
+[Supabase setup and linking](../zepimon-sync/README.md). Both the watch package
+and mobile app must be updated. Cloud sync preserves separate normal/shiny Dex
+records and does not write changes back to the watch.
 
 Install the updated preview, open Zepimon on your connected watch, then open
 Zepimon's settings page in the Zepp phone app. Tap **Sync from watch**. Keep both
@@ -27,7 +35,7 @@ and [Bluetooth companion service](https://docs.zepp.com/docs/guides/architecture
   Long-press in the generated text, select all, and copy it into a text editor;
   save using the displayed `.json` filename. The generated copy stays frozen
   during background sync. Go back and export again to include a newer sync.
-  Export is only on the phone. There is no React integration or server upload.
+  Manual export is only on the phone and remains available without cloud linking.
   This uses the documented multiline TextInput; native clipboard buttons and
   file downloads are not provided by the documented Zepp settings UI API.
 - **Journeys:** the active adventure at its last sync and the latest completed
@@ -49,7 +57,9 @@ and [Bluetooth companion service](https://docs.zepp.com/docs/guides/architecture
 and `Shiny `-prefixed names), `records` (route index keys), and `active`.
 Optional `personalBests` holds `distance`, `elapsed` and `hatch` winner records,
 each including its route index. Optional `hatchSeconds` stores elapsed time at
-the first detected crossing of 5 km. Older snapshots without these fields work.
+the first detected crossing of 5 km. Optional `activity` stores `walking` or
+`running` on active journeys, completed records and their acquired Pokemon.
+Older snapshots without these fields work and retain an unspecified activity.
 Distances are meters, elapsed time is seconds and finish dates are ISO strings.
 The phone adds `receivedAt` (phone epoch milliseconds). The route index mapping
 is in `page/catalog.js`. Internal daily sensor baselines are excluded. Phone
@@ -145,17 +155,33 @@ Distance sits below the sprite, with time and pace side by side underneath;
 steps, the next milestone and Finish & save remain visible below the header.
 No larger image files or extra animation frames are bundled.
 
-The run screen shows distance, elapsed time (hours:minutes:seconds), current
-pace (minutes per kilometer), steps and the next evolution milestone. Current
-pace estimates speed from roughly the last 15 seconds of distance changes,
-with a five-second warm-up. It responds to faster/slower movement and becomes
-**--:-- /km** after about 15 seconds without distance changes. The display
-refreshes without waiting for a step change. Samples stay in memory and reset
-on reopening, a sampling gap over five seconds, a clock/counter reset, or a
-new adventure, so recovered background distance cannot create a speed spike.
+After selecting an egg, tap **Start**, then choose **Walking** or **Running**.
+Back returns to the same egg and Mega choice without starting or rolling a
+shiny. The activity is saved with the adventure and exported to the phone.
+Existing active adventures resume without another selection; their pace uses
+the walking smoothing window until a new adventure is started.
+
+The run screen shows distance, elapsed time (hours:minutes:seconds), **Est.
+pace** (minutes per kilometer), activity/steps and the next evolution milestone.
+Pace uses recent distance changes with roughly an **8-second Running** or
+**15-second Walking** window and at least five seconds of fresh observations.
+It polls the counters about once a second while this screen is awake, as well
+as listening for sensor changes. It times actual distance updates and holds
+the estimate between batches, instead of interpreting each unchanged drawing
+frame as slower movement. It shows **--:-- /km** after 15 seconds without new
+distance. Batches less frequent than this cannot provide a fresh estimate.
+Samples stay in memory and reset on reopening, a polling gap over five seconds,
+a clock/counter reset, or a new adventure. After a gap, the first changed
+counter establishes a fresh baseline so recovered distance cannot become a
+speed spike. Only changed activity totals trigger a storage write during polling.
 The [Distance API](https://docs.zepp.com/docs/reference/device-app-api/newAPI/sensor/Distance/)
 provides a distance total and change callbacks; its update frequency on the
-watch limits how quickly pace responds. This estimate is not GPS speed.
+watch limits how quickly pace responds. This estimate is not GPS speed, and
+selecting Running does not change the watch's stride/distance algorithm or
+activate a native workout. Bip 5 Unity supports
+[API level 3.0](https://docs.zepp.com/docs/reference/related-resources/device-list/);
+native pace access via [getSportData](https://docs.zepp.com/docs/reference/device-app-api/newAPI/app-access/getSportData/)
+requires API 3.6. That unsupported API is not imported into this app.
 Time continues while the app is closed and includes stops, resetting only for
 a new adventure. Older active saves without a start timestamp show dashes
 for elapsed time; their distance and fresh current-pace estimate still work.
@@ -213,6 +239,10 @@ workout recorder, and does not start the watch's native workout mode.
   treats Distance.getCurrent() as meters; the API reference does not specify
   its unit, so confirm the scale on this watch before relying on milestones.
 - Test screen-off/reopen recovery and actual widget layout on the watch.
+- In a Running adventure, compare a steady jog, faster interval and stop with
+  the native workout pace. The estimate depends on daily-counter updates and
+  cannot be guaranteed to match the native workout. Check that batch updates
+  remain steady and that reopening does not produce a pace spike.
 - Reopen each day for multi-day adventures: daily counters cannot recover
   missed full days or the unobserved tail of the previous day across midnight.
 - Uninstalling clears local saves. No cloud backup is included.

@@ -42,8 +42,8 @@ Page({
     this.distance = null
     this.step = null
     this.changed = null
-    this.paceSamples = []
-    this.paceNeedsBaseline = true
+    this.pace = { awaitingChange: true }
+    this.paceText = '--:-- /km'
     let stage = 'storage'
     try {
       this.storage = new LocalStorage()
@@ -98,16 +98,14 @@ Page({
     const session = this.state.active
     if (!session) return
     const meters = this.distance.getCurrent()
-    const previousMeters = session.lastMeters
+    const steps = this.step.getCurrent()
     const day = dayKey()
-    const last = this.paceSamples[this.paceSamples.length - 1]
+    const changed = meters !== session.lastMeters || steps !== session.lastSteps || session.day !== day
     const now = Date.now()
-    if (last && (now < last.at || now - last.at > 5000)) this.paceNeedsBaseline = true
-    if (!this.ready || session.day !== day || meters < session.lastMeters || this.paceNeedsBaseline) this.paceSamples = []
-    updateSession(session, meters, this.step.getCurrent(), day)
-    if (session.lastMeters !== previousMeters) this.paceNeedsBaseline = false
-    currentPace(this.paceSamples, session.meters, now)
-    this.save()
+    if (!this.ready || session.day !== day || meters < session.lastMeters || steps < session.lastSteps) this.pace = { awaitingChange: true }
+    updateSession(session, meters, steps, day, now)
+    this.paceText = currentPace(this.pace, session.meters, now, session.activity)
+    if (changed) this.save()
     if (this.view === 'session' && this.stats) this.refreshStats()
   },
 
@@ -161,7 +159,11 @@ Page({
           x: baseX, y: baseY + offsets[frame], w: imageSize, h: imageSize,
           pos_x: 0, pos_y: 0, auto_scale: true, auto_scale_obj_fit: true
         }))
-        if (this.view === 'session' && this.clockStats) this.refreshClock()
+        if (this.view === 'session' && this.clockStats) {
+          const now = Date.now()
+          if (this.ready && (!Number.isFinite(this.pace.checkedAt) || now < this.pace.checkedAt || now - this.pace.checkedAt >= 1000)) this.sync()
+          else this.refreshClock()
+        }
 
       }, 400)
     }
@@ -278,6 +280,16 @@ Page({
     if (this.view === 'home') { this.renderHub(); return }
     if (this.view === 'new') { this.renderGenerationPicker(); return }
     this.background()
+    if (this.view === 'activity') {
+      this.updateBackground(routes[this.pendingRoute][0])
+      this.text(70, 'Choose your activity', 22, ink, 28)
+      this.text(110, routes[this.pendingRoute][0] + ' egg', 20, muted, 28)
+      this.image(142, 'Egg')
+      this.button(242, 'Walking', () => this.start(this.pendingRoute, 'walking'), 20, 280, true, 38)
+      this.button(286, 'Running', () => this.start(this.pendingRoute, 'running'), 20, 280, false, 38)
+      this.button(332, 'Back', () => { this.view = this.eggView; this.render() })
+      return
+    }
     if (this.view === 'dex-detail') {
       const name = this.dexName
       const key = (this.dexShiny ? 'Shiny ' : '') + name
@@ -304,8 +316,8 @@ Page({
     if (this.view === 'session') {
       this.portrait = this.image(92, currentForm(this.state.active.route, this.state.active.meters, this.state.active.mega), this.state.active.shiny, null, 176)
       this.stats = [this.text(68, '', 18, ink, 24), this.text(272, '', 22, ink, 26),
-        this.text(320, '', 12, muted, 16, 18, 94), this.text(320, '', 12, muted, 16, 112, 190)]
-      this.clockStats = [this.text(298, '', 16, ink, 22, 18, 140), this.text(298, '', 16, ink, 22, 162, 140)]
+        this.text(320, '', 11, muted, 16, 18, 112), this.text(320, '', 12, muted, 16, 130, 172)]
+      this.clockStats = [this.text(298, '', 16, ink, 22, 18, 140), this.text(298, '', 14, ink, 22, 162, 140)]
       this.refreshStats()
       this.button(338, 'Finish & save', () => { this.sync(); this.show('finish') }, 20, 280, true, 40)
       return
@@ -322,7 +334,7 @@ Page({
         setWakeUpRelaunch({ relaunch: false })
         this.show('home')
       }, 20, 280, true)
-      this.button(332, 'Keep walking', () => this.show('session'))
+      this.button(332, this.state.active.activity === 'running' ? 'Keep running' : 'Keep walking', () => this.show('session'))
       return
     }
     const isDex = this.view === 'dex'
@@ -359,15 +371,21 @@ Page({
     this.button(332, '<', () => move(-1), 20, 44)
     this.button(332, '>', () => move(1), 68, 44)
     this.button(332, '+10', () => move(10), 116, 56)
-    if (!isDex) this.button(332, 'Start', () => this.start(item), 176, 60, true)
+    if (!isDex) this.button(332, 'Start', () => {
+      this.pendingRoute = item
+      this.eggView = this.view
+      this.view = 'activity'
+      this.render()
+    }, 176, 60, true)
     this.button(332, 'Back', () => isDex ? back() : this.show(this.view === 'choose' ? 'new' : 'home'), 240, 60)
   },
 
-  start(route) {
-    this.paceSamples = []
-    this.paceNeedsBaseline = false
+  start(route, activity = 'walking') {
+    if (this.state.active) { this.show('session'); return }
+    this.pace = {}
+    this.paceText = '--:-- /km'
     this.state.active = {
-      route, startedAt: Date.now(), shiny: rollShiny(), mega: megaChoices(route)[this.megaIndex], meters: 0, steps: 0, day: dayKey(),
+      route, activity, startedAt: Date.now(), shiny: rollShiny(), mega: megaChoices(route)[this.megaIndex], meters: 0, steps: 0, day: dayKey(),
       lastMeters: this.distance.getCurrent(), lastSteps: this.step.getCurrent()
     }
     this.save()
@@ -381,7 +399,7 @@ Page({
     const form = currentForm(session.route, session.meters, session.mega)
     const next = nextMilestone(session.route, session.meters)
     const values = [(session.shiny ? 'Shiny ' : '') + (form === 'Egg' ? routes[session.route][0] + ' egg' : form),
-      'Distance ' + km(session.meters), session.steps + ' steps',
+      'Distance ' + km(session.meters), (session.activity === 'running' ? 'Run: ' : 'Walk: ') + session.steps + ' steps',
       next === null ? 'Final form reached!' : km(next - session.meters) + ' to ' + (next === 21000 ? 'Mega' : form === 'Egg' ? 'hatch' : 'evolve')]
     this.stats.forEach((item, i) => item.setProperty(prop.TEXT, values[i]))
     this.stats[0].setProperty(prop.MORE, { text_size: values[0].length > 30 ? 14 : 18 })
@@ -396,13 +414,8 @@ Page({
   refreshClock() {
     const session = this.state.active
     const seconds = elapsedSeconds(session)
-    const now = Date.now()
-    const last = this.paceSamples[this.paceSamples.length - 1]
-    // Wake timers can run before delayed sensor callbacks; wait for fresh distance.
-    if (last && (now < last.at || now - last.at > 5000)) this.paceNeedsBaseline = true
-    const pace = currentPace(this.paceSamples, session.meters, now)
     this.clockStats[0].setProperty(prop.TEXT, 'Time ' + elapsedLabel(seconds))
-    this.clockStats[1].setProperty(prop.TEXT, 'Pace ' + (this.paceNeedsBaseline ? '--:-- /km' : pace))
+    this.clockStats[1].setProperty(prop.TEXT, 'Est. pace ' + this.paceText)
   },
 
   onDestroy() {

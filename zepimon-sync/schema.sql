@@ -1,0 +1,205 @@
+-- Run once in the Supabase SQL Editor. All journal/token tables are private.
+begin;
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+create schema if not exists zepimon_private;
+revoke all on schema zepimon_private from public, anon, authenticated;
+
+create table if not exists zepimon_private.links (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  token_hash bytea unique,
+  pair_hash bytea unique,
+  pair_expires timestamptz,
+  linked_at timestamptz
+);
+create table if not exists zepimon_private.journals (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  payload jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table zepimon_private.links enable row level security;
+alter table zepimon_private.journals enable row level security;
+revoke all on all tables in schema zepimon_private from public, anon, authenticated;
+
+create or replace function zepimon_private.valid_name(value text)
+returns boolean language sql immutable set search_path = '' as $$
+  select value is not null and length(value) between 1 and 80
+    and value = btrim(value) and value !~ '[[:cntrl:]]'
+    and value not in ('__proto__', 'prototype', 'constructor');
+$$;
+
+create or replace function zepimon_private.valid_record(value jsonb, active boolean default false)
+returns boolean language plpgsql immutable set search_path = '' as $$
+declare field text; n numeric;
+begin
+  if jsonb_typeof(value) is distinct from 'object'
+    or jsonb_typeof(value->'meters') is distinct from 'number'
+    or (value->>'meters')::numeric < 0
+    or jsonb_typeof(value->'steps') is distinct from 'number'
+    or (value->>'steps')::numeric not between 0 and 9007199254740991
+    or trunc((value->>'steps')::numeric) <> (value->>'steps')::numeric then return false; end if;
+  if value ? 'shiny' and jsonb_typeof(value->'shiny') <> 'boolean' then return false; end if;
+  if not active then
+    if jsonb_typeof(value->'finishedAt') is distinct from 'string' or length(value->>'finishedAt') > 32
+      or not isfinite((value->>'finishedAt')::timestamptz) then return false; end if;
+  end if;
+  foreach field in array array['startedAt', 'elapsedSeconds', 'hatchSeconds'] loop
+    if value ? field and value->field <> 'null'::jsonb then
+      if jsonb_typeof(value->field) <> 'number' then return false; end if;
+      n := (value->>field)::numeric;
+      if n < 0 or (field = 'startedAt' and n > 8640000000000000) then return false; end if;
+      if field = 'hatchSeconds' and (n <= 0 or (value->>'meters')::numeric < 5000
+        or n > (value->>'elapsedSeconds')::numeric) then return false; end if;
+    end if;
+  end loop;
+  if value->>'activity' is not null and value->>'activity' not in ('walking', 'running') then return false; end if;
+  foreach field in array array['form', 'mega'] loop
+    if value ? field and value->field <> 'null'::jsonb and
+      (jsonb_typeof(value->field) <> 'string' or not zepimon_private.valid_name(value->>field)) then return false; end if;
+  end loop;
+  return true;
+exception when others then return false;
+end;
+$$;
+
+create or replace function zepimon_private.valid_journal(value jsonb)
+returns boolean language plpgsql immutable set search_path = '' as $$
+declare snapshot jsonb; route jsonb; entry record; route_count integer; route_id numeric; item jsonb;
+begin
+  if value is null or octet_length(value::text) > 2097152 or jsonb_typeof(value) <> 'object'
+    or value->'exportVersion' is distinct from '1'::jsonb or value->>'app' is distinct from 'Zepimon'
+    or jsonb_typeof(value->'exportedAt') is distinct from 'string'
+    or length(value->>'exportedAt') > 32 or not isfinite((value->>'exportedAt')::timestamptz)
+    or not (value ? 'receivedAt') then return false; end if;
+  if value->'receivedAt' <> 'null'::jsonb and (jsonb_typeof(value->'receivedAt') <> 'number'
+    or (value->>'receivedAt')::numeric not between 0 and 8640000000000000) then return false; end if;
+  if jsonb_typeof(value->'routes') is distinct from 'array' then return false; end if;
+  route_count := jsonb_array_length(value->'routes');
+  if route_count not between 1 and 512 then return false; end if;
+  for route in select * from jsonb_array_elements(value->'routes') loop
+    if jsonb_typeof(route) <> 'array' or jsonb_array_length(route) not between 1 and 3 then return false; end if;
+    if (select count(distinct v) from jsonb_array_elements(route) as t(v)) <> jsonb_array_length(route) then return false; end if;
+    for item in select * from jsonb_array_elements(route) loop
+      if jsonb_typeof(item) <> 'string' or not zepimon_private.valid_name(item #>> '{}') then return false; end if;
+    end loop;
+  end loop;
+  snapshot := value->'snapshot';
+  if jsonb_typeof(snapshot) is distinct from 'object' or snapshot->'schemaVersion' is distinct from '1'::jsonb
+    or jsonb_typeof(snapshot->'capturedAt') is distinct from 'number'
+    or (snapshot->>'capturedAt')::numeric not between 0 and 8640000000000000
+    or jsonb_typeof(snapshot->'dex') is distinct from 'object'
+    or jsonb_typeof(snapshot->'records') is distinct from 'object' or not (snapshot ? 'active') then return false; end if;
+  if (select count(*) from jsonb_object_keys(snapshot->'dex')) > 1400
+    or (select count(*) from jsonb_object_keys(snapshot->'records')) > 512 then return false; end if;
+  for entry in select * from jsonb_each(snapshot->'dex') loop
+    if not zepimon_private.valid_name(entry.key) or not zepimon_private.valid_name(regexp_replace(entry.key, '^Shiny ', ''))
+      or not zepimon_private.valid_record(entry.value) then return false; end if;
+  end loop;
+  for entry in select * from jsonb_each(snapshot->'records') loop
+    if entry.key !~ '^(0|[1-9][0-9]{0,2})$' or entry.key::integer >= route_count
+      or not zepimon_private.valid_record(entry.value) then return false; end if;
+  end loop;
+  if snapshot->'active' <> 'null'::jsonb then
+    if not zepimon_private.valid_record(snapshot->'active', true)
+      or jsonb_typeof(snapshot->'active'->'route') is distinct from 'number' then return false; end if;
+    route_id := (snapshot->'active'->>'route')::numeric;
+    if trunc(route_id) <> route_id or route_id < 0 or route_id >= route_count then return false; end if;
+  end if;
+  if snapshot ? 'personalBests' then
+    if jsonb_typeof(snapshot->'personalBests') <> 'object' then return false; end if;
+    for entry in select * from jsonb_each(snapshot->'personalBests') loop
+      if entry.key not in ('distance', 'elapsed', 'hatch') or not zepimon_private.valid_record(entry.value)
+        or jsonb_typeof(entry.value->'route') is distinct from 'number' then return false; end if;
+      route_id := (entry.value->>'route')::numeric;
+      if trunc(route_id) <> route_id or route_id < 0 or route_id >= route_count then return false; end if;
+      if entry.key = 'elapsed' and coalesce((entry.value->>'elapsedSeconds')::numeric, 0) <= 0 then return false; end if;
+      if entry.key = 'hatch' and (coalesce((entry.value->>'hatchSeconds')::numeric, 0) <= 0
+        or coalesce((entry.value->>'elapsedSeconds')::numeric, 0) < (entry.value->>'hatchSeconds')::numeric) then return false; end if;
+    end loop;
+  end if;
+  return true;
+exception when others then return false;
+end;
+$$;
+
+-- A 96-bit, short-lived pairing code; only its hash is retained.
+create or replace function public.zepimon_create_link()
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare uid uuid := auth.uid(); code text := encode(extensions.gen_random_bytes(12), 'hex'); expires timestamptz := now() + interval '10 minutes';
+begin
+  if uid is null then raise exception 'Sign in first'; end if;
+  insert into zepimon_private.links(user_id, pair_hash, pair_expires)
+    values(uid, extensions.digest(code, 'sha256'), expires)
+    on conflict(user_id) do update set pair_hash = excluded.pair_hash, pair_expires = excluded.pair_expires;
+  return jsonb_build_object('code', code, 'expiresAt', expires);
+end;
+$$;
+
+-- Claiming rotates the upload-only token atomically and consumes the code.
+create or replace function public.zepimon_claim_link(pair_code text)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare code text := lower(regexp_replace(pair_code, '[[:space:]-]', '', 'g'));
+  token text := encode(extensions.gen_random_bytes(32), 'hex'); uid uuid;
+begin
+  if code is null or code !~ '^[a-f0-9]{24}$' then raise exception 'Invalid or expired linking code'; end if;
+  update zepimon_private.links set token_hash = extensions.digest(token, 'sha256'), linked_at = now(), pair_hash = null, pair_expires = null
+    where pair_hash = extensions.digest(code, 'sha256') and pair_expires > now() returning user_id into uid;
+  if uid is null then raise exception 'Invalid or expired linking code'; end if;
+  return jsonb_build_object('token', token);
+end;
+$$;
+
+create or replace function public.zepimon_upload(upload_token text, journal jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare uid uuid; old jsonb; merged jsonb;
+begin
+  if upload_token is null or upload_token !~ '^[a-f0-9]{64}$' then raise exception 'Watch link expired. Link again.'; end if;
+  -- Serializes upload, replacement and revocation for the same account.
+  select user_id into uid from zepimon_private.links
+    where token_hash = extensions.digest(upload_token, 'sha256') for update;
+  if uid is null then raise exception 'Watch link expired. Link again.'; end if;
+  if not zepimon_private.valid_journal(journal) then raise exception 'Invalid journal'; end if;
+  if (journal->'snapshot'->>'capturedAt')::numeric > extract(epoch from now()) * 1000 + 300000 then
+    raise exception 'Watch clock is ahead. Correct the time and sync again.';
+  end if;
+  select payload into old from zepimon_private.journals where user_id = uid;
+  if old is not null and (journal->'snapshot'->>'capturedAt')::numeric <= (old->'snapshot'->>'capturedAt')::numeric then
+    return jsonb_build_object('accepted', false, 'reason', 'not_newer');
+  end if;
+  merged := journal;
+  if old is not null then
+    -- A reset watch must not erase previously collected normal/shiny species.
+    merged := jsonb_set(merged, '{snapshot,dex}', (old->'snapshot'->'dex') || (journal->'snapshot'->'dex'));
+    if not zepimon_private.valid_journal(merged) then raise exception 'Merged journal exceeds supported limits'; end if;
+  end if;
+  insert into zepimon_private.journals(user_id, payload) values(uid, merged)
+    on conflict(user_id) do update set payload = excluded.payload, updated_at = now();
+  return jsonb_build_object('accepted', true);
+end;
+$$;
+
+create or replace function public.zepimon_pull()
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare uid uuid := auth.uid(); result jsonb;
+begin
+  if uid is null then raise exception 'Sign in first'; end if;
+  select jsonb_build_object('journal', payload, 'updatedAt', updated_at) into result
+    from zepimon_private.journals where user_id = uid;
+  return coalesce(result, '{"journal":null,"updatedAt":null}'::jsonb) || jsonb_build_object('linked',
+    exists(select 1 from zepimon_private.links where user_id = uid and token_hash is not null));
+end;
+$$;
+
+create or replace function public.zepimon_unlink()
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'Sign in first'; end if;
+  update zepimon_private.links set token_hash = null, pair_hash = null, pair_expires = null where user_id = auth.uid();
+end;
+$$;
+
+revoke all on all functions in schema zepimon_private from public, anon, authenticated;
+revoke all on function public.zepimon_create_link(), public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb), public.zepimon_pull(), public.zepimon_unlink() from public, anon, authenticated;
+grant execute on function public.zepimon_create_link(), public.zepimon_pull(), public.zepimon_unlink() to authenticated;
+grant execute on function public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb) to anon;
+commit;

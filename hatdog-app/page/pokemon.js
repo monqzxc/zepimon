@@ -27,20 +27,48 @@ export function paceLabel(seconds, meters) {
   if (!Number.isFinite(pace)) return '--:-- /km'
   return Math.floor(pace / 60) + ':' + ('0' + pace % 60).slice(-2) + ' /km'
 }
-export function currentPace(samples, meters, now = Date.now()) {
-  const last = samples[samples.length - 1]
+export function currentPace(tracker, meters, now = Date.now(), activity = 'walking') {
+  const blank = paceLabel(null, 0)
   if (!Number.isFinite(meters) || meters < 0 || !Number.isFinite(now)) {
-    samples.length = 0
-    return paceLabel(null, 0)
+    tracker.samples = []
+    tracker.checkedAt = null
+    tracker.awaitingChange = true
+    return blank
   }
-  // A suspended screen or a counter/clock reset needs a fresh pace baseline.
-  if (last && (now < last.at || now - last.at > 5000 || meters < last.meters)) samples.length = 0
+  let samples = tracker.samples || []
+  let last = samples[samples.length - 1]
+  // After suspension, the first changed counter may contain recovered background distance.
+  if ((Number.isFinite(tracker.checkedAt) && (now < tracker.checkedAt || now - tracker.checkedAt > 5000)) ||
+      (last && meters < last.meters)) {
+    samples = []
+    tracker.awaitingChange = true
+  }
+  tracker.checkedAt = now
   if (!samples.length) samples.push({ at: now, meters })
-  else if (now === last.at) last.meters = meters
-  else if (now - last.at >= 1000) samples.push({ at: now, meters })
-  while (samples.length > 1 && samples[1].at <= now - 15000) samples.shift()
+  tracker.samples = samples
+  last = samples[samples.length - 1]
+  if (tracker.awaitingChange) {
+    if (meters > last.meters) {
+      tracker.samples = [{ at: now, meters }]
+      tracker.awaitingChange = false
+    }
+    return blank
+  }
+  if (now - last.at >= 15000) {
+    tracker.samples = [{ at: now, meters }]
+    tracker.awaitingChange = meters === last.meters
+    return blank
+  }
+  // Time actual counter updates; flat timer frames must not turn a batch into a speed spike.
+  if (meters > last.meters) {
+    if (now - last.at < 1000) last.meters = meters
+    else samples.push({ at: now, meters })
+  }
+  last = samples[samples.length - 1]
+  const window = activity === 'running' ? 8000 : 15000
+  while (samples.length > 2 && samples[0].at < last.at - window && last.at - samples[1].at >= 5000) samples.shift()
   const first = samples[0]
-  return paceLabel(now - first.at >= 5000 ? (now - first.at) / 1000 : null, meters - first.meters)
+  return paceLabel(last.at - first.at >= 5000 ? (last.at - first.at) / 1000 : null, last.meters - first.meters)
 }
 export function spritePath(name, shiny = false) {
   if (name.indexOf('Shiny ') === 0) { name = name.slice(6); shiny = true }
@@ -129,6 +157,7 @@ export function hasDexDistance(name, record) {
 
 function dexRecord(record) {
   return { meters: record.meters, steps: record.steps, finishedAt: record.finishedAt, shiny: !!record.shiny,
+    ...(record.activity === 'walking' || record.activity === 'running' ? { activity: record.activity } : {}),
     startedAt: Number.isFinite(record.startedAt) && record.startedAt >= 0 ? record.startedAt : null,
     elapsedSeconds: Number.isFinite(record.elapsedSeconds) && record.elapsedSeconds >= 0 ? record.elapsedSeconds : null,
     hatchSeconds: Number.isFinite(record.hatchSeconds) && record.hatchSeconds > 0 && Number.isFinite(record.elapsedSeconds) && record.elapsedSeconds >= record.hatchSeconds
@@ -177,6 +206,7 @@ export function finishSession(state, finishedAt) {
     session.hatchSeconds > 0 && seconds !== null && session.hatchSeconds <= seconds ? session.hatchSeconds : null
   state.records[session.route] = {
     meters: session.meters, steps: session.steps, finishedAt,
+    ...(session.activity === 'walking' || session.activity === 'running' ? { activity: session.activity } : {}),
     startedAt: Number.isFinite(session.startedAt) ? session.startedAt : null,
     elapsedSeconds: seconds, hatchSeconds,
     shiny: !!session.shiny, mega: session.mega, form: currentForm(session.route, session.meters, session.mega)

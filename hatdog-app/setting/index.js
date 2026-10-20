@@ -2,6 +2,8 @@ import { species, megaForms } from '../page/catalog'
 import { routes, speciesCount, collectionCount, dexPokemon, currentForm, spritePath, primaryType, elapsedSeconds, elapsedLabel, paceLabel, nextMilestone, hasDexDistance } from '../page/pokemon'
 import { SNAPSHOT_KEY, SYNC_KEY, STATUS_KEY, validateSnapshot } from '../shared/companion'
 import { eggs } from './eggs'
+import { CLOUD_TOKEN_KEY, CLOUD_REQUEST_KEY, CLOUD_STATUS_KEY } from '../shared/cloud'
+import { cloudConfig } from '../shared/cloud-config'
 
 const palette = { ink: '#f4ebcf', muted: '#9abfcd', edge: '#54c7c4', panel: '#102d42', blue: '#135b89' }
 const km = (meters) => (meters / 1000).toFixed(2) + ' km'
@@ -53,6 +55,21 @@ AppSettingsPage({
     const get = (key, fallback = '') => storage.getItem('zepimon-ui-' + key) || fallback
     const set = (key, value) => storage.setItem('zepimon-ui-' + key, String(value))
     const change = (key, value) => { set('page', 0); set('detail', ''); set(key, value) }
+    if (get('cloud') === '1') {
+      const request = (action, code) => storage.setItem(CLOUD_REQUEST_KEY, JSON.stringify({ action, code, at: Date.now() }))
+      return this.shell([label('ZEPIMON / PHONE SYNC', 12, palette.edge), label('Link your mobile app', 25),
+        label('In the Zepimon phone app, open Sync, sign in and create a linking code. Paste it below. Linking uploads this watch journal to that account.', 15),
+        ...(cloudConfig.url ? [
+          panel([TextInput({ label: 'One-time linking code', value: get('link-code'),
+            onChange: (value) => set('link-code', value), labelStyle: { color: palette.ink } }),
+          button('Link account', () => { request('link', get('link-code')); set('link-code', '') })]),
+          label(storage.getItem(CLOUD_TOKEN_KEY) ? 'This phone has a watch upload link.' : 'No upload link on this phone.', 14),
+          button('Retry upload', () => request('retry')),
+          button('Stop uploads on this phone', () => request('stop'))
+        ] : [label('Cloud sync is not configured in this build yet.', 15)]),
+        label(storage.getItem(CLOUD_STATUS_KEY) || 'Your local watch records stay saved.', 13, palette.muted),
+        button('Back to journal', () => set('cloud', '0'))])
+    }
     if (this.exportText && get('export') !== '0') {
       return this.shell([label('EXPORT YOUR JOURNAL', 12, palette.edge), label('Save a JSON copy', 27),
         label('Long-press inside the JSON below, choose Select all, then Copy. Paste it into a text editor and save with this filename:', 15),
@@ -83,6 +100,8 @@ AppSettingsPage({
       label('Walk. Hatch. Evolve.', 15, palette.muted),
       View({ style: { marginTop: '16px' } }, button('Sync from watch', () => storage.setItem(SYNC_KEY, String(Date.now())))),
       label(error || storage.getItem(STATUS_KEY) || 'Open Zepimon on your connected watch, then sync.', 12, palette.muted)]
+    children.push(View({ style: { marginTop: '12px' } }, button('Sync to Zepimon mobile', () => set('cloud', '1'))))
+    if (storage.getItem(CLOUD_TOKEN_KEY)) children.push(label(storage.getItem(CLOUD_STATUS_KEY) || 'Cloud upload link connected.', 12, palette.edge))
     if (receivedAt) children.push(label('Last sync: ' + dateLabel(receivedAt), 12, palette.muted))
     if (!data) {
       children.push(panel([sprite('Egg'), label('Your collection starts here', 21),

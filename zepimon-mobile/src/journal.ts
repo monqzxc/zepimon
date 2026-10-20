@@ -5,6 +5,7 @@ export type DexRecord = {
   meters: number;
   steps: number;
   shiny: boolean;
+  activity?: 'walking' | 'running';
   finishedAt: string;
   startedAt?: number | null;
   elapsedSeconds?: number | null;
@@ -95,6 +96,15 @@ export function parseJournal(text: string, current?: Journal | null): Journal {
   }
   return { exportVersion: 1, app: 'Zepimon', exportedAt: value.exportedAt,
     receivedAt: value.receivedAt, snapshot, routes };
+}
+
+export function receiveCloudJournal(text: string, current: Journal | null, currentOwner: string | null, owner: string): Journal {
+  if (currentOwner && currentOwner !== owner) throw new Error('This journal is linked to another account.')
+  const incoming = parseJournal(text)
+  if (current && incoming.snapshot.capturedAt < current.snapshot.capturedAt) return current
+  // Retain previously imported normal/shiny discoveries, including before cloud linking.
+  incoming.snapshot.dex = { ...current?.snapshot.dex, ...incoming.snapshot.dex }
+  return parseJournal(JSON.stringify(incoming))
 }
 
 export function km(meters: number): string {

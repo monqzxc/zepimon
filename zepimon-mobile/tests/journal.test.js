@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseJournal, km, duration, averagePace, dexEntries, recordForm,
-  hasAcquisitionDistance, personalBests } from '../src/journal.ts';
+  hasAcquisitionDistance, personalBests, receiveCloudJournal } from '../src/journal.ts';
 
 const finishedAt = '2026-10-16T12:00:00.000Z';
 const record = (overrides = {}) => ({ meters: 5500, steps: 7000, finishedAt, shiny: false, ...overrides });
@@ -13,6 +13,20 @@ const envelope = () => ({
     records: { 0: record() }, active: null },
 });
 const parse = (value, current) => parseJournal(JSON.stringify(value), current);
+
+test('cloud sync preserves local discoveries, rejects mixed accounts and keeps newer offline progress', () => {
+  const current = parse(envelope());
+  const incoming = envelope();
+  incoming.snapshot.capturedAt++;
+  incoming.snapshot.dex = { Charmander: record() };
+  const result = receiveCloudJournal(JSON.stringify(incoming), current, null, 'account-a');
+  assert.ok(result.snapshot.dex.Bulbasaur);
+  assert.ok(result.snapshot.dex['Shiny Bulbasaur']);
+  assert.ok(result.snapshot.dex.Charmander);
+  assert.equal(receiveCloudJournal(JSON.stringify(envelope()), result, 'account-a', 'account-a'), result);
+  assert.throws(() => receiveCloudJournal(JSON.stringify(incoming), current, 'account-a', 'account-b'), /another account/);
+  assert.throws(() => receiveCloudJournal('{"snapshot":null}', current, null, 'account-a'));
+});
 
 test('imports and sanitizes the current watch export, including separate variants', () => {
   const value = envelope();
@@ -42,8 +56,37 @@ test('keeps legacy timing unavailable and optional personal bests absent', () =>
   const journal = parse(value);
   assert.equal(journal.snapshot.personalBests, undefined);
   assert.equal(journal.snapshot.records[0].elapsedSeconds, undefined);
+  assert.equal(journal.snapshot.records[0].activity, undefined);
   assert.equal(duration(journal.snapshot.records[0].elapsedSeconds), '--:--:--');
   assert.equal(averagePace(undefined, 5500), '--:-- /km');
+});
+
+test('round-trips walking and running across records, Dex, active adventure and personal bests', () => {
+  const value = envelope();
+  value.snapshot.records[0].activity = 'walking';
+  value.snapshot.dex.Bulbasaur.activity = 'walking';
+  value.snapshot.dex['Shiny Bulbasaur'].activity = 'running';
+  value.snapshot.active = { route: 1, meters: 1000, steps: 1500, shiny: false, activity: 'running' };
+  value.snapshot.personalBests = { distance: { ...record({ activity: 'running' }), route: 1 } };
+  const journal = parse(value);
+  assert.equal(journal.snapshot.records[0].activity, 'walking');
+  assert.equal(journal.snapshot.dex.Bulbasaur.activity, 'walking');
+  assert.equal(journal.snapshot.dex['Shiny Bulbasaur'].activity, 'running');
+  assert.equal(journal.snapshot.active.activity, 'running');
+  assert.equal(journal.snapshot.personalBests.distance.activity, 'running');
+  assert.deepEqual(parse(journal), journal);
+
+  for (const select of [value => value.snapshot.records[0], value => value.snapshot.dex.Bulbasaur,
+    value => value.snapshot.active, value => value.snapshot.personalBests.distance]) {
+    for (const activity of ['cycling', '', 1, false, {}]) {
+      const invalid = structuredClone(value);
+      select(invalid).activity = activity;
+      assert.throws(() => parse(invalid), /Invalid activity/);
+    }
+    const absent = structuredClone(value);
+    select(absent).activity = null;
+    assert.equal(select(parse(absent)).activity, undefined);
+  }
 });
 
 test('rejects malformed JSON, oversized UTF-8 content, wrong envelopes and dates', () => {

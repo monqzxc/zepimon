@@ -22,17 +22,17 @@ assert.equal(context.logic.paceLabel(10, 0), '--:-- /km')
 assert.equal(context.logic.paceLabel(null, 1000), '--:-- /km')
 assert.equal(context.logic.paceLabel(5, Number.MIN_VALUE), '--:-- /km')
 // Current pace uses recent motion even after a long adventure, then expires at rest.
-const paceSamples = []
+const paceTracker = {}
 let paceAt = 1000
 let paceMeters = 10000
-const livePace = () => context.logic.currentPace(paceSamples, paceMeters, paceAt)
-const moveFor = (seconds, metersPerSecond) => {
+const livePace = (activity = 'walking') => context.logic.currentPace(paceTracker, paceMeters, paceAt, activity)
+const moveFor = (seconds, metersPerSecond, activity) => {
   for (let i = 0; i < seconds; i++) {
     paceAt += 1000
     paceMeters += metersPerSecond
-    livePace()
+    livePace(activity)
   }
-  return livePace()
+  return livePace(activity)
 }
 assert.equal(livePace(), '--:-- /km')
 assert.equal(moveFor(4, 2), '--:-- /km', 'Wait for enough fresh observations')
@@ -41,21 +41,35 @@ assert.equal(moveFor(15, 4), '4:10 /km', 'Running replaces the earlier walking p
 assert.equal(moveFor(15, 1), '16:40 /km', 'Slowing down must increase min/km')
 assert.equal(moveFor(15, 0), '--:-- /km', 'Stopping must not keep a stale moving pace')
 assert.equal(moveFor(15, 2), '8:20 /km')
-const sampleCount = paceSamples.length
+const sampleCount = paceTracker.samples.length
 for (let i = 0; i < 20; i++) assert.equal(livePace(), '8:20 /km')
-assert.equal(paceSamples.length, sampleCount, 'Duplicate step/distance callbacks add no samples')
-assert.ok(paceSamples.length <= 17, 'The rolling buffer stays bounded')
+assert.equal(paceTracker.samples.length, sampleCount, 'Duplicate step/distance callbacks add no samples')
+assert.ok(paceTracker.samples.length <= 17, 'The rolling buffer stays bounded')
+assert.equal(moveFor(8, 4, 'running'), '4:10 /km', 'Running adapts within eight seconds of fresh distance updates')
 paceAt += 60000
 paceMeters += 500
 assert.equal(livePace(), '--:-- /km', 'Distance recovered after suspension cannot become a speed spike')
-assert.equal(moveFor(5, 2), '8:20 /km')
+assert.equal(moveFor(6, 2), '8:20 /km')
 paceMeters = 0
 assert.equal(livePace(), '--:-- /km', 'A distance counter reset starts fresh')
 moveFor(5, 2)
 paceAt -= 10000
 assert.equal(livePace(), '--:-- /km', 'A backward clock change starts fresh')
-assert.equal(context.logic.currentPace(paceSamples, NaN, paceAt), '--:-- /km')
-assert.equal(paceSamples.length, 0)
+assert.equal(context.logic.currentPace(paceTracker, NaN, paceAt), '--:-- /km')
+assert.equal(paceTracker.samples.length, 0)
+// Batched daily distance updates must use their actual interval, not the last draw frame.
+const batchedPace = {}
+let batchMeters = 0
+context.logic.currentPace(batchedPace, batchMeters, 0, 'running')
+for (let second = 1; second <= 48; second++) {
+  if (second % 12 === 0) batchMeters += 40
+  const pace = context.logic.currentPace(batchedPace, batchMeters, second * 1000, 'running')
+  assert.equal(pace, second < 12 ? '--:-- /km' : '5:00 /km', 'Keep a steady reading between twelve-second sensor batches')
+}
+for (let second = 49; second <= 63; second++) {
+  const pace = context.logic.currentPace(batchedPace, batchMeters, second * 1000, 'running')
+  if (second === 63) assert.equal(pace, '--:-- /km', 'A held estimate expires after fifteen seconds without fresh distance')
+}
 assert.equal(context.logic.primaryType('Charizard'), 'fire')
 assert.equal(context.logic.primaryType('Shiny Gengar'), 'ghost')
 assert.equal(context.logic.dexPokemon({ Bulbasaur: {}, 'Shiny Bulbasaur': {} }).length, 1)
@@ -286,7 +300,8 @@ Object.assign(context, {
   },
   deleteWidget: () => {}, setWakeUpRelaunch: () => {}, Page: (definition) => { page = definition }
 })
-vm.runInContext('Math.random = () => 0.5', context)
+context.shinyRolls = 0
+vm.runInContext('Math.random = () => { shinyRolls++; return 0.5 }', context)
 context.testNow = 100000
 vm.runInContext('Date.now = () => testNow', context)
 vm.runInContext(fs.readFileSync('page/adventure.js', 'utf8').replace(/^import .*\r?\n/gm, ''), context)
@@ -319,7 +334,35 @@ assert.equal(page.state.active, null, 'Leaving selection must not start an adven
 openFromTitle('home')
 click('New Egg')
 click('Generation 1')
+click('>')
+const megaButton = page.widgets.find(item => item.text && item.text.endsWith(' @21km') && item.click_func)
+assert.ok(megaButton)
+megaButton.click_func()
+const selectedEgg = page.index
+const selectedMega = page.megaIndex
+const rollsBeforeMode = context.shinyRolls
 click('Start')
+assert.equal(page.view, 'activity')
+assert.equal(page.state.active, null, 'Choosing an activity must not start the adventure yet')
+assert.equal(context.shinyRolls, rollsBeforeMode, 'The shiny chance waits until an activity is chosen')
+click('Back')
+assert.equal(page.view, 'choose')
+assert.equal(page.index, selectedEgg, 'Activity Back keeps the selected egg')
+assert.equal(page.megaIndex, selectedMega, 'Activity Back keeps the selected Mega form')
+click('Back')
+click('Generation 1')
+click('Start')
+click('Walking')
+assert.equal(page.state.active.activity, 'walking')
+assert.equal(context.shinyRolls, rollsBeforeMode + 1, 'Starting an adventure rolls exactly once')
+assert.equal(JSON.parse(stored).active.activity, 'walking')
+assert.ok(page.stats[2].text.startsWith('Walk: '))
+const beforeDuplicateStart = JSON.stringify(page.state.active)
+page.start(1, 'running')
+assert.equal(JSON.stringify(page.state.active), beforeDuplicateStart, 'A duplicate start must preserve the active adventure')
+assert.equal(context.shinyRolls, rollsBeforeMode + 1)
+click('Finish & save')
+click('Keep walking')
 assert.equal(timers.size, 1)
 assert.ok(page.portrait.w > 96 && page.portrait.h > 96, 'Run sprite should be larger than selection sprites')
 assert.equal(page.portrait.x, (320 - page.portrait.w) / 2)
@@ -331,7 +374,7 @@ Array.from(timers.values())[0]()
 assert.equal(page.portrait.y, baseY - 2)
 assert.equal(page.portrait.x, (320 - page.portrait.w) / 2, 'Animation must keep the larger sprite centered')
 assert.equal(page.clockStats[0].text, 'Time 00:01:01')
-assert.equal(page.clockStats[1].text, 'Pace --:-- /km')
+assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km')
 for (let frame = 0; frame < 6; frame++) {
   Array.from(timers.values())[0]()
   assert.ok(page.portrait.y >= 64)
@@ -350,7 +393,7 @@ page.build()
 assert.equal(page.state.active.meters, 5500)
 assert.equal(page.state.active.startedAt, startedAt)
 assert.equal(page.clockStats[0].text, 'Time 00:01:01')
-assert.equal(page.clockStats[1].text, 'Pace --:-- /km', 'Reopen recovers distance without reusing old pace')
+assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km', 'Reopen recovers distance without reusing old pace')
 click('Finish & save')
 click('Save & finish')
 assert.equal(page.state.records[0].meters, 5500)
@@ -369,14 +412,27 @@ click('Back')
 openFromTitle('home')
 click('Continue Adventure')
 click('Start')
+click('Back')
+assert.equal(page.view, 'existing', 'Activity Back also returns to the saved-route chooser')
+click('Start')
+click('Running')
+assert.equal(page.state.active.activity, 'running')
+assert.ok(page.stats[2].text.startsWith('Run: '))
 assert.equal(page.state.active.meters, 0)
 assert.equal(page.state.records[0].meters, 5500)
+openFromTitle('home')
+assert.equal(page.state.active.activity, 'running', 'Reopening retains the selected activity')
+click('Finish & save')
+click('Keep running')
+assert.equal(page.view, 'session')
 distance += 6000
 page.sync()
 click('Finish & save')
 click('Save & finish')
 assert.equal(page.state.records[0].meters, 6000)
+assert.equal(page.state.records[0].activity, 'running')
 assert.equal(page.state.dex.Bulbasaur.meters, 6000)
+assert.equal(page.state.dex.Bulbasaur.activity, 'running', 'Acquired Pokemon retains the activity with its journey')
 page.onDestroy()
 // A fresh page load must preserve saved data.
 context.LocalStorage = LocalStorage
@@ -419,11 +475,20 @@ for (let second = 0; second < 20; second++) {
   steps += 3
   page.sync()
 }
-assert.equal(page.clockStats[1].text, 'Pace 8:20 /km', 'The actual watch widget must use recent speed, not the hour-long session average')
+assert.equal(page.clockStats[1].text, 'Est. pace 8:20 /km', 'The actual watch widget must use recent speed, not the hour-long session average')
+page.state.active.activity = 'running'
+for (let second = 0; second < 8; second++) {
+  context.testNow += 1000
+  distance += 4
+  // Some firmware updates getCurrent before delivering an onChange callback.
+  Array.from(timers.values())[0]()
+}
+assert.equal(page.clockStats[1].text, 'Est. pace 4:10 /km', 'Polling picks up running speed without a distance callback')
+page.state.active.activity = 'walking'
 context.testNow += 60000
 Array.from(timers.values())[0]()
 page.sync() // A step callback can wake before the distance counter catches up.
-assert.equal(page.clockStats[1].text, 'Pace --:-- /km')
+assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km')
 context.testNow += 100
 distance += 500
 steps += 700
@@ -432,23 +497,23 @@ for (let second = 0; second < 5; second++) {
   context.testNow += 1000
   Array.from(timers.values())[0]()
 }
-assert.equal(page.clockStats[1].text, 'Pace --:-- /km', 'Timer-before-sensor wake order must not turn recovered distance into current speed')
+assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km', 'Timer-before-sensor wake order must not turn recovered distance into current speed')
 for (let second = 0; second < 15; second++) {
   context.testNow += 1000
   distance += 2
   page.sync()
 }
-assert.equal(page.clockStats[1].text, 'Pace 8:20 /km', 'Fresh walking establishes pace again after suspension')
+assert.equal(page.clockStats[1].text, 'Est. pace 8:20 /km', 'Fresh walking establishes pace again after suspension')
 for (let second = 0; second < 15; second++) {
   context.testNow += 1000
   Array.from(timers.values())[0]()
 }
-assert.equal(page.clockStats[1].text, 'Pace --:-- /km', 'The timer expires pace without a sensor callback')
-assert.ok(!stored.includes('paceSamples'), 'Transient pace samples must not be written to saves')
+assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km', 'The timer expires pace without a sensor callback')
+assert.ok(!stored.includes('checkedAt'), 'Transient pace samples must not be written to saves')
 distance = 1
 page.sync()
-assert.equal(page.paceSamples.length, 1, 'A daily counter reset clears recent speed history')
-assert.equal(page.clockStats[1].text, 'Pace --:-- /km')
+assert.equal(page.pace.samples.length, 1, 'A daily counter reset clears recent speed history')
+assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km')
 page.onDestroy()
 assert.equal(timers.size, 0)
 // Explicit History must work during an active adventure without resetting it.

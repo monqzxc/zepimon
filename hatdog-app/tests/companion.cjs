@@ -93,6 +93,9 @@ async function main() {
   watch.catalogRoutes = watch.routes
   source('page/types.js', watch, ['pokemonTypes'])
   source('page/pokemon.js', watch, ['repairDexRecords'])
+  phone.routes = clone(watch.routes)
+  source('shared/cloud-config.js', phone, ['cloudConfig'])
+  source('shared/cloud.js', phone, ['cloudMethods', 'CLOUD_REQUEST_KEY'])
   source('app.js', watch)
   source('app-side/index.js', phone)
   phoneService.onInit()
@@ -160,6 +163,8 @@ async function main() {
   source('page/pokemon.js', ui, ['routes', 'speciesCount', 'collectionCount', 'dexPokemon', 'currentForm', 'spritePath', 'primaryType', 'elapsedSeconds', 'elapsedLabel', 'paceLabel', 'nextMilestone', 'hasDexDistance'])
   source('shared/companion.js', ui, contract)
   source('setting/eggs.js', ui, ['eggs'])
+  source('shared/cloud-config.js', ui, ['cloudConfig'])
+  source('shared/cloud.js', ui, ['CLOUD_TOKEN_KEY', 'CLOUD_REQUEST_KEY', 'CLOUD_STATUS_KEY'])
   source('setting/index.js', ui)
   const render = () => settingsPage.build({ settingsStorage })
   const nodes = tree => [tree, ...(tree.children || []).flatMap(child => typeof child === 'object' ? nodes(child) : [])]
@@ -247,12 +252,17 @@ async function main() {
   click(render(), 'Export JSON')
   const legacyExport = JSON.parse(exportInput().props.value)
   assert.equal(legacyExport.snapshot.records[0].elapsedSeconds, undefined)
+  assert.equal(legacyExport.snapshot.records[0].activity, undefined, 'Older adventures must not invent an activity')
   assert.deepEqual(legacyExport.snapshot, clone(ui.validateSnapshot(legacy)))
   click(render(), 'Back to journal')
 
   const extended = JSON.parse(latestPhoneSnapshot)
   extended.active.meters = 5500
   extended.active.hatchSeconds = 540
+  extended.active.activity = 'running'
+  extended.records[0].activity = 'walking'
+  extended.dex.Bulbasaur.activity = 'walking'
+  extended.dex['Shiny Bulbasaur'].activity = 'running'
   extended.records[0].hatchSeconds = 3000
   extended.dex.Bulbasaur.hatchSeconds = 3000
   extended.dex.Bulbasaur.elapsedSeconds = 3720
@@ -284,12 +294,22 @@ async function main() {
   click(render(), 'Export JSON')
   const extendedExport = JSON.parse(exportInput().props.value)
   assert.equal(extendedExport.snapshot.active.hatchSeconds, 540)
+  assert.equal(extendedExport.snapshot.active.activity, 'running')
+  assert.equal(extendedExport.snapshot.records[0].activity, 'walking')
   assert.equal(extendedExport.snapshot.records[0].hatchSeconds, 3000)
   assert.equal(extendedExport.snapshot.dex.Bulbasaur.hatchSeconds, 3000)
   assert.deepEqual(extendedExport.snapshot.dex.Bulbasaur, extended.dex.Bulbasaur)
   assert.deepEqual(extendedExport.snapshot.dex['Shiny Bulbasaur'], extended.dex['Shiny Bulbasaur'])
   assert.deepEqual(extendedExport.snapshot.personalBests, extended.personalBests)
   assert.deepEqual(extendedExport.snapshot, clone(ui.validateSnapshot(extendedExport.snapshot)))
+  for (const select of [value => value.active, value => value.records[0],
+    value => value.dex.Bulbasaur, value => value.personalBests.distance]) {
+    const invalid = clone(extendedExport.snapshot)
+    select(invalid).activity = 'cycling'
+    assert.throws(() => ui.validateSnapshot(invalid), /Invalid activity/)
+    select(invalid).activity = null
+    assert.equal(select(ui.validateSnapshot(invalid)).activity, undefined)
+  }
   click(render(), 'Back to journal')
   phoneStorage.set(phone.SNAPSHOT_KEY, latestPhoneSnapshot)
 
