@@ -110,7 +110,7 @@ Start Adventure opens a blue pixel adventure hub with an egg,
 collection count and New Egg / Random Egg buttons, plus Back to the title.
 New Egg opens generation selection, whose **Back to title** button returns
 directly to the title screen. **Random Egg** (v1.10.1) picks an evolution route
-with equal odds from the whole catalog, including Extra Mega families, and
+with equal odds from eligible egg routes, including Extra Mega families, and
 opens its preview. You can choose its Mega form before tapping
 **Start**, then **Walking** or **Running**. Back from activity selection keeps
 the same egg; Back from the random preview returns to the hub. Previewing or
@@ -144,8 +144,8 @@ highlighting the last selected generation. All app content starts at or below y=
 the watch's system app-name/time header visible. No duplicate custom header
 is drawn. This follows the rectangular-screen status bar dimensions in the
 [Zepp screen adaptation guide](https://docs.zepp.com/docs/v2/guides/best-practice/multi-screen-adaption/).
-Every new adventure starts at zero. Random Egg still picks from the full catalog
-and opens its preview directly; Back returns to the hub to pick again.
+Every new adventure starts at zero. Random Egg excludes Legendary/Mythical
+routes and opens its preview directly; Back returns to the hub to pick again.
 Choosing **Walking** or **Running** starts a new adventure and rolls a 1-in-50
 (2%) shiny chance as of v1.10.3, including random eggs and previously completed routes.
 Browsing eggs and reopening an active adventure do not reroll.
