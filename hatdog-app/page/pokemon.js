@@ -1,5 +1,6 @@
 import { routes as catalogRoutes, species, megaForms, sprites, shinySprites } from './catalog'
 import { pokemonTypes } from './types'
+import { ensureExpedition } from '../shared/expedition'
 export function primaryType(name) { return pokemonTypes[name.replace(/^Shiny /, '')] || 'normal' }
 export function dexPokemon(dex) {
   const names = {}
@@ -10,7 +11,7 @@ export const routes = catalogRoutes
 export const speciesCount = Object.keys(species).length
 export function generation(route) { return species[routes[route][0]].gen }
 export function megaChoices(route) { return megaForms[routes[route][routes[route].length - 1]] || [] }
-export function rollShiny(random = Math.random) { return Math.floor(random() * 100) === 0 }
+export function rollShiny(random = Math.random) { return Math.floor(random() * 50) === 0 }
 export function elapsedSeconds(session, now = Date.now()) {
   if (!Number.isFinite(session.startedAt)) return null
   return Math.max(0, Math.floor((now - session.startedAt) / 1000))
@@ -27,11 +28,33 @@ export function paceLabel(seconds, meters) {
   if (!Number.isFinite(pace)) return '--:-- /km'
   return Math.floor(pace / 60) + ':' + ('0' + pace % 60).slice(-2) + ' /km'
 }
-export function currentPace(tracker, meters, now = Date.now(), activity = 'walking') {
-  const blank = paceLabel(null, 0)
+export function currentPace(tracker, meters, now = Date.now(), activity = 'walking', steps) {
+  if (!tracker.stepTracker) tracker.stepTracker = { awaitingChange: tracker.awaitingChange }
+  const speed = currentSpeed(tracker, meters, now, activity)
+  const cadence = currentSpeed(tracker.stepTracker, steps, now, activity)
+  if (!Number.isFinite(meters) || meters < 0 || !Number.isFinite(now)) {
+    tracker.stride = null
+    tracker.strideMeters = null
+    return paceLabel(null, 0)
+  }
+  // Keep the measured stride stable between distance batches; never assume a default stride.
+  if (meters > 0 && Number.isFinite(steps) && steps >= 10 && meters !== tracker.strideMeters) {
+    const stride = meters / steps
+    if (stride >= 0.2 && stride <= 2.5) {
+      tracker.stride = stride
+      tracker.strideMeters = meters
+    }
+  }
+  const last = tracker.samples[tracker.samples.length - 1]
+  const slowDistance = !speed || tracker.batchInterval > 15000 || (last && now - last.at >= 15000)
+  return paceLabel(1, slowDistance && cadence > 0 && tracker.stride ? cadence * tracker.stride : speed)
+}
+function currentSpeed(tracker, meters, now, activity) {
+  const blank = 0
   if (!Number.isFinite(meters) || meters < 0 || !Number.isFinite(now)) {
     tracker.samples = []
     tracker.checkedAt = null
+    tracker.batchInterval = 0
     tracker.awaitingChange = true
     return blank
   }
@@ -41,6 +64,7 @@ export function currentPace(tracker, meters, now = Date.now(), activity = 'walki
   if ((Number.isFinite(tracker.checkedAt) && (now < tracker.checkedAt || now - tracker.checkedAt > 5000)) ||
       (last && meters < last.meters)) {
     samples = []
+    tracker.batchInterval = 0
     tracker.awaitingChange = true
   }
   tracker.checkedAt = now
@@ -54,21 +78,33 @@ export function currentPace(tracker, meters, now = Date.now(), activity = 'walki
     }
     return blank
   }
-  if (now - last.at >= 15000) {
+  // Slow sensor batches still need the preceding distance timestamp to measure pace.
+  // Hide stale readings without throwing away that baseline on each timer tick.
+  const staleAfter = tracker.batchInterval > 15000 ? Math.min(60000, tracker.batchInterval * 1.5) : 15000
+  if (meters === last.meters && now - last.at >= staleAfter) {
+    tracker.samples = [last]
+    return blank
+  }
+  const maxBatchInterval = Math.max(60000, Math.min(120000, tracker.batchInterval * 1.5 || 0))
+  if (meters > last.meters && now - last.at > maxBatchInterval) {
     tracker.samples = [{ at: now, meters }]
-    tracker.awaitingChange = meters === last.meters
+    // Learn a repeated slow cadence, but discard the first batch after a long stop.
+    tracker.batchInterval = now - last.at
     return blank
   }
   // Time actual counter updates; flat timer frames must not turn a batch into a speed spike.
   if (meters > last.meters) {
     if (now - last.at < 1000) last.meters = meters
-    else samples.push({ at: now, meters })
+    else {
+      tracker.batchInterval = now - last.at
+      samples.push({ at: now, meters })
+    }
   }
   last = samples[samples.length - 1]
   const window = activity === 'running' ? 8000 : 15000
   while (samples.length > 2 && samples[0].at < last.at - window && last.at - samples[1].at >= 5000) samples.shift()
   const first = samples[0]
-  return paceLabel(last.at - first.at >= 5000 ? (last.at - first.at) / 1000 : null, last.meters - first.meters)
+  return last.at - first.at >= 5000 ? (last.meters - first.meters) * 1000 / (last.at - first.at) : blank
 }
 export function spritePath(name, shiny = false) {
   if (name.indexOf('Shiny ') === 0) { name = name.slice(6); shiny = true }
@@ -196,10 +232,13 @@ export function repairDexRecords(state) {
 }
 
 export function finishSession(state, finishedAt) {
+  if (!state.active) return
   // Seed old saves before replacing this route's latest journey.
   refreshPersonalBests(state)
   repairDexRecords(state)
   const session = state.active
+  const expedition = ensureExpedition(state, Date.parse(finishedAt))
+  expedition.meters = Math.min(100000000, expedition.meters + session.meters)
   const earned = acquiredForms(session.route, session.meters, session.mega)
   const seconds = elapsedSeconds(session, Date.parse(finishedAt))
   const hatchSeconds = session.meters >= 5000 && Number.isFinite(session.hatchSeconds) &&

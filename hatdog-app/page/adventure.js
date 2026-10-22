@@ -3,7 +3,9 @@ import { Distance, Step } from '@zos/sensor'
 import { LocalStorage } from '@zos/storage'
 import { setWakeUpRelaunch } from '@zos/display'
 import { back } from '@zos/router'
-import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, dexPokemon, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords, hasDexDistance } from './pokemon'
+import { createSprite, drawSprite } from './sprite'
+import { legendarySpecies, ensureExpedition, expeditionGoal, clueMilestones } from '../shared/expedition'
+import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords } from './pokemon'
 
 const ink = 0xFFFFFF
 const muted = 0x8CD3F5
@@ -13,6 +15,11 @@ const selectedFill = 0x0C97C5
 // Rectangular watches draw their own app-name/time header in the top 64 pixels.
 const contentTop = 64
 const historyTitles = { distance: 'Highest distance', elapsed: 'Longest elapsed time', hatch: 'Fastest 5 km hatch' }
+const letterGroups = ['A-F', 'G-L', 'M-R', 'S-Z']
+const eggLabels = routes.map(route => route.length > 1 ? route[0] + ' > ' + route[route.length - 1] : route[0])
+const eggRoutes = routes.map((_, i) => i).filter(i => !legendarySpecies.includes(routes[i][0]))
+// Sort display indices only: stored journeys keep their original catalog route IDs.
+const eggOrder = eggRoutes.slice().sort((a, b) => eggLabels[a] < eggLabels[b] ? -1 : eggLabels[a] > eggLabels[b] ? 1 : a - b)
 const themes = {
   normal: [0x201C28, 0x817581], fire: [0x301A16, 0xE97938], water: [0x102434, 0x479FE3],
   grass: [0x132B20, 0x64B862], electric: [0x2D2812, 0xEDCA46], ice: [0x153038, 0x82D4DF],
@@ -32,7 +39,7 @@ Page({
   onInit(params) {
     try {
       const options = typeof params === 'string' ? JSON.parse(params) : params
-      this.requestedView = options && ['home', 'new', 'existing', 'history', 'dex'].includes(options.view) ? options.view : null
+      this.requestedView = options && ['home', 'new', 'history'].includes(options.view) ? options.view : null
     } catch (_) { this.requestedView = null }
   },
   build() {
@@ -49,10 +56,11 @@ Page({
       this.storage = new LocalStorage()
       this.state = this.storage.getItem('zepimon-v1') || { dex: {}, records: {}, active: null }
       if (!this.state.dex || !this.state.records) throw new Error('Invalid saved data')
+      ensureExpedition(this.state)
       refreshPersonalBests(this.state)
       repairDexRecords(this.state)
       this.save()
-      this.view = ['history', 'dex'].includes(this.requestedView) ? this.requestedView : this.state.active ? 'session' : this.requestedView || 'home'
+      this.view = this.requestedView === 'history' ? this.requestedView : this.state.active ? 'session' : this.requestedView || 'home'
       this.index = 0
       this.selectedGeneration = 1
       this.megaIndex = 0
@@ -104,7 +112,7 @@ Page({
     const now = Date.now()
     if (!this.ready || session.day !== day || meters < session.lastMeters || steps < session.lastSteps) this.pace = { awaitingChange: true }
     updateSession(session, meters, steps, day, now)
-    this.paceText = currentPace(this.pace, session.meters, now, session.activity)
+    this.paceText = currentPace(this.pace, session.meters, now, session.activity, session.steps)
     if (changed) this.save()
     if (this.view === 'session' && this.stats) this.refreshStats()
   },
@@ -134,38 +142,30 @@ Page({
   button(y, text, action, x = 20, w = 280, selected = false, h = 42) {
     this.rect(x + 3, y, w - 6, h, edge)
     this.rect(x, y + 3, w, h - 6, edge)
-    this.widgets.push(createWidget(widget.BUTTON, {
+    const item = createWidget(widget.BUTTON, {
       x: x + 3, y: y + 3, w: w - 6, h: h - 6, radius: 0, text,
       text_size: text.length > 23 ? 16 : 19, color: ink,
       normal_color: selected ? selectedFill : 0x095CA5, press_color: 0x073F75, click_func: action
-    }))
+    })
+    this.widgets.push(item)
+    return item
   },
 
   image(y, name, shiny = false, onClick, size = 96) {
     const x = (320 - size) / 2
-    const item = createWidget(widget.IMG, {
-      x, y, w: size, h: size, pos_x: 0, pos_y: 0,
-      auto_scale: true, auto_scale_obj_fit: true, src: spritePath(name, shiny)
-    })
+    const item = createSprite(x, y, size, name, shiny)
     this.widgets.push(item)
     if (onClick) item.addEventListener(event.CLICK_UP, onClick)
-    this.moving.push({ item, x, y, size })
-    if (this.motionTimer === undefined) {
-      let frame = 0
-      const offsets = [0, -2, -4, -2, 0, 1]
+    if (this.view === 'session' && this.motionTimer === undefined) {
       this.motionTimer = setInterval(() => {
-        frame = (frame + 1) % offsets.length
-        this.moving.forEach(({ item: sprite, x: baseX, y: baseY, size: imageSize }) => sprite.setProperty(prop.MORE, {
-          x: baseX, y: baseY + offsets[frame], w: imageSize, h: imageSize,
-          pos_x: 0, pos_y: 0, auto_scale: true, auto_scale_obj_fit: true
-        }))
         if (this.view === 'session' && this.clockStats) {
           const now = Date.now()
           if (this.ready && (!Number.isFinite(this.pace.checkedAt) || now < this.pace.checkedAt || now - this.pace.checkedAt >= 1000)) this.sync()
           else this.refreshClock()
+          this.refreshSprite()
         }
 
-      }, 400)
+      }, 200)
     }
     return item
   },
@@ -173,7 +173,6 @@ Page({
   stopMotion() {
     if (this.motionTimer !== undefined) clearInterval(this.motionTimer)
     this.motionTimer = undefined
-    this.moving = []
   },
 
   background(name = 'Egg') {
@@ -190,7 +189,6 @@ Page({
     this.backdrop.accents.forEach((item) => item.setProperty(prop.MORE, { color: colors[1] }))
   },
 
-  openDex(name) { this.dexName = name; this.dexShiny = !this.state.dex[name]; this.view = 'dex-detail'; this.render() },
 
   renderGenerationPicker() {
     this.rect(0, contentTop, 320, 380 - contentTop, 0x031A2C)
@@ -203,7 +201,7 @@ Page({
       this.button(y, title, () => {
         if (gen === 6) { back(); return }
         this.selectedGeneration = gen
-        this.show('choose')
+        this.show('letters')
       }, 24, 272, selected, 38)
       if (selected) {
         this.rect(36, y + 10, 4, 18, 0xF4EAC7)
@@ -211,6 +209,62 @@ Page({
         this.rect(44, y + 16, 4, 6, 0xF4EAC7)
       }
     }
+  },
+
+  renderLetterPicker() {
+    this.background()
+    this.text(70, 'Choose letters', 22, ink, 28)
+    this.text(104, this.selectedGeneration === 5 ? 'Extra Mega families' : 'Generation ' + this.selectedGeneration, 17, muted, 24)
+    letterGroups.forEach((group, i) => this.button(136 + i * 46, group, () => {
+      this.letterGroup = group
+      this.listItems = eggOrder.filter(route => {
+        const first = routes[route][0][0].toUpperCase()
+        return first >= group[0] && first <= group[2] &&
+          (this.selectedGeneration === 5 ? generation(route) > 4 : generation(route) === this.selectedGeneration)
+      })
+      this.listPage = 0
+      this.show('choose')
+    }, 20, 280, false, 40))
+    this.button(332, 'Back', () => this.show('new'))
+  },
+
+  renderEggList() {
+    this.background()
+    this.text(70, (this.selectedGeneration === 5 ? 'Extra Mega' : 'Gen ' + this.selectedGeneration) + ' / ' + this.letterGroup, 22, ink, 28)
+    if (!this.listItems.length) {
+      this.text(160, 'No eggs in this group', 20, muted, 56)
+      this.button(332, 'Back', () => this.show('letters'))
+      return
+    }
+    this.listCounter = this.text(104, '', 16, muted, 24)
+    this.listRows = []
+    for (let row = 0; row < 4; row++) {
+      this.listRows.push(this.button(136 + row * 46, '', () => {
+        const route = this.listItems[this.listPage * 4 + row]
+        if (route !== undefined) this.show('preview', route)
+      }, 20, 280, false, 40))
+    }
+    const move = delta => {
+      const next = this.listPage + delta
+      if (next < 0 || next * 4 >= this.listItems.length) return
+      this.listPage = next
+      this.refreshEggList()
+    }
+    this.button(332, '< Prev', () => move(-1), 20, 84)
+    this.button(332, 'Back', () => this.show('letters'), 108, 104)
+    this.button(332, 'Next >', () => move(1), 216, 84)
+    this.refreshEggList()
+  },
+
+  refreshEggList() {
+    this.listCounter.setProperty(prop.TEXT, 'Page ' + (this.listPage + 1) + ' / ' + Math.ceil(this.listItems.length / 4))
+    this.listRows.forEach((row, i) => {
+      const route = this.listItems[this.listPage * 4 + i]
+      const label = route === undefined ? '' : eggLabels[route]
+      // BUTTON updates require geometry on this watch API; retain the existing widgets.
+      row.setProperty(prop.MORE, { x: 23, y: 139 + i * 46, w: 274, h: 34,
+        text: label, text_size: label.length > 23 ? 16 : 19 })
+    })
   },
 
   renderHub() {
@@ -226,12 +280,13 @@ Page({
     for (let i = 0; i < 8; i++) this.rect(27 + i * 36, 202 + i % 2 * 3, 4, 9, 0x79B66B)
     this.image(116, 'Egg')
     this.button(224, 'New Egg', () => this.show('new'), 20, 280, true, 38)
-    this.button(268, 'Continue Adventure', () => this.show(this.state.active ? 'session' : 'existing'), 20, 280, false, 38)
+    this.button(268, 'Random Egg', () => this.show('random', eggRoutes[Math.floor(Math.random() * eggRoutes.length)]), 20, 280, false, 38)
     this.button(312, 'Back', () => back(), 20, 280, false, 38)
-    this.text(354, '5 / 10 / 15 km   |   Mega at 21 km', 14, muted, 22)
+    const expedition = this.state.expedition
+    this.text(354, 'Expedition: ' + km(expedition.meters % expeditionGoal) + ' / 25', 13, muted, 22)
   },
 
-  show(view) { this.view = view; this.index = 0; this.megaIndex = 0; this.render() },
+  show(view, index = 0) { this.view = view; this.index = index; this.megaIndex = 0; this.render() },
 
   renderHistory() {
     this.background()
@@ -275,10 +330,23 @@ Page({
     this.stats = null
     this.clockStats = null
     this.portrait = null
+    this.portraitKey = null
+    this.listRows = null
+    this.listCounter = null
     if (this.view === 'history') { this.renderHistory(); return }
     if (this.view === 'history-detail') { this.renderHistoryDetail(); return }
     if (this.view === 'home') { this.renderHub(); return }
     if (this.view === 'new') { this.renderGenerationPicker(); return }
+    if (this.view === 'expedition-saved') {
+      this.background()
+      this.text(70, 'Adventure saved!', 22, ink, 28)
+      this.text(132, this.expeditionNotice, 22, 0xF2E4B5, 70)
+      this.text(218, 'Sync to Zepimon on your phone to follow the clues.', 18, muted, 80)
+      this.button(332, 'Done', () => this.show('home'))
+      return
+    }
+    if (this.view === 'letters') { this.renderLetterPicker(); return }
+    if (this.view === 'choose') { this.renderEggList(); return }
     this.background()
     if (this.view === 'activity') {
       this.updateBackground(routes[this.pendingRoute][0])
@@ -288,29 +356,6 @@ Page({
       this.button(242, 'Walking', () => this.start(this.pendingRoute, 'walking'), 20, 280, true, 38)
       this.button(286, 'Running', () => this.start(this.pendingRoute, 'running'), 20, 280, false, 38)
       this.button(332, 'Back', () => { this.view = this.eggView; this.render() })
-      return
-    }
-    if (this.view === 'dex-detail') {
-      const name = this.dexName
-      const key = (this.dexShiny ? 'Shiny ' : '') + name
-      const record = this.state.dex[key]
-      this.updateBackground(name)
-      this.text(70, name, name.length > 23 ? 17 : 21, ink, 28)
-      this.button(104, this.dexShiny ? 'Normal' : '> Normal', () => { this.dexShiny = false; this.render() }, 20, 134, !this.dexShiny)
-      this.button(104, this.dexShiny ? '> Shiny' : 'Shiny', () => { this.dexShiny = true; this.render() }, 166, 134, this.dexShiny)
-      if (record) {
-        this.image(152, name, this.dexShiny)
-        if (hasDexDistance(name, record)) {
-          this.text(248, km(record.meters), 25, ink, 28)
-          this.text(276, record.steps + ' steps', 14, muted, 18)
-          this.text(294, Number.isFinite(record.elapsedSeconds) ? 'Time ' + elapsedLabel(record.elapsedSeconds) : 'Time not recorded', 14, muted, 18)
-          this.text(312, record.finishedAt.slice(0, 10), 12, muted, 16)
-        } else {
-          this.text(250, 'Distance unavailable', 19, ink, 28)
-          this.text(282, 'An older run overwrote these details.', 14, muted, 44)
-        }
-      } else this.text(200, 'Not acquired', 23, muted)
-      this.button(332, 'Back', () => { this.view = 'dex'; this.render() })
       return
     }
     if (this.view === 'session') {
@@ -328,56 +373,42 @@ Page({
       this.text(202, "Replaces this route's last record", 17, muted, 48)
       this.button(278, 'Save & finish', () => {
         this.sync()
+        const before = this.state.expedition.meters
         finishSession(this.state, new Date().toISOString())
         this.save()
         this.syncPhone()
         setWakeUpRelaunch({ relaunch: false })
-        this.show('home')
+        const after = this.state.expedition.meters
+        const encounters = Math.floor(after / expeditionGoal) - Math.floor(before / expeditionGoal)
+        const crossed = clueMilestones.some(m => before % expeditionGoal < m && after % expeditionGoal >= m)
+        this.expeditionNotice = encounters > 0 ? 'Legendary encounter ready!' : 'A mysterious clue appeared!'
+        this.show(encounters > 0 || crossed ? 'expedition-saved' : 'home')
       }, 20, 280, true)
       this.button(332, this.state.active.activity === 'running' ? 'Keep running' : 'Keep walking', () => this.show('session'))
       return
     }
-    const isDex = this.view === 'dex'
-    const items = isDex ? dexPokemon(this.state.dex) : routes.map((_, i) => i)
-      .filter((i) => this.view !== 'existing' || this.state.records[i])
-      .filter((i) => this.view !== 'choose' || (this.selectedGeneration === 5 ? generation(i) > 4 : generation(i) === this.selectedGeneration))
-    if (!items.length) {
-      this.text(134, isDex ? 'No Pokemon acquired yet' : 'No saved adventures yet', 20, ink, 56)
-      this.text(206, 'Choose a new egg to begin', 18, muted)
-      this.button(332, 'Back', () => isDex ? back() : this.show('home'))
-      return
-    }
-    const item = items[this.index]
-    this.text(70, (isDex ? 'POKEDEX' : 'CHOOSE EGG') + ' ' + (this.index + 1) + '/' + items.length, 18, muted, 28)
-    if (isDex) {
-      this.updateBackground(item)
-      this.button(108, item, () => this.openDex(item))
-      this.image(156, item, !this.state.dex[item], () => this.openDex(item))
-      this.text(256, 'Normal: ' + (this.state.dex[item] ? 'acquired' : 'locked'), 18, ink, 26)
-      this.text(284, 'Shiny: ' + (this.state.dex['Shiny ' + item] ? 'acquired' : 'locked'), 18, ink, 26)
-    } else {
-      this.updateBackground(routes[item][0])
-      this.text(104, routes[item][0] + ' egg', 22)
-      this.image(136, routes[item][0])
-      this.text(236, routes[item].join(' > '), 15, muted, 40)
-      const choices = megaChoices(item)
-      if (choices.length) this.button(280, choices[this.megaIndex % choices.length] + ' @21km', () => {
+    const item = this.index
+    this.text(70, this.view === 'random' ? 'RANDOM EGG' : 'EGG PREVIEW', 18, muted, 28)
+    this.updateBackground(routes[item][0])
+    this.text(104, routes[item][0] + ' egg', 22)
+    this.image(136, routes[item][0])
+    this.text(236, routes[item].join(' > '), 15, muted, 40)
+    const choices = megaChoices(item)
+    if (choices.length) {
+      const megaButton = this.button(280, choices[this.megaIndex % choices.length] + ' @21km', () => {
         this.megaIndex = (this.megaIndex + 1) % choices.length
-        this.render()
+        const label = choices[this.megaIndex] + ' @21km'
+        megaButton.setProperty(prop.MORE, { x: 23, y: 283, w: 274, h: 36,
+          text: label, text_size: label.length > 23 ? 16 : 19 })
       })
-      else this.text(286, this.state.records[item] ? 'Last: ' + km(this.state.records[item].meters) : 'No Mega form', 17, muted)
-    }
-    const move = (delta) => { this.index = (this.index + delta + items.length) % items.length; this.megaIndex = 0; this.render() }
-    this.button(332, '<', () => move(-1), 20, 44)
-    this.button(332, '>', () => move(1), 68, 44)
-    this.button(332, '+10', () => move(10), 116, 56)
-    if (!isDex) this.button(332, 'Start', () => {
+    } else this.text(286, this.state.records[item] ? 'Last: ' + km(this.state.records[item].meters) : 'No Mega form', 17, muted)
+    this.button(332, 'Start', () => {
       this.pendingRoute = item
       this.eggView = this.view
       this.view = 'activity'
       this.render()
-    }, 176, 60, true)
-    this.button(332, 'Back', () => isDex ? back() : this.show(this.view === 'choose' ? 'new' : 'home'), 240, 60)
+    }, 20, 136, true)
+    this.button(332, 'Back', () => this.show(this.view === 'preview' ? 'choose' : 'home'), 164, 136)
   },
 
   start(route, activity = 'walking') {
@@ -403,10 +434,7 @@ Page({
       next === null ? 'Final form reached!' : km(next - session.meters) + ' to ' + (next === 21000 ? 'Mega' : form === 'Egg' ? 'hatch' : 'evolve')]
     this.stats.forEach((item, i) => item.setProperty(prop.TEXT, values[i]))
     this.stats[0].setProperty(prop.MORE, { text_size: values[0].length > 30 ? 14 : 18 })
-    if (this.portrait) this.portrait.setProperty(prop.MORE, {
-      src: spritePath(form, session.shiny), w: 176, h: 176,
-      pos_x: 0, pos_y: 0, auto_scale: true, auto_scale_obj_fit: true
-    })
+    this.refreshSprite()
     this.updateBackground(form === 'Egg' ? routes[session.route][0] : form)
     this.refreshClock()
   },
@@ -416,6 +444,17 @@ Page({
     const seconds = elapsedSeconds(session)
     this.clockStats[0].setProperty(prop.TEXT, 'Time ' + elapsedLabel(seconds))
     this.clockStats[1].setProperty(prop.TEXT, 'Est. pace ' + this.paceText)
+  },
+
+  refreshSprite() {
+    if (!this.portrait || !this.state.active) return
+    const session = this.state.active
+    const form = currentForm(session.route, session.meters, session.mega)
+    const frame = Math.floor(Date.now() / (session.activity === 'running' ? 200 : 400)) % 2
+    const key = form + ':' + session.shiny + ':' + frame
+    if (this.portraitKey === key) return
+    drawSprite(this.portrait, form, session.shiny, 176, frame)
+    this.portraitKey = key
   },
 
   onDestroy() {

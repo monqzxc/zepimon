@@ -16,6 +16,7 @@ function Navigator() {
     <Stack screenOptions={{ headerStyle: { backgroundColor: colors.bg }, headerTintColor: colors.ink, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="pokemon" options={{ title: 'Pokemon record' }} />
+      <Stack.Screen name="expeditions" options={{ title: 'Legendary Expeditions' }} />
     </Stack>
   </>
 }

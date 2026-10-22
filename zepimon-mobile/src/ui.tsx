@@ -1,8 +1,11 @@
 import React from 'react'
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { spriteSource, pokemonType, habitatColors } from './catalog'
+import { pokemonType, habitatColors } from './catalog'
+import { HabitatScene, habitatTheme } from './HabitatScene'
+export { Sprite } from './Sprite'
+export { HabitatScene } from './HabitatScene'
 
 export const colors = { bg: '#071b2c', panel: '#102d42', edge: '#54c7c4', ink: '#f4ebcf', muted: '#9abfcd', blue: '#135b89', gold: '#ffe08d' }
 export const font = Platform.OS === 'ios' ? 'Menlo' : 'monospace'
@@ -33,18 +36,13 @@ export function Screen({ children }: React.PropsWithChildren) {
     </ScrollView>
   </SafeAreaView>
 }
-export function Sprite({ name, shiny = false, size = 132 }: { name: string, shiny?: boolean, size?: number }) {
-  return <Image source={spriteSource(name, shiny)} accessibilityLabel={(shiny ? 'Shiny ' : '') + name}
-    resizeMode="contain" style={{ width: size, height: size, alignSelf: 'center' }} />
-}
 export function Habitat({ name, shiny = false, children }: React.PropsWithChildren<{ name: string, shiny?: boolean }>) {
   const type = pokemonType(name)
   return <Panel style={[styles.habitat, { backgroundColor: habitatColors[type] || habitatColors.normal }]}>
     <View style={styles.habitatTop}><Eyebrow>{type.toUpperCase()} HABITAT</Eyebrow><Text style={{ color: colors.gold }}>✦ · ✧</Text></View>
-    <View style={styles.scene}>
-      <View style={styles.mountain} /><View style={[styles.mountain, { left: '55%', height: 56, width: 90 }]} />
-      <View style={styles.ground} /><Sprite name={name} shiny={shiny} size={184} />
-    </View>
+    <HabitatScene name={name} shiny={shiny} />
+    <Copy small color={colors.ink}>{habitatTheme(name).label}</Copy>
+    <Copy small>Tap your Pokemon to say hello.</Copy>
     {children}
   </Panel>
 }
@@ -61,8 +59,5 @@ export const styles = StyleSheet.create({
   stat: { fontFamily: font, color: colors.ink, fontWeight: '800', fontSize: 27 },
   input: { minHeight: 48, borderWidth: 1, borderColor: colors.edge, borderRadius: 4, color: colors.ink, backgroundColor: colors.panel, padding: 12, fontSize: 16 },
   habitat: { paddingBottom: 18 },
-  habitatTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  scene: { height: 184, position: 'relative', overflow: 'hidden' },
-  mountain: { position: 'absolute', width: 120, height: 80, backgroundColor: '#ffffff12', left: 12, bottom: 18, borderTopLeftRadius: 6, borderTopRightRadius: 6 },
-  ground: { position: 'absolute', bottom: 0, height: 25, width: '100%', backgroundColor: '#04152950', borderTopWidth: 3, borderColor: '#ffffff25' }
+  habitatTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }
 })

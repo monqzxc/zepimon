@@ -12,6 +12,7 @@ export type DexRecord = {
   hatchSeconds?: number | null;
   form?: string;
   mega?: string;
+  source?: 'expedition';
 };
 
 export type Metric = 'distance' | 'elapsed' | 'hatch';
@@ -23,6 +24,7 @@ export type Snapshot = {
   records: Record<string, DexRecord>;
   active: (Omit<DexRecord, 'finishedAt'> & { route: number }) | null;
   personalBests?: Partial<Record<Metric, BestRecord>>;
+  expedition?: { seed: number, startedAt: number, meters: number };
 };
 export type Journal = {
   exportVersion: 1;

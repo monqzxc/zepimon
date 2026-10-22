@@ -1,3 +1,4 @@
+import { validateExpedition } from './expedition'
 // Versioned JSON contract shared by the watch, Zepp service and phone view.
 export const SNAPSHOT_KEY = 'zepimon-phone-v1'
 export const SYNC_KEY = 'zepimon-sync-request'
@@ -80,10 +81,11 @@ export function validateSnapshot(value) {
       clean.personalBests[key] = { ...checked, route: best.route }
     })
   }
+  if (value.expedition !== undefined) clean.expedition = validateExpedition(value.expedition)
   return clean
 }
 
 export function makeSnapshot(state, now = Date.now()) {
   return validateSnapshot({ schemaVersion: 1, capturedAt: now, dex: state.dex, records: state.records,
-    active: state.active, personalBests: state.personalBests })
+    active: state.active, personalBests: state.personalBests, expedition: state.expedition })
 }

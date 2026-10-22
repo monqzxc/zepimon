@@ -10,47 +10,71 @@ npm run build
 npm run preview
 ```
 
-## Phone companion (v1.8.0)
+## Minimal watch and Zepp bridge (v1.9.0)
 
-**Cloud sync:** the Zepp settings page now includes **Sync to Zepimon mobile**.
-Sign into the standalone phone app's Sync tab, create a linking code, and paste
-it into Zepp. Watch snapshots then upload to that account when the companion
-service runs. Failed uploads retain the latest local snapshot for retry. See
-[Supabase setup and linking](../zepimon-sync/README.md). Both the watch package
-and mobile app must be updated. Cloud sync preserves separate normal/shiny Dex
-records and does not write changes back to the watch.
+### Legendary Expeditions (v1.11.0)
 
-Install the updated preview, open Zepimon on your connected watch, then open
-Zepimon's settings page in the Zepp phone app. Tap **Sync from watch**. Keep both
-apps open until **Synced with your watch** appears. A sync is also attempted when
-Zepimon opens on the watch and when an adventure starts or finishes. The Zepp
-phone view uses the platform's [Settings App](https://docs.zepp.com/docs/guides/framework/app-settings/intro/)
-and [Bluetooth companion service](https://docs.zepp.com/docs/guides/architecture/arc/).
+Legendary and Mythical Pokemon now come from phone expeditions rather than new
+eggs. Existing acquired variants and active Legendary adventures are preserved.
+The catalog order and route IDs are unchanged; the picker and Random Egg filter
+out the 39 Legendary/Mythical species identified in the bundled PokeAPI CSV.
 
-- **Pokedex:** larger pixel sprites, name search, normal/shiny and generation
-  filters, twelve entries per page, and separate normal/shiny detail cards.
-  Each card shows its saved distance, steps, date, elapsed time, average pace
-  and first-detected hatch time when those details are available.
-- **Export JSON:** after syncing, tap Export JSON in the Zepp phone view.
-  Long-press in the generated text, select all, and copy it into a text editor;
-  save using the displayed `.json` filename. The generated copy stays frozen
-  during background sync. Go back and export again to include a newer sync.
-  Manual export is only on the phone and remains available without cloud linking.
-  This uses the documented multiline TextInput; native clipboard buttons and
-  file downloads are not provided by the documented Zepp settings UI API.
-- **Journeys:** the active adventure at its last sync and the latest completed
-  journey for each egg family. Distance, steps, date, elapsed time and average
-  pace are shown where available. Completed journeys now save their timing;
-  older records have no timing data and are labelled accordingly.
-- This preserves the existing replacement rule: finishing another adventure
-  replaces that family's previous journey. It does not reconstruct overwritten
-  activities or provide a complete activity timeline or GPS route map.
-- Phone records are a read-only local copy. Failed/disconnected syncs keep the
-  previous copy. Browsing and filtering do not change watch progress. The active
-  adventure is a snapshot, not a live timer; tap Sync to refresh it.
-- Pokemon sprites load from PokeAPI's sprite repository on the phone; the egg
-  images are embedded. Records remain readable offline. Watch sprites remain
-  bundled, and no extra Pokemon image set is added to the installer.
+Each newly saved adventure adds its distance to a persistent expedition total,
+even when it replaces a route's last record. Old completed records are not
+retroactively counted. Clues appear at 5 and 15 cumulative km; 25 km reveals
+an encounter. A small message appears after saving across a milestone, and
+the hub shows progress toward the next 25 km. Extra distance carries forward.
+The regular egg's own hatching/evolution distance still starts at zero per run.
+
+Sync through Zepp, then open **Explore expeditions** in mobile v1.5.0. A short
+three-step interaction befriends the Pokemon and records its Normal or Shiny
+variant in the phone Dex. Rewards cycle through the 39 species from a random
+starting point. A persisted seed assigns each encounter a stable 1-in-50 shiny
+draw, so repeated syncing/reopening cannot reroll it. This is game randomness,
+not a security mechanism. The compact counter/seed syncs through the existing
+cloud snapshot and JSON export; no new assets or Supabase migration are needed.
+Phone befriending records are local, like missions and mini-game scores.
+Reinstalling the phone app can recover unlocked outcomes from a watch sync,
+but requires befriending those encounters again. No phone-to-watch writes or
+new Legendary Mega unlock mechanism are added in this release.
+The validated counter supports 100,000 cumulative km (4,000 encounters).
+
+The watch keeps egg selection, walking/running, hatching/evolution, saving,
+resuming adventures and the three History personal bests. Dex browsing now
+lives in the standalone Zepimon mobile app. The watch still keeps collection
+records locally so offline progress, normal/shiny variants and cloud sync work.
+Existing saves and account links are retained when updating in place.
+
+Zepp settings are a single bridge screen: enter a linking code, Sync from watch,
+check receipt/upload status, Retry upload, or Stop uploads on this phone.
+Dex browsing, journey cards and remote sprites have been removed from Zepp.
+Use the standalone app for your collection and journeys.
+
+Version 1.9.6 restores **Export JSON** as a small manual-transfer screen in Zepp.
+Tap **Sync from watch**, wait for **Synced with your watch**, then **Export JSON**.
+Tap the JSON field, long-press its text, and choose **Select all > Copy**.
+In Zepimon mobile, open **Sync > Manual JSON import**, paste the text, then tap
+**Check pasted JSON > Use this export**. The existing mobile APK supports this;
+no phone app update or cloud login is required. You can also save the copied
+text as a `.json` file and use the phone's **Choose JSON file** option.
+The export contains the last synced collection, active adventure, latest saved
+adventure per family and personal bests, including separate normal/shiny data.
+It excludes account credentials. The text stays fixed while copying; return to
+the bridge and export again after a newer sync. Empty or damaged snapshots must
+be synced again before exporting. No export screen or extra art is added on the watch.
+
+In Zepimon mobile, open Sync, sign in, and create a linking code. Paste it into
+Zepimon's settings in Zepp and tap Link account. Keep the watch connected and
+open Zepimon on it for a manual Sync from watch. Open the mobile app after upload.
+Automatic sync attempts still run when the watch app starts or an adventure
+starts/finishes; background delivery depends on Zepp remaining available.
+See [Supabase setup and linking](../zepimon-sync/README.md).
+
+Supabase retains the latest watch snapshot, Dex variants, active adventure,
+latest completed record per family and personal bests. This release does not
+add backup for phone-only missions, scores, preferences or full run history.
+Watch sprites remain bundled because egg selection and evolution still use them.
+Removing Dex screens saves code, not the entire sprite collection.
 
 `shared/companion.js` defines a reusable, validated JSON format for a future app:
 `schemaVersion: 1`, `capturedAt` (watch epoch milliseconds), `dex` (normal names
@@ -63,9 +87,8 @@ Older snapshots without these fields work and retain an unspecified activity.
 Distances are meters, elapsed time is seconds and finish dates are ISO strings.
 The phone adds `receivedAt` (phone epoch milliseconds). The route index mapping
 is in `page/catalog.js`. Internal daily sensor baselines are excluded. Phone
-storage key: `zepimon-phone-v1`; watch key `zepimon-v1` is unchanged. This is a
-data contract for later integration, not an automatic connection to another app.
-The phone export wraps the snapshot in `{ exportVersion: 1, app: 'Zepimon',
+storage key: `zepimon-phone-v1`; watch key `zepimon-v1` is unchanged. The same contract is used by the standalone app cloud sync.
+The cloud upload wraps the snapshot in `{ exportVersion: 1, app: 'Zepimon',
 exportedAt, receivedAt, snapshot, routes }`. `routes` includes the index-to-names
 mapping, so the file is readable without separately obtaining the catalog.
 
@@ -78,17 +101,21 @@ Zepp settings renderer still need verification on the user's phone/watch.
 The UI uses the dark pixel theme with blue menus, stepped borders and a cream
 distance card. Scenery and frames use native rectangles with existing sprites.
 The title screen shows a moonlit forest, lake and path with Gible,
-today's total activity distance, **Start Adventure**, **Dex** and **History**.
+today's total activity distance, **Start Adventure** and **History**.
 While an adventure is active, the main button reads **Continue adventure** and
 resumes that run. With no active adventure it reads **Start Adventure**.
 The label is refreshed from the saved state whenever the title page opens.
-Dex and History sit side by side below Start Adventure. Dex opens the Pokedex
-directly, including during an active adventure, and its Back button returns
-to the title screen. Browsing the Dex does not reset the active adventure.
-Start Adventure opens a blue pixel adventure hub with an animated egg,
-collection count and New Egg / Continue Adventure buttons, plus Back to the title.
+A full-width History button sits below Start Adventure.
+Start Adventure opens a blue pixel adventure hub with an egg,
+collection count and New Egg / Random Egg buttons, plus Back to the title.
 New Egg opens generation selection, whose **Back to title** button returns
-directly to the title screen. The hub's Continue Adventure opens saved routes.
+directly to the title screen. **Random Egg** (v1.10.1) picks an evolution route
+with equal odds from the whole catalog, including Extra Mega families, and
+opens its preview. You can choose its Mega form before tapping
+**Start**, then **Walking** or **Running**. Back from activity selection keeps
+the same egg; Back from the random preview returns to the hub. Previewing or
+cancelling does not change progress. Active adventures still resume from the
+title screen's **Continue adventure** button.
 History opens three Pokemon personal bests: **Highest distance**, **Longest
 elapsed time**, and **Fastest 5 km hatch**. Tap a category for the winning
 Pokemon, its normal/shiny sprite, and the record value. History can be viewed
@@ -102,23 +129,33 @@ The hatch winner displays the species that hatched, with its shiny status.
 Older already-hatched journeys have no hatch timestamp and are excluded. If
 the app is closed across the threshold, detection on reopening may be later
 than the actual hatch; the detail screen labels this as first-detected timing.
-Choose a generation, browse the evolution routes, then **Start**.
+Version 1.10.2 adds a lighter egg picker: choose a generation, then **A-F**,
+**G-L**, **M-R**, or **S-Z** by the egg Pokemon's name. Four alphabetical names
+appear per page, with **Prev / Back / Next** controls. Evolution routes include
+their final form (for example, **Eevee > Umbreon**) to distinguish branches.
+Tap a name for its sprite, evolution path and Mega choice, then **Start**.
+Back from the preview restores the same list page; Back from the list returns
+to letter groups, then generation selection. Paging reuses four row buttons
+and loads no sprites. Only the selected preview loads a Pokemon sprite, and
+cycling Mega choices updates the button without rebuilding the preview.
+All existing route IDs and progress are preserved; sorting is for display only.
 The generation picker uses blue buttons, with a brighter fill and cream arrow
-highlighting the last selected generation. Back from egg browsing returns
-to generation selection. All app content starts at or below y=64, leaving
+highlighting the last selected generation. All app content starts at or below y=64, leaving
 the watch's system app-name/time header visible. No duplicate custom header
 is drawn. This follows the rectangular-screen status bar dimensions in the
 [Zepp screen adaptation guide](https://docs.zepp.com/docs/v2/guides/best-practice/multi-screen-adaption/).
-The **+10** button skips ten routes. Every new adventure starts at zero.
-Each press of **Start** rolls a 1-in-100 shiny chance, including existing
-adventures. Browsing eggs and reopening an active adventure do not reroll.
+Every new adventure starts at zero. Random Egg still picks from the full catalog
+and opens its preview directly; Back returns to the hub to pick again.
+Choosing **Walking** or **Running** starts a new adventure and rolls a 1-in-50
+(2%) shiny chance as of v1.10.3, including random eggs and previously completed routes.
+Browsing eggs and reopening an active adventure do not reroll.
 Shiny eggs have gold spots and a Shiny label. The same shiny status persists
 through normal and Mega evolution, using shiny sprites. Regular and shiny
 acquisitions have separate Pokedex entries; a later regular run cannot remove
 an acquired shiny. The latest route record still replaces the previous run.
 
-The Pokedex groups normal and shiny acquisitions under one Pokemon name.
-Tap the Pokemon's name or sprite to open its records, then select **Normal**
+The standalone mobile Pokedex groups normal and shiny acquisitions under one Pokemon name.
+Tap the Pokemon's name to open its records, then select **Normal**
 or **Shiny**. Each variant shows its own last qualifying saved distance, steps,
 elapsed time and finish date;
 unlocked variants remain saved and missing variants show **Not acquired**.
@@ -136,24 +173,21 @@ journey can also restore missing elapsed/hatch timing. Valid existing Dex
 distances are preserved. If no evidence survives, the Pokemon stays acquired
 and its detail view says **Distance unavailable**; lost values are not guessed.
 
-Sprites gently bounce through six small position offsets every 400 ms on
-selection, session and acquired record screens. Timers are cleared before
-switching screens and on page destruction. This reuses the existing art
-rather than adding extra animation frames to the package. Pixel accents and
-dark background colors match the current Pokemon's primary type and update
-on evolution; an egg uses its selected family's first species type.
+Version 1.10.0 restores walking sprites with no extra image files. For 600
+supported forms (normal and shiny), both 24 x 24 poses share the existing
+portrait file as a 48 x 24 sheet. An API 3.0 canvas scales and clips a single
+pose inside the centered 176 x 176 session area. Walking changes pose every
+400 ms; Running every 200 ms. This is cosmetic movement during the adventure,
+not a measurement of live cadence. Sensor/pace polling still runs once per
+second. Eggs and the 49 unsupported Mega forms retain their still artwork.
+Selection, History and title use the first pose. The system header and all
+recording, pace, saving, JSON export and sync behavior are preserved.
 
-The run screen highlights the egg/Pokemon in a centered 176 x 176 image area
-(previously 96 x 96), using native scaling of the same compact PNGs. Motion
-keeps this larger image centered, including after hatching and evolution.
-Both `auto_scale` and `auto_scale_obj_fit` are explicitly enabled, with zero
-image offsets, so the resource fills its centered widget. Size and fitting
-are reapplied on animation and sprite changes. The source images are square,
-so filling the square widget preserves their aspect ratio. Check fitting on
-the physical watch: desktop mocks cannot verify firmware image scaling.
-Distance sits below the sprite, with time and pace side by side underneath;
-steps, the next milestone and Finish & save remain visible below the header.
-No larger image files or extra animation frames are bundled.
+`python tools/build_walk_sprites.py` regenerates the sheets in place; it must
+not add a separate animation pack. See [sprite credits](data/walk-credits.md).
+Tests check sheet dimensions, frame offsets, evolution/shiny changes, timer
+cleanup and widget bounds. Canvas clipping/scaling and installation still need
+verification on Bip 5 Unity hardware.
 
 After selecting an egg, tap **Start**, then choose **Walking** or **Running**.
 Back returns to the same egg and Mega choice without starting or rolling a
@@ -168,8 +202,21 @@ Pace uses recent distance changes with roughly an **8-second Running** or
 It polls the counters about once a second while this screen is awake, as well
 as listening for sensor changes. It times actual distance updates and holds
 the estimate between batches, instead of interpreting each unchanged drawing
-frame as slower movement. It shows **--:-- /km** after 15 seconds without new
-distance. Batches less frequent than this cannot provide a fresh estimate.
+frame as slower movement. With frequent updates it shows **--:-- /km** after
+15 seconds without new distance. For slower batches it holds the estimate for
+1.5 times the last batch interval, capped at 60 seconds. Expiring the display
+retains the last distance timestamp, so 20-60 second batches can produce pace
+instead of repeatedly losing their baseline. After a longer delay, the first
+changed counter starts a fresh baseline; repeated similar batches up to two
+minutes can then produce a reading. Slow sensors still limit responsiveness.
+When distance is delayed or updates less often than every 15 seconds, fresh
+step updates provide a fallback. It multiplies recent steps per second by the
+adventure's measured meters per step, held stable between distance updates.
+It never assumes a default stride or changes recorded distance. The estimate
+needs some recorded distance and at least ten steps for calibration; before
+that, or without fresh movement readings, dashes are expected. This fallback
+responds to cadence changes, but cannot measure changes in stride length until
+distance updates. Neither path substitutes the full-session average pace.
 Samples stay in memory and reset on reopening, a polling gap over five seconds,
 a clock/counter reset, or a new adventure. After a gap, the first changed
 counter establishes a fresh baseline so recovered distance cannot become a
@@ -206,12 +253,12 @@ The chosen variant unlocks at exactly 21,000 meters. All 87 requested species
 are supported with 97 Mega variants. Save and finish adds that Mega form to
 the Pokedex. Mega entries count separately from the normal species total.
 
-Sprites appear in egg selection, active sessions and Pokedex entries.
-Gen 1-4 base sprites use the Gen 4 Platinum set; later species and Mega forms
-use available PokeAPI sprites. All watch images are bundled for offline use.
-Watch assets use 48 x 48 sprites with native scaling into 96 x 96 selection
-areas and the 176 x 176 run portrait to keep the installation small. Full-size originals are
-preserved in data/original-sprites outside the watch package.
+Watch sprites appear in egg selection, active sessions and History.
+Supported species use the compact overworld sheets described above; fallback
+portraits use the Gen 4 Platinum set or available PokeAPI artwork. All images
+are bundled for offline use and scaled into the 96 x 96 selection areas or
+176 x 176 run area. Full-size originals remain in data/original-sprites outside
+the watch package.
 Build and preview explicitly disable intermediate source products (--ip=false)
 so source snapshots and original art are excluded from the installer.
 Mega Zygarde uses its base sprite with the Mega name because its sprite is
@@ -222,7 +269,7 @@ last journey, adds newly earned Pokemon, and updates only the acquired forms
 reached during this run. Earlier evolution/Mega records remain until another
 run reaches those forms, and acquisitions are never removed by a shorter run.
 Finishing below 5 km saves an egg adventure but unlocks no new Pokemon.
-**Existing adventure** starts another egg in that route at zero; old records
+Selecting a previously completed route starts another egg at zero; old records
 remain until the new adventure is finished. Pokedex entries show the latest
 qualifying saved distance, steps, timing and finish date.
 
@@ -245,7 +292,8 @@ workout recorder, and does not start the watch's native workout mode.
   remain steady and that reopening does not produce a pace spike.
 - Reopen each day for multi-day adventures: daily counters cannot recover
   missed full days or the unobserved tail of the previous day across midnight.
-- Uninstalling clears local saves. No cloud backup is included.
+- Uninstalling clears watch saves. Cloud records remain available on the phone,
+  but this sync does not restore them back onto the watch.
 
 Tests cover Gen 1-4 completeness, all 87 Mega species and 97 Mega variants,
 21 km boundaries, asset availability, legacy routes, shorter families, counter

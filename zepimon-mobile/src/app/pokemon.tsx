@@ -20,7 +20,10 @@ export default function PokemonScreen() {
       return <Habitat key={key} name={name} shiny={shiny}>
         <Eyebrow>{shiny ? '✦ SHINY' : 'NORMAL'} / ACQUIRED</Eyebrow>
         <Heading>{valid ? km(record.meters) : 'Distance unavailable'}</Heading>
-        {valid ? <>
+        {record.source === 'expedition' ? <>
+          <Copy color={colors.ink}>Befriended on a Legendary Expedition.</Copy>
+          <Copy>Three clues discovered across 25 km of saved adventures.</Copy>
+        </> : valid ? <>
           <Copy color={colors.ink}>Elapsed: {duration(record.elapsedSeconds)}</Copy>
           <Copy>Average pace: {averagePace(record.elapsedSeconds, record.meters)}</Copy>
           <Copy>Hatched at: {duration(record.hatchSeconds)}</Copy>
@@ -31,6 +34,6 @@ export default function PokemonScreen() {
           onPress={() => { chooseBuddy(key).then(() => setMessage('Buddy saved to your phone.')).catch(() => setMessage('Could not save your buddy. Please try again.')) }} />
       </Habitat>
     })}
-    <Copy small>These records mirror your latest Zepp export. Your watch decides which adventure updates each form.</Copy>
+    <Copy small>Adventure records come from your watch. Expedition friends are saved on this phone, with Normal and Shiny discoveries kept separately.</Copy>
   </Screen>
 }

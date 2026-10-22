@@ -6,7 +6,7 @@ import { completedRuns, missions } from '../../progress'
 import { Button, Copy, Eyebrow, Habitat, Heading, Panel, Screen, Sprite, colors, styles } from '../../ui'
 
 export default function JournalScreen() {
-  const { journal, buddy, progress, error } = useJournal()
+  const { journal, buddy, progress, error, expeditions } = useJournal()
   const name = buddy?.replace(/^Shiny /, '') || 'Gible'
   const runs = completedRuns(progress)
   const total = runs.reduce((sum, run) => sum + run.record.meters, 0)
@@ -20,6 +20,12 @@ export default function JournalScreen() {
       <Heading>{buddy || 'Hello, explorer.'}</Heading>
       <Copy color={colors.ink}>{buddy ? 'Your trail companion. Choose another in your Dex.' : 'Bring your watch adventures along. Your collection, now with room to grow.'}</Copy>
     </Habitat>
+    <Panel><Eyebrow>LEGENDARY EXPEDITIONS</Eyebrow>
+      <Heading>A little mystery awaits.</Heading>
+      <Copy>Find three clues across 25 km of saved adventures, then meet a Legendary or Mythical Pokemon.</Copy>
+      <Copy small>{Object.values(expeditions.trails).reduce((sum, trail) => sum + Math.floor(trail.meters / 25000) - trail.claimed, 0)} encounters waiting</Copy>
+      <Button title="Explore expeditions" onPress={() => router.push('/expeditions')} />
+    </Panel>
     {!journal ? <Panel>
       <Heading>A fresh page</Heading>
       <Copy>Link your watch through Zepp or import a JSON export to see your Pokemon, journeys and missions here.</Copy>

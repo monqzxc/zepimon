@@ -8,6 +8,9 @@ vm.runInContext('(function(){' + fs.readFileSync('page/catalog.js', 'utf8').repl
 Object.assign(context, { catalogRoutes: context.catalog.routes, species: context.catalog.species,
   megaForms: context.catalog.megaForms, sprites: context.catalog.sprites, shinySprites: context.catalog.shinySprites })
 vm.runInContext(fs.readFileSync('page/types.js', 'utf8').replace(/export /g, '') , context)
+vm.runInContext(fs.readFileSync('shared/expedition.js', 'utf8').replace(/export /g, '') +
+  '\nglobalThis.expeditionTools = { legendarySpecies, ensureExpedition, expeditionGoal, clueMilestones, expeditionEncounter, validateExpedition }', context)
+Object.assign(context, context.expeditionTools)
 vm.runInContext(fs.readFileSync('page/pokemon.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
   '\nglobalThis.logic = { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, dexPokemon, primaryType, spritePath, nextMilestone, acquiredForms, currentForm, elapsedSeconds, elapsedLabel, paceLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords, hasDexDistance }', context)
 const { routes, currentForm, updateSession, finishSession } = context.logic
@@ -70,12 +73,74 @@ for (let second = 49; second <= 63; second++) {
   const pace = context.logic.currentPace(batchedPace, batchMeters, second * 1000, 'running')
   if (second === 63) assert.equal(pace, '--:-- /km', 'A held estimate expires after fifteen seconds without fresh distance')
 }
+// Some watches publish distance less often than the old 15-second stale cutoff.
+for (const activity of ['walking', 'running']) {
+  const slow = {}
+  context.logic.currentPace(slow, 0, 0, activity)
+  for (let second = 1; second <= 80; second++) {
+    const meters = Math.floor(second / 20) * 60
+    const pace = context.logic.currentPace(slow, meters, second * 1000, activity)
+    assert.equal(pace, second < 20 ? '--:-- /km' : '5:33 /km', 'Twenty-second batches must produce and hold recent pace')
+  }
+  for (let second = 81; second <= 110; second++) {
+    const pace = context.logic.currentPace(slow, 240, second * 1000, activity)
+    if (second === 110) assert.equal(pace, '--:-- /km', 'Slow sensor estimates must still expire when stopped')
+  }
+  // A long stop cannot be displayed as a current moving pace on the first new batch.
+  for (let second = 111; second <= 160; second++) context.logic.currentPace(slow, 240, second * 1000, activity)
+  assert.equal(context.logic.currentPace(slow, 300, 161000, activity), '--:-- /km')
+  for (let second = 162; second < 181; second++) context.logic.currentPace(slow, 300, second * 1000, activity)
+  assert.equal(context.logic.currentPace(slow, 360, 181000, activity), '5:33 /km')
+}
+for (const interval of [30, 45, 60]) {
+  const slow = {}
+  context.logic.currentPace(slow, 0, 0, 'running')
+  for (let second = 1; second <= interval * 3; second++) {
+    const pace = context.logic.currentPace(slow, Math.floor(second / interval) * interval * 3, second * 1000, 'running')
+    if (second % interval === 0) assert.equal(pace, '5:33 /km', 'Slow batches must not be discarded before calculating pace')
+  }
+}
+// Distance can arrive after a minute, even while steps update normally.
+const stepFallback = {}
+context.logic.currentPace(stepFallback, 150, 0, 'running', 200)
+for (let second = 1; second <= 20; second++) {
+  const pace = context.logic.currentPace(stepFallback, 150, second * 1000, 'running', 200 + second * 2)
+  if (second >= 5) assert.equal(pace, '11:07 /km', 'Fresh steps use the measured distance per step while distance is delayed')
+}
+for (let second = 21; second <= 28; second++) {
+  const pace = context.logic.currentPace(stepFallback, 150, second * 1000, 'running', 240 + (second - 20) * 3)
+  if (second === 28) assert.equal(pace, '7:24 /km', 'Step fallback must adapt to running cadence, not session average speed')
+}
+for (let second = 29; second <= 43; second++) {
+  const pace = context.logic.currentPace(stepFallback, 150, second * 1000, 'running', 264)
+  if (second === 43) assert.equal(pace, '--:-- /km', 'Step-based pace expires when motion stops')
+}
+assert.equal(context.logic.currentPace(stepFallback, 500, 110000, 'running', 700), '--:-- /km', 'Recovered step totals cannot become current pace')
+assert.equal(context.logic.currentPace(stepFallback, NaN, 111000, 'running', 703), '--:-- /km', 'Invalid distance must not reuse a calibrated stride')
+assert.equal(stepFallback.stride, null)
+const delayedSteps = {}
+context.logic.currentPace(delayedSteps, 100, 0, 'running', 10)
+context.logic.currentPace(delayedSteps, 100, 1000, 'running', 100)
+assert.equal(delayedSteps.stride, 1, 'A temporarily mismatched counter pair must not prevent later calibration')
+const noDistance = {}
+for (let second = 0; second <= 20; second++) {
+  assert.equal(context.logic.currentPace(noDistance, 0, second * 1000, 'running', second * 3), '--:-- /km', 'Do not invent a stride length before any distance is measured')
+}
+for (const interval of [61, 90]) {
+  const slow = {}
+  context.logic.currentPace(slow, 0, 0, 'running', 0)
+  for (let second = 1; second <= interval * 3; second++) {
+    const meters = Math.floor(second / interval) * interval * 3
+    const pace = context.logic.currentPace(slow, meters, second * 1000, 'running', meters)
+    if (second >= interval * 2 && second % interval === 0) assert.equal(pace, '5:33 /km', 'Repeated batches over sixty seconds must eventually establish pace')
+  }
+}
 assert.equal(context.logic.primaryType('Charizard'), 'fire')
 assert.equal(context.logic.primaryType('Shiny Gengar'), 'ghost')
 assert.equal(context.logic.dexPokemon({ Bulbasaur: {}, 'Shiny Bulbasaur': {} }).length, 1)
-assert.equal(Array.from({ length: 100 }, (_, i) => context.logic.rollShiny(() => (i + 0.5) / 100)).filter(Boolean).length, 1)
-assert.equal(context.logic.rollShiny(() => 0.00999), true)
-assert.equal(context.logic.rollShiny(() => 0.01), false)
+assert.equal(Array.from({ length: 100 }, (_, i) => context.logic.rollShiny(() => (i + 0.5) / 100)).filter(Boolean).length, 2)
+assert.equal(context.logic.rollShiny(() => 0.01999), true)
+assert.equal(context.logic.rollShiny(() => 0.02), false)
 for (const path of Object.values(context.catalog.shinySprites)) assert.ok(fs.existsSync('assets/bip-5-unity/' + path))
 assert.equal(new Set(routes.flat()).size, 552)
 for (let id = 1; id <= 493; id++) assert.ok(Object.values(context.catalog.species).some(s => s.id === id))
@@ -269,6 +334,8 @@ const timers = new Map()
 let timerId = 0
 let phoneSyncs = 0
 let pageBacks = 0
+let widgetsCreated = 0
+let widgetsDeleted = 0
 class Sensor {
   constructor() { sensors.push(this) }
   onChange(callback) { this.callback = callback }
@@ -284,26 +351,48 @@ Object.assign(context, {
   ...context.logic, Distance, Step, LocalStorage, console,
   getApp: () => ({ _options: { syncToPhone() { phoneSyncs++ } } }),
   back: () => { pageBacks++ },
-  widget: { TEXT: 1, BUTTON: 2, IMG: 3, FILL_RECT: 4 }, align: { CENTER_H: 1 }, prop: { TEXT: 1, MORE: 2 }, text_style: { WRAP: 1 }, event: { CLICK_UP: 1 },
+  widget: { TEXT: 1, BUTTON: 2, IMG: 3, FILL_RECT: 4, CANVAS: 5 }, align: { CENTER_H: 1 }, prop: { TEXT: 1, MORE: 2 }, text_style: { WRAP: 1 }, event: { CLICK_UP: 1 },
   setInterval(callback) { const id = ++timerId; timers.set(id, callback); return id },
   clearInterval(id) { timers.delete(id) },
   createWidget: (type, options) => {
+    widgetsCreated++
     assert.ok(options.x >= 0 && options.x + options.w <= 320, 'Widget outside watch width')
     assert.ok(options.y >= 64 && options.y + options.h <= 380, 'Widget overlaps system header or screen edge')
     if (type === 3) imageUpdates.push(options)
-    return { ...options, setProperty(property, value) {
+    return { ...options, clear() {}, drawImage(value) { this.src = value.image; this.drawn = value; imageUpdates.push(value) }, setProperty(property, value) {
       if (property === 2) {
+        if (type === 2) {
+          for (const key of ['x', 'y', 'w', 'h']) assert.ok(Number.isFinite(value[key]), 'Button updates must include geometry')
+          assert.ok(value.x >= 0 && value.x + value.w <= 320)
+          assert.ok(value.y >= 64 && value.y + value.h <= 380)
+        }
         if (type === 3) imageUpdates.push(value)
         Object.assign(this, value)
       } else this.text = value
     }, addEventListener(_, callback) { this.click_func = callback } }
   },
-  deleteWidget: () => {}, setWakeUpRelaunch: () => {}, Page: (definition) => { page = definition }
+  deleteWidget: () => { widgetsDeleted++ }, setWakeUpRelaunch: () => {}, Page: (definition) => { page = definition }
 })
 context.shinyRolls = 0
-vm.runInContext('Math.random = () => { shinyRolls++; return 0.5 }', context)
+context.randomValue = 0.5
+vm.runInContext('Math.random = () => { shinyRolls++; return randomValue }', context)
 context.testNow = 100000
 vm.runInContext('Date.now = () => testNow', context)
+vm.runInContext(fs.readFileSync('page/walk-sprites.js', 'utf8').replace(/export /g, '') + '\nglobalThis.walkSprites = walkSprites', context)
+for (const name of Object.keys(context.walkSprites)) {
+  for (const shiny of [false, true]) {
+    const png = fs.readFileSync('assets/bip-5-unity/' + context.logic.spritePath(name, shiny))
+    assert.equal(png.readUInt32BE(16), 48, 'Two walking poses share the original image path')
+    assert.equal(png.readUInt32BE(20), 24)
+  }
+}
+vm.runInContext(fs.readFileSync('page/sprite.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') + '\nglobalThis.createSprite = createSprite; globalThis.drawSprite = drawSprite', context)
+const fallbackCanvas = { clear() {}, drawImage(value) { this.drawn = value } }
+context.drawSprite(fallbackCanvas, 'Mega Zygarde', false, 176, 1)
+assert.equal(fallbackCanvas.drawn.w, 352, 'A fallback that shares a sheet must still crop one pose')
+assert.ok(fallbackCanvas.drawn.x === 0, 'Unsupported forms keep the first pose of their fallback artwork')
+context.drawSprite(fallbackCanvas, 'Egg', false, 176, 1)
+assert.equal(fallbackCanvas.drawn.w, 176)
 vm.runInContext(fs.readFileSync('page/adventure.js', 'utf8').replace(/^import .*\r?\n/gm, ''), context)
 page.build()
 const click = (label) => {
@@ -321,36 +410,151 @@ click('Back')
 assert.equal(pageBacks, 1, 'The adventure hub can return to title')
 openFromTitle('home')
 click('New Egg')
+const catalogBeforePicking = JSON.stringify(routes)
+const savedBeforePicking = stored
+const rollsBeforePicking = context.shinyRolls
+const reachableRoutes = new Set()
 for (const generation of ['Generation 1', 'Generation 2', 'Generation 3', 'Generation 4', 'Extra Mega families']) {
+  const imagesBeforeMenus = imageUpdates.length
   click(generation)
-  assert.equal(page.view, 'choose')
+  assert.equal(page.view, 'letters')
+  assert.equal(imageUpdates.length, imagesBeforeMenus, 'Letter shortcuts must not load sprites')
+  for (const group of ['A-F', 'G-L', 'M-R', 'S-Z']) {
+    const imagesBeforeList = imageUpdates.length
+    click(group)
+    assert.equal(page.view, 'choose')
+    assert.equal(imageUpdates.length, imagesBeforeList, 'Name lists must not load sprites')
+    if (!page.listItems.length) {
+      assert.ok(page.widgets.some(item => item.text === 'No eggs in this group'))
+    } else {
+      const labels = []
+      click('< Prev')
+      assert.equal(page.listPage, 0, 'Previous on the first page must stay in bounds')
+      for (let listPage = 0; listPage < Math.ceil(page.listItems.length / 4); listPage++) {
+        assert.equal(page.listPage, listPage)
+        assert.equal(page.listRows.length, 4, 'The list uses only four reusable rows')
+        for (let slot = 0; slot < 4; slot++) {
+          const row = page.listRows[slot]
+          const label = row.text
+          row.click_func()
+          if (!label) {
+            assert.equal(page.view, 'choose', 'Empty slots must not open a stale route')
+            continue
+          }
+          labels.push(label)
+          assert.equal(page.view, 'preview')
+          const route = page.index
+          assert.ok(!reachableRoutes.has(route), 'Each catalog route appears exactly once across the picker')
+          reachableRoutes.add(route)
+          const names = routes[route]
+          assert.equal(label, names.length > 1 ? names[0] + ' > ' + names[names.length - 1] : names[0])
+          assert.ok(names[0][0] >= group[0] && names[0][0] <= group[2])
+          assert.ok(page.selectedGeneration === 5 ? context.logic.generation(route) > 4 : context.logic.generation(route) === page.selectedGeneration)
+          assert.ok(page.widgets.some(item => item.text === names[0] + ' egg'), 'Tapped name must open its own preview')
+          assert.equal(imageUpdates.at(-1).image, context.logic.spritePath(names[0]), 'Preview loads the selected Pokemon sprite')
+          click('Back')
+          assert.equal(page.view, 'choose')
+          assert.equal(page.listPage, listPage, 'Preview Back restores the same list page')
+        }
+        const createsBeforePage = widgetsCreated
+        const deletesBeforePage = widgetsDeleted
+        const imagesBeforePage = imageUpdates.length
+        const rowsBeforePage = [...page.listRows]
+        const lastPage = listPage === Math.ceil(page.listItems.length / 4) - 1
+        click('Next >')
+        assert.equal(page.listPage, lastPage ? listPage : listPage + 1)
+        click('< Prev')
+        const previousPage = lastPage ? Math.max(0, listPage - 1) : listPage
+        assert.equal(page.listPage, previousPage)
+        click('Next >')
+        assert.equal(page.listPage, lastPage ? listPage : listPage + 1)
+        assert.equal(widgetsCreated, createsBeforePage, 'Paging must not create widgets')
+        assert.equal(widgetsDeleted, deletesBeforePage, 'Paging must not delete widgets')
+        assert.equal(imageUpdates.length, imagesBeforePage, 'Paging must not load sprites')
+        assert.deepEqual([...page.listRows], rowsBeforePage, 'Page changes keep the same four row widgets')
+      }
+      assert.deepEqual(labels, [...labels].sort(), 'Names and evolution branches are alphabetically ordered')
+    }
+    click('Back')
+    assert.equal(page.view, 'letters')
+  }
   click('Back')
   assert.equal(page.view, 'new')
   assert.equal(timers.size, 0)
 }
+const selectableEggs = routes.map((_, i) => i).filter(i => !context.legendarySpecies.includes(routes[i][0]))
+assert.equal(reachableRoutes.size, selectableEggs.length, 'All regular families and branching routes remain selectable')
+for (const i of reachableRoutes) assert.ok(!context.legendarySpecies.includes(routes[i][0]), 'Legendaries come from expeditions, not new eggs')
+assert.equal(JSON.stringify(routes), catalogBeforePicking, 'Alphabetical browsing must never reorder saved route IDs')
+assert.equal(stored, savedBeforePicking, 'Browsing and cancelling must leave progress untouched')
+assert.equal(context.shinyRolls, rollsBeforePicking, 'Browsing must not roll shiny chances')
 click('Back to title')
 assert.equal(pageBacks, 2, 'New Egg generation selection can return directly to title')
 assert.equal(page.state.active, null, 'Leaving selection must not start an adventure')
 openFromTitle('home')
+assert.ok(!page.widgets.some(item => item.text === 'Continue Adventure'), 'The egg menu replaces Continue Adventure with Random Egg')
+const savedBeforeRandom = stored
+for (const value of [0, 1.5 / selectableEggs.length, 0.5, 1 - Number.EPSILON]) {
+  context.randomValue = value
+  const drawsBeforeRandom = context.shinyRolls
+  click('Random Egg')
+  const route = selectableEggs[Math.floor(value * selectableEggs.length)]
+  assert.equal(page.view, 'random')
+  assert.equal(page.index, route, 'Random Egg can choose any route, including the first and last')
+  assert.ok(page.widgets.some(item => item.text === routes[route][0] + ' egg'), 'Preview must match the chosen route')
+  assert.equal(page.megaIndex, 0, 'A fresh random choice resets the previous Mega selection')
+  const mega = page.widgets.find(item => item.text && item.text.endsWith(' @21km') && item.click_func)
+  if (mega) mega.click_func()
+  const chosenMega = page.megaIndex
+  click('Start')
+  assert.equal(page.pendingRoute, route)
+  assert.equal(page.state.active, null, 'Random selection still waits for Walking or Running')
+  assert.equal(context.shinyRolls, drawsBeforeRandom + 1, 'Preview draws only a route, not a shiny chance')
+  click('Back')
+  assert.equal(page.view, 'random')
+  assert.equal(page.index, route, 'Activity Back keeps the random egg')
+  assert.equal(page.megaIndex, chosenMega, 'Activity Back keeps its chosen Mega form')
+  click('Back')
+  assert.equal(page.view, 'home', 'Random egg Back returns to the egg menu')
+  assert.equal(context.shinyRolls, drawsBeforeRandom + 1, 'Going back must not reroll')
+  assert.equal(stored, savedBeforeRandom, 'Previewing or cancelling random eggs must not change saved progress')
+}
+context.randomValue = 0.5
 click('New Egg')
 click('Generation 1')
-click('>')
+click('A-F')
+const chooseNamedEgg = label => {
+  while (!page.listRows.some(row => row.text === label)) {
+    const before = page.listPage
+    click('Next >')
+    assert.ok(page.listPage > before, 'Cannot find egg: ' + label)
+  }
+  click(label)
+}
+chooseNamedEgg('Charmander > Charizard')
 const megaButton = page.widgets.find(item => item.text && item.text.endsWith(' @21km') && item.click_func)
 assert.ok(megaButton)
+const widgetsBeforeMega = widgetsCreated
+const imagesBeforeMega = imageUpdates.length
 megaButton.click_func()
+assert.equal(widgetsCreated, widgetsBeforeMega, 'Changing Mega choice must reuse the preview')
+assert.equal(imageUpdates.length, imagesBeforeMega, 'Changing Mega choice must not reload the sprite')
 const selectedEgg = page.index
 const selectedMega = page.megaIndex
 const rollsBeforeMode = context.shinyRolls
 click('Start')
 assert.equal(page.view, 'activity')
+assert.equal(page.pendingRoute, 1, 'The alphabetically selected Charmander keeps its original route ID')
 assert.equal(page.state.active, null, 'Choosing an activity must not start the adventure yet')
 assert.equal(context.shinyRolls, rollsBeforeMode, 'The shiny chance waits until an activity is chosen')
 click('Back')
-assert.equal(page.view, 'choose')
+assert.equal(page.view, 'preview')
 assert.equal(page.index, selectedEgg, 'Activity Back keeps the selected egg')
 assert.equal(page.megaIndex, selectedMega, 'Activity Back keeps the selected Mega form')
 click('Back')
-click('Generation 1')
+assert.equal(page.view, 'choose')
+while (page.listPage > 0) click('< Prev')
+chooseNamedEgg('Bulbasaur > Venusaur')
 click('Start')
 click('Walking')
 assert.equal(page.state.active.activity, 'walking')
@@ -371,14 +575,14 @@ const baseY = page.portrait.y
 const startedAt = page.state.active.startedAt
 context.testNow += 61000
 Array.from(timers.values())[0]()
-assert.equal(page.portrait.y, baseY - 2)
+assert.equal(page.portrait.y, baseY, 'Eggs must not jump')
 assert.equal(page.portrait.x, (320 - page.portrait.w) / 2, 'Animation must keep the larger sprite centered')
 assert.equal(page.clockStats[0].text, 'Time 00:01:01')
 assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km')
 for (let frame = 0; frame < 6; frame++) {
   Array.from(timers.values())[0]()
   assert.ok(page.portrait.y >= 64)
-  assert.ok(page.portrait.y + page.portrait.h < page.stats[1].y, 'Bouncing sprite must not cover distance')
+  assert.ok(page.portrait.y + page.portrait.h < page.stats[1].y, 'Sprite must not cover distance')
   assert.equal(page.portrait.x, (320 - page.portrait.w) / 2)
 }
 distance += 5000
@@ -387,6 +591,24 @@ page.distance.callback()
 assert.equal(page.state.active.meters, 5000)
 assert.equal(page.stats[0].text, 'Bulbasaur')
 assert.ok(page.portrait.w > 96, 'Hatching must retain the large run sprite')
+const stillPortrait = page.portrait.src
+Array.from(timers.values())[0]()
+assert.equal(page.portrait.src, stillPortrait, 'Walking frames share one image file')
+const firstPose = page.portrait.drawn.x
+context.testNow += 400
+Array.from(timers.values())[0]()
+assert.notEqual(page.portrait.drawn.x, firstPose, 'Walking alternates poses by clipping the shared sheet')
+assert.equal(page.portrait.drawn.w, 352)
+assert.equal(page.portrait.drawn.h, 176)
+assert.equal(page.portrait.y, baseY)
+page.state.active.shiny = true
+page.state.active.meters = 10000
+page.refreshStats()
+assert.equal(page.portrait.src, context.logic.spritePath('Ivysaur', true), 'Evolution and shiny artwork still update')
+page.state.active.meters = 5000
+page.state.active.shiny = false
+page.refreshStats()
+assert.ok(!fs.existsSync('assets/bip-5-unity/walk') || fs.readdirSync('assets/bip-5-unity/walk').length === 0, 'Recovery build must exclude extra animation images')
 page.onDestroy()
 distance += 500
 page.build()
@@ -398,24 +620,20 @@ click('Finish & save')
 click('Save & finish')
 assert.equal(page.state.records[0].meters, 5500)
 assert.ok(phoneSyncs >= 2, 'Starting and finishing should trigger phone sync')
-openFromTitle('dex')
-assert.ok(page.widgets.some(item => item.text === 'Bulbasaur'))
-click('Bulbasaur')
-click('Shiny')
-assert.ok(page.widgets.some(item => item.text === 'Not acquired'))
-assert.equal(timers.size, 0)
-click('Normal')
-assert.ok(page.widgets.some(item => item.text === '5.50 km'))
-assert.equal(timers.size, 1)
-click('Back')
-click('Back')
+assert.equal(page.state.dex.Bulbasaur.meters, 5500)
 openFromTitle('home')
-click('Continue Adventure')
+context.randomValue = 0
+click('Random Egg')
+context.randomValue = 0.5
+const rollsBeforeRandomStart = context.shinyRolls
 click('Start')
 click('Back')
-assert.equal(page.view, 'existing', 'Activity Back also returns to the saved-route chooser')
+assert.equal(page.view, 'random', 'Activity Back also returns to the random egg preview')
 click('Start')
 click('Running')
+assert.equal(context.shinyRolls, rollsBeforeRandomStart + 1, 'Starting a random egg rolls shiny exactly once')
+assert.equal(page.state.active.route, 0, 'The run uses the previewed random route')
+assert.equal(page.state.active.shiny, false, 'The shiny roll is independent of the random route draw')
 assert.equal(page.state.active.activity, 'running')
 assert.ok(page.stats[2].text.startsWith('Run: '))
 assert.equal(page.state.active.meters, 0)
@@ -457,14 +675,8 @@ click('Finish & save')
 click('Save & finish')
 assert.ok(page.state.dex['Shiny Bulbasaur'])
 assert.ok(page.state.dex.Bulbasaur)
-openFromTitle('dex')
-click('Bulbasaur')
-click('Shiny')
-assert.ok(page.widgets.some(item => item.text === '5.00 km'))
-click('Normal')
-assert.ok(page.widgets.some(item => item.text === '6.00 km'))
-click('Back')
-click('Back')
+assert.equal(page.state.dex['Shiny Bulbasaur'].meters, 5000)
+assert.equal(page.state.dex.Bulbasaur.meters, 6000)
 openFromTitle('home')
 page.start(0)
 assert.equal(page.state.active.shiny, false)
@@ -510,6 +722,26 @@ for (let second = 0; second < 15; second++) {
 }
 assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km', 'The timer expires pace without a sensor callback')
 assert.ok(!stored.includes('checkedAt'), 'Transient pace samples must not be written to saves')
+// Exercise the live widget when steps move but the distance total stays unchanged.
+page.pace = {}
+page.state.active.meters = 150
+page.state.active.steps = 200
+page.state.active.activity = 'running'
+page.sync()
+for (let second = 1; second <= 20; second++) {
+  context.testNow += 1000
+  steps += 2
+  Array.from(timers.values())[0]()
+}
+assert.equal(page.clockStats[1].text, 'Est. pace 11:07 /km', 'The watch passes live steps to the pace fallback')
+assert.equal(page.state.active.meters, 150, 'Estimated pace must not add invented adventure distance')
+for (let second = 1; second <= 8; second++) {
+  context.testNow += 1000
+  steps += 3
+  page.step.callback()
+}
+assert.equal(page.clockStats[1].text, 'Est. pace 7:24 /km', 'The step sensor callback updates the running pace')
+assert.ok(!stored.includes('stepTracker') && !stored.includes('strideMeters'), 'Calibration stays out of saved progress')
 distance = 1
 page.sync()
 assert.equal(page.pace.samples.length, 1, 'A daily counter reset clears recent speed history')
@@ -540,14 +772,8 @@ const beforeHistoryBack = pageBacks
 click('Back')
 assert.equal(pageBacks, beforeHistoryBack + 1)
 openFromTitle('dex')
-assert.equal(page.view, 'dex', 'An active adventure must not redirect a requested Dex view')
+assert.equal(page.view, 'session', 'Removed Dex routes safely resume the adventure')
 assert.equal(JSON.stringify(page.state.active), JSON.stringify(activeForHistory))
-click('Bulbasaur')
-click('Back')
-assert.equal(page.view, 'dex', 'Detail Back returns to the Dex list')
-const beforeDexBack = pageBacks
-click('Back')
-assert.equal(pageBacks, beforeDexBack + 1, 'Dex list Back returns to title')
 openFromTitle('home')
 assert.equal(page.view, 'session', 'The title adventure button resumes an active run')
 assert.equal(JSON.stringify(page.state.active), JSON.stringify(activeForHistory))
@@ -560,33 +786,17 @@ for (const label of historyButtons) {
   assert.ok(page.widgets.some(item => item.text === 'No record yet'))
   click('Back')
 }
-openFromTitle('dex')
-assert.ok(page.widgets.some(item => item.text === 'No Pokemon acquired yet'))
-const beforeEmptyDexBack = pageBacks
-click('Back')
-assert.equal(pageBacks, beforeEmptyDexBack + 1, 'Empty Dex also returns to title')
-page.onDestroy()
-stored = JSON.stringify({ dex: { Bulbasaur: { ...broken } }, records: {}, active: null })
-page.onInit({ view: 'home' })
-page.build()
-page.openDex('Bulbasaur')
-assert.ok(page.widgets.some(item => item.text === 'Distance unavailable'))
-assert.ok(page.widgets.some(item => item.src === context.logic.spritePath('Bulbasaur')))
 page.onDestroy()
 stored = JSON.stringify({ dex: { Bulbasaur: { ...broken } }, records: { 0: record(6000, 3600, 3000, 'Bulbasaur') }, active: null })
+page.onInit({ view: 'home' })
 page.build()
-page.openDex('Bulbasaur')
-assert.ok(page.widgets.some(item => item.text === '6.00 km'))
-assert.ok(page.widgets.some(item => item.text === 'Time 01:00:00'))
-assert.equal(JSON.parse(stored).dex.Bulbasaur.meters, 6000, 'Opening the watch persists recovered acquisition details')
+assert.equal(JSON.parse(stored).dex.Bulbasaur.meters, 6000, 'Dex repair persists for phone sync without a watch Dex screen')
 page.onDestroy()
-// A centered widget alone does not make its small source image fill that area.
-// Check creation, movement, and hatching/evolution updates all request fitting.
+// Canvas scaling keeps the visible pose large without drawing outside its bounds.
 for (const update of imageUpdates) {
-  assert.equal(update.auto_scale, true)
-  assert.equal(update.auto_scale_obj_fit, true, 'Sprite updates must explicitly fill the image widget')
-  assert.equal(update.pos_x, 0)
-  assert.equal(update.pos_y, 0)
+  assert.ok(update.w === update.h || update.w === update.h * 2)
+  assert.ok(update.x === 0 || update.x === -update.h)
+  assert.equal(update.y, 0)
   assert.ok(update.w > 48 && update.h > 48)
 }
 // Startup failures must display an actionable error instead of a blank page.
@@ -613,22 +823,24 @@ const bootTimers = new Map()
 const bootContext = vm.createContext({
   Page(definition) { titlePage = definition; definition.build() }, Distance,
   LocalStorage: class { getItem() { return titleSavedState } },
-  widget: { TEXT: 1, BUTTON: 2, FILL_RECT: 3, IMG: 4 }, align: { CENTER_H: 1 },
+  widget: { TEXT: 1, BUTTON: 2, FILL_RECT: 3, IMG: 4, CANVAS: 5 }, align: { CENTER_H: 1 },
   text_style: { NONE: 0 }, prop: { TEXT: 1 },
   setInterval(callback) { bootTimers.set(1, callback); return 1 }, clearInterval(id) { bootTimers.delete(id) },
   createWidget(type, options) {
     assert.ok(options.x >= 0 && options.x + options.w <= 320)
     assert.ok(options.y >= 64 && options.y + options.h <= 380, 'Title content overlaps system header or screen edge')
     bootDrawn.push(options)
-    return { setProperty(_, value) { options.text = value } }
+    return { clear() {}, drawImage(value) { options.image = value.image; options.drawn = value }, setProperty(_, value) { options.text = value } }
   },
   push(options) { destination = options.url; navigationParams = options.params }, console
 })
+Object.assign(bootContext, { spritePath: context.logic.spritePath, walkSprites: context.walkSprites })
+vm.runInContext(fs.readFileSync('page/sprite.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), bootContext)
 const entry = fs.readFileSync('page/index.js', 'utf8')
 assert.ok(!/hmUI|hmApp/.test(entry))
 vm.runInContext(entry.replace(/^import .*\r?\n/gm, ''), bootContext)
 assert.ok(!bootDrawn.some(item => item.text === 'Zepimon'))
-assert.ok(bootDrawn.some(item => item.src === 'pokemon/443.png' && item.auto_scale && item.auto_scale_obj_fit))
+assert.ok(bootDrawn.some(item => item.image === 'pokemon/443.png' && item.drawn.w === 192 && item.drawn.h === 96))
 assert.equal(titlePage.distanceText !== undefined, true)
 assert.ok(bootDrawn.some(item => item.text === (distance / 1000).toFixed(2)))
 bootDrawn.find(item => item.text === 'Start Adventure  >').click_func()
@@ -636,9 +848,8 @@ assert.equal(destination, 'page/adventure')
 assert.equal(navigationParams.view, 'home')
 bootDrawn.find(item => item.text === 'History  >').click_func()
 assert.equal(navigationParams.view, 'history')
-bootDrawn.find(item => item.text === 'Dex  >').click_func()
-assert.equal(navigationParams.view, 'dex')
-assert.equal(bootDrawn.filter(item => item.click_func).length, 3)
+assert.ok(!bootDrawn.some(item => item.text === 'Dex  >'))
+assert.equal(bootDrawn.filter(item => item.click_func).length, 2)
 titlePage.onDestroy()
 bootDrawn.length = 0
 titleSavedState = { dex: {}, records: {}, active: activeForHistory }

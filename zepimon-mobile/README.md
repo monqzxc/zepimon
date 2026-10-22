@@ -4,6 +4,33 @@ A standalone iPhone and Android companion for Zepimon, built with Expo SDK 57 an
 
 ## Features
 
+### Legendary Expeditions (1.5.0)
+
+Open **Explore expeditions** on the Journal screen. With watch v1.11.0, saved
+walks/runs accumulate toward clues at 5, 15 and 25 km. At 25 km, meet and
+befriend a Legendary or Mythical Pokemon in a short, untimed interaction.
+Mystery habitats and silhouettes become visible as clues are discovered.
+The existing sprites and habitats are reused, with themed encounters for
+Articuno, Suicune, Rayquaza and Mewtwo and a habitat trail for the other species.
+The 39 available species cycle from a random starting point. Extra distance
+carries into subsequent expeditions; multiple unlocked encounters wait for you.
+
+Each encounter has a stable seeded 1-in-50 shiny draw. Reopening, duplicate
+imports, delayed syncs or restoring the same watch snapshot cannot reroll it.
+Normal and Shiny friends join the Dex separately and can be selected as buddies.
+Expedition records show 25 cumulative km rather than invented workout pace,
+steps or hatch time. They do not create extra workouts or inflate run missions.
+
+Progress starts with adventures saved after the watch update; overwritten old
+runs cannot be recovered. Existing Legendary acquisitions and active watch
+adventures are retained. The watch counter and seed use the existing Supabase
+snapshot and manual JSON path, with no database migration. Befriending records
+are stored on this phone alongside missions and scores. Reinstalling the app
+requires befriending unlocked encounters again after syncing; outcomes remain
+the same. A watch reset starts a new trail without removing phone discoveries.
+
+### Collection and games
+
 - Gen 1–4 Pokémon and the extra Mega families, with bundled sprites and type-themed habitats.
 - Separate Normal and Shiny Dex entries, saved run details, and a selectable buddy.
 - A Journal with personal bests and completed runs retained across imports.
@@ -119,3 +146,42 @@ Production Android builds use AAB; iOS builds require Apple signing. Building an
 Downloaded/imported journals, retained runs, mission progress, buddy selection, and game scores live in local AsyncStorage. The cloud keeps the latest uploaded watch journal and retained Dex discoveries. It does not back up arcade scores, buddy choice, or the full phone-only run/badge archive. Treat uninstalling or clearing storage as deleting phone-only data. Keep your original Zepp JSON exports; a fresh sign-in can restore the cloud watch snapshot, while reimporting exports restores only what they contain.
 
 As of **2026-10-17**, `npm audit` reports **28 transitive findings**, mainly in build dependencies, plus the `query-string` URL-decoder dependency chain. The suggested fixes include incompatible major changes or downgrades. Review and resolve the dependency advisories before a public release; do not apply `npm audit fix --force` without checking Expo SDK compatibility.
+
+## Interactive sprites (1.3.0)
+
+Pokemon in Dex cards, habitats, journeys and the play menu face the viewer.
+Tap a sprite for a short two-pose reaction and a heart, then it returns to its
+idle pose. In the Dex, tap the name/details below the sprite to open records.
+There are 600 supported forms (552 species and 48 Mega forms), including shiny
+variants. The remaining 49 Mega forms and eggs use still artwork with a heart
+response. Mini-game boards and quiz silhouettes keep their original artwork.
+
+Reactions stop when leaving the screen or backgrounding the app. Reduce Motion
+uses the still pose with a heart. Rapid taps restart one reaction; no idle
+animation timer runs. These interactions do not change progress or game scores.
+
+Rebuild the front-facing frames with `python scripts/build-walking-sprites.py`
+(Pillow required; the older script/asset names are retained). This writes only
+to the mobile project. See [artwork credits](SPRITE-CREDITS.md).
+
+## Pokemon habitats (1.4.0)
+
+The journal buddy, Dex cards and Pokemon records have pixel-style landscapes
+matched to the catalog's primary type: forest glades, coasts, ember trails,
+snowy peaks, moonlit woods and more. All 18 types have a theme; Normal and Shiny
+variants share their habitat, and eggs use a hatching meadow. Unknown types
+fall back to the meadow.
+
+Scenery is drawn with native views and works offline, with no new image pack,
+dependency or background animation. The Pokemon remains centered and tappable;
+its name below a Dex scene still opens its record. Only the standalone phone
+app changes; watch and Zepp bridge packages are unaffected.
+
+### Smaller sprites (1.4.1)
+
+Buddy and record portraits now render at 132 logical pixels (previously 184),
+while Dex and arcade preview sprites use 88 (previously 116 and 104). These
+are whole multiples of the 44-pixel reaction frames. Web previews use pixelated
+image scaling, and Android frame swaps have no fade. Habitat sizes and tap
+reactions are retained. The original pixel artwork is unchanged; this reduces
+enlargement rather than adding detail to the source sprites.

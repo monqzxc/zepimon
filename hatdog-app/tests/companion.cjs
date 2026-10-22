@@ -83,6 +83,8 @@ async function main() {
       send(buffer) { const packet = devicePacket(4, Buffer.from(buffer)); setImmediate(() => deviceReceive(0, packet, packet.length)) }
     } }, AppSideService: definition => { phoneService = definition }
   })
+  source('shared/expedition.js', watch, ['validateExpedition', 'ensureExpedition'])
+  source('shared/expedition.js', phone, ['validateExpedition'])
   source('shared/companion.js', watch, contract)
   source('shared/companion.js', phone, contract)
   compiled('node_modules/@zeppos/zml/dist/base/base-app.js', watch)
@@ -113,7 +115,8 @@ async function main() {
   // Legacy Dex records describe different runs from the surviving journey, so their times cannot be backfilled.
   watchState = { dex: { Bulbasaur: { ...normal, meters: 5500 }, 'Shiny Bulbasaur': { ...normal, meters: 8000, shiny: true } },
     records: { 0: { ...normal, form: 'Bulbasaur', elapsedSeconds: 3600, startedAt: Date.parse(normal.finishedAt) - 3600000 } },
-    active: { route: 0, meters: 800, steps: 1200, shiny: true, startedAt: Date.now() - 600000, lastMeters: 9999, day: 'test' }
+    active: { route: 0, meters: 800, steps: 1200, shiny: true, startedAt: Date.now() - 600000, lastMeters: 9999, day: 'test' },
+    expedition: { seed: 345, startedAt: 1000, meters: 27000 }
   }
   const before = clone(watchState)
   watchApp.syncToPhone()
@@ -125,6 +128,7 @@ async function main() {
   assert.equal(saved().active.lastMeters, undefined, 'Internal daily sensor counters must not be exported')
   assert.equal(watchState.active.lastMeters, before.active.lastMeters, 'Sync must not mutate watch data')
   assert.equal(saved().records[0].elapsedSeconds, 3600)
+  assert.deepEqual(saved().expedition, watchState.expedition, 'Expedition counter must survive real ZML framing')
 
   watchState.dex.Bulbasaur.meters = 6100
   settingsStorage.setItem(phone.SYNC_KEY, 'manual-request')
@@ -161,8 +165,8 @@ async function main() {
   ui.catalogRoutes = ui.routes
   source('page/types.js', ui, ['pokemonTypes'])
   source('page/pokemon.js', ui, ['routes', 'speciesCount', 'collectionCount', 'dexPokemon', 'currentForm', 'spritePath', 'primaryType', 'elapsedSeconds', 'elapsedLabel', 'paceLabel', 'nextMilestone', 'hasDexDistance'])
+  source('shared/expedition.js', ui, ['validateExpedition'])
   source('shared/companion.js', ui, contract)
-  source('setting/eggs.js', ui, ['eggs'])
   source('shared/cloud-config.js', ui, ['cloudConfig'])
   source('shared/cloud.js', ui, ['CLOUD_TOKEN_KEY', 'CLOUD_REQUEST_KEY', 'CLOUD_STATUS_KEY'])
   source('setting/index.js', ui)
@@ -174,166 +178,51 @@ async function main() {
     assert.ok(button, 'Missing phone button: ' + label); button.props.onClick()
   }
   let tree = render()
-  assert.match(texts(tree), /1 normal forms.*1 shiny forms/)
-  click(tree, 'View records')
-  tree = render()
-  assert.match(texts(tree), /6.10 km/)
-  assert.match(texts(tree), /8.00 km/)
-  assert.equal(nodes(tree).filter(n => n.component === 'Image').length, 2)
-  assert.equal(texts(tree).match(/Time and average pace were not saved for this older record\./g).length, 2)
-  assert.ok(!texts(tree).includes('Hatch time'), 'Legacy records must not invent a hatch time')
-  click(tree, 'Back to Pokedex')
-  tree = render(); click(tree, 'Shiny'); tree = render()
-  assert.ok(nodes(tree).some(n => n.component === 'Image' && n.props.src.includes('/shiny/1.png')))
-  nodes(tree).find(n => n.component === 'TextInput').props.onChange('gible')
-  assert.match(texts(render()), /No matches/)
-  nodes(render()).find(n => n.component === 'TextInput').props.onChange('')
-  click(render(), 'Journeys')
-  assert.match(texts(render()), /CURRENT ADVENTURE/)
-  assert.match(texts(render()), /01:00:00/)
-  assert.match(texts(render()), /11:32 \/km/)
-  assert.equal(texts(render()).match(/Avg pace/g).length, 2, 'Current and saved journeys should each display average pace once')
-  const journeyPreview = render()
-
-  // Export a frozen, portable copy without changing synced or watch records.
-  const exportInput = () => nodes(render()).find(n => n.component === 'TextInput' && n.props.label === 'JSON export')
-  const storedBeforeExport = Array.from(phoneStorage.entries())
-  const watchBeforeExport = clone(watchState)
-  click(render(), 'Export JSON')
-  assert.equal(exportInput().props.multiline, true)
-  const exportText = exportInput().props.value
-  const exported = JSON.parse(exportText)
-  assert.equal(exported.exportVersion, 1)
-  assert.equal(exported.app, 'Zepimon')
-  assert.ok(Number.isFinite(Date.parse(exported.exportedAt)))
-  assert.equal(exported.receivedAt, saved().receivedAt)
-  assert.deepEqual(exported.snapshot, clone(ui.validateSnapshot(saved())))
-  assert.deepEqual(exported.routes[0], ['Bulbasaur', 'Ivysaur', 'Venusaur'])
-  assert.equal(exported.snapshot.dex.Bulbasaur.meters, 6100)
-  assert.equal(exported.snapshot.dex['Shiny Bulbasaur'].shiny, true)
-  assert.equal(exported.snapshot.active.route, 0)
-  assert.equal(exported.snapshot.records[0].elapsedSeconds, 3600)
-  assert.deepEqual(Array.from(phoneStorage.entries()).filter(([key]) => key !== 'zepimon-ui-export'), storedBeforeExport)
-  assert.deepEqual(watchState, watchBeforeExport)
-  const storedBeforeTyping = Array.from(phoneStorage.entries())
-  exportInput().props.onChange('{edited text}')
-  assert.deepEqual(Array.from(phoneStorage.entries()), storedBeforeTyping)
-  assert.equal(exportInput().props.value, exportText)
-  watchState.dex.Bulbasaur.meters = 6200
-  watchApp.syncToPhone()
+  assert.match(texts(tree), /standalone Zepimon app/)
+  assert.equal(nodes(tree).filter(n => n.component === 'Image').length, 0)
+  assert.ok(!nodes(tree).some(n => n.component === 'Button' && ['Pokedex', 'Journeys'].includes(n.props.label)))
+  const beforeLink = phoneStorage.get(phone.SNAPSHOT_KEY)
+  const input = nodes(tree).find(n => n.component === 'TextInput')
+  assert.equal(input.props.label, 'One-time linking code', 'An empty Zepp TextInput needs its own tappable label to open the editor')
+  assert.notEqual(input.props.disabled, true)
+  assert.equal(input.props.placeholder, 'Enter one-time linking code')
+  assert.equal(input.props.value, '')
+  input.props.onChange('abcd-1234-abcd-1234-abcd-1234')
+  assert.equal(nodes(render()).find(n => n.component === 'TextInput').props.value, 'abcd-1234-abcd-1234-abcd-1234')
+  click(render(), 'Link account')
+  assert.equal(phoneStorage.get('zepimon-ui-link-code'), '')
+  assert.equal(phoneStorage.get(phone.SNAPSHOT_KEY), beforeLink, 'Link UI must preserve the buffered journal')
+  click(render(), 'Sync from watch')
   await drain()
-  assert.equal(saved().dex.Bulbasaur.meters, 6200)
-  assert.equal(exportInput().props.value, exportText, 'Background sync must not replace JSON while it is being copied')
-  click(render(), 'Back to journal')
-  assert.equal(exportInput(), undefined)
-  click(render(), 'Export JSON')
-  assert.equal(JSON.parse(exportInput().props.value).snapshot.dex.Bulbasaur.meters, 6200)
-  const closedExportFlag = phoneStorage.get('zepimon-ui-export')
-  const settingsDate = vm.runInContext('Date', ui)
-  const reopenedAt = Date.parse(closedExportFlag) + 1000
-  ui.Date = class extends Date { constructor(...args) { super(...(args.length ? args : [reopenedAt])) } }
-  source('setting/index.js', ui) // Closing settings discards the page instance but keeps its UI storage.
-  assert.equal(exportInput(), undefined)
-  assert.equal(phoneStorage.get('zepimon-ui-export'), closedExportFlag)
-  click(render(), 'Export JSON')
-  assert.notEqual(phoneStorage.get('zepimon-ui-export'), closedExportFlag, 'Reopened export must change storage to trigger a redraw')
-  assert.equal(phoneStorage.get('zepimon-ui-export'), new Date(reopenedAt).toISOString())
-  assert.equal(JSON.parse(exportInput().props.value).snapshot.dex.Bulbasaur.meters, 6200)
-  ui.Date = settingsDate
-  click(render(), 'Back to journal')
+  assert.ok(saved().dex.Bulbasaur)
+  assert.ok(saved().dex['Shiny Bulbasaur'])
 
-  const latestPhoneSnapshot = phoneStorage.get(phone.SNAPSHOT_KEY)
-  const legacy = saved()
-  delete legacy.personalBests
-  delete legacy.records[0].startedAt
-  delete legacy.records[0].elapsedSeconds
-  delete legacy.records[0].hatchSeconds
-  phoneStorage.set(phone.SNAPSHOT_KEY, JSON.stringify(legacy))
+  // The real phone importer must accept the exact text produced by Zepp settings.
+  const { parseJournal } = await import('../../zepimon-mobile/src/journal.ts')
+  const exportInput = () => nodes(render()).find(n => n.component === 'TextInput' && n.props.multiline)
+  const beforeExport = phoneStorage.get(phone.SNAPSHOT_KEY)
+  phoneStorage.set(ui.CLOUD_TOKEN_KEY, 'test-upload-secret')
   click(render(), 'Export JSON')
-  const legacyExport = JSON.parse(exportInput().props.value)
-  assert.equal(legacyExport.snapshot.records[0].elapsedSeconds, undefined)
-  assert.equal(legacyExport.snapshot.records[0].activity, undefined, 'Older adventures must not invent an activity')
-  assert.deepEqual(legacyExport.snapshot, clone(ui.validateSnapshot(legacy)))
-  click(render(), 'Back to journal')
-
-  const extended = JSON.parse(latestPhoneSnapshot)
-  extended.active.meters = 5500
-  extended.active.hatchSeconds = 540
-  extended.active.activity = 'running'
-  extended.records[0].activity = 'walking'
-  extended.dex.Bulbasaur.activity = 'walking'
-  extended.dex['Shiny Bulbasaur'].activity = 'running'
-  extended.records[0].hatchSeconds = 3000
-  extended.dex.Bulbasaur.hatchSeconds = 3000
-  extended.dex.Bulbasaur.elapsedSeconds = 3720
-  extended.dex.Bulbasaur.startedAt = Date.parse(normal.finishedAt) - 3720000
-  extended.dex['Shiny Bulbasaur'].hatchSeconds = 2400
-  extended.dex['Shiny Bulbasaur'].elapsedSeconds = 4000
-  extended.dex['Shiny Bulbasaur'].startedAt = Date.parse(normal.finishedAt) - 4000000
-  const best = { ...extended.records[0], route: 0 }
-  extended.personalBests = { distance: { ...best }, elapsed: { ...best }, hatch: { ...best } }
-  phoneStorage.set(phone.SNAPSHOT_KEY, JSON.stringify(extended))
-  click(render(), 'Pokedex')
-  click(render(), 'View records')
-  const detailTree = render()
-  const variantPanel = variant => nodes(detailTree).find(n => n.component === 'View' &&
-    n.children.some(child => child.component === 'Text' && child.children.join('') === variant))
-  const normalDetails = texts(variantPanel('NORMAL'))
-  const shinyDetails = texts(variantPanel('SHINY'))
-  assert.match(normalDetails, /6.20 km/)
-  assert.match(normalDetails, /Time 01:02:00 \/ Avg pace 10:00 \/km/)
-  assert.match(normalDetails, /Hatch time \(first detected\): 00:50:00/)
-  assert.ok(!normalDetails.includes('01:06:40'))
-  assert.match(shinyDetails, /8.00 km/)
-  assert.match(shinyDetails, /Time 01:06:40 \/ Avg pace 8:20 \/km/)
-  assert.match(shinyDetails, /Hatch time \(first detected\): 00:40:00/)
-  assert.ok(!shinyDetails.includes('01:02:00'))
-  assert.ok(!texts(detailTree).includes('were not saved'))
-  click(render(), 'Back to Pokedex')
-  click(render(), 'Journeys')
+  const exportedText = exportInput().props.value
+  const imported = parseJournal(exportedText)
+  assert.deepEqual(imported.snapshot, clone(ui.validateSnapshot(JSON.parse(beforeExport))))
+  assert.deepEqual(imported.snapshot.expedition, watchState.expedition, 'Manual JSON carries the same expedition outcomes')
+  assert.deepEqual(imported.routes, clone(ui.routes))
+  assert.equal(imported.receivedAt, JSON.parse(beforeExport).receivedAt)
+  assert.ok(!exportedText.includes('test-upload-secret'))
+  assert.equal(exportInput().props.disabled, undefined, 'Copying must be possible in the native text editor')
+  exportInput().props.onChange('accidental edit')
+  assert.equal(exportInput().props.value, exportedText, 'Editing the copy cannot change the saved journal')
+  assert.equal(phoneStorage.get(phone.SNAPSHOT_KEY), beforeExport)
+  const newer = { ...JSON.parse(beforeExport), capturedAt: imported.snapshot.capturedAt + 1 }
+  phoneStorage.set(phone.SNAPSHOT_KEY, JSON.stringify(newer))
+  assert.equal(exportInput().props.value, exportedText, 'Incoming sync must not replace text during copying')
+  click(render(), 'Back to sync')
+  phoneStorage.delete(ui.CLOUD_TOKEN_KEY)
   click(render(), 'Export JSON')
-  const extendedExport = JSON.parse(exportInput().props.value)
-  assert.equal(extendedExport.snapshot.active.hatchSeconds, 540)
-  assert.equal(extendedExport.snapshot.active.activity, 'running')
-  assert.equal(extendedExport.snapshot.records[0].activity, 'walking')
-  assert.equal(extendedExport.snapshot.records[0].hatchSeconds, 3000)
-  assert.equal(extendedExport.snapshot.dex.Bulbasaur.hatchSeconds, 3000)
-  assert.deepEqual(extendedExport.snapshot.dex.Bulbasaur, extended.dex.Bulbasaur)
-  assert.deepEqual(extendedExport.snapshot.dex['Shiny Bulbasaur'], extended.dex['Shiny Bulbasaur'])
-  assert.deepEqual(extendedExport.snapshot.personalBests, extended.personalBests)
-  assert.deepEqual(extendedExport.snapshot, clone(ui.validateSnapshot(extendedExport.snapshot)))
-  for (const select of [value => value.active, value => value.records[0],
-    value => value.dex.Bulbasaur, value => value.personalBests.distance]) {
-    const invalid = clone(extendedExport.snapshot)
-    select(invalid).activity = 'cycling'
-    assert.throws(() => ui.validateSnapshot(invalid), /Invalid activity/)
-    select(invalid).activity = null
-    assert.equal(select(ui.validateSnapshot(invalid)).activity, undefined)
-  }
-  click(render(), 'Back to journal')
-  phoneStorage.set(phone.SNAPSHOT_KEY, latestPhoneSnapshot)
-
-  // Damaged old Dex details remain acquired, but must not display an impossible distance.
-  const damaged = JSON.parse(latestPhoneSnapshot)
-  damaged.dex.Bulbasaur = { ...normal, meters: 0, steps: 0 }
-  damaged.records[0] = { ...normal, meters: 0, steps: 0, form: 'Egg', elapsedSeconds: 0 }
-  phoneStorage.set(phone.SNAPSHOT_KEY, JSON.stringify(damaged))
-  click(render(), 'Pokedex')
-  click(render(), 'View records')
-  const damagedTree = render()
-  const damagedNormal = nodes(damagedTree).find(n => n.component === 'View' &&
-    n.children.some(child => child.component === 'Text' && child.children.join('') === 'NORMAL'))
-  assert.match(texts(damagedNormal), /Distance unavailable/)
-  assert.match(texts(damagedNormal), /An older run overwrote these details\./)
-  assert.ok(!texts(damagedNormal).includes('0.00 km'))
-  assert.ok(!texts(damagedNormal).includes('steps'))
-  assert.ok(!texts(damagedNormal).includes('Time'))
-  assert.equal(nodes(damagedNormal).filter(n => n.component === 'Image').length, 1, 'An acquired sprite must remain visible')
-  assert.match(texts(damagedTree), /8.00 km/, 'The unaffected shiny variant keeps its own distance')
-  click(render(), 'Back to Pokedex')
-  click(render(), 'Journeys')
-  assert.match(texts(render()), /0.00 km/, 'A genuinely zero-distance latest journey is still shown')
-  phoneStorage.set(phone.SNAPSHOT_KEY, latestPhoneSnapshot)
+  assert.equal(parseJournal(exportInput().props.value).snapshot.capturedAt, newer.capturedAt, 'Export works without a cloud account and includes the newer sync')
+  click(render(), 'Back to sync')
+  phoneStorage.set(phone.SNAPSHOT_KEY, beforeExport)
 
   // Watch sync recovers overwritten Dex data from a surviving completed journey and persists it.
   const watchBeforeRepair = clone(watchState)
@@ -349,7 +238,7 @@ async function main() {
   watchApp.syncToPhone()
   await drain()
 
-  // All available forms produce a large multi-packet BLE snapshot, then paginate on the phone.
+  // All available forms produce a large multi-packet BLE snapshot, without requiring a Dex UI in Zepp.
   const allNames = Object.keys(ui.sprites).filter(name => name !== 'Egg')
   watchState.active = null
   watchState.dex = {}
@@ -362,35 +251,24 @@ async function main() {
   await drain()
   assert.equal(Object.keys(saved().dex).length, allNames.length * 2)
   assert.ok(chunks - beforeChunks > 2, 'Large Pokedex should exercise real ZML chunking')
-  click(render(), 'Pokedex')
-  tree = render()
-  assert.equal(nodes(tree).filter(n => n.component === 'Image').length, 12)
-  click(tree, 'Next')
-  assert.match(texts(render()), /2 \/ /)
-  assert.equal(ui.spritePath('Mega Zygarde'), ui.spritePath('Zygarde'))
+  assert.equal(nodes(render()).filter(n => n.component === 'Image').length, 0)
   const largeSnapshot = phoneStorage.get(phone.SNAPSHOT_KEY)
+  assert.ok(largeSnapshot.length > 100000)
+  assert.equal(Object.keys(ui.validateSnapshot(JSON.parse(largeSnapshot)).dex).length, allNames.length * 2)
   click(render(), 'Export JSON')
-  const largeText = exportInput().props.value
-  const largeExport = JSON.parse(largeText)
-  assert.ok(largeText.length > 100000, 'Full collection export must exercise a large multiline value')
-  assert.equal(Object.keys(largeExport.snapshot.dex).length, allNames.length * 2)
-  assert.deepEqual(largeExport.snapshot, clone(ui.validateSnapshot(JSON.parse(largeSnapshot))))
-  assert.equal(largeExport.routes.length, ui.routes.length)
-  assert.equal(phoneStorage.get(phone.SNAPSHOT_KEY), largeSnapshot)
-  assert.ok(largeText.endsWith('}'), 'JSON export must include its complete closing content')
-  click(render(), 'Back to journal')
-
-  if (process.env.ZEPIMON_PREVIEW) fs.writeFileSync(process.env.ZEPIMON_PREVIEW,
-    JSON.stringify({ dex: tree, journeys: journeyPreview }, null, 2))
+  assert.equal(Object.keys(parseJournal(exportInput().props.value).snapshot.dex).length, allNames.length * 2, 'A full collection export must not be truncated')
+  click(render(), 'Back to sync')
   phoneStorage.delete(phone.SNAPSHOT_KEY)
-  assert.match(texts(render()), /Your collection starts here/)
+  assert.match(texts(render()), /WATCH BRIDGE/)
+  assert.match(texts(render()), /Sync from watch first/)
   assert.ok(!nodes(render()).some(n => n.component === 'Button' && n.props.label === 'Export JSON'))
   phoneStorage.set(phone.SNAPSHOT_KEY, '{bad json')
-  assert.match(texts(render()), /Saved phone data could not be read/)
+  assert.match(texts(render()), /WATCH BRIDGE/)
+  assert.match(texts(render()), /Could not read the saved watch data/)
   assert.ok(!nodes(render()).some(n => n.component === 'Button' && n.props.label === 'Export JSON'))
   watchApp.onDestroy()
   phoneService.onDestroy()
   assert.equal(settingsListener, null)
-  console.log('Companion checks passed: real ZML framing, large Dex sync, offline retention, validation, phone navigation and frozen JSON export')
+  console.log('Companion checks passed: real ZML framing, large Dex sync, offline retention, validation, minimal bridge UI and collection preservation')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

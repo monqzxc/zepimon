@@ -52,10 +52,12 @@ test('private cloud journals, one-time links, replay protection, validation and 
     assert.equal((await upload(token, journal(9999))).accepted, false)
     assert.equal((await upload(token, journal())).accepted, false)
     const next = journal(20000)
+    next.snapshot.expedition = { seed: 345, startedAt: 1000, meters: 27000 }
     next.snapshot.dex = { Bulbasaur: { ...record, meters: 6500 } }
     await upload(token, next)
     await role('authenticated', alice)
     const saved = (await rpc('zepimon_pull')).journal
+    assert.deepEqual(saved.snapshot.expedition, next.snapshot.expedition, 'The existing cloud schema retains expedition progress without a migration')
     assert.equal(saved.snapshot.dex.Bulbasaur.meters, 6500)
     assert.ok(saved.snapshot.dex['Shiny Bulbasaur'])
   })

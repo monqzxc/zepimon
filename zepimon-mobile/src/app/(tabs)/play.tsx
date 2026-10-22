@@ -25,7 +25,7 @@ export default function PlayScreen() {
       <Copy>Three little games, ready for a rest stop. Play offline and keep your best scores on this phone.</Copy>
       <Panel>
         <Eyebrow>01 / PAIRS & PATIENCE</Eyebrow>
-        <View style={{ flexDirection: 'row', justifyContent: 'center' }}><Sprite name="Bulbasaur" size={104} /><Sprite name="Bulbasaur" shiny size={104} /></View>
+        <View style={{ flexDirection: 'row', justifyContent: 'center' }}><Sprite name="Bulbasaur" size={88} /><Sprite name="Bulbasaur" shiny size={88} /></View>
         <Heading>Memory Match</Heading>
         <Copy>Find matching Normal and Shiny pairs from your collection. Import at least two variants to play.</Copy>
         <Button title="Play Memory Match" onPress={() => select('memory')} />

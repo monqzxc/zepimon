@@ -24,7 +24,7 @@ Watch → Zepp Side Service → Supabase → Zepimon mobile. The watch remains p
 1. Open **Sync** in Zepimon mobile, request an email code and sign in.
 2. Tap **Create linking code**. Long-press the code to copy it. It expires after ten minutes and works once.
 3. In Zepp, open your watch's **Zepimon settings → Sync to Zepimon mobile**. Paste the code and tap **Link account**.
-4. Open Zepimon on the connected watch. In Zepp, return to the journal and tap **Sync from watch**. Wait for the cloud upload confirmation.
+4. Open Zepimon on the connected watch. In Zepp, tap **Sync from watch**. Wait for the cloud upload confirmation.
 5. Return to Zepimon mobile and tap **Sync now**. Further watch snapshots upload when the Side Service runs. The phone app downloads when opened and every minute while visible.
 
 Saving/finishing an adventure already sends a snapshot to Zepp. An offline watch sends its stored progress when reopened while connected. A failed cloud upload keeps the latest received snapshot in Zepp; the next service start, watch snapshot, or **Retry upload** retries it. Neither Zepp nor the phone app is guaranteed to keep running when the operating system suspends it. This is journal sync, not a live workout stream.
