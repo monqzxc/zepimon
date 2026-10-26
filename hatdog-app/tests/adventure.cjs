@@ -331,6 +331,8 @@ let stored
 const sensors = []
 const imageUpdates = []
 const timers = new Map()
+const timeouts = new Map()
+const live = new Set()
 let timerId = 0
 let phoneSyncs = 0
 let pageBacks = 0
@@ -354,12 +356,14 @@ Object.assign(context, {
   widget: { TEXT: 1, BUTTON: 2, IMG: 3, FILL_RECT: 4, CANVAS: 5 }, align: { CENTER_H: 1 }, prop: { TEXT: 1, MORE: 2 }, text_style: { WRAP: 1 }, event: { CLICK_UP: 1 },
   setInterval(callback) { const id = ++timerId; timers.set(id, callback); return id },
   clearInterval(id) { timers.delete(id) },
+  setTimeout(callback) { const id = ++timerId; timeouts.set(id, callback); return id },
+  clearTimeout(id) { timeouts.delete(id) },
   createWidget: (type, options) => {
     widgetsCreated++
     assert.ok(options.x >= 0 && options.x + options.w <= 320, 'Widget outside watch width')
     assert.ok(options.y >= 64 && options.y + options.h <= 380, 'Widget overlaps system header or screen edge')
     if (type === 3) imageUpdates.push(options)
-    return { ...options, clear() {}, drawImage(value) { this.src = value.image; this.drawn = value; imageUpdates.push(value) }, setProperty(property, value) {
+    const item = { ...options, clear() {}, drawImage(value) { this.src = value.image; this.drawn = value; imageUpdates.push(value) }, setProperty(property, value) {
       if (property === 2) {
         if (type === 2) {
           for (const key of ['x', 'y', 'w', 'h']) assert.ok(Number.isFinite(value[key]), 'Button updates must include geometry')
@@ -370,9 +374,18 @@ Object.assign(context, {
         Object.assign(this, value)
       } else this.text = value
     }, addEventListener(_, callback) { this.click_func = callback } }
+    live.add(item)
+    return item
   },
-  deleteWidget: () => { widgetsDeleted++ }, setWakeUpRelaunch: () => {}, Page: (definition) => { page = definition }
+  deleteWidget: (item) => { widgetsDeleted++; live.delete(item) }, setWakeUpRelaunch: () => {}, Page: (definition) => { page = definition }
 })
+// Loader frames run one at a time, like the watch's timer queue.
+const stepTimeout = () => {
+  const [id, callback] = timeouts.entries().next().value
+  timeouts.delete(id)
+  callback()
+}
+const flushTimeouts = () => { while (timeouts.size) stepTimeout() }
 context.shinyRolls = 0
 context.randomValue = 0.5
 vm.runInContext('Math.random = () => { shinyRolls++; return randomValue }', context)
@@ -393,13 +406,34 @@ assert.equal(fallbackCanvas.drawn.w, 352, 'A fallback that shares a sheet must s
 assert.ok(fallbackCanvas.drawn.x === 0, 'Unsupported forms keep the first pose of their fallback artwork')
 context.drawSprite(fallbackCanvas, 'Egg', false, 176, 1)
 assert.equal(fallbackCanvas.drawn.w, 176)
+vm.runInContext(fs.readFileSync('page/loader.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), context)
 vm.runInContext(fs.readFileSync('page/adventure.js', 'utf8').replace(/^import .*\r?\n/gm, ''), context)
 page.build()
 const click = (label) => {
   const button = page.widgets.find(item => item.text === label && item.click_func)
   assert.ok(button, 'Missing button: ' + label)
   button.click_func()
+  flushTimeouts()
 }
+// Opening a screen first pulses the Pokeball; taps during it are ignored.
+const ballWidth = () => Math.max(...[...live].filter(item => item.color === 0xD95A5D).map(item => item.w))
+page.widgets.find(item => item.text === 'New Egg' && item.click_func).click_func()
+page.widgets.find(item => item.text === 'Random Egg' && item.click_func).click_func()
+assert.equal(page.view, 'home', 'The next screen waits for the loader')
+assert.equal(timeouts.size, 1, 'A second tap must not start another loader')
+const ballWidths = [ballWidth()]
+while (page.view === 'home') {
+  stepTimeout()
+  if (page.view === 'home') ballWidths.push(ballWidth())
+}
+const smallest = ballWidths.indexOf(Math.min(...ballWidths))
+assert.ok(smallest >= 3 && smallest <= ballWidths.length - 4, 'The pulse has visible shrinking and growing halves')
+assert.ok(ballWidths.every((width, i) => !i || (i <= smallest ? width < ballWidths[i - 1] : width > ballWidths[i - 1])), 'The Pokeball shrinks, then grows back')
+assert.equal(ballWidths.at(-1), ballWidths[0], 'The pulse ends at full size while the next screen builds')
+assert.equal(page.view, 'new', 'Only the first tap opens its screen')
+assert.equal(timeouts.size, 0)
+assert.equal(live.size, page.widgets.length, 'Opening the screen removes every loader widget')
+page.show('home')
 const openFromTitle = (view) => {
   page.onDestroy()
   page.onInit({ view })
@@ -437,6 +471,7 @@ for (const generation of ['Generation 1', 'Generation 2', 'Generation 3', 'Gener
           const row = page.listRows[slot]
           const label = row.text
           row.click_func()
+          flushTimeouts()
           if (!label) {
             assert.equal(page.view, 'choose', 'Empty slots must not open a stale route')
             continue
@@ -820,22 +855,28 @@ let navigationParams
 let titlePage
 let titleSavedState = null
 const bootTimers = new Map()
+const bootTimeouts = []
+const flushBootTimeouts = () => { while (bootTimeouts.length) bootTimeouts.shift()() }
 const bootContext = vm.createContext({
   Page(definition) { titlePage = definition; definition.build() }, Distance,
   LocalStorage: class { getItem() { return titleSavedState } },
   widget: { TEXT: 1, BUTTON: 2, FILL_RECT: 3, IMG: 4, CANVAS: 5 }, align: { CENTER_H: 1 },
   text_style: { NONE: 0 }, prop: { TEXT: 1 },
   setInterval(callback) { bootTimers.set(1, callback); return 1 }, clearInterval(id) { bootTimers.delete(id) },
+  setTimeout(callback) { bootTimeouts.push(callback); return bootTimeouts.length },
+  clearTimeout() { bootTimeouts.length = 0 },
   createWidget(type, options) {
     assert.ok(options.x >= 0 && options.x + options.w <= 320)
     assert.ok(options.y >= 64 && options.y + options.h <= 380, 'Title content overlaps system header or screen edge')
     bootDrawn.push(options)
     return { clear() {}, drawImage(value) { options.image = value.image; options.drawn = value }, setProperty(_, value) { options.text = value } }
   },
+  deleteWidget() {},
   push(options) { destination = options.url; navigationParams = options.params }, console
 })
 Object.assign(bootContext, { spritePath: context.logic.spritePath, walkSprites: context.walkSprites })
 vm.runInContext(fs.readFileSync('page/sprite.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), bootContext)
+vm.runInContext(fs.readFileSync('page/loader.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), bootContext)
 const entry = fs.readFileSync('page/index.js', 'utf8')
 assert.ok(!/hmUI|hmApp/.test(entry))
 vm.runInContext(entry.replace(/^import .*\r?\n/gm, ''), bootContext)
@@ -844,9 +885,18 @@ assert.ok(bootDrawn.some(item => item.image === 'pokemon/443.png' && item.drawn.
 assert.equal(titlePage.distanceText !== undefined, true)
 assert.ok(bootDrawn.some(item => item.text === (distance / 1000).toFixed(2)))
 bootDrawn.find(item => item.text === 'Start Adventure  >').click_func()
-assert.equal(destination, 'page/adventure')
-assert.equal(navigationParams.view, 'home')
+assert.equal(destination, undefined, 'Navigation waits for the Pokeball loader')
+assert.ok(bootDrawn.some(item => item.text === 'Loading...'))
 bootDrawn.find(item => item.text === 'History  >').click_func()
+flushBootTimeouts()
+assert.equal(destination, 'page/adventure')
+assert.equal(navigationParams.view, 'home', 'Taps during the loader are ignored')
+// push replaces the title page; returning to it builds it again.
+titlePage.onDestroy()
+bootDrawn.length = 0
+titlePage.build()
+bootDrawn.find(item => item.text === 'History  >').click_func()
+flushBootTimeouts()
 assert.equal(navigationParams.view, 'history')
 assert.ok(!bootDrawn.some(item => item.text === 'Dex  >'))
 assert.equal(bootDrawn.filter(item => item.click_func).length, 2)
@@ -858,6 +908,7 @@ titlePage.build()
 assert.ok(bootDrawn.some(item => item.text === 'Adventure in progress'))
 assert.ok(!bootDrawn.some(item => item.text === 'Start Adventure  >'))
 bootDrawn.find(item => item.text === 'Continue adventure  >').click_func()
+flushBootTimeouts()
 assert.equal(navigationParams.view, 'home')
 assert.equal(JSON.stringify(titleSavedState), activeBeforeTitle, 'Showing Continue must not change saved progress')
 titlePage.onDestroy()

@@ -86,7 +86,7 @@ function Encounter({ trailKey, trail, onBefriended }: { trailKey: string, trail:
     {ready ? <>
       <Copy color={colors.gold}>{step === 0 ? 'A new friend is waiting. Approach gently.' : step === 1 ? 'It notices you and takes a little step closer.' : story.welcome}</Copy>
       <Copy small>Tap the Pokemon to say hello, then follow the three steps to befriend it. There is no timer.</Copy>
-      <Button title={busy ? 'Saving your friend...' : met ? 'Friend saved' : story.actions[step]} disabled={busy || met} onPress={act} />
+      <Button title={busy ? 'Saving your friend...' : met ? 'Friend saved' : story.actions[step]} loading={busy} disabled={busy || met} onPress={act} />
     </> : <Copy>Save another adventure on your watch and sync to continue. You can spread the distance across as many outings as you like.</Copy>}
     {!!message && <Copy color={colors.gold}>{message}</Copy>}
   </Panel>

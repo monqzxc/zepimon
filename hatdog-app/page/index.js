@@ -3,6 +3,7 @@ import { push } from '@zos/router'
 import { Distance } from '@zos/sensor'
 import { LocalStorage } from '@zos/storage'
 import { createSprite } from './sprite'
+import { playLoader } from './loader'
 
 const text = (x, y, w, h, value, size, color = 0xE0E9D3) => createWidget(widget.TEXT, {
   x, y, w, h, text: value, text_size: size, color,
@@ -12,6 +13,7 @@ const rect = (x, y, w, h, color) => createWidget(widget.FILL_RECT, { x, y, w, h,
 
 Page({
   build() {
+    this.loader = null
     // Leave 64 pixels for the watch header; native scenery reuses the Gible sprite.
     rect(0, 64, 320, 316, 0x041529)
     const panel = (x, y, w, h, fill) => {
@@ -90,13 +92,20 @@ Page({
     }
   },
   navigate(view) {
-    try { push({ url: 'page/adventure', params: { view } }) }
-    catch (error) {
-      console.log('Zepimon navigation:', String(error))
-      this.status.setProperty(prop.TEXT, String(error))
-    }
+    // The pulsing Pokeball stays up while the adventure page loads; returning rebuilds this page.
+    if (this.loader) return
+    this.loader = playLoader(() => {
+      try { push({ url: 'page/adventure', params: { view } }) }
+      catch (error) {
+        this.loader.remove()
+        this.loader = null
+        console.log('Zepimon navigation:', String(error))
+        this.status.setProperty(prop.TEXT, String(error))
+      }
+    })
   },
   onDestroy() {
+    if (this.loader) this.loader.stop()
     if (this.distance && this.distanceChanged) this.distance.offChange(this.distanceChanged)
   }
 })

@@ -4,6 +4,7 @@ import { LocalStorage } from '@zos/storage'
 import { setWakeUpRelaunch } from '@zos/display'
 import { back } from '@zos/router'
 import { createSprite, drawSprite } from './sprite'
+import { playLoader } from './loader'
 import { legendarySpecies, ensureExpedition, expeditionGoal, clueMilestones } from '../shared/expedition'
 import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords } from './pokemon'
 
@@ -45,6 +46,7 @@ Page({
   build() {
     this.widgets = []
     this.stats = null
+    this.loader = null
     this.ready = false
     this.distance = null
     this.step = null
@@ -175,6 +177,19 @@ Page({
     this.motionTimer = undefined
   },
 
+  // Screen changes play the pulsing Pokeball first; taps during it are ignored.
+  // Paging and Mega cycling update in place and stay instant.
+  load(action) {
+    if (!this.loader) this.loader = playLoader(action)
+  },
+
+  open(view, index) { this.load(() => this.show(view, index)) },
+
+  stopLoader(remove) {
+    if (this.loader) remove ? this.loader.remove() : this.loader.stop()
+    this.loader = null
+  },
+
   background(name = 'Egg') {
     const colors = themes[primaryType(name)] || themes.normal
     this.rect(0, contentTop, 320, 380 - contentTop, 0x031A2C)
@@ -198,11 +213,11 @@ Page({
       const y = 116 + (gen - 1) * 43
       const selected = gen <= 5 && this.selectedGeneration === gen
       const title = gen === 6 ? 'Back to title' : gen <= 4 ? 'Generation ' + gen : 'Extra Mega families'
-      this.button(y, title, () => {
+      this.button(y, title, () => this.load(() => {
         if (gen === 6) { back(); return }
         this.selectedGeneration = gen
         this.show('letters')
-      }, 24, 272, selected, 38)
+      }), 24, 272, selected, 38)
       if (selected) {
         this.rect(36, y + 10, 4, 18, 0xF4EAC7)
         this.rect(40, y + 13, 4, 12, 0xF4EAC7)
@@ -215,7 +230,7 @@ Page({
     this.background()
     this.text(70, 'Choose letters', 22, ink, 28)
     this.text(104, this.selectedGeneration === 5 ? 'Extra Mega families' : 'Generation ' + this.selectedGeneration, 17, muted, 24)
-    letterGroups.forEach((group, i) => this.button(136 + i * 46, group, () => {
+    letterGroups.forEach((group, i) => this.button(136 + i * 46, group, () => this.load(() => {
       this.letterGroup = group
       this.listItems = eggOrder.filter(route => {
         const first = routes[route][0][0].toUpperCase()
@@ -224,8 +239,8 @@ Page({
       })
       this.listPage = 0
       this.show('choose')
-    }, 20, 280, false, 40))
-    this.button(332, 'Back', () => this.show('new'))
+    }), 20, 280, false, 40))
+    this.button(332, 'Back', () => this.open('new'))
   },
 
   renderEggList() {
@@ -233,7 +248,7 @@ Page({
     this.text(70, (this.selectedGeneration === 5 ? 'Extra Mega' : 'Gen ' + this.selectedGeneration) + ' / ' + this.letterGroup, 22, ink, 28)
     if (!this.listItems.length) {
       this.text(160, 'No eggs in this group', 20, muted, 56)
-      this.button(332, 'Back', () => this.show('letters'))
+      this.button(332, 'Back', () => this.open('letters'))
       return
     }
     this.listCounter = this.text(104, '', 16, muted, 24)
@@ -241,7 +256,7 @@ Page({
     for (let row = 0; row < 4; row++) {
       this.listRows.push(this.button(136 + row * 46, '', () => {
         const route = this.listItems[this.listPage * 4 + row]
-        if (route !== undefined) this.show('preview', route)
+        if (route !== undefined) this.open('preview', route)
       }, 20, 280, false, 40))
     }
     const move = delta => {
@@ -251,7 +266,7 @@ Page({
       this.refreshEggList()
     }
     this.button(332, '< Prev', () => move(-1), 20, 84)
-    this.button(332, 'Back', () => this.show('letters'), 108, 104)
+    this.button(332, 'Back', () => this.open('letters'), 108, 104)
     this.button(332, 'Next >', () => move(1), 216, 84)
     this.refreshEggList()
   },
@@ -279,9 +294,9 @@ Page({
     this.rect(20, 207, 280, 5, 0x358664)
     for (let i = 0; i < 8; i++) this.rect(27 + i * 36, 202 + i % 2 * 3, 4, 9, 0x79B66B)
     this.image(116, 'Egg')
-    this.button(224, 'New Egg', () => this.show('new'), 20, 280, true, 38)
-    this.button(268, 'Random Egg', () => this.show('random', eggRoutes[Math.floor(Math.random() * eggRoutes.length)]), 20, 280, false, 38)
-    this.button(312, 'Back', () => back(), 20, 280, false, 38)
+    this.button(224, 'New Egg', () => this.open('new'), 20, 280, true, 38)
+    this.button(268, 'Random Egg', () => this.load(() => this.show('random', eggRoutes[Math.floor(Math.random() * eggRoutes.length)])), 20, 280, false, 38)
+    this.button(312, 'Back', () => this.load(back), 20, 280, false, 38)
     const expedition = this.state.expedition
     this.text(354, 'Expedition: ' + km(expedition.meters % expeditionGoal) + ' / 25', 13, muted, 22)
   },
@@ -293,12 +308,12 @@ Page({
     this.text(70, 'History', 24, ink, 30)
     this.text(104, 'Pokemon personal bests', 16, muted, 22)
     Object.keys(historyTitles).forEach((metric, i) => {
-      this.button(136 + i * 60, historyTitles[metric], () => {
+      this.button(136 + i * 60, historyTitles[metric], () => this.load(() => {
         this.historyMetric = metric
         this.show('history-detail')
-      }, 20, 280, i === 0, 50)
+      }), 20, 280, i === 0, 50)
     })
-    this.button(332, 'Back', () => back())
+    this.button(332, 'Back', () => this.load(back))
   },
 
   renderHistoryDetail() {
@@ -320,11 +335,12 @@ Page({
       this.text(206, metric === 'hatch' ? 'Reach 5 km, then save a new adventure.' :
         metric === 'elapsed' ? 'Finish & save a new timed adventure.' : 'Finish & save an adventure.', 18, muted, 64)
     }
-    this.button(332, 'Back', () => this.show('history'))
+    this.button(332, 'Back', () => this.open('history'))
   },
 
   render() {
     this.stopMotion()
+    this.stopLoader(true)
     this.widgets.forEach((item) => deleteWidget(item))
     this.widgets = []
     this.stats = null
@@ -342,7 +358,7 @@ Page({
       this.text(70, 'Adventure saved!', 22, ink, 28)
       this.text(132, this.expeditionNotice, 22, 0xF2E4B5, 70)
       this.text(218, 'Sync to Zepimon on your phone to follow the clues.', 18, muted, 80)
-      this.button(332, 'Done', () => this.show('home'))
+      this.button(332, 'Done', () => this.open('home'))
       return
     }
     if (this.view === 'letters') { this.renderLetterPicker(); return }
@@ -353,9 +369,9 @@ Page({
       this.text(70, 'Choose your activity', 22, ink, 28)
       this.text(110, routes[this.pendingRoute][0] + ' egg', 20, muted, 28)
       this.image(142, 'Egg')
-      this.button(242, 'Walking', () => this.start(this.pendingRoute, 'walking'), 20, 280, true, 38)
-      this.button(286, 'Running', () => this.start(this.pendingRoute, 'running'), 20, 280, false, 38)
-      this.button(332, 'Back', () => { this.view = this.eggView; this.render() })
+      this.button(242, 'Walking', () => this.load(() => this.start(this.pendingRoute, 'walking')), 20, 280, true, 38)
+      this.button(286, 'Running', () => this.load(() => this.start(this.pendingRoute, 'running')), 20, 280, false, 38)
+      this.button(332, 'Back', () => this.load(() => { this.view = this.eggView; this.render() }))
       return
     }
     if (this.view === 'session') {
@@ -364,14 +380,14 @@ Page({
         this.text(320, '', 11, muted, 16, 18, 112), this.text(320, '', 12, muted, 16, 130, 172)]
       this.clockStats = [this.text(298, '', 16, ink, 22, 18, 140), this.text(298, '', 14, ink, 22, 162, 140)]
       this.refreshStats()
-      this.button(338, 'Finish & save', () => { this.sync(); this.show('finish') }, 20, 280, true, 40)
+      this.button(338, 'Finish & save', () => this.load(() => { this.sync(); this.show('finish') }), 20, 280, true, 40)
       return
     }
     if (this.view === 'finish') {
       this.text(70, 'Save this adventure?', 22, ink, 28)
       this.text(142, km(this.state.active.meters), 32, ink, 44)
       this.text(202, "Replaces this route's last record", 17, muted, 48)
-      this.button(278, 'Save & finish', () => {
+      this.button(278, 'Save & finish', () => this.load(() => {
         this.sync()
         const before = this.state.expedition.meters
         finishSession(this.state, new Date().toISOString())
@@ -383,8 +399,8 @@ Page({
         const crossed = clueMilestones.some(m => before % expeditionGoal < m && after % expeditionGoal >= m)
         this.expeditionNotice = encounters > 0 ? 'Legendary encounter ready!' : 'A mysterious clue appeared!'
         this.show(encounters > 0 || crossed ? 'expedition-saved' : 'home')
-      }, 20, 280, true)
-      this.button(332, this.state.active.activity === 'running' ? 'Keep running' : 'Keep walking', () => this.show('session'))
+      }), 20, 280, true)
+      this.button(332, this.state.active.activity === 'running' ? 'Keep running' : 'Keep walking', () => this.open('session'))
       return
     }
     const item = this.index
@@ -402,13 +418,13 @@ Page({
           text: label, text_size: label.length > 23 ? 16 : 19 })
       })
     } else this.text(286, this.state.records[item] ? 'Last: ' + km(this.state.records[item].meters) : 'No Mega form', 17, muted)
-    this.button(332, 'Start', () => {
+    this.button(332, 'Start', () => this.load(() => {
       this.pendingRoute = item
       this.eggView = this.view
       this.view = 'activity'
       this.render()
-    }, 20, 136, true)
-    this.button(332, 'Back', () => this.show(this.view === 'preview' ? 'choose' : 'home'), 164, 136)
+    }), 20, 136, true)
+    this.button(332, 'Back', () => this.open(this.view === 'preview' ? 'choose' : 'home'), 164, 136)
   },
 
   start(route, activity = 'walking') {
@@ -459,6 +475,7 @@ Page({
 
   onDestroy() {
     this.stopMotion()
+    this.stopLoader(false)
     if (this.ready) this.sync()
     if (this.distance && this.changed) this.distance.offChange(this.changed)
     if (this.step && this.changed) this.step.offChange(this.changed)

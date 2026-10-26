@@ -1,0 +1,240 @@
+{
+  "dataset": "Pokémon egg moves sample",
+  "generations_covered": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "scope_note": "Sample dataset only, not all 493 Pokémon. egg_moves lists moves associated with each listed species across Gen II–IV-era learnsets; exact availability can differ by game/version. Verify against the target game before using for competitive or game-accurate logic.",
+  "source_reference": "PokéAPI documents Pokémon move learn methods and version groups: https://pokeapi.co/docs/v2",
+  "pokemon": [
+    {
+      "id": 1,
+      "name": "bulbasaur",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "light-screen",
+        "petal-dance",
+        "skull-bash",
+        "charm",
+        "curse"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "charmander",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "belly-drum",
+        "ancient-power",
+        "rock-slide",
+        "dragon-dance",
+        "outrage"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "squirtle",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "mirror-coat",
+        "haze",
+        "mist",
+        "aqua-ring",
+        "yawn"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "pikachu",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "present",
+        "encore",
+        "fake-out",
+        "wish",
+        "volt-tackle"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "clefairy",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "present",
+        "amnesia",
+        "belly-drum",
+        "wish",
+        "aromatherapy"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "vulpix",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "hypnosis",
+        "flail",
+        "disable",
+        "howl",
+        "extrasensory"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "oddish",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "razor-leaf",
+        "flail",
+        "synthesis",
+        "teeter-dance"
+      ]
+    },
+    {
+      "id": 58,
+      "name": "growlithe",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "crunch",
+        "thrash",
+        "morning-sun",
+        "covet"
+      ]
+    },
+    {
+      "id": 77,
+      "name": "ponyta",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "hypnosis",
+        "double-kick",
+        "charm",
+        "morning-sun"
+      ]
+    },
+    {
+      "id": 79,
+      "name": "slowpoke",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "belly-drum",
+        "future-sight",
+        "stomp",
+        "snore"
+      ]
+    },
+    {
+      "id": 83,
+      "name": "farfetchd",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "stealth-rock",
+        "night-slash",
+        "feint",
+        "flail"
+      ]
+    },
+    {
+      "id": 104,
+      "name": "cubone",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "perish-song",
+        "belly-drum",
+        "ancient-power",
+        "skull-bash"
+      ]
+    },
+    {
+      "id": 115,
+      "name": "kangaskhan",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "focus-energy",
+        "stomp",
+        "double-edge",
+        "counter"
+      ]
+    },
+    {
+      "id": 116,
+      "name": "horsea",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "aurora-beam",
+        "octazooka",
+        "dragon-breath",
+        "signal-beam"
+      ]
+    },
+    {
+      "id": 131,
+      "name": "lapras",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "ancient-power",
+        "refresh",
+        "dragon-dance",
+        "curse"
+      ]
+    },
+    {
+      "id": 133,
+      "name": "eevee",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "wish",
+        "curse",
+        "yawn",
+        "fake-tears",
+        "detect"
+      ]
+    },
+    {
+      "id": 143,
+      "name": "snorlax",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "curse",
+        "fissure",
+        "lick",
+        "charm"
+      ]
+    },
+    {
+      "id": 147,
+      "name": "dratini",
+      "introduced_generation": 1,
+      "egg_moves": [
+        "extreme-speed",
+        "dragon-breath",
+        "mist",
+        "supersonic"
+      ]
+    },
+    {
+      "id": 246,
+      "name": "larvitar",
+      "introduced_generation": 2,
+      "egg_moves": [
+        "ancient-power",
+        "dragon-dance",
+        "iron-defense",
+        "outrage"
+      ]
+    },
+    {
+      "id": 371,
+      "name": "bagon",
+      "introduced_generation": 3,
+      "egg_moves": [
+        "dragon-dance",
+        "hydro-pump",
+        "thrash",
+        "dragon-rush"
+      ]
+    }
+  ]
+}

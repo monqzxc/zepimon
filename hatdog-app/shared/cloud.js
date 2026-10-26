@@ -1,11 +1,13 @@
 import { cloudConfig } from './cloud-config'
 import { routes } from '../page/catalog'
-import { SNAPSHOT_KEY, validateSnapshot } from './companion'
+import { SNAPSHOT_KEY, SYNC_FRAME_KEY, validateSnapshot } from './companion'
 
 export const CLOUD_TOKEN_KEY = 'zepimon-cloud-token'
 export const CLOUD_REQUEST_KEY = 'zepimon-cloud-request'
 export const CLOUD_STATUS_KEY = 'zepimon-cloud-status'
 export const CLOUD_SENT_KEY = 'zepimon-cloud-sent'
+// When the current account was linked; the settings page uses it to finish "Change account".
+export const CLOUD_LINKED_KEY = 'zepimon-cloud-linked-at'
 
 // Zepp's Fetch API uses an options object and returns a parsed body, unlike browser fetch.
 export async function cloudRpc(method, body) {
@@ -28,6 +30,22 @@ export async function cloudRpc(method, body) {
 
 export const cloudMethods = {
   cloudStatus(message) { this.settings.setItem(CLOUD_STATUS_KEY, message) },
+  // Watch syncs, links and uploads can overlap; the Pokeball keeps spinning until the last one finishes.
+  spinStart() {
+    this.spinners = (this.spinners || 0) + 1
+    if (this.spinTimer !== undefined) return
+    const step = () => {
+      this.settings.setItem(SYNC_FRAME_KEY, String((Number(this.settings.getItem(SYNC_FRAME_KEY)) || 0) + 1))
+      this.spinTimer = setTimeout(step, 140)
+    }
+    step()
+  },
+  spinStop() {
+    this.spinners = Math.max(0, (this.spinners || 0) - 1)
+    if (this.spinners || this.spinTimer === undefined) return
+    clearTimeout(this.spinTimer)
+    this.spinTimer = undefined
+  },
   async cloudRequest() {
     if (this.cloudLinkBusy) return
     const raw = this.settings.getItem(CLOUD_REQUEST_KEY)
@@ -39,11 +57,13 @@ export const cloudMethods = {
     if (request.action === 'stop') {
       this.settings.setItem(CLOUD_TOKEN_KEY, '')
       this.settings.setItem(CLOUD_SENT_KEY, '')
-      this.cloudStatus('Uploads stopped on this phone. Your watch records are unchanged.')
+      this.settings.setItem(CLOUD_LINKED_KEY, '')
+      this.cloudStatus('Account removed from this phone. Uploads stopped; your watch records are unchanged.')
       return
     }
     if (request.action !== 'link') return
     this.cloudLinkBusy = true
+    this.spinStart()
     let linked = false
     this.cloudStatus('Linking your Zepimon account...')
     try {
@@ -51,10 +71,11 @@ export const cloudMethods = {
       if (!result || !/^[a-f0-9]{64}$/.test(result.token)) throw new Error('Could not read the link. Generate a new code.')
       this.settings.setItem(CLOUD_TOKEN_KEY, result.token)
       this.settings.setItem(CLOUD_SENT_KEY, '')
+      this.settings.setItem(CLOUD_LINKED_KEY, String(Date.now()))
       linked = true
       this.cloudStatus('Account linked. Sync from your watch to upload its journal.')
     } catch (error) { this.cloudStatus(error.message || 'Could not link. Generate a new code in the mobile app.') }
-    finally { this.cloudLinkBusy = false }
+    finally { this.cloudLinkBusy = false; this.spinStop() }
     if (linked) this.uploadCloud()
   },
   async uploadCloud() {
@@ -64,6 +85,7 @@ export const cloudMethods = {
     if (!raw) return
     this.cloudBusy = true
     this.cloudAgain = false
+    this.spinStart()
     const token = this.settings.getItem(CLOUD_TOKEN_KEY)
     try {
       const saved = JSON.parse(raw)
@@ -84,6 +106,7 @@ export const cloudMethods = {
       if (token === this.settings.getItem(CLOUD_TOKEN_KEY)) this.cloudAgain = false
     } finally {
       this.cloudBusy = false
+      this.spinStop()
       if (this.cloudAgain) { this.cloudAgain = false; this.uploadCloud() }
     }
   }

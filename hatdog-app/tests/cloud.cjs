@@ -7,7 +7,7 @@ function setup(fetcher) {
   const values = new Map()
   const context = vm.createContext({ setTimeout, clearTimeout,
     cloudConfig: { url: 'https://test.supabase.co', key: 'sb_publishable_test' }, routes: [['Bulbasaur']],
-    fetch: fetcher, SNAPSHOT_KEY: 'snapshot', validateSnapshot: value => value })
+    fetch: fetcher, SNAPSHOT_KEY: 'snapshot', SYNC_FRAME_KEY: 'frame', validateSnapshot: value => value })
   vm.runInContext(fs.readFileSync('shared/cloud.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
     '\nglobalThis.serviceMethods = cloudMethods; globalThis.keys = { CLOUD_TOKEN_KEY, CLOUD_REQUEST_KEY, CLOUD_STATUS_KEY, CLOUD_SENT_KEY };', context)
   const service = { ...context.serviceMethods, settings: { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) } }

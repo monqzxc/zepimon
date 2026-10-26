@@ -12,18 +12,19 @@ export function CloudPanel() {
   const [sentTo, setSentTo] = useState('')
   const [otp, setOtp] = useState('')
   const [notice, setNotice] = useState('')
-  const [working, setWorking] = useState(false)
+  // The running action's name, so only its button shows the loader.
+  const [working, setWorking] = useState('')
   const [code, setCode] = useState<{ code: string; expiresAt: string } | null>(null)
   const [confirmUnlink, setConfirmUnlink] = useState(false)
-  const busy = working || syncing || !ready
+  const busy = !!working || syncing || !ready
   const accountMismatch = !!session && !!cloudOwner && cloudOwner !== session.user.id
 
-  async function run(action: () => Promise<void>) {
+  async function run(name: string, action: () => Promise<void>) {
     if (busy) return
-    setWorking(true); setNotice('')
+    setWorking(name); setNotice('')
     try { await action() }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Could not connect. Please try again.') }
-    finally { setWorking(false) }
+    finally { setWorking('') }
   }
   if (!cloudClient) return <Panel><Eyebrow>WATCH SYNC</Eyebrow>
     <Copy>Cloud sync has not been configured in this build. You can still import a Zepp JSON export below.</Copy></Panel>
@@ -35,8 +36,9 @@ export function CloudPanel() {
       <TextInput accessibilityLabel="Email address" placeholder="Your email address" placeholderTextColor={colors.muted}
         value={email} onChangeText={value => { setEmail(value); setSentTo(''); setOtp('') }}
         keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" style={styles.input} editable={!busy} />
-      <Button title={working ? 'Working…' : sentTo ? 'Resend email code' : 'Send sign-in code'} disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())}
-        onPress={() => run(async () => {
+      <Button title={working === 'email' ? 'Working…' : sentTo ? 'Resend email code' : 'Send sign-in code'} loading={working === 'email'}
+        disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())}
+        onPress={() => run('email', async () => {
           const address = email.trim().toLowerCase()
           const { error } = await cloudClient!.auth.signInWithOtp({ email: address })
           if (error) throw error
@@ -45,7 +47,7 @@ export function CloudPanel() {
       {!!sentTo && <>
         <TextInput accessibilityLabel="Email sign-in code" placeholder="Code from your email" placeholderTextColor={colors.muted}
           value={otp} onChangeText={setOtp} keyboardType="number-pad" autoComplete="one-time-code" style={styles.input} editable={!busy} />
-        <Button title="Sign in" disabled={busy || !/^\d{6,10}$/.test(otp.trim())} onPress={() => run(async () => {
+        <Button title="Sign in" loading={working === 'sign-in'} disabled={busy || !/^\d{6,10}$/.test(otp.trim())} onPress={() => run('sign-in', async () => {
           const { error } = await cloudClient!.auth.verifyOtp({ email: sentTo, token: otp.trim(), type: 'email' })
           if (error) throw error
           setOtp(''); setSentTo(''); setNotice('Signed in. Link your watch below.')
@@ -55,8 +57,9 @@ export function CloudPanel() {
       <Copy color={colors.ink}>{session.user.email}</Copy>
       <Copy>{linked ? 'Watch upload link connected.' : 'Link your watch through the Zepp app.'}</Copy>
       {updatedAt && <Copy small>Cloud journal updated: {new Date(updatedAt).toLocaleString()}</Copy>}
-      <Button title={syncing ? 'Syncing…' : 'Sync now'} disabled={busy || accountMismatch} onPress={() => { setNotice(''); void sync() }} />
-      <Button title={linked ? 'Create replacement linking code' : 'Create linking code'} secondary disabled={busy || accountMismatch} onPress={() => run(async () => {
+      <Button title={syncing ? 'Syncing…' : 'Sync now'} loading={syncing} disabled={busy || accountMismatch} onPress={() => { setNotice(''); void sync() }} />
+      <Button title={linked ? 'Create replacement linking code' : 'Create linking code'} secondary loading={working === 'link'}
+        disabled={busy || accountMismatch} onPress={() => run('link', async () => {
         const { data, error } = await cloudClient!.rpc('zepimon_create_link')
         if (error) throw new Error('Could not create a linking code. Check your connection and cloud setup.')
         if (!data || !/^[a-f0-9]{24}$/.test(data.code) || !Number.isFinite(Date.parse(data.expiresAt))) throw new Error('Invalid linking code response.')
@@ -68,15 +71,16 @@ export function CloudPanel() {
         <Copy>In Zepp, open your watch’s Zepimon settings → Sync to Zepimon mobile. Paste this code and tap Link account, then Sync from watch.</Copy>
         {linked && <Copy small>Using this code replaces the previous watch upload link.</Copy>}
       </>}
-      {linked && <Button title={confirmUnlink ? 'Confirm disconnect watch' : 'Disconnect watch'} secondary disabled={busy || accountMismatch} onPress={() => {
+      {linked && <Button title={confirmUnlink ? 'Confirm disconnect watch' : 'Disconnect watch'} secondary loading={working === 'unlink'}
+        disabled={busy || accountMismatch} onPress={() => {
         if (!confirmUnlink) { setConfirmUnlink(true); return }
-        void run(async () => {
+        void run('unlink', async () => {
           const { error } = await cloudClient!.rpc('zepimon_unlink')
           if (error) throw new Error('Could not disconnect. Try again while online.')
           setConfirmUnlink(false); setCode(null); await sync(); setNotice('Watch uploads disconnected. Saved records are kept.')
         })
       }} />}
-      <Button title="Sign out" secondary disabled={busy} onPress={() => run(async () => {
+      <Button title="Sign out" secondary loading={working === 'sign-out'} disabled={busy} onPress={() => run('sign-out', async () => {
         const { error } = await cloudClient!.auth.signOut({ scope: 'local' })
         if (error) throw error
         setCode(null); setConfirmUnlink(false); setNotice('Signed out. Your downloaded journal remains on this phone.')

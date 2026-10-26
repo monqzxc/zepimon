@@ -12,7 +12,7 @@ export type DexRecord = {
   hatchSeconds?: number | null;
   form?: string;
   mega?: string;
-  source?: 'expedition';
+  source?: 'expedition' | 'safari';
 };
 
 export type Metric = 'distance' | 'elapsed' | 'hatch';
@@ -128,8 +128,12 @@ export function averagePace(seconds: number | null | undefined, meters: number):
 }
 
 export function dexEntries(journal: Journal): DexEntry[] {
+  return entriesFromDex(journal.snapshot.dex);
+}
+
+export function entriesFromDex(dex: Record<string, DexRecord>): DexEntry[] {
   const entries = new Map<string, DexEntry>();
-  Object.entries(journal.snapshot.dex).forEach(([key, record]) => {
+  Object.entries(dex).forEach(([key, record]) => {
     const shiny = key.startsWith('Shiny ');
     const name = shiny ? key.slice(6) : key;
     const entry = entries.get(name) || { name };

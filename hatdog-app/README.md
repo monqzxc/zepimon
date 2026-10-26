@@ -45,8 +45,23 @@ lives in the standalone Zepimon mobile app. The watch still keeps collection
 records locally so offline progress, normal/shiny variants and cloud sync work.
 Existing saves and account links are retained when updating in place.
 
-Zepp settings are a single bridge screen: enter a linking code, Sync from watch,
-check receipt/upload status, Retry upload, or Stop uploads on this phone.
+Zepp settings are a single Pokedex-styled bridge screen. Before linking it shows
+three steps, the linking code field and **Link account**. Once linked, a Trainer
+Card replaces the code field and shows upload state, Dex entries and the last
+watch sync (plus when the account was linked); **Sync from watch** becomes the
+main button and **Retry upload** appears only while newer progress is waiting.
+Under Manage account, **Change account** takes a code from another Zepimon
+account and keeps the current link until the new code works, and **Remove
+account** asks once before it stops uploads from this phone (nothing is deleted
+from the account or the watch). Export JSON is always available under Manual
+transfer.
+
+While the phone syncs with the watch, links an account or uploads, a yellow
+banner with a spinning Pokeball and a pixel progress bar appears below the
+header, the Pokedex lights chase each other and the status line spins a small
+Pokeball. The Zepp service drives this by bumping `zepimon-sync-frame` about
+seven times a second while it is busy; it stops as soon as the work finishes,
+and a restarted service replaces a leftover "Syncing…" or "Uploading…" message.
 Dex browsing, journey cards and remote sprites have been removed from Zepp.
 Use the standalone app for your collection and journeys.
 
@@ -279,7 +294,18 @@ while the app is closed also counts until you finish. Wake-up relaunch is
 enabled during an adventure. This is an activity-counter game, not a GPS
 workout recorder, and does not start the watch's native workout mode.
 
+Version 1.11.1 adds a Pokeball loader. Buttons that open another screen first cover the content area with a pixel
+Pokeball that pulses once, shrinking from 126 to 70 pixels and growing back
+over seven 40 ms frames (about 0.28 s), then open the screen. The watch cannot
+animate while a screen builds, so the full-size ball stays up until it appears.
+Taps during the animation are ignored. Paging and Mega cycling update in place and
+stay instant. The ball is drawn with native rectangles (`page/loader.js`), so
+no image files are added.
+
 ## Device verification still required
+
+- Check that the Pokeball loader animates smoothly and does not make menus
+  feel slow on Bip 5 Unity.
 
 - Grant step, distance and local storage permissions when installing.
 - Compare a short walk with the watch's distance display. The implementation

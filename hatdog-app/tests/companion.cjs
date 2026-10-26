@@ -12,7 +12,7 @@ const compiled = (path, context) => vm.runInContext('(function(){' + read(path).
     const [local, exported] = pair.trim().split(/ as /)
     return (exported || local) + ':' + local
   }).join(',') + '});') + '})()', context, { filename: path })
-const contract = ['SNAPSHOT_KEY', 'SYNC_KEY', 'STATUS_KEY', 'makeSnapshot', 'validateSnapshot']
+const contract = ['SNAPSHOT_KEY', 'SYNC_KEY', 'STATUS_KEY', 'SYNC_FRAME_KEY', 'makeSnapshot', 'validateSnapshot']
 const clone = value => JSON.parse(JSON.stringify(value))
 const quiet = { log() {}, error() {}, warn() {}, debug() {} }
 const Logger = { getLogger: () => ({ ...quiet }) }
@@ -97,7 +97,7 @@ async function main() {
   source('page/pokemon.js', watch, ['repairDexRecords'])
   phone.routes = clone(watch.routes)
   source('shared/cloud-config.js', phone, ['cloudConfig'])
-  source('shared/cloud.js', phone, ['cloudMethods', 'CLOUD_REQUEST_KEY'])
+  source('shared/cloud.js', phone, ['cloudMethods', 'CLOUD_REQUEST_KEY', 'CLOUD_STATUS_KEY'])
   source('app.js', watch)
   source('app-side/index.js', phone)
   phoneService.onInit()
@@ -168,7 +168,7 @@ async function main() {
   source('shared/expedition.js', ui, ['validateExpedition'])
   source('shared/companion.js', ui, contract)
   source('shared/cloud-config.js', ui, ['cloudConfig'])
-  source('shared/cloud.js', ui, ['CLOUD_TOKEN_KEY', 'CLOUD_REQUEST_KEY', 'CLOUD_STATUS_KEY'])
+  source('shared/cloud.js', ui, ['CLOUD_TOKEN_KEY', 'CLOUD_REQUEST_KEY', 'CLOUD_STATUS_KEY', 'CLOUD_SENT_KEY', 'CLOUD_LINKED_KEY'])
   source('setting/index.js', ui)
   const render = () => settingsPage.build({ settingsStorage })
   const nodes = tree => [tree, ...(tree.children || []).flatMap(child => typeof child === 'object' ? nodes(child) : [])]
@@ -194,6 +194,9 @@ async function main() {
   assert.equal(phoneStorage.get(phone.SNAPSHOT_KEY), beforeLink, 'Link UI must preserve the buffered journal')
   click(render(), 'Sync from watch')
   await drain()
+  assert.ok(Number(phoneStorage.get(phone.SYNC_FRAME_KEY)) > 0, 'Syncing advances the Pokeball frame')
+  assert.equal(phoneService.spinTimer, undefined, 'The spinner stops once the sync finishes')
+  assert.equal(phoneService.spinners, 0)
   assert.ok(saved().dex.Bulbasaur)
   assert.ok(saved().dex['Shiny Bulbasaur'])
 
@@ -223,6 +226,71 @@ async function main() {
   assert.equal(parseJournal(exportInput().props.value).snapshot.capturedAt, newer.capturedAt, 'Export works without a cloud account and includes the newer sync')
   click(render(), 'Back to sync')
   phoneStorage.set(phone.SNAPSHOT_KEY, beforeExport)
+
+  // An empty code is caught on the page instead of sending a doomed link request.
+  click(render(), 'Link account')
+  assert.match(phoneStorage.get(ui.CLOUD_STATUS_KEY), /enter the code/)
+  assert.ok(!phoneStorage.get(ui.CLOUD_REQUEST_KEY))
+  assert.match(texts(render()), /NOT LINKED YET/)
+
+  // Linked phones show a trainer card instead of the code form, and unlinking asks first.
+  phoneStorage.set(ui.CLOUD_TOKEN_KEY, 'test-upload-secret')
+  phoneStorage.set(ui.CLOUD_SENT_KEY, String(JSON.parse(beforeExport).capturedAt))
+  let linkedTree = render()
+  assert.match(texts(linkedTree), /TRAINER CARD/)
+  assert.match(texts(linkedTree), /ACCOUNT LINKED/)
+  assert.match(texts(linkedTree), /Up to date/)
+  assert.ok(!nodes(linkedTree).some(n => n.component === 'TextInput'), 'Linked phones hide the code form')
+  assert.ok(!nodes(linkedTree).some(n => n.component === 'Button' && ['Link account', 'Retry upload'].includes(n.props.label)))
+  assert.ok(nodes(linkedTree).some(n => n.component === 'Button' && n.props.label === 'Sync from watch'))
+  phoneStorage.set(ui.CLOUD_SENT_KEY, '1')
+  assert.match(texts(render()), /New progress waiting/)
+  assert.ok(nodes(render()).some(n => n.component === 'Button' && n.props.label === 'Retry upload'))
+  phoneStorage.set(ui.CLOUD_SENT_KEY, String(JSON.parse(beforeExport).capturedAt))
+  // While the phone works, a banner, a spinning Pokeball and chasing Pokedex lights make it obvious.
+  phoneStorage.set(phone.STATUS_KEY, 'Syncing… keep Zepimon open on your watch')
+  phoneStorage.set(phone.SYNC_FRAME_KEY, '5')
+  const busyTree = render()
+  assert.match(texts(busyTree), /SYNCING WITH YOUR WATCH/)
+  assert.ok(nodes(busyTree).some(n => n.component === 'Button' && n.props.label === 'Syncing…'))
+  assert.ok(nodes(busyTree).some(n => n.component === 'View' && n.props.style && n.props.style.transform === 'rotate(225deg)'))
+  assert.ok(!/SYNCING WITH YOUR WATCH/.test(texts((phoneStorage.set(phone.STATUS_KEY, 'Synced with your watch'), render()))))
+  phoneStorage.set(phone.STATUS_KEY, 'Synced with your watch')
+
+  // Change account keeps the current link until a new code succeeds, and can be cancelled.
+  click(render(), 'Change account')
+  let changeTree = render()
+  assert.equal(nodes(changeTree).find(n => n.component === 'TextInput').props.label, 'One-time linking code')
+  assert.ok(nodes(changeTree).some(n => n.component === 'Button' && n.props.label === 'Link new account'))
+  assert.ok(nodes(changeTree).some(n => n.component === 'Button' && n.props.label === 'Sync from watch' && n.props.style.background !== '#b8332a'),
+    'Only the new link is the red primary action while changing')
+  click(changeTree, 'Link new account')
+  assert.match(phoneStorage.get(ui.CLOUD_STATUS_KEY), /enter the code/)
+  nodes(render()).find(n => n.component === 'TextInput').props.onChange('other-account-code')
+  click(render(), 'Link new account')
+  await drain()
+  assert.equal(phoneStorage.get(ui.CLOUD_TOKEN_KEY), 'test-upload-secret', 'A failed new link keeps the current account')
+  assert.ok(nodes(render()).some(n => n.component === 'Button' && n.props.label === 'Link new account'), 'The change form stays open to retry')
+  phoneStorage.set(ui.CLOUD_LINKED_KEY, String(Date.now() + 1000))
+  assert.ok(!nodes(render()).some(n => n.component === 'TextInput'), 'A successful new link closes the change form')
+  assert.match(texts(render()), /Linked since/)
+  click(render(), 'Change account')
+  click(render(), 'Cancel')
+  assert.ok(!nodes(render()).some(n => n.component === 'TextInput'))
+
+  // Remove account asks once, then stops uploads from this phone.
+  click(render(), 'Remove account')
+  assert.match(texts(render()), /Remove this account from the phone\?/)
+  assert.equal(phoneStorage.get(ui.CLOUD_TOKEN_KEY), 'test-upload-secret', 'Asking is not removing')
+  click(render(), 'Keep account')
+  assert.ok(nodes(render()).some(n => n.component === 'Button' && n.props.label === 'Remove account'))
+  click(render(), 'Remove account')
+  click(render(), 'Yes, remove account')
+  await drain()
+  assert.equal(phoneStorage.get(ui.CLOUD_TOKEN_KEY), '', 'The side service stops uploads')
+  assert.equal(phoneStorage.get(ui.CLOUD_LINKED_KEY), '')
+  assert.match(texts(render()), /Account removed from this phone/)
+  assert.equal(nodes(render()).find(n => n.component === 'TextInput').props.label, 'One-time linking code', 'The code form returns after unlinking')
 
   // Watch sync recovers overwritten Dex data from a surviving completed journey and persists it.
   const watchBeforeRepair = clone(watchState)

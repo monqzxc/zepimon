@@ -41,7 +41,10 @@ export function completedRuns(progress: Progress, now = Date.now()): SavedRun[] 
 export function missions(journal: Journal | null, progress: Progress, now = Date.now()): Mission[] {
   const runs = completedRuns(progress, now)
   const weekly = runs.filter(({ record }) => Date.parse(record.finishedAt) >= weekStart(now))
-  const entries = journal ? dexEntries(journal) : []
+  // Safari Hunt catches are arcade finds: they appear in the Dex but never count toward walking badges.
+  const walked = journal && { ...journal, snapshot: { ...journal.snapshot,
+    dex: Object.fromEntries(Object.entries(journal.snapshot.dex).filter(([, record]) => record.source !== 'safari')) } }
+  const entries = walked ? dexEntries(walked) : []
   const highest = runs.reduce((max, run) => Math.max(max, run.record.meters), 0)
   const total = runs.reduce((sum, run) => sum + run.record.meters, 0)
   const hasStart = (hour: (h: number) => boolean) => runs.some(({ record }) => record.meters >= 1000 &&

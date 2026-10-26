@@ -1,19 +1,31 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import Constants from 'expo-constants'
 import { parseJournal, receiveCloudJournal } from './journal'
-import type { Journal } from './journal'
+import type { DexRecord, Journal } from './journal'
 import { emptyProgress, importProgress, restoreProgress, unlockMissions } from './progress'
 import type { Progress } from './progress'
 import { restoreScores, saveBestScore } from './games/scores'
 import type { ArcadeGame, ArcadeScores } from './games/scores'
 import { claimExpedition, emptyExpeditions, expeditionJournal, importExpeditions, restoreExpeditions } from './expeditions'
 import type { ExpeditionProgress } from './expeditions'
+import { addSafariCatch, restoreSafariDex, withSafariCatches } from './games/safari'
+import type { SafariDex } from './games/safari'
+import { restoreStars, saveStars } from './games/adventure'
+import { backupSummary, createBackup } from './backup'
 
 const KEY = 'zepimon-mobile-v1'
-type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null, expeditions: ExpeditionProgress }
-type Store = Saved & { ready: boolean, error: string, importText: (text: string) => Promise<void>, importCloud: (text: string, owner: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void>, befriend: (key: string, index: number) => Promise<void> }
-const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions() }
+type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null, expeditions: ExpeditionProgress, safari: SafariDex, adventure: Record<string, number> }
+type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRecord>, importText: (text: string) => Promise<void>, importCloud: (text: string, owner: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void>, befriend: (key: string, index: number) => Promise<void>, recordSafariCatch: (name: string, shiny: boolean) => Promise<void>, recordStars: (stop: string, stars: number) => Promise<void>,
+  makeBackup: () => string, backupInfo: ReturnType<typeof backupSummary> }
+const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), safari: {}, adventure: {} }
 const Context = createContext<Store | null>(null)
+
+// Everything shown in the Dex: watch records and expedition friends, plus Safari catches (which also work before any import).
+function collectionOf(saved: Pick<Saved, 'journal' | 'expeditions' | 'safari'>) {
+  const journal = withSafariCatches(expeditionJournal(saved.journal, saved.expeditions), saved.safari)
+  return { journal, dex: journal?.snapshot.dex ?? { ...saved.safari } }
+}
 
 export function JournalProvider({ children }: React.PropsWithChildren) {
   const [saved, setSaved] = useState<Saved>(empty)
@@ -35,11 +47,12 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
       const oldExpeditions = restoreExpeditions(value.expeditions)
       const expeditions = journal ? importExpeditions(oldExpeditions, journal) : oldExpeditions
       const collection = expeditionJournal(journal, expeditions)
-      const buddy = typeof value.buddy === 'string' && collection?.snapshot.dex[value.buddy] ? value.buddy : null
+      const safari = restoreSafariDex(value.safari)
+      const buddy = typeof value.buddy === 'string' && collectionOf({ journal, expeditions, safari }).dex[value.buddy] ? value.buddy : null
       const restored = restoreProgress(value.progress)
       const progress = collection ? importProgress(restored, collection) : restored
       latest.current = { journal, buddy, bestMoves, progress, arcadeScores: restoreScores(value.arcadeScores),
-        cloudOwner: typeof value.cloudOwner === 'string' ? value.cloudOwner : null, expeditions }
+        cloudOwner: typeof value.cloudOwner === 'string' ? value.cloudOwner : null, expeditions, safari, adventure: restoreStars(value.adventure) }
       setSaved(latest.current)
       if (JSON.stringify(value.progress) !== JSON.stringify(progress) || JSON.stringify(value.expeditions) !== JSON.stringify(expeditions)) {
         try { await AsyncStorage.setItem(KEY, JSON.stringify(latest.current)) }
@@ -67,17 +80,17 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     const expeditions = importExpeditions(current.expeditions, journal)
     const collection = expeditionJournal(journal, expeditions)!
     return { ...current, journal, expeditions, progress: importProgress(current.progress, collection),
-      buddy: current.buddy && collection.snapshot.dex[current.buddy] ? current.buddy : null }
+      buddy: current.buddy && collectionOf({ ...current, journal, expeditions }).dex[current.buddy] ? current.buddy : null }
   })
   const importCloud = (text: string, owner: string) => persist(current => {
     const journal = receiveCloudJournal(text, current.journal, current.cloudOwner, owner)
     const expeditions = importExpeditions(current.expeditions, journal)
     const collection = expeditionJournal(journal, expeditions)!
     return { ...current, journal, expeditions, cloudOwner: owner, progress: importProgress(current.progress, collection),
-      buddy: current.buddy && collection.snapshot.dex[current.buddy] ? current.buddy : null }
+      buddy: current.buddy && collectionOf({ ...current, journal, expeditions }).dex[current.buddy] ? current.buddy : null }
   })
   const chooseBuddy = (key: string) => persist(current => {
-    if (!expeditionJournal(current.journal, current.expeditions)?.snapshot.dex[key]) throw new Error('Import this Pokemon before choosing it as your buddy.')
+    if (!collectionOf(current).dex[key]) throw new Error('Import this Pokemon before choosing it as your buddy.')
     return { ...current, buddy: key }
   })
   const recordWin = (pairs: number, moves: number) => persist(current => {
@@ -91,7 +104,12 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     const expeditions = claimExpedition(current.expeditions, key, index)
     return { ...current, expeditions, progress: unlockMissions(expeditionJournal(current.journal, expeditions), current.progress) }
   })
-  return <Context.Provider value={{ ...saved, journal: expeditionJournal(saved.journal, saved.expeditions), ready, error, importText, importCloud, chooseBuddy, recordWin, recordArcadeScore, befriend }}>{children}</Context.Provider>
+  const recordSafariCatch = (name: string, shiny: boolean) => persist(current => ({ ...current, safari: addSafariCatch(current.safari, name, shiny) }))
+  const recordStars = (stop: string, stars: number) => persist(current => ({ ...current, adventure: saveStars(current.adventure, stop, stars) }))
+  // Backups use the raw saved data, so the watch journal stays exactly as the watch sent it.
+  const makeBackup = () => createBackup(latest.current, Date.now(), Constants.expoConfig?.version ?? '')
+  return <Context.Provider value={{ ...saved, ...collectionOf(saved), ready, error, importText, importCloud, chooseBuddy, recordWin, recordArcadeScore,
+    befriend, recordSafariCatch, recordStars, makeBackup, backupInfo: backupSummary(saved) }}>{children}</Context.Provider>
 }
 
 export function useJournal() {

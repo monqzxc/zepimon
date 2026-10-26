@@ -29,12 +29,38 @@ are stored on this phone alongside missions and scores. Reinstalling the app
 requires befriending unlocked encounters again after syncing; outcomes remain
 the same. A watch reset starts a new trail without removing phone discoveries.
 
+### Adventure games
+
+Open **Play** for three new games and an **Adventure Map** that strings them together:
+
+- **Route Guard** (lane defense): Shadow Pokemon walk down five lanes. Place up to six Pokemon from your Dex (or the six loaners): Grass types grow berries to tap and collect, Rock/Ground/Steel types block, and every other type attacks foes above it in its lane. Each lane's Snorlax wakes once to roll a breach away; a second breach in that lane ends the battle.
+- **Trail Defense** (tower defense): place Pokemon beside a winding trail. Defeated foes pay berries. Every family starts at its first stage and can evolve mid-battle with berries, all the way to its final stage. Foes that reach the end cost lives (a boss costs three).
+- **Safari Hunt** (hunting): two minutes, 12 Safari Balls. Tap rustling grass, then throw when the shrinking ring is small. Bait makes a Pokemon less likely to run but harder to catch; rocks do the opposite. Catching the same species in a row raises its Shiny chance from 1 in 60 to as good as 1 in 8.
+- **Adventure Map**: nine stops from Route 1 to Victory Road, alternating the three games. Each stop gives up to three stars, and one star opens the next stop. The final stop ends with a Shadow Mewtwo.
+
+Foes walk with two-step overworld animations: down the lanes in Route Guard, and facing whichever way the trail runs in Trail Defense (Gen 1-4 forms; still sprites otherwise, and with reduced motion). Trail Defense draws its habitat as textured ground with an edged dirt trail, direction chevrons, a cave where foes enter and a Poke Ball goal; tapping a placed Pokemon shows its attack range.
+
+Both defense games use type matchups (super-effective hits do double damage) and let a befriended Expedition Legendary strike every foe once per battle.
+
+**Egg moves.** Pokemon hatched from an egg on the watch are like bred Pokemon: they know their family's real egg moves from the Gen II–IV games (Gold/Silver/Crystal through HeartGold/SoulSilver), shared by the whole evolution chain. Team cards and the battle board (EGG) show the egg move used in battle, and the Dex record lists the family's egg moves.
+
+- Attackers use the damaging egg move that improves the most type matchups over their own type (power breaks ties), and every hit uses whichever type is stronger. For example, Charmander's Crunch lets it hit Psychic and Ghost foes as Dark.
+- With only same-type damaging egg moves, attacks deal 20% more damage; with only status egg moves (such as Chatot's Agility), the Pokemon has 30% more health.
+- Grass growers harvest 10 extra berries in Route Guard (5 in Trail Defense), and Rock/Ground/Steel blockers in Route Guard get 30% more health.
+- Families without egg moves (such as Magnemite), loaners and Safari catches get no perk.
+
+`src/generated/egg-moves.js` is built by `node scripts/build-egg-moves.mjs`, which follows `pokemon_data/generate_pokemon_egg_moves.py`: it reads Pokemon #1–493 from PokéAPI, keeps moves learned by egg in the Gen II–IV version groups, adds each move's type and power, and merges moves per evolution chain (`hatdog-app/data/pokemon_species.csv`), so a family shares what its baby or first stage can inherit.
+
+**Walking bonus.** Each km of completed adventures this Monday–Sunday adds 25 starting berries and 3 Safari Balls to every game, up to 3 km. It is only a bonus; every game is fully playable without walking.
+
+**Safari catches in the Dex.** Gen 1–4 non-Legendary Pokemon caught in Safari Hunt join your Dex on this phone with a ◎ Safari mark and a **Safari** filter. They have no distance, steps or time, and they never count toward missions or badges. If the watch later hatches the same Normal/Shiny variant, the watch record replaces the Safari mark. Safari catches can be used as buddies, in Memory Match and in battle teams, even before any watch import.
+
 ### Collection and games
 
 - Gen 1–4 Pokémon and the extra Mega families, with bundled sprites and type-themed habitats.
 - Separate Normal and Shiny Dex entries, saved run details, and a selectable buddy.
 - A Journal with personal bests and completed runs retained across imports.
-- A Pocket Arcade with Memory Match, Who’s That Pokémon?, and Berry Catch. All three work offline and save their best scores on the phone.
+- A Pocket Arcade with the Adventure Map, Route Guard, Trail Defense, Safari Hunt, Memory Match, Who’s That Pokémon?, and Berry Catch. Everything works offline and saves best scores and stars on the phone.
 - Weekly goals for 10 km and three active days, career missions, and hidden badges. Weeks run Monday–Sunday in the phone’s local time; completed runs count on their finish date.
 
 ## Bring your watch data across
@@ -56,15 +82,23 @@ Importing the same file again does not double-count runs or mission progress. Th
 
 Cloud sync uses Zepp as the watch connection. Manual imports also remain available. The app does not connect directly to the watch over Bluetooth or record phone workouts.
 
+## Back up your data
+
+Open **Sync** and scroll to **Back up your data**. **Save a backup file** creates `zepimon-backup-YYYY-MM-DD-HHmm.json` and opens the share sheet so you can keep it in Files, Drive, email or another app (on the web it downloads). **Show backup as text** shows the same JSON to copy by hand.
+
+The backup is an ordinary Zepimon export (your watch journal exactly as synced) plus a `phoneBackup` section with everything stored only on this phone: missions and saved runs, best scores, Adventure Map stars, Expedition friends, Safari catches and your buddy. Account links and sign-in details are never included. **Choose JSON file** accepts a backup to bring the watch journal back; restoring the `phoneBackup` section is not built yet.
+
 ## Mini-games
 
 Open **Play**, then choose a game:
 
-- **Memory Match:** match up to six pairs from your acquired Normal/Shiny variants. Requires at least two variants in your imported Dex; fewer moves is better.
+- **Memory Match:** match up to six pairs from your acquired Normal/Shiny variants. Requires at least two variants in your Dex (imported or caught in Safari Hunt); fewer moves is better.
 - **Who’s That Pokémon?:** identify ten Gen 1–4 silhouettes, with four choices for each. Answers reveal the Pokemon; there is no timer. Best score is out of ten.
 - **Berry Catch:** tap a berry in the nine garden plots before it moves. Twenty berries appear over 30 seconds, with at most one catch per appearance. The game pauses when you switch tabs, leave the app, or press Pause; tap Resume to continue. Best score is out of twenty.
 
-Quiz and Berry Catch need no import. Only completed games save scores; returning to the arcade discards an unfinished round. Scores survive app restarts and journal imports. These games do not change watch distance, evolution, Shiny odds, or Dex records.
+- **Route Guard / Trail Defense / Safari Hunt:** see [Adventure games](#adventure-games). Free play saves the most waves cleared (out of 10 and 12) and the most Pokemon caught in one hunt.
+
+Every game except Memory Match works without an import. Only completed games save scores; returning to the arcade discards an unfinished round, and switching tabs or leaving the app pauses it. Scores and stars survive app restarts and journal imports. No game changes watch distance, evolution or Shiny odds; Safari Hunt is the only one that adds Dex entries, marked ◎ Safari and kept out of missions.
 
 ## Run locally
 
@@ -100,6 +134,17 @@ Gen 1-4 Pokemon use the Platinum pixel sprites; later species and Mega forms use
 Images are copied from `hatdog-app/data/original-sprites` by `npm run sync:watch`, with static asset references generated in `src/generated/sprites.js`. The shared `spriteSource` function in `src/catalog.ts` selects the Normal or Shiny image across the app.
 
 Sprite source and credits: [PokeAPI sprites README](https://github.com/PokeAPI/sprites#readme) and [upstream license notice](https://github.com/PokeAPI/sprites/blob/master/LICENCE.txt). The upstream notice credits image copyright to The Pokemon Company.
+
+## App icons
+
+Both apps' icons come from `pokemon_data/zepimon-icon.png`. After changing it, run `python scripts/build-icons.py` (needs Pillow) to rebuild:
+
+- the watch icon in every `hatdog-app/assets/<target>/icon.png`: 248 x 248, a round purple badge with a 4px transparent margin, per Zepp's app icon spec;
+- `assets/icon.png`: 1024 x 1024 on a solid purple background, since iOS does not allow transparent icons;
+- the Android adaptive icon (`android-icon-foreground.png` inside the launcher safe zone, background `#1C0D3F`) and its Android 13 themed `android-icon-monochrome.png`;
+- `assets/favicon.png` for the web build.
+
+`npm run sync:watch` no longer touches the app icon.
 
 ## Standalone builds
 
@@ -185,3 +230,16 @@ are whole multiples of the 44-pixel reaction frames. Web previews use pixelated
 image scaling, and Android frame swaps have no fade. Habitat sizes and tap
 reactions are retained. The original pixel artwork is unchanged; this reduces
 enlargement rather than adding detail to the source sprites.
+
+## Pokeball loader (1.5.1)
+
+While the journal opens, a large pixel Pokeball pulses, shrinking to 40% of its
+size and growing back. The same Pokeball, at 20 px, pulses inside buttons while they
+wait: Send sign-in code, Sign in, Sync now, linking code, Disconnect watch,
+Sign out, Choose JSON file, Use this export and expedition befriending. Only
+the pressed button shows it; the others stay disabled. Navigation buttons open
+instantly and do not add a delay.
+
+The ball reuses the watch loader's 14 x 14 layout (`hatdog-app/page/loader.js`)
+as native views (`src/PokeballLoader.tsx`), so no image or dependency is added.
+Reduce Motion shows a still ball. Screen readers hear the button's busy state.

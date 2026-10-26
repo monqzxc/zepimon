@@ -3,6 +3,8 @@ import { validateExpedition } from './expedition'
 export const SNAPSHOT_KEY = 'zepimon-phone-v1'
 export const SYNC_KEY = 'zepimon-sync-request'
 export const STATUS_KEY = 'zepimon-sync-status'
+// Ever-increasing frame count the Zepp service bumps while it is busy, so the settings page can spin its Pokeball.
+export const SYNC_FRAME_KEY = 'zepimon-sync-frame'
 
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 const number = (value) => Number.isFinite(value) && value >= 0

@@ -33,7 +33,12 @@ const themes: Record<string, HabitatTheme> = {
 
 export function habitatTheme(name: string): HabitatTheme {
   if (name.replace(/^Shiny /, '') === 'Egg') return { ...themes.normal, label: 'Hatching meadow' }
-  return themes[pokemonType(name)] || themes.normal
+  return typeTheme(pokemonType(name))
+}
+
+// Game fields borrow the same landscape colors by type.
+export function typeTheme(type: string): HabitatTheme {
+  return themes[type] || themes.normal
 }
 
 // Small native rectangles keep the pixel scenery offline without image packs or animation timers.

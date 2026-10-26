@@ -5,10 +5,10 @@
     "appName": "Zepimon",
     "appType": "app",
     "version": {
-      "code": 38,
-      "name": "1.11.0"
+      "code": 42,
+      "name": "1.11.4"
     },
-    "icon": "gengar.png",
+    "icon": "icon.png",
     "vender": "zepp",
     "description": "Walk, collect Gen 1-4 Pokemon and Mega evolve at 21 km"
   },

@@ -4,8 +4,10 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { pokemonType, habitatColors } from './catalog'
 import { HabitatScene, habitatTheme } from './HabitatScene'
+import { PokeballLoader } from './PokeballLoader'
 export { Sprite } from './Sprite'
 export { HabitatScene } from './HabitatScene'
+export { PokeballLoader } from './PokeballLoader'
 
 export const colors = { bg: '#071b2c', panel: '#102d42', edge: '#54c7c4', ink: '#f4ebcf', muted: '#9abfcd', blue: '#135b89', gold: '#ffe08d' }
 export const font = Platform.OS === 'ios' ? 'Menlo' : 'monospace'
@@ -21,12 +23,15 @@ export function Eyebrow({ children }: React.PropsWithChildren) {
 export function Panel({ children, style }: React.PropsWithChildren<{ style?: StyleProp<ViewStyle> }>) {
   return <View style={[styles.panel, style]}>{children}</View>
 }
-export function Button({ title, onPress, secondary = false, disabled = false }: {
-  title: string, onPress: () => void, secondary?: boolean, disabled?: boolean
+// loading shows a shrinking Pokeball beside the title and blocks presses at full opacity.
+export function Button({ title, onPress, secondary = false, disabled = false, loading = false }: {
+  title: string, onPress: () => void, secondary?: boolean, disabled?: boolean, loading?: boolean
 }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [styles.button, secondary && styles.secondary, { opacity: disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
-    <Text style={[styles.buttonText, secondary && { color: colors.ink }]}>{title}</Text>
+  const label = <Text style={[styles.buttonText, secondary && { color: colors.ink }, loading && { flexShrink: 1 }]}>{title}</Text>
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: disabled || loading, busy: loading }}
+    disabled={disabled || loading} onPress={onPress}
+    style={({ pressed }) => [styles.button, secondary && styles.secondary, { opacity: loading ? 1 : disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
+    {loading ? <View style={styles.loadingRow}><PokeballLoader size={20} />{label}</View> : label}
   </Pressable>
 }
 export function Screen({ children }: React.PropsWithChildren) {
@@ -55,6 +60,7 @@ export const styles = StyleSheet.create({
   button: { minHeight: 48, backgroundColor: colors.ink, borderWidth: 2, borderColor: colors.edge, borderRadius: 4, padding: 12, justifyContent: 'center' },
   secondary: { backgroundColor: colors.blue },
   buttonText: { textAlign: 'center', fontFamily: font, fontWeight: '700', color: colors.bg, fontSize: 14 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   stat: { fontFamily: font, color: colors.ink, fontWeight: '800', fontSize: 27 },
   input: { minHeight: 48, borderWidth: 1, borderColor: colors.edge, borderRadius: 4, color: colors.ink, backgroundColor: colors.panel, padding: 12, fontSize: 16 },

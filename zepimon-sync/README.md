@@ -27,9 +27,9 @@ Watch → Zepp Side Service → Supabase → Zepimon mobile. The watch remains p
 4. Open Zepimon on the connected watch. In Zepp, tap **Sync from watch**. Wait for the cloud upload confirmation.
 5. Return to Zepimon mobile and tap **Sync now**. Further watch snapshots upload when the Side Service runs. The phone app downloads when opened and every minute while visible.
 
-Saving/finishing an adventure already sends a snapshot to Zepp. An offline watch sends its stored progress when reopened while connected. A failed cloud upload keeps the latest received snapshot in Zepp; the next service start, watch snapshot, or **Retry upload** retries it. Neither Zepp nor the phone app is guaranteed to keep running when the operating system suspends it. This is journal sync, not a live workout stream.
+Saving/finishing an adventure already sends a snapshot to Zepp. An offline watch sends its stored progress when reopened while connected. A failed cloud upload keeps the latest received snapshot in Zepp; the next service start, watch snapshot, or **Retry upload** (shown on the Trainer Card while newer progress is waiting) retries it. Neither Zepp nor the phone app is guaranteed to keep running when the operating system suspends it. This is journal sync, not a live workout stream.
 
-**Disconnect watch** in the mobile app revokes its upload credential and any pending code. Creating a replacement code leaves the old link active until the new code is claimed. **Stop uploads on this phone** in Zepp removes that phone's upload credential; use Disconnect watch in mobile to revoke it server-side. Signing out keeps downloaded journal data on the phone. An account-bound journal cannot silently merge with a different account.
+**Disconnect watch** in the mobile app revokes its upload credential and any pending code. Creating a replacement code leaves the old link active until the new code is claimed. **Change account** in Zepp (Manage account) claims a new code while the current link keeps working until it succeeds. **Remove account** in Zepp (confirmed once) removes that phone's upload credential; use Disconnect watch in mobile to revoke it server-side. Signing out keeps downloaded journal data on the phone. An account-bound journal cannot silently merge with a different account.
 
 ## Data retained
 

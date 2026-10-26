@@ -1,12 +1,15 @@
 import { BaseSideService } from '@zeppos/zml/base/base-side'
 import { messagingPlugin } from '@zeppos/zml/3.0/module/messaging/plugin/side'
 import { SNAPSHOT_KEY, SYNC_KEY, STATUS_KEY, validateSnapshot } from '../shared/companion'
-import { cloudMethods, CLOUD_REQUEST_KEY } from '../shared/cloud'
+import { cloudMethods, CLOUD_REQUEST_KEY, CLOUD_STATUS_KEY } from '../shared/cloud'
 
 BaseSideService.use(messagingPlugin)
 AppSideService(BaseSideService({
   ...cloudMethods,
   onInit() {
+    // A fresh service has nothing in flight, so a leftover "Syncing…" or "Uploading…" means Zepp stopped it mid-way.
+    if (/^Syncing/.test(this.settings.getItem(STATUS_KEY) || '')) this.status('Sync was interrupted. Tap Sync from watch to try again.')
+    if (/^(Uploading|Linking)/.test(this.settings.getItem(CLOUD_STATUS_KEY) || '')) this.cloudStatus('The last cloud step was interrupted. Tap Retry upload or link again.')
     if (this.pendingSync) { this.pendingSync = false; this.syncFromWatch() }
     if (this.settings.getItem(CLOUD_REQUEST_KEY)) this.cloudRequest()
     else this.uploadCloud()
@@ -40,13 +43,15 @@ AppSideService(BaseSideService({
   syncFromWatch() {
     if (this.syncBusy) return
     this.syncBusy = true
+    this.spinStart()
     this.status('Syncing… keep Zepimon open on your watch')
     const failed = () => this.status('Open Zepimon on your connected watch, then tap Sync again. Last synced records are kept.')
+    const done = () => { this.syncBusy = false; this.spinStop() }
     try {
       return this.request({ method: 'zepimon.snapshot.get' }, { timeout: 15000 })
         .then((snapshot) => this.storeSnapshot(snapshot))
         .catch(failed)
-        .finally(() => { this.syncBusy = false })
-    } catch (_) { this.syncBusy = false; failed() }
+        .finally(done)
+    } catch (_) { done(); failed() }
   }
 }))
