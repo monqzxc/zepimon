@@ -7,7 +7,7 @@ function setup(fetcher) {
   const values = new Map()
   const context = vm.createContext({ setTimeout, clearTimeout,
     cloudConfig: { url: 'https://test.supabase.co', key: 'sb_publishable_test' }, routes: [['Bulbasaur']],
-    fetch: fetcher, SNAPSHOT_KEY: 'snapshot', SYNC_FRAME_KEY: 'frame', validateSnapshot: value => value })
+    fetch: fetcher, SNAPSHOT_KEY: 'snapshot', SYNC_FRAME_KEY: 'frame', validateSnapshot: value => value, validatePlan: value => value })
   vm.runInContext(fs.readFileSync('shared/cloud.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
     '\nglobalThis.serviceMethods = cloudMethods; globalThis.keys = { CLOUD_TOKEN_KEY, CLOUD_REQUEST_KEY, CLOUD_STATUS_KEY, CLOUD_SENT_KEY };', context)
   const service = { ...context.serviceMethods, settings: { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) } }
@@ -87,4 +87,18 @@ test('revoked-token and rejected JSON responses preserve retryable progress', as
   await service.uploadCloud()
   assert.equal(values.has(keys.CLOUD_SENT_KEY), false)
   assert.match(values.get(keys.CLOUD_STATUS_KEY), /Link again/)
+})
+
+test('the watch reads the phone plan with its upload token, and only once linked', async () => {
+  const calls = []
+  const { service, values, keys } = setup(async request => {
+    calls.push(request)
+    return { status: 200, body: JSON.stringify({ plan: { egg: null, eggAt: 0, phone: null, updatedAt: 5 } }) }
+  })
+  assert.equal(await service.fetchPlan(), null, 'An unlinked watch asks for nothing')
+  assert.equal(calls.length, 0)
+  values.set(keys.CLOUD_TOKEN_KEY, 'b'.repeat(64))
+  assert.equal((await service.fetchPlan()).updatedAt, 5)
+  assert.match(calls[0].url, /\/rpc\/zepimon_get_plan$/)
+  assert.deepEqual(JSON.parse(calls[0].body), { upload_token: 'b'.repeat(64) })
 })

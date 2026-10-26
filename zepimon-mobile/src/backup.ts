@@ -2,15 +2,18 @@ import type { DexRecord, Journal } from './journal.ts'
 import type { Progress } from './progress.ts'
 import type { ExpeditionProgress } from './expeditions.ts'
 import type { ArcadeScores } from './games/scores.ts'
+import type { PhoneRun } from './phone-adventure.ts'
 
 export const BACKUP_VERSION = 1
 export type PhoneData = {
   journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress,
-  arcadeScores: ArcadeScores, expeditions: ExpeditionProgress, safari: Record<string, DexRecord>, adventure: Record<string, number>
+  arcadeScores: ArcadeScores, expeditions: ExpeditionProgress, safari: Record<string, DexRecord>, adventure: Record<string, number>,
+  trailLevels: Record<string, number>, phoneRuns: PhoneRun[]
 }
 
 // A backup is an ordinary Zepimon Export JSON, so "Choose JSON file" can bring the watch journal back, with this
-// phone's own data (missions, scores, stars, Expedition friends and Safari catches) under phoneBackup.
+// phone's own data (missions, scores, stars, Expedition friends, Safari catches and phone adventures with their
+// routes) under phoneBackup.
 // Account links and sign-in sessions are never included.
 export function createBackup(data: PhoneData, now = Date.now(), appVersion = ''): string {
   const createdAt = new Date(now).toISOString()
@@ -18,7 +21,7 @@ export function createBackup(data: PhoneData, now = Date.now(), appVersion = '')
     snapshot: data.journal.snapshot, routes: data.journal.routes } : { app: 'Zepimon' }
   return JSON.stringify({ ...journal, phoneBackup: { backupVersion: BACKUP_VERSION, createdAt, appVersion, buddy: data.buddy,
     bestMoves: data.bestMoves, progress: data.progress, arcadeScores: data.arcadeScores, expeditions: data.expeditions,
-    safari: data.safari, adventure: data.adventure } }, null, 2)
+    safari: data.safari, adventure: data.adventure, trailLevels: data.trailLevels, phoneRuns: data.phoneRuns } }, null, 2)
 }
 
 export function backupFileName(now = Date.now()): string {
@@ -33,7 +36,7 @@ export function backupSummary(data: PhoneData) {
     runs: data.progress.runs.length,
     friends: Object.keys(data.expeditions.dex).length,
     safari: Object.keys(data.safari).length,
-    stars: Object.values(data.adventure).reduce((sum, stars) => sum + stars, 0),
+    stars: [...Object.values(data.adventure), ...Object.values(data.trailLevels)].reduce((sum, stars) => sum + stars, 0),
     scores: Object.keys(data.arcadeScores).length + Object.keys(data.bestMoves).length
   }
 }

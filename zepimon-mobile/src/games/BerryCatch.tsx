@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-import { Button, Copy, Eyebrow, Heading, Panel, colors, styles } from '../ui'
+import { Button, Copy, Eyebrow, Heading, Panel, colors, fonts, styles } from '../ui'
 import { BERRY_DURATION, BERRY_ROUNDS, catchBerry, pauseBerries, readyBerries, resumeBerries, startBerries, tickBerries } from './berries'
 import type { BerryGame } from './berries'
 
@@ -49,7 +49,7 @@ export function BerryCatch({ best, onComplete }: { best?: number, onComplete: (s
           accessibilityState={{ disabled: !playing }} disabled={!playing}
           onPress={() => update(catchBerry(current.current, cell, game.round, performance.now()))}
           style={({ pressed }) => [berryStyles.plot, target && berryStyles.ripe, pressed && { opacity: 0.7 }]}>
-          {target ? <BerryIcon /> : <Text accessible={false} style={{ color: game.caught && game.target === cell ? colors.gold : '#4e8c73', fontSize: 23 }}>{game.caught && game.target === cell ? '✓' : '·'}</Text>}
+          {target ? <BerryIcon /> : <Text accessible={false} style={{ color: game.caught && game.target === cell ? colors.gold : '#3E7F4A', fontSize: 23, fontFamily: fonts.heavy }}>{game.caught && game.target === cell ? '✓' : '·'}</Text>}
         </Pressable>
       })}
     </View>
@@ -63,9 +63,9 @@ export function BerryCatch({ best, onComplete }: { best?: number, onComplete: (s
 }
 
 const berryStyles = StyleSheet.create({
-  garden: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, padding: 10, borderWidth: 2, borderColor: '#54a87d', borderRadius: 6, backgroundColor: '#12392e' },
-  plot: { width: '31%', aspectRatio: 1.15, minHeight: 56, maxHeight: 108, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#386c50', borderRadius: 5, backgroundColor: '#1b4935' },
-  ripe: { borderColor: colors.gold, backgroundColor: '#346447' },
+  garden: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, padding: 10, borderRadius: 20, backgroundColor: '#8FD18A', borderWidth: 1.5, borderColor: '#73BE6D' },
+  plot: { width: '31%', aspectRatio: 1.15, minHeight: 56, maxHeight: 108, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#78C171', borderRadius: 14, backgroundColor: '#B4E3AD' },
+  ripe: { borderColor: colors.star, borderWidth: 2.5, backgroundColor: '#D7F2D1' },
   berry: { width: 34, height: 36, backgroundColor: '#ed5c86', borderWidth: 3, borderColor: '#732b50', borderRadius: 10, transform: [{ rotate: '-8deg' }] },
   leaf: { position: 'absolute', width: 20, height: 10, left: 4, top: -8, backgroundColor: '#8bd685', borderWidth: 2, borderColor: '#326241', borderRadius: 2 },
   shine: { position: 'absolute', width: 6, height: 8, left: 5, top: 5, backgroundColor: '#ffd5cf' },

@@ -1,13 +1,12 @@
 import { battleType, cardKey, eggMovesOf, pickWeighted, stageOf, wildPool } from './roster.ts'
 import type { TeamCard } from './roster.ts'
+import { TRAIL_MAPS } from './trails.ts'
 
 // One engine for Route Guard (five lanes, enemies walk down) and Trail Defense (enemies follow a path).
 // Positions are in grid cells; the game advances in fixed 100 ms steps so results do not depend on timer jitter.
 export const TICK = 100
 export const LANES = 5
 export const ROWS = 6
-export const TRAIL_COLS = 6
-export const TRAIL_ROWS = 8
 export const START_LIVES = 10
 export const PLACE_COOLDOWN = 5000
 export const ASSIST_DAMAGE = 250
@@ -27,7 +26,7 @@ export const EGG_TOUGHNESS = 1.3
 export const EGG_POWER = 1.2
 
 export type Layout = 'lanes' | 'trail'
-export type PathId = 'switchback' | 'canyon' | 'spiral'
+export type PathId = keyof typeof TRAIL_MAPS
 export type Effect = 'produce' | 'wall' | 'splash' | 'chain' | 'slow' | 'poison' | 'push' | 'line' | 'none'
 export type Kit = { label: string, effect: Effect, cost: number, hp: number, damage: number, cooldown: number, range: number, power: number }
 export type BattleSpec = { layout: Layout, waves: number, difficulty: number, habitat: string, foes: string[], path: PathId, boss?: string }
@@ -36,13 +35,17 @@ export type Unit = { id: number, name: string, shiny: boolean, col: number, row:
   family: string[], evolves: boolean, spent: number, egg: boolean }
 export type Enemy = { id: number, name: string, type: string, wave: number, boss: boolean, hp: number, maxHp: number, speed: number,
   lane: number, progress: number, slowUntil: number, poisonUntil: number, poisonDps: number, reward: number }
-export type Shot = { id: number, x: number, y: number, target: number, damage: number, type: string, coverage: string | null, effect: Effect }
+// move is the type whose move the shot shows: the attacker's own, or its egg move's when that hits the target harder.
+export type Shot = { id: number, x: number, y: number, target: number, damage: number, type: string, coverage: string | null, effect: Effect, move: string }
 export type Drop = { id: number, col: number, row: number, value: number, until: number }
-export type Fx = { id: number, kind: 'super' | 'zap' | 'berries' | 'guard' | 'assist' | 'leak', x: number, y: number, until: number, text: string }
+export type Fx = { id: number, kind: 'super' | 'berries' | 'guard' | 'assist' | 'leak', x: number, y: number, until: number, text: string }
+// A move landing, for the board to animate: a hit on a foe, a smaller one on a foe caught by a splash or chain, or a wave
+// around a Pokemon whose move strikes everything within reach (a grower's harvest has reach 0). foe is the foe hit, or -1.
+export type Strike = { id: number, move: string, kind: 'hit' | 'spread' | 'wave', x: number, y: number, foe: number, reach: number, start: number, until: number }
 export type Battle = {
   layout: Layout, spec: BattleSpec, status: 'playing' | 'paused' | 'won' | 'lost', elapsed: number, lastTick: number,
   berries: number, lives: number, guards: boolean[], team: TeamCard[], units: Unit[], enemies: Enemy[], shots: Shot[],
-  drops: Drop[], effects: Fx[], spawns: Spawn[], wave: number, nextId: number, nextSky: number,
+  drops: Drop[], effects: Fx[], strikes: Strike[], spawns: Spawn[], wave: number, nextId: number, nextSky: number,
   cooldowns: Record<string, number>, assist: { name: string, used: boolean } | null, defeated: number
 }
 
@@ -109,8 +112,19 @@ export function effectiveness(attack: string, defend: string): number {
 }
 
 // A hatched attacker uses whichever of its own type and its egg move's type hits harder.
-const bestOf = (type: string, coverage: string | null, defend: string) =>
-  Math.max(effectiveness(type, defend), coverage ? effectiveness(coverage, defend) : 0)
+const hitType = (type: string, coverage: string | null, defend: string) =>
+  coverage && effectiveness(coverage, defend) > effectiveness(type, defend) ? coverage : type
+const bestOf = (type: string, coverage: string | null, defend: string) => effectiveness(hitType(type, coverage, defend), defend)
+
+// The move each type attacks with, an early move of that type from the games. Growers and blockers do not attack.
+export const MOVES: Record<string, string> = { normal: 'Swift', fire: 'Ember', water: 'Water Gun', electric: 'Thunder Shock',
+  grass: 'Razor Leaf', ice: 'Ice Shard', fighting: 'Mach Punch', poison: 'Sludge', ground: 'Magnitude', flying: 'Air Cutter',
+  psychic: 'Confusion', bug: 'Pin Missile', rock: 'Rock Throw', ghost: 'Shadow Ball', dragon: 'Dragon Breath', dark: 'Bite',
+  steel: 'Metal Claw', fairy: 'Fairy Wind' }
+export function moveOf(name: string, layout: Layout): string | null {
+  const { effect } = kitFor(name, layout)
+  return effect === 'produce' || effect === 'wall' ? null : MOVES[battleType(name)] ?? MOVES.normal
+}
 
 // What a hatched Pokemon's egg moves do in battle. Growers harvest more and blockers are tougher. Attackers use the
 // damaging egg move that improves the most matchups over their own type (then the strongest); with only same-type
@@ -147,15 +161,11 @@ function unitHealth(name: string, layout: Layout, egg: boolean): number {
   return Math.round(kitFor(name, layout).hp * (kind === 'toughness' || kind === 'guard' ? EGG_TOUGHNESS : 1))
 }
 
-// Trail waypoints are cell centers; each path enters from outside the 6 x 8 grid.
+// Each trail map has its own board size (src/games/trails.ts); waypoints are cell centers.
 type Point = { x: number, y: number }
-const waypoints: Record<PathId, [number, number][]> = {
-  switchback: [[0.5, -0.5], [0.5, 1.5], [4.5, 1.5], [4.5, 3.5], [1.5, 3.5], [1.5, 5.5], [4.5, 5.5], [4.5, 8.5]],
-  canyon: [[2.5, -0.5], [2.5, 2.5], [0.5, 2.5], [0.5, 5.5], [3.5, 5.5], [3.5, 3.5], [5.5, 3.5], [5.5, 8.5]],
-  spiral: [[-0.5, 0.5], [4.5, 0.5], [4.5, 6.5], [0.5, 6.5], [0.5, 2.5], [2.5, 2.5], [2.5, 4.5]]
-}
-export const PATHS = Object.fromEntries(Object.entries(waypoints).map(([id, raw]) => {
-  const points = raw.map(([x, y]) => ({ x, y }))
+export type TrailPath = { name: string, cols: number, rows: number, points: Point[], cells: Set<string>, length: number }
+export const PATHS = Object.fromEntries(Object.entries(TRAIL_MAPS).map(([id, { name, cols, rows, route }]) => {
+  const points = route.map(([x, y]) => ({ x, y }))
   const cells = new Set<string>()
   let length = 0
   for (let i = 1; i < points.length; i++) {
@@ -164,11 +174,11 @@ export const PATHS = Object.fromEntries(Object.entries(waypoints).map(([id, raw]
     length += segment
     for (let s = 0; s <= segment * 2; s++) {
       const col = Math.floor(a.x + (b.x - a.x) * s / (segment * 2)), row = Math.floor(a.y + (b.y - a.y) * s / (segment * 2))
-      if (col >= 0 && col < TRAIL_COLS && row >= 0 && row < TRAIL_ROWS) cells.add(col + ',' + row)
+      if (col >= 0 && col < cols && row >= 0 && row < rows) cells.add(col + ',' + row)
     }
   }
-  return [id, { points, cells, length }]
-})) as Record<PathId, { points: Point[], cells: Set<string>, length: number }>
+  return [id, { name, cols, rows, points, cells, length }]
+})) as Record<PathId, TrailPath>
 
 export function pathPoint(id: PathId, distance: number): Point {
   const { points } = PATHS[id]
@@ -198,6 +208,29 @@ export function pathHeading(id: PathId, distance: number): Heading {
 
 export function enemyHeading(game: Pick<Battle, 'layout' | 'spec'>, enemy: Enemy): Heading {
   return game.layout === 'lanes' ? 'S' : pathHeading(game.spec.path, enemy.progress)
+}
+
+// Which way to look from one point at another, by the larger of the two distances.
+export function facingToward(from: Point, to: Point): Heading {
+  const dx = to.x - from.x, dy = to.y - from.y
+  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'E' : 'W') : dy < 0 ? 'N' : 'S'
+}
+
+// The foe a placed Pokemon is looking at: the one it attacks next, or for a lane blocker the foe nibbling it.
+// Berry growers watch no one.
+export function unitTarget(game: Battle, unit: Unit): Enemy | null {
+  const kit = kitFor(unit.name, game.layout)
+  if (kit.effect === 'produce') return null
+  if (kit.effect === 'wall') {
+    return game.enemies.find(enemy => enemy.hp > 0 && enemy.lane === unit.col && enemy.progress < unit.row + 1 && unit.row - enemy.progress < 1) ?? null
+  }
+  return targetsFor(game, unit, kit)[0] ?? null
+}
+
+// True for a short moment after a Pokemon attacks or harvests (its cooldown has just restarted), so the field can show a lunge.
+export function actedRecently(game: Battle, unit: Unit, window = 200): boolean {
+  const { cooldown } = kitFor(unit.name, game.layout)
+  return cooldown > 0 && unit.ready - game.elapsed > cooldown - window
 }
 
 export function enemyPoint(game: Pick<Battle, 'layout' | 'spec'>, enemy: Enemy): Point {
@@ -240,17 +273,19 @@ function makeEnemy(id: number, spawn: Spawn, spec: BattleSpec): Enemy {
 
 export function startBattle(spec: BattleSpec, team: readonly TeamCard[], options: { bonus?: number, assist?: string | null }, now: number, random = Math.random): Battle {
   return { layout: spec.layout, spec, status: 'playing', elapsed: 0, lastTick: now, berries: START_BERRIES[spec.layout] + (options.bonus || 0),
-    lives: START_LIVES, guards: Array(LANES).fill(true), team: team.slice(0, 6), units: [], enemies: [], shots: [], drops: [], effects: [],
+    lives: START_LIVES, guards: Array(LANES).fill(true), team: team.slice(0, 6), units: [], enemies: [], shots: [], drops: [], effects: [], strikes: [],
     spawns: planWaves(spec, random), wave: 0, nextId: 1, nextSky: SKY_FIRST, cooldowns: {},
     assist: options.assist ? { name: options.assist, used: false } : null, defeated: 0 }
 }
 
-export function gridSize(layout: Layout) {
-  return layout === 'lanes' ? { cols: LANES, rows: ROWS } : { cols: TRAIL_COLS, rows: TRAIL_ROWS }
+export function gridSize(game: Pick<Battle, 'layout' | 'spec'>) {
+  if (game.layout === 'lanes') return { cols: LANES, rows: ROWS }
+  const { cols, rows } = PATHS[game.spec.path]
+  return { cols, rows }
 }
 
 export function canPlace(game: Battle, col: number, row: number): boolean {
-  const { cols, rows } = gridSize(game.layout)
+  const { cols, rows } = gridSize(game)
   return Number.isInteger(col) && Number.isInteger(row) && col >= 0 && col < cols && row >= 0 && row < rows &&
     !game.units.some(unit => unit.col === col && unit.row === row) && !(game.layout === 'trail' && PATHS[game.spec.path].cells.has(col + ',' + row))
 }
@@ -322,8 +357,9 @@ export function callAssist(game: Battle): Battle {
     enemy.hp -= ASSIST_DAMAGE * effectiveness(type, enemy.type)
     enemy.slowUntil = g.elapsed + 3000
   }
+  for (const enemy of g.enemies) addStrike(g, type, 'hit', enemyPoint(g, enemy), enemy.id)
   g.assist = { name: game.assist.name, used: true }
-  const { cols, rows } = gridSize(g.layout)
+  const { cols, rows } = gridSize(g)
   addFx(g, 'assist', cols / 2, rows / 2, game.assist.name + '!', 1500)
   settle(g)
   return g
@@ -381,11 +417,16 @@ export function battleStars(game: Battle): number {
 
 function clone(game: Battle): Battle {
   return { ...game, guards: [...game.guards], units: game.units.map(unit => ({ ...unit })), enemies: game.enemies.map(enemy => ({ ...enemy })),
-    shots: game.shots.map(shot => ({ ...shot })), drops: [...game.drops], effects: [...game.effects], spawns: [...game.spawns] }
+    shots: game.shots.map(shot => ({ ...shot })), drops: [...game.drops], effects: [...game.effects], strikes: [...game.strikes], spawns: [...game.spawns] }
 }
 
 function addFx(g: Battle, kind: Fx['kind'], x: number, y: number, text: string, life = 600) {
   g.effects.push({ id: g.nextId++, kind, x, y, until: g.elapsed + life, text })
+}
+
+const STRIKE_LIFE = { hit: 500, spread: 400, wave: 500 }
+function addStrike(g: Battle, move: string, kind: Strike['kind'], at: Point, foe = -1, reach = 0) {
+  g.strikes.push({ id: g.nextId++, move, kind, x: at.x, y: at.y, foe, reach, start: g.elapsed, until: g.elapsed + STRIKE_LIFE[kind] })
 }
 
 function targetsFor(g: Battle, unit: Unit, kit: Kit): Enemy[] {
@@ -404,6 +445,7 @@ function hit(g: Battle, enemy: Enemy, damage: number, type: string, coverage: st
   const multiplier = bestOf(type, coverage, enemy.type)
   enemy.hp -= damage * multiplier
   const at = enemyPoint(g, enemy)
+  addStrike(g, hitType(type, coverage, enemy.type), 'hit', at, enemy.id)
   if (multiplier > 1) addFx(g, 'super', at.x, at.y, '×2')
   if (effect === 'slow') enemy.slowUntil = g.elapsed + 2500
   if (effect === 'poison') { enemy.poisonUntil = g.elapsed + 3000; enemy.poisonDps = damage * 0.8 }
@@ -413,13 +455,18 @@ function hit(g: Battle, enemy: Enemy, damage: number, type: string, coverage: st
       .filter(({ gap }) => gap <= (effect === 'splash' ? 0.9 : 1.8)).sort((a, b) => a.gap - b.gap)
     for (const { other } of effect === 'splash' ? near : near.slice(0, 1)) {
       other.hp -= damage * (effect === 'splash' ? 0.5 : 0.6) * bestOf(type, coverage, other.type)
-      if (effect === 'chain') { const p = enemyPoint(g, other); addFx(g, 'zap', p.x, p.y, 'ϟ') }
+      addStrike(g, hitType(type, coverage, other.type), 'spread', enemyPoint(g, other), other.id)
     }
   }
 }
 
 // Collects defeated foes and fallen Pokemon, then decides the outcome.
 function settle(g: Battle) {
+  // A hit stays on its foe while the foe walks on, and where the foe was once it is gone.
+  g.strikes = g.strikes.filter(strike => strike.until > g.elapsed).slice(-40).map(strike => {
+    const foe = strike.foe >= 0 ? g.enemies.find(enemy => enemy.id === strike.foe) : undefined
+    return foe ? { ...strike, ...enemyPoint(g, foe) } : strike
+  })
   const fallen = g.enemies.filter(enemy => enemy.hp <= 0)
   if (fallen.length) {
     g.defeated += fallen.length
@@ -491,6 +538,7 @@ function step(g: Battle, dt: number, random: () => number) {
       const value = Math.round(kit.power * (lanes ? 25 : 15) / 5) * 5 + (harvest ? EGG_HARVEST[g.layout] : 0)
       if (lanes) g.drops.push({ id: g.nextId++, col: unit.col, row: unit.row, value, until: t + DROP_LIFE })
       else { g.berries += value; addFx(g, 'berries', center.x, center.y, '+' + value) }
+      addStrike(g, battleType(unit.name), 'wave', center)
       unit.ready = t + kit.cooldown
       continue
     }
@@ -501,8 +549,13 @@ function step(g: Battle, dt: number, random: () => number) {
     const perk = unit.egg ? eggPerk(unit.name, g.layout) : null
     const coverage = perk?.kind === 'coverage' ? perk.type : null
     const damage = kit.damage * (perk?.kind === 'power' ? EGG_POWER : 1)
-    if (kit.effect === 'line') for (const target of targets) hit(g, target, damage, type, coverage, 'none')
-    else g.shots.push({ id: g.nextId++, x: center.x, y: center.y, target: targets[0].id, damage, type, coverage, effect: kit.effect })
+    if (kit.effect === 'line') {
+      addStrike(g, type, 'wave', center, -1, kit.range)
+      for (const target of targets) hit(g, target, damage, type, coverage, 'none')
+    } else {
+      g.shots.push({ id: g.nextId++, x: center.x, y: center.y, target: targets[0].id, damage, type, coverage, effect: kit.effect,
+        move: hitType(type, coverage, targets[0].type) })
+    }
   }
 
   const travel = SHOT_SPEED * dt / 1000

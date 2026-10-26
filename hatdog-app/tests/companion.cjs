@@ -12,7 +12,7 @@ const compiled = (path, context) => vm.runInContext('(function(){' + read(path).
     const [local, exported] = pair.trim().split(/ as /)
     return (exported || local) + ':' + local
   }).join(',') + '});') + '})()', context, { filename: path })
-const contract = ['SNAPSHOT_KEY', 'SYNC_KEY', 'STATUS_KEY', 'SYNC_FRAME_KEY', 'makeSnapshot', 'validateSnapshot']
+const contract = ['SNAPSHOT_KEY', 'SYNC_KEY', 'STATUS_KEY', 'SYNC_FRAME_KEY', 'makeSnapshot', 'validateSnapshot', 'validatePlan']
 const clone = value => JSON.parse(JSON.stringify(value))
 const quiet = { log() {}, error() {}, warn() {}, debug() {} }
 const Logger = { getLogger: () => ({ ...quiet }) }
@@ -23,6 +23,7 @@ class EventBus extends EventEmitter {
 async function main() {
   let watchApp, phoneService, settingsPage, deviceReceive, phoneReceive, connected = true
   let watchState = { dex: {}, records: {}, active: null }
+  const watchKeys = new Map()
   const phoneStorage = new Map()
   let settingsListener
   const settingsStorage = {
@@ -69,8 +70,8 @@ async function main() {
     __$$R$$__: name => { assert.ok(sdk[name], 'Unexpected SDK dependency: ' + name); return sdk[name] },
     connectStatus: ble.connectStatus,
     LocalStorage: class {
-      getItem() { return clone(watchState) }
-      setItem(key, value) { assert.equal(key, 'zepimon-v1'); watchState = clone(value) }
+      getItem(key) { return key === 'zepimon-v1' ? clone(watchState) : watchKeys.has(key) ? clone(watchKeys.get(key)) : undefined }
+      setItem(key, value) { if (key === 'zepimon-v1') watchState = clone(value); else watchKeys.set(key, clone(value)) }
     },
     App: definition => { watchApp = definition }, getApp: () => ({ _options: watchApp })
   })
@@ -98,11 +99,16 @@ async function main() {
   phone.routes = clone(watch.routes)
   source('shared/cloud-config.js', phone, ['cloudConfig'])
   source('shared/cloud.js', phone, ['cloudMethods', 'CLOUD_REQUEST_KEY', 'CLOUD_STATUS_KEY'])
+  source('page/saved.js', watch, ['JOURNAL_KEY', 'ACTIVE_KEY', 'NEXT_KEY', 'readKey', 'readActive', 'readNext', 'nextEgg', 'phoneAdventure', 'withPlan'])
   source('app.js', watch)
   source('app-side/index.js', phone)
   phoneService.onInit()
   watchApp.onCreate()
   const drain = async () => { for (let i = 0; i < 24; i++) await new Promise(setImmediate) }
+  // The first sync waits a second, so the title screen draws first.
+  await drain()
+  assert.notEqual(watchApp.syncTimer, undefined, 'Opening the app waits before its own sync, so the title screen draws first')
+  await new Promise(resolve => setTimeout(resolve, 1050))
   await drain()
   const saved = () => JSON.parse(phoneStorage.get(phone.SNAPSHOT_KEY))
   assert.equal(saved().schemaVersion, 1)

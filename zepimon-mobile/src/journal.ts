@@ -166,6 +166,13 @@ export function hasAcquisitionDistance(name: string, record: DexRecord | undefin
 }
 
 export function personalBests(journal: Journal): Partial<Record<Metric, BestRecord>> {
+  return bestRecords(Object.entries(journal.snapshot.records).map(([route, record]) => ({ ...record, route: Number(route) })),
+    journal.snapshot.personalBests);
+}
+
+// The furthest, longest and fastest-hatching of these runs. Each seed (a saved best) competes only for its own
+// metric and goes first, so it wins ties.
+export function bestRecords(candidates: BestRecord[], seeds: Partial<Record<Metric, BestRecord>> = {}): Partial<Record<Metric, BestRecord>> {
   const winners: Partial<Record<Metric, BestRecord>> = {};
   const fields = { distance: 'meters', elapsed: 'elapsedSeconds', hatch: 'hatchSeconds' } as const;
   const metrics: Metric[] = ['distance', 'elapsed', 'hatch'];
@@ -184,11 +191,9 @@ export function personalBests(journal: Journal): Partial<Record<Metric, BestReco
     }
   };
   metrics.forEach((metric) => {
-    const saved = journal.snapshot.personalBests?.[metric];
+    const saved = seeds[metric];
     if (saved) consider(saved, metric);
   });
-  Object.entries(journal.snapshot.records).forEach(([route, record]) => {
-    metrics.forEach((metric) => consider({ ...record, route: Number(route) }, metric));
-  });
+  candidates.forEach((record) => metrics.forEach((metric) => consider(record, metric)));
   return winners;
 }

@@ -52,11 +52,11 @@ export function missions(journal: Journal | null, progress: Progress, now = Date
   return [
     { id: 'week-distance', title: 'This week: explore 10 km', description: 'Complete a total of 10 km this Monday–Sunday.', value: weekly.reduce((sum, run) => sum + run.record.meters, 0) / 1000, goal: 10, unit: 'km', weekly: true },
     { id: 'week-days', title: 'This week: show up three times', description: 'Save an adventure on three different days.', value: new Set(weekly.map(run => dayKey(Date.parse(run.record.finishedAt)))).size, goal: 3, unit: 'days', weekly: true },
-    { id: 'first-walk', title: 'Your journey begins', description: 'Finish and import your first walk or run.', value: runs.length, goal: 1, unit: 'adventure' },
+    { id: 'first-walk', title: 'Your journey begins', description: 'Save your first walk or run, on your watch or this phone.', value: runs.length, goal: 1, unit: 'adventure' },
     { id: 'first-hatch', title: 'Hello, little one', description: 'Reach 5 km in one saved adventure.', value: highest / 1000, goal: 5, unit: 'km' },
     { id: 'evolution', title: 'Go a little further', description: 'Reach 10 km in one saved adventure.', value: highest / 1000, goal: 10, unit: 'km' },
     { id: 'five-adventures', title: 'Finding your rhythm', description: 'Finish five adventures with recorded distance.', value: runs.length, goal: 5, unit: 'adventures' },
-    { id: 'fifty-km', title: 'Trail explorer', description: 'Collect 50 km across your imported adventures.', value: total / 1000, goal: 50, unit: 'km' },
+    { id: 'fifty-km', title: 'Trail explorer', description: 'Collect 50 km across your saved adventures.', value: total / 1000, goal: 50, unit: 'km' },
     { id: 'ten-friends', title: 'A growing team', description: 'Acquire ten different Pokemon. Variants share a species slot.', value: new Set(entries.map(entry => speciesName(entry.name))).size, goal: 10, unit: 'Pokemon' },
     { id: 'early-bird', title: 'Dawn patrol', description: 'Start between 4 AM and 7 AM, then finish at least 1 km.', value: Number(hasStart(hour => hour >= 4 && hour < 7)), goal: 1, unit: 'badge', hidden: true },
     { id: 'night-owl', title: 'Moonlit trail', description: 'Start at or after 8 PM, then finish at least 1 km.', value: Number(hasStart(hour => hour >= 20)), goal: 1, unit: 'badge', hidden: true },

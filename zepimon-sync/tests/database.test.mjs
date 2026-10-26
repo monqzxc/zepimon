@@ -47,6 +47,31 @@ test('private cloud journals, one-time links, replay protection, validation and 
     assert.equal((await rpc('zepimon_pull')).journal.snapshot.dex['Shiny Bulbasaur'].shiny, true)
     await assert.rejects(db.query('select * from zepimon_private.journals'), /permission denied/)
   })
+  await t.test('the phone shares a plan the watch reads with its upload token, and nothing more', async () => {
+    const plan = (updatedAt, extra = {}) => ({ egg: { family: ['Charmander', 'Charmeleon', 'Charizard'], mega: 'Mega Charizard X' },
+      eggAt: updatedAt, phone: null, updatedAt, ...extra })
+    await role('anon')
+    await assert.rejects(rpc('zepimon_set_plan', [JSON.stringify(plan(100))]), /permission denied/)
+    assert.equal((await rpc('zepimon_get_plan', [token])).plan, null, 'No plan until the phone shares one')
+    await role('authenticated', alice)
+    assert.equal((await rpc('zepimon_set_plan', [JSON.stringify(plan(100))])).accepted, true)
+    assert.equal((await rpc('zepimon_set_plan', [JSON.stringify(plan(90))])).accepted, false, 'An older plan cannot replace a newer one')
+    for (const invalid of [plan(110, { phone: { family: [], activity: 'walking', startedAt: 1 } }),
+      plan(110, { egg: { family: ['Eevee', 'Eevee'] } }), plan(110, { phone: { family: ['Eevee'], activity: 'flying', startedAt: 1 } }),
+      { ...plan(110), padding: 'x'.repeat(5000) }, { egg: null }]) {
+      await assert.rejects(rpc('zepimon_set_plan', [JSON.stringify(invalid)]), /Invalid plan/)
+    }
+    assert.equal((await rpc('zepimon_pull')).plan.egg.mega, 'Mega Charizard X', 'The phone gets its plan back, e.g. after a reinstall')
+    await rpc('zepimon_set_plan', [JSON.stringify(plan(130, { egg: null, phone: { family: ['Pikachu', 'Raichu'], activity: 'running', startedAt: 125 } }))])
+    await role('anon')
+    const shared = (await rpc('zepimon_get_plan', [token])).plan
+    assert.equal(shared.phone.activity, 'running')
+    assert.equal(shared.egg, null)
+    await assert.rejects(rpc('zepimon_get_plan', ['0'.repeat(64)]), /Watch link expired/)
+    await assert.rejects(db.query('select * from zepimon_private.plans'), /permission denied/)
+    await role('authenticated', bob)
+    assert.equal((await rpc('zepimon_pull')).plan, null, 'Plans are private to their account')
+  })
   await t.test('older/duplicate snapshots cannot overwrite, missing shiny entries survive watch resets', async () => {
     await role('anon')
     assert.equal((await upload(token, journal(9999))).accepted, false)

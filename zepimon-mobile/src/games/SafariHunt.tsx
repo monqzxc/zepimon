@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-import { habitatColors, pokemonType } from '../catalog'
+import { pokemonType, typeTints } from '../catalog'
 import type { DexRecord } from '../journal'
-import { Button, Copy, Eyebrow, Heading, Panel, colors, styles } from '../ui'
+import { Button, Copy, Eyebrow, Heading, Panel, colors, fonts, styles } from '../ui'
 import { PATCHES, SAFARI_DURATION, ZONES, approachPatch, pauseSafari, readySafari, resumeSafari, ringScale, runAway, shinyOdds,
   startSafari, throwBait, throwBall, throwQuality, throwRock, tickSafari } from './safari'
 import type { SafariGame, Zone } from './safari'
@@ -12,7 +12,7 @@ import { useGameLoop, useReducedMotion } from './hooks'
 import { TICK } from './battle'
 
 const native = Platform.OS !== 'web'
-const qualityColors = { excellent: '#7ddc6b', great: colors.gold, nice: colors.ink }
+const qualityColors = { excellent: '#23803E', great: colors.gold, nice: colors.ink }
 const qualityText = { excellent: 'Excellent!', great: 'Great!', nice: 'Nice' }
 const throwText = { excellent: 'Excellent throw!', great: 'Great throw!', nice: 'Nice throw.' }
 type Props = {
@@ -78,7 +78,7 @@ export function SafariHunt({ zone: fixedZone, bonusBalls, bonusNote, record, goa
         <Eyebrow>CHOOSE A ZONE</Eyebrow>
         {(Object.keys(ZONES) as Zone[]).map(id => <Pressable key={id} accessibilityRole="radio" accessibilityState={{ checked: zone === id }}
           accessibilityLabel={`${ZONES[id].label}: ${ZONES[id].blurb}`} onPress={() => { setZone(id); update(readySafari(id, bonusBalls)) }}
-          style={({ pressed }) => [hunt.zone, { backgroundColor: habitatColors[ZONES[id].habitat] }, zone === id && hunt.zoneOn, pressed && { opacity: 0.7 }]}>
+          style={({ pressed }) => [hunt.zone, { backgroundColor: typeTints[ZONES[id].habitat] }, zone === id && hunt.zoneOn, pressed && { opacity: 0.7 }]}>
           <Text style={hunt.zoneTitle}>{zone === id ? '● ' : '○ '}{ZONES[id].label}</Text>
           <Text style={hunt.zoneText}>{ZONES[id].blurb}</Text>
         </Pressable>)}
@@ -98,7 +98,7 @@ export function SafariHunt({ zone: fixedZone, bonusBalls, bonusNote, record, goa
       })}
     </View>}
 
-    {encounter && <Panel style={{ backgroundColor: habitatColors[pokemonType(encounter.name)] || colors.panel, alignItems: 'center' }}>
+    {encounter && <Panel style={{ backgroundColor: typeTints[pokemonType(encounter.name)] || colors.panel, alignItems: 'center' }}>
       <Eyebrow>{encounter.shiny ? '✦ SHINY ENCOUNTER' : 'WILD ENCOUNTER'}</Eyebrow>
       <Text style={hunt.name}>{encounter.shiny ? 'Shiny ' : ''}{encounter.name}</Text>
       <View style={hunt.stage}>
@@ -123,7 +123,7 @@ export function SafariHunt({ zone: fixedZone, bonusBalls, bonusNote, record, goa
     {playing && <Button title="Pause" secondary onPress={pause} />}
     {game.status === 'paused' && <Button title="Resume Safari Hunt" onPress={() => act(resumeSafari)} />}
 
-    {game.status === 'complete' && <Panel style={{ borderColor: colors.gold }}>
+    {game.status === 'complete' && <Panel style={{ borderColor: colors.star, borderWidth: 1.5 }}>
       <Heading>{game.catches.length ? `${game.catches.length} caught!` : 'No catches this time.'}</Heading>
       {game.catches.length > 0 && <View style={[styles.row, { gap: 4 }]}>{game.catches.map((item, index) =>
         <View key={index} accessible accessibilityLabel={(item.shiny ? 'Shiny ' : '') + item.name}><PixelSprite name={item.name} shiny={item.shiny} size={48} /></View>)}</View>}
@@ -166,8 +166,8 @@ function Shake({ active, children }: { active: boolean, children: ReactNode }) {
 }
 
 function Grass({ bright }: { bright: boolean }) {
-  const blade = bright ? '#8bd685' : '#4e8c5a'
-  const dark = bright ? '#5fae5a' : '#386c48'
+  const blade = bright ? '#4FB34C' : '#3E8E4A'
+  const dark = bright ? '#2F8F3A' : '#2D6E3A'
   return <View accessible={false} style={{ width: 44, height: 34, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 3 }}>
     {[[16, dark], [28, blade], [22, dark], [32, blade], [18, dark]].map(([height, color], index) =>
       <View key={index} style={{ width: 6, height: height as number, backgroundColor: color as string, borderTopLeftRadius: 3, borderTopRightRadius: 3 }} />)}
@@ -175,17 +175,17 @@ function Grass({ bright }: { bright: boolean }) {
 }
 
 const hunt = StyleSheet.create({
-  field: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, padding: 10, borderWidth: 2, borderColor: '#54a87d', borderRadius: 6, backgroundColor: '#12392e' },
-  patch: { width: '31%', aspectRatio: 1.15, minHeight: 64, maxHeight: 110, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#386c50', borderRadius: 5, backgroundColor: '#1b4935' },
-  rustling: { borderColor: colors.gold, backgroundColor: '#2c5a3f' },
-  alert: { position: 'absolute', top: 4, right: 8, color: colors.gold, fontSize: 20, fontWeight: '800' },
-  zone: { minHeight: 56, padding: 12, borderWidth: 2, borderColor: colors.edge, borderRadius: 5, gap: 2 },
-  zoneOn: { borderColor: colors.gold },
-  zoneTitle: { color: colors.ink, fontWeight: '800', fontSize: 15 },
-  zoneText: { color: colors.ink, fontSize: 12, lineHeight: 18 },
-  name: { color: colors.ink, fontSize: 22, fontWeight: '800' },
+  field: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, padding: 10, borderRadius: 20, backgroundColor: '#8FD18A', borderWidth: 1.5, borderColor: '#73BE6D' },
+  patch: { width: '31%', aspectRatio: 1.15, minHeight: 64, maxHeight: 110, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#78C171', borderRadius: 14, backgroundColor: '#B4E3AD' },
+  rustling: { borderColor: colors.star, borderWidth: 2.5, backgroundColor: '#D7F2D1' },
+  alert: { position: 'absolute', top: 4, right: 8, color: colors.gold, fontSize: 20, fontFamily: fonts.black },
+  zone: { minHeight: 56, padding: 14, borderWidth: 1.5, borderColor: colors.line, borderRadius: 16, gap: 2 },
+  zoneOn: { borderColor: colors.edge, borderWidth: 2.5 },
+  zoneTitle: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20 },
+  zoneText: { color: colors.ink, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
+  name: { color: colors.ink, fontSize: 22, lineHeight: 28, fontFamily: fonts.heavy },
   stage: { width: 180, height: 180, alignItems: 'center', justifyContent: 'center' },
   ring: { position: 'absolute', width: 176, height: 176, borderRadius: 88, borderWidth: 4 },
-  quality: { fontWeight: '800', fontSize: 16 },
-  message: { color: colors.ink, fontSize: 15, lineHeight: 23, fontWeight: '700' }
+  quality: { fontFamily: fonts.heavy, fontSize: 16 },
+  message: { color: colors.ink, fontSize: 15, lineHeight: 22, fontFamily: fonts.bold }
 })

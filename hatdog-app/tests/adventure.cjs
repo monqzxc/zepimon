@@ -345,10 +345,22 @@ class Sensor {
 }
 class Distance extends Sensor { getCurrent() { return distance } }
 class Step extends Sensor { getCurrent() { return steps } }
+// stored is the journal ('zepimon-v1'); the adventure in progress and the next-egg note have keys of their own.
+const keys = new Map()
+let journalWrites = 0
+let activeWrites = 0
 class LocalStorage {
-  getItem(key, fallback) { return stored ? JSON.parse(stored) : fallback }
-  setItem(key, value) { stored = JSON.stringify(value) }
+  getItem(key, fallback) {
+    const value = key === 'zepimon-v1' ? stored : keys.get(key)
+    return value === undefined ? fallback : JSON.parse(value)
+  }
+  setItem(key, value) {
+    if (key === 'zepimon-v1') { stored = JSON.stringify(value); journalWrites++ }
+    else { keys.set(key, JSON.stringify(value)); if (key === 'zepimon-active') activeWrites++ }
+  }
 }
+const savedActive = () => JSON.parse(keys.get('zepimon-active') ?? 'null')
+const savedNext = () => JSON.parse(keys.get('zepimon-next') ?? '{}')
 Object.assign(context, {
   ...context.logic, Distance, Step, LocalStorage, console,
   getApp: () => ({ _options: { syncToPhone() { phoneSyncs++ } } }),
@@ -406,33 +418,25 @@ assert.equal(fallbackCanvas.drawn.w, 352, 'A fallback that shares a sheet must s
 assert.ok(fallbackCanvas.drawn.x === 0, 'Unsupported forms keep the first pose of their fallback artwork')
 context.drawSprite(fallbackCanvas, 'Egg', false, 176, 1)
 assert.equal(fallbackCanvas.drawn.w, 176)
-vm.runInContext(fs.readFileSync('page/loader.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), context)
+vm.runInContext(fs.readFileSync('shared/companion.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), context)
+vm.runInContext(fs.readFileSync('page/saved.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
+  '\nglobalThis.saved = { nextEgg, phoneAdventure, withPlan, readActive }', context)
 vm.runInContext(fs.readFileSync('page/adventure.js', 'utf8').replace(/^import .*\r?\n/gm, ''), context)
 page.build()
+assert.equal(journalWrites, 1, 'A first start saves the new journal once')
+assert.ok(savedNext().egg.family.length > 0, 'A first start suggests an egg for the title screen')
+assert.equal(savedNext().egg.from, 'suggested')
 const click = (label) => {
   const button = page.widgets.find(item => item.text === label && item.click_func)
   assert.ok(button, 'Missing button: ' + label)
   button.click_func()
   flushTimeouts()
 }
-// Opening a screen first pulses the Pokeball; taps during it are ignored.
-const ballWidth = () => Math.max(...[...live].filter(item => item.color === 0xD95A5D).map(item => item.w))
+// Screens open at once, without a loading animation in between.
 page.widgets.find(item => item.text === 'New Egg' && item.click_func).click_func()
-page.widgets.find(item => item.text === 'Random Egg' && item.click_func).click_func()
-assert.equal(page.view, 'home', 'The next screen waits for the loader')
-assert.equal(timeouts.size, 1, 'A second tap must not start another loader')
-const ballWidths = [ballWidth()]
-while (page.view === 'home') {
-  stepTimeout()
-  if (page.view === 'home') ballWidths.push(ballWidth())
-}
-const smallest = ballWidths.indexOf(Math.min(...ballWidths))
-assert.ok(smallest >= 3 && smallest <= ballWidths.length - 4, 'The pulse has visible shrinking and growing halves')
-assert.ok(ballWidths.every((width, i) => !i || (i <= smallest ? width < ballWidths[i - 1] : width > ballWidths[i - 1])), 'The Pokeball shrinks, then grows back')
-assert.equal(ballWidths.at(-1), ballWidths[0], 'The pulse ends at full size while the next screen builds')
-assert.equal(page.view, 'new', 'Only the first tap opens its screen')
-assert.equal(timeouts.size, 0)
-assert.equal(live.size, page.widgets.length, 'Opening the screen removes every loader widget')
+assert.equal(page.view, 'new', 'The next screen opens straight away')
+assert.equal(timeouts.size, 0, 'Nothing waits on a loader')
+assert.equal(live.size, page.widgets.length, 'Only the new screen is on the watch')
 page.show('home')
 const openFromTitle = (view) => {
   page.onDestroy()
@@ -594,7 +598,8 @@ click('Start')
 click('Walking')
 assert.equal(page.state.active.activity, 'walking')
 assert.equal(context.shinyRolls, rollsBeforeMode + 1, 'Starting an adventure rolls exactly once')
-assert.equal(JSON.parse(stored).active.activity, 'walking')
+assert.equal(savedActive().activity, 'walking', 'Starting saves the adventure in progress at once')
+assert.equal(JSON.parse(stored).active, null, 'The journal never holds the adventure in progress')
 assert.ok(page.stats[2].text.startsWith('Walk: '))
 const beforeDuplicateStart = JSON.stringify(page.state.active)
 page.start(1, 'running')
@@ -624,6 +629,7 @@ distance += 5000
 steps += 7000
 page.distance.callback()
 assert.equal(page.state.active.meters, 5000)
+assert.equal(savedActive().meters, 5000, 'Hatching saves straight away')
 assert.equal(page.stats[0].text, 'Bulbasaur')
 assert.ok(page.portrait.w > 96, 'Hatching must retain the large run sprite')
 const stillPortrait = page.portrait.src
@@ -696,6 +702,7 @@ page.onDestroy()
 // Roll once per start; opening the same adventure again must never reroll.
 page.build()
 vm.runInContext('Math.random = () => 0', context)
+context.testNow += 1000 // a new adventure never starts in the same millisecond as the last one
 page.start(0)
 assert.equal(page.state.active.shiny, true)
 assert.equal(page.stats[0].text, 'Shiny Bulbasaur egg')
@@ -713,6 +720,7 @@ assert.ok(page.state.dex.Bulbasaur)
 assert.equal(page.state.dex['Shiny Bulbasaur'].meters, 5000)
 assert.equal(page.state.dex.Bulbasaur.meters, 6000)
 openFromTitle('home')
+context.testNow += 1000 // a new adventure never starts in the same millisecond as the last one
 page.start(0)
 assert.equal(page.state.active.shiny, false)
 page.state.active.startedAt = context.testNow - 3600000
@@ -756,7 +764,8 @@ for (let second = 0; second < 15; second++) {
   Array.from(timers.values())[0]()
 }
 assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km', 'The timer expires pace without a sensor callback')
-assert.ok(!stored.includes('checkedAt'), 'Transient pace samples must not be written to saves')
+page.saveActive(true)
+assert.ok(!stored.includes('checkedAt') && !keys.get('zepimon-active').includes('checkedAt'), 'Transient pace samples must not be written to saves')
 // Exercise the live widget when steps move but the distance total stays unchanged.
 page.pace = {}
 page.state.active.meters = 150
@@ -776,7 +785,10 @@ for (let second = 1; second <= 8; second++) {
   page.step.callback()
 }
 assert.equal(page.clockStats[1].text, 'Est. pace 7:24 /km', 'The step sensor callback updates the running pace')
-assert.ok(!stored.includes('stepTracker') && !stored.includes('strideMeters'), 'Calibration stays out of saved progress')
+page.saveActive(true)
+for (const save of [stored, keys.get('zepimon-active')]) {
+  assert.ok(!save.includes('stepTracker') && !save.includes('strideMeters'), 'Calibration stays out of saved progress')
+}
 distance = 1
 page.sync()
 assert.equal(page.pace.samples.length, 1, 'A daily counter reset clears recent speed history')
@@ -784,8 +796,8 @@ assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km')
 page.onDestroy()
 assert.equal(timers.size, 0)
 // Explicit History must work during an active adventure without resetting it.
-const activeForHistory = JSON.parse(stored).active
-stored = JSON.stringify({ ...historyState, active: activeForHistory })
+const activeForHistory = savedActive()
+stored = JSON.stringify({ ...historyState, active: null })
 page.onInit(JSON.stringify({ view: 'history' }))
 page.build()
 assert.equal(page.view, 'history')
@@ -814,6 +826,7 @@ assert.equal(page.view, 'session', 'The title adventure button resumes an active
 assert.equal(JSON.stringify(page.state.active), JSON.stringify(activeForHistory))
 page.onDestroy()
 stored = JSON.stringify({ dex: {}, records: {}, active: null })
+keys.delete('zepimon-active')
 page.onInit({ view: 'history' })
 page.build()
 for (const label of historyButtons) {
@@ -827,6 +840,101 @@ page.onInit({ view: 'home' })
 page.build()
 assert.equal(JSON.parse(stored).dex.Bulbasaur.meters, 6000, 'Dex repair persists for phone sync without a watch Dex screen')
 page.onDestroy()
+// The walk in progress is saved apart from the journal, at most every 20 seconds while it changes.
+stored = JSON.stringify({ dex: {}, records: {}, active: null })
+keys.clear()
+page.onInit({ view: 'home' })
+page.build()
+context.testNow += 1000
+page.start(0, 'walking')
+const journalAtStart = journalWrites
+const activeAtStart = activeWrites
+for (let second = 0; second < 19; second++) { context.testNow += 1000; distance += 2; steps += 3; page.sync() }
+assert.equal(activeWrites, activeAtStart, 'Small changes wait for the next save')
+assert.equal(journalWrites, journalAtStart, 'Walking never rewrites the journal')
+context.testNow += 1000
+distance += 2
+page.sync()
+assert.equal(activeWrites, activeAtStart + 1, 'The walk is saved again after 20 seconds')
+distance += 2
+page.sync()
+page.onDestroy()
+assert.equal(savedActive().meters, page.state.active.meters, 'Closing saves the latest numbers')
+const journalBeforeReopen = journalWrites
+page.build()
+assert.equal(journalWrites, journalBeforeReopen, 'Opening without changes does not rewrite the journal')
+page.onDestroy()
+// After an update, an adventure kept inside the journal moves to its own key once.
+const legacy = { ...savedActive(), startedAt: context.testNow - 5000 }
+stored = JSON.stringify({ dex: {}, records: {}, active: legacy })
+keys.delete('zepimon-active')
+page.build()
+assert.equal(page.state.active.startedAt, legacy.startedAt)
+assert.equal(JSON.parse(stored).active, null, 'The journal no longer holds it')
+assert.equal(savedActive().startedAt, legacy.startedAt, 'It has its own key now')
+page.onDestroy()
+// If the watch stopped after saving the record but before clearing the adventure, it is not saved twice.
+stored = JSON.stringify({ dex: {}, records: { [legacy.route]: { meters: 7000, steps: 9000, shiny: false,
+  finishedAt: new Date(context.testNow).toISOString(), startedAt: legacy.startedAt } }, active: null })
+page.build()
+assert.equal(page.state.active, null, 'An adventure whose record exists is already saved')
+assert.equal(savedActive(), null)
+page.onDestroy()
+// Walk or Run on the title screen starts at once with the offered egg; the phone's egg is then marked as used.
+const charmander = ['Charmander', 'Charmeleon', 'Charizard']
+keys.set('zepimon-next', JSON.stringify({ egg: { family: ['Pikachu', 'Raichu'], mega: null, from: 'suggested' },
+  plan: { egg: { family: charmander, mega: 'Mega Charizard Y' }, eggAt: 50, phone: null, updatedAt: 60 } }))
+context.testNow += 1000
+page.onInit({ start: { activity: 'running', family: charmander, mega: 'Mega Charizard Y', planAt: 50 } })
+page.build()
+assert.equal(page.view, 'session', 'Quick start goes straight to the adventure')
+assert.equal(JSON.stringify(routes[page.state.active.route]), JSON.stringify(charmander))
+assert.equal(page.state.active.activity, 'running')
+assert.equal(page.state.active.mega, 'Mega Charizard Y')
+assert.equal(savedNext().usedPlanAt, 50, 'The phone egg is marked as used')
+assert.equal(context.saved.nextEgg(savedNext()).from, 'suggested', 'The title screen moves on to its own egg')
+const backsBeforeSave = pageBacks
+distance += 100
+page.sync()
+click('Finish & save')
+click('Save & finish')
+assert.equal(pageBacks, backsBeforeSave + 1, 'Saving returns to the title screen')
+assert.equal(savedActive(), null)
+assert.equal(savedNext().egg.from, 'suggested', 'Saving suggests a new egg')
+page.onDestroy()
+// An egg the watch does not know still starts, with a fresh one.
+context.testNow += 1000
+page.onInit({ start: { activity: 'walking', family: ['Missingno'] } })
+page.build()
+assert.ok(page.state.active, 'An unknown egg falls back to a fresh egg')
+assert.ok(!context.legendarySpecies.includes(routes[page.state.active.route][0]), 'Fallback eggs are never Expedition Legendaries')
+click('Finish & save')
+click('Save & finish')
+page.onDestroy()
+// While the phone records, choosing an activity on the watch warns about counting the same steps twice.
+keys.set('zepimon-next', JSON.stringify({ plan: { egg: null, eggAt: 0, updatedAt: 70,
+  phone: { family: ['Pikachu', 'Raichu'], activity: 'walking', startedAt: context.testNow - 60000 } } }))
+page.onInit({ view: 'home' })
+page.build()
+click('Random Egg')
+click('Start')
+assert.ok(page.widgets.some(item => item.text === 'Your phone is recording an adventure'))
+page.onDestroy()
+// The next-egg note: the phone's egg until the watch uses it, newer plans only, and stale phone adventures expire.
+{
+  const { nextEgg, phoneAdventure, withPlan } = context.saved
+  assert.equal(nextEgg({}), null)
+  const plan = { egg: { family: ['Eevee'], mega: null }, eggAt: 10, phone: null, updatedAt: 20 }
+  const fromPhone = withPlan({ egg: { family: ['Pikachu', 'Raichu'], from: 'suggested' } }, plan)
+  assert.equal(nextEgg(fromPhone).from, 'phone')
+  assert.equal(nextEgg({ ...fromPhone, usedPlanAt: 10 }).from, 'suggested')
+  assert.equal(withPlan(fromPhone, { ...plan, updatedAt: 19 }), fromPhone, 'An older plan is ignored')
+  assert.equal(withPlan(fromPhone, null), fromPhone, 'No plan keeps the last one')
+  assert.throws(() => withPlan({}, { updatedAt: 1, egg: { family: [] }, eggAt: 1 }), 'A broken plan is rejected')
+  const recording = { plan: { phone: { family: ['Eevee'], activity: 'walking', startedAt: 1000 } } }
+  assert.ok(phoneAdventure(recording, 2000))
+  assert.equal(phoneAdventure(recording, 1000 + 13 * 3600000), null, 'A forgotten phone adventure stops blocking')
+}
 // Canvas scaling keeps the visible pose large without drawing outside its bounds.
 for (const update of imageUpdates) {
   assert.ok(update.w === update.h || update.w === update.h * 2)
@@ -848,20 +956,24 @@ assert.ok(drawn.some(item => item.text.includes('Storage unavailable')))
 page.onDestroy()
 console.log('Adventure logic and page flow checks passed')
 
-// Title screen navigation, daily distance and cleanup.
+// Title screen: the next egg with one-tap Walk and Run, daily distance and cleanup.
 const bootDrawn = []
 let destination
 let navigationParams
 let titlePage
-let titleSavedState = null
+let planCallback
+const titleKeys = new Map()
 const bootTimers = new Map()
 const bootTimeouts = []
 const flushBootTimeouts = () => { while (bootTimeouts.length) bootTimeouts.shift()() }
+class TitleStorage {
+  getItem(key) { return titleKeys.has(key) ? JSON.parse(titleKeys.get(key)) : undefined }
+  setItem(key, value) { titleKeys.set(key, JSON.stringify(value)) }
+}
 const bootContext = vm.createContext({
-  Page(definition) { titlePage = definition; definition.build() }, Distance,
-  LocalStorage: class { getItem() { return titleSavedState } },
+  Page(definition) { titlePage = definition; definition.build() }, Distance, LocalStorage: TitleStorage,
   widget: { TEXT: 1, BUTTON: 2, FILL_RECT: 3, IMG: 4, CANVAS: 5 }, align: { CENTER_H: 1 },
-  text_style: { NONE: 0 }, prop: { TEXT: 1 },
+  text_style: { NONE: 0 }, prop: { TEXT: 1, MORE: 2 },
   setInterval(callback) { bootTimers.set(1, callback); return 1 }, clearInterval(id) { bootTimers.delete(id) },
   setTimeout(callback) { bootTimeouts.push(callback); return bootTimeouts.length },
   clearTimeout() { bootTimeouts.length = 0 },
@@ -869,59 +981,107 @@ const bootContext = vm.createContext({
     assert.ok(options.x >= 0 && options.x + options.w <= 320)
     assert.ok(options.y >= 64 && options.y + options.h <= 380, 'Title content overlaps system header or screen edge')
     bootDrawn.push(options)
-    return { clear() {}, drawImage(value) { options.image = value.image; options.drawn = value }, setProperty(_, value) { options.text = value } }
+    return { clear() {}, drawImage(value) { options.image = value.image; options.drawn = value },
+      setProperty(property, value) { if (property === 1) options.text = value; else Object.assign(options, value) } }
   },
   deleteWidget() {},
+  getApp: () => ({ _options: { fetchPlan(done) { planCallback = done } } }),
   push(options) { destination = options.url; navigationParams = options.params }, console
 })
-Object.assign(bootContext, { spritePath: context.logic.spritePath, walkSprites: context.walkSprites })
-vm.runInContext(fs.readFileSync('page/sprite.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), bootContext)
+const imports = (file) => fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(line => line.startsWith('import ')).join('\n')
+for (const file of ['page/index.js', 'page/saved.js', 'app.js']) {
+  assert.ok(!/catalog|\/pokemon'|\/sprite'|\/types'|walk-sprites/.test(imports(file)), file + ' must not load the Pokemon catalog')
+}
+bootContext.validateExpedition = context.validateExpedition
+vm.runInContext(fs.readFileSync('shared/companion.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), bootContext)
+vm.runInContext(fs.readFileSync('page/saved.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), bootContext)
 vm.runInContext(fs.readFileSync('page/loader.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), bootContext)
 const entry = fs.readFileSync('page/index.js', 'utf8')
 assert.ok(!/hmUI|hmApp/.test(entry))
 vm.runInContext(entry.replace(/^import .*\r?\n/gm, ''), bootContext)
-assert.ok(!bootDrawn.some(item => item.text === 'Zepimon'))
-assert.ok(bootDrawn.some(item => item.image === 'pokemon/443.png' && item.drawn.w === 192 && item.drawn.h === 96))
-assert.equal(titlePage.distanceText !== undefined, true)
+const shown = (value) => bootDrawn.some(item => item.text === value)
+const tap = (label) => {
+  const button = bootDrawn.find(item => item.text === label && item.click_func)
+  assert.ok(button, 'Missing title button: ' + label)
+  button.click_func()
+}
+let titleOpen = true
+const close = () => { if (titleOpen) titlePage.onDestroy(); titleOpen = false }
+const reopen = () => { close(); bootDrawn.length = 0; destination = undefined; navigationParams = undefined; titlePage.build(); titleOpen = true }
+// A first visit: a surprise egg, and four buttons.
+assert.ok(bootDrawn.some(item => item.image === 'pokemon/egg.png' && item.drawn.w === 72), 'The egg is drawn without the catalog')
+assert.ok(shown('Surprise egg'))
+assert.ok(shown('Ready to start'))
 assert.ok(bootDrawn.some(item => item.text === (distance / 1000).toFixed(2)))
-bootDrawn.find(item => item.text === 'Start Adventure  >').click_func()
-assert.equal(destination, undefined, 'Navigation waits for the Pokeball loader')
-assert.ok(bootDrawn.some(item => item.text === 'Loading...'))
-bootDrawn.find(item => item.text === 'History  >').click_func()
+assert.equal(bootDrawn.filter(item => item.click_func).length, 4)
+tap('Walk')
+assert.equal(destination, undefined, 'The still Pokeball shows before the adventure page loads')
+assert.ok(shown('Loading...'))
+tap('Run')
 flushBootTimeouts()
 assert.equal(destination, 'page/adventure')
-assert.equal(navigationParams.view, 'home', 'Taps during the loader are ignored')
-// push replaces the title page; returning to it builds it again.
-titlePage.onDestroy()
-bootDrawn.length = 0
-titlePage.build()
-bootDrawn.find(item => item.text === 'History  >').click_func()
+assert.equal(navigationParams.start.activity, 'walking', 'Taps while loading are ignored')
+assert.equal(navigationParams.start.family, null, 'A surprise egg lets the adventure page choose')
+reopen()
+tap('Change egg')
+flushBootTimeouts()
+assert.equal(navigationParams.view, 'new')
+reopen()
+tap('History')
 flushBootTimeouts()
 assert.equal(navigationParams.view, 'history')
-assert.ok(!bootDrawn.some(item => item.text === 'Dex  >'))
-assert.equal(bootDrawn.filter(item => item.click_func).length, 2)
-titlePage.onDestroy()
-bootDrawn.length = 0
-titleSavedState = { dex: {}, records: {}, active: activeForHistory }
-const activeBeforeTitle = JSON.stringify(titleSavedState)
-titlePage.build()
-assert.ok(bootDrawn.some(item => item.text === 'Adventure in progress'))
-assert.ok(!bootDrawn.some(item => item.text === 'Start Adventure  >'))
-bootDrawn.find(item => item.text === 'Continue adventure  >').click_func()
+// The watch's suggestion, then the phone's chosen egg, which also arrives while the screen is open.
+titleKeys.set('zepimon-next', JSON.stringify({ egg: { family: ['Pikachu', 'Raichu'], mega: null, from: 'suggested' } }))
+reopen()
+assert.ok(shown('Pikachu'))
+assert.ok(shown('A new Pokemon for your Dex'))
+const phoneEgg = { egg: { family: ['Charmander', 'Charmeleon', 'Charizard'], mega: 'Mega Charizard X' }, eggAt: 50, phone: null, updatedAt: 60 }
+planCallback({ egg: { family: ['Pikachu', 'Raichu'], mega: null, from: 'suggested' }, plan: phoneEgg })
+assert.ok(shown('Charmander'), 'A plan arriving from the phone updates the title screen')
+assert.ok(shown('Chosen on your phone'))
+titleKeys.set('zepimon-next', JSON.stringify({ egg: { family: ['Pikachu', 'Raichu'], mega: null, from: 'suggested' }, plan: phoneEgg }))
+reopen()
+tap('Run')
+flushBootTimeouts()
+assert.deepEqual(JSON.parse(JSON.stringify(navigationParams.start)),
+  { activity: 'running', family: ['Charmander', 'Charmeleon', 'Charizard'], mega: 'Mega Charizard X', planAt: 50 })
+close()
+planCallback({ plan: { ...phoneEgg, egg: { family: ['Eevee'], mega: null } } })
+assert.ok(!shown('Eevee'), 'A plan arriving after the screen closed changes nothing')
+// While the phone records, the first tap warns and the second starts anyway.
+titleKeys.set('zepimon-next', JSON.stringify({ plan: { egg: null, eggAt: 0, updatedAt: 70,
+  phone: { family: ['Pikachu', 'Raichu'], activity: 'walking', startedAt: Date.now() - 60000 } } }))
+reopen()
+assert.ok(shown('Your phone is recording an adventure'))
+tap('Walk')
+flushBootTimeouts()
+assert.equal(destination, undefined, 'The first tap only warns')
+assert.ok(shown('Tap again to record here too'))
+tap('Walk')
+flushBootTimeouts()
+assert.equal(destination, 'page/adventure')
+// An adventure in progress: Continue and History only, from its own key or, before the first update, the journal.
+titleKeys.set('zepimon-active', JSON.stringify(activeForHistory))
+const keysBeforeTitle = JSON.stringify([...titleKeys])
+reopen()
+assert.ok(shown('Adventure in progress'))
+assert.ok(!shown('Walk'))
+tap('Continue adventure  >')
 flushBootTimeouts()
 assert.equal(navigationParams.view, 'home')
-assert.equal(JSON.stringify(titleSavedState), activeBeforeTitle, 'Showing Continue must not change saved progress')
-titlePage.onDestroy()
-bootDrawn.length = 0
-titleSavedState = { dex: {}, records: {}, active: null }
-titlePage.build()
-assert.ok(bootDrawn.some(item => item.text === 'Start Adventure  >'), 'Returning after finishing must restore Start Adventure')
-assert.ok(bootDrawn.some(item => item.text === 'Ready to start'))
-titlePage.onDestroy()
+assert.equal(JSON.stringify([...titleKeys]), keysBeforeTitle, 'Showing Continue must not change saved progress')
+titleKeys.delete('zepimon-active')
+titleKeys.set('zepimon-v1', JSON.stringify({ dex: {}, records: {}, active: activeForHistory }))
+reopen()
+assert.ok(shown('Continue adventure  >'), 'An adventure saved by an older version still continues')
+titleKeys.set('zepimon-active', 'null')
+reopen()
+assert.ok(shown('Walk'), 'Returning after finishing restores Walk and Run')
+close()
 bootDrawn.length = 0
 bootContext.LocalStorage = class { getItem() { throw new Error('Storage unavailable') } }
 titlePage.build()
-assert.ok(bootDrawn.some(item => item.text === 'Start Adventure  >'), 'A storage read failure must not hide title navigation')
+assert.ok(shown('Walk') && shown('Change egg'), 'A storage read failure must not hide the title buttons')
 titlePage.onDestroy()
 assert.equal(bootTimers.size, 0)
 console.log('Title screen checks passed')

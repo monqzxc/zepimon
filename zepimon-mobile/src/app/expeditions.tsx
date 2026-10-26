@@ -7,7 +7,7 @@ import type { Trail } from '../expeditions'
 import { clueMilestones } from '../generated/expedition.js'
 import { km } from '../journal'
 import { pokemonType } from '../catalog'
-import { Button, Copy, Eyebrow, HabitatScene, Heading, Panel, Screen, colors, styles } from '../ui'
+import { Button, Copy, Eyebrow, HabitatScene, Heading, Hero, Panel, Screen, colors, gradient, styles } from '../ui'
 
 const stories: Record<string, { title: string, clues: string[], actions: string[], welcome: string }> = {
   Articuno: { title: 'The shimmering feather', clues: ['A frosted feather rests beside the trail.', 'Wing-shaped shadows sweep across the snow.', 'Articuno lands in a quiet snowy clearing.'],
@@ -28,9 +28,9 @@ export default function ExpeditionsScreen() {
   const currentKey = journal?.snapshot.expedition ? expeditionKey(journal.snapshot.expedition) : ''
   const selected = trails.find(([, trail]) => trail.meters >= (trail.claimed + 1) * expeditionGoal) || trails.find(([key]) => key === currentKey) || trails.at(-1)
   return <Screen>
-    <Eyebrow>LEGENDARY EXPEDITIONS</Eyebrow>
-    <Heading>Follow a little mystery.</Heading>
-    <Copy>Three clues. 25 km across saved walks and runs. One extraordinary new friend.</Copy>
+    <Hero eyebrow="LEGENDARY EXPEDITIONS" title="Follow a little mystery.">
+      <Copy color={colors.onBrand}>Three clues. 25 km across saved walks and runs. One extraordinary new friend.</Copy>
+    </Hero>
     {!!friend && <Panel><Heading>A new friendship!</Heading><Copy color={colors.gold}>{friend} is now in your Dex.</Copy>
       <Button title="View my new friend" onPress={() => router.push({ pathname: '/pokemon', params: { name: friend.replace(/^Shiny /, '') } })} /></Panel>}
     {pending > 0 && <Panel><Copy color={colors.gold}>{pending} encounter{pending === 1 ? '' : 's'} ready to meet. Take your time — they will wait.</Copy></Panel>}
@@ -76,8 +76,8 @@ function Encounter({ trailKey, trail, onBefriended }: { trailKey: string, trail:
     <HabitatScene name={meters >= 5000 ? encounter.name : 'Egg'} shiny={encounter.shiny}
       discovery={ready ? 'revealed' : meters >= 15000 ? 'silhouette' : 'hidden'} />
     <Text style={styles.stat}>{km(meters)} / 25 km</Text>
-    <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 25, now: meters / 1000 }} style={{ height: 10, backgroundColor: colors.bg, borderRadius: 5, overflow: 'hidden' }}>
-      <View style={{ height: '100%', width: `${meters / expeditionGoal * 100}%`, backgroundColor: colors.edge }} />
+    <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 25, now: meters / 1000 }} style={styles.track}>
+      <View style={[styles.fill, gradient(), { width: `${meters / expeditionGoal * 100}%` }]} />
     </View>
     {clueMilestones.map((milestone, i) => <View key={milestone} style={{ gap: 3 }}>
       <Eyebrow>{meters >= milestone ? 'CLUE FOUND' : 'MYSTERY'} / {milestone / 1000} KM</Eyebrow>

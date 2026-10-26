@@ -87,6 +87,29 @@ export function validateSnapshot(value) {
   return clean
 }
 
+// The plan the phone shares with the watch: the egg chosen in Zepimon mobile (eggAt is when it was chosen) and the
+// adventure the phone is recording, if any. null means nothing is planned. It travels phone → cloud → Zepp → watch.
+export function validatePlan(value) {
+  if (value === null || value === undefined) return null
+  const family = (list) => Array.isArray(list) && list.length >= 1 && list.length <= 3 && list.every(name) && new Set(list).size === list.length
+  if (!object(value) || !number(value.updatedAt)) throw new Error('Invalid plan')
+  const plan = { egg: null, eggAt: 0, phone: null, updatedAt: value.updatedAt }
+  if (value.egg !== null && value.egg !== undefined) {
+    if (!object(value.egg) || !family(value.egg.family) || (value.egg.mega != null && !name(value.egg.mega)) || !number(value.eggAt)) {
+      throw new Error('Invalid planned egg')
+    }
+    plan.egg = { family: value.egg.family.slice(), mega: value.egg.mega || null }
+    plan.eggAt = value.eggAt
+  }
+  if (value.phone !== null && value.phone !== undefined) {
+    if (!object(value.phone) || !family(value.phone.family) || !['walking', 'running'].includes(value.phone.activity) || !number(value.phone.startedAt)) {
+      throw new Error('Invalid phone adventure')
+    }
+    plan.phone = { family: value.phone.family.slice(), activity: value.phone.activity, startedAt: value.phone.startedAt }
+  }
+  return plan
+}
+
 export function makeSnapshot(state, now = Date.now()) {
   return validateSnapshot({ schemaVersion: 1, capturedAt: now, dex: state.dex, records: state.records,
     active: state.active, personalBests: state.personalBests, expedition: state.expedition })

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Image, Text, View } from 'react-native'
-import { spriteSource } from '../catalog'
-import { Button, Copy, Eyebrow, Heading, Panel, colors, styles } from '../ui'
+import { spriteSource, typeTints } from '../catalog'
+import { Button, Copy, Eyebrow, Heading, Panel, colors, fonts, styles } from '../ui'
 import { answerQuiz, createQuiz, nextQuestion, QUIZ_LENGTH, quizComplete } from './quiz'
 import type { Quiz } from './quiz'
 
@@ -38,7 +38,7 @@ export function PokemonQuiz({ best, onComplete }: { best?: number, onComplete: (
       <View style={[styles.row, { justifyContent: 'space-between' }]}>
         <Copy color={colors.gold}>Score: {game.score}</Copy><Copy small>No timer · take your time</Copy>
       </View>
-      <View style={{ backgroundColor: '#204b60', borderWidth: 2, borderColor: colors.edge, borderRadius: 6, paddingVertical: 8 }}>
+      <View style={{ backgroundColor: typeTints.water, borderRadius: 18, paddingVertical: 10 }}>
         <Image source={spriteSource(question.answer)} resizeMode="contain" accessibilityLabel={revealed ? question.answer : 'Mystery Pokemon silhouette'}
           style={{ width: 216, height: 216, alignSelf: 'center', ...(revealed ? {} : { tintColor: colors.ink }) }} />
         <Text style={[styles.heading, { textAlign: 'center', fontSize: 22 }]}>{revealed ? question.answer : '???'}</Text>
@@ -48,7 +48,7 @@ export function PokemonQuiz({ best, onComplete }: { best?: number, onComplete: (
       secondary={!revealed || choice !== question.answer} disabled={revealed}
       onPress={() => { if (current.current) update(answerQuiz(current.current, choice)) }} />)}
     {revealed && <Panel>
-      <Text accessibilityLiveRegion="polite" style={{ color: colors.ink, fontSize: 16 }}>{game.selected === question.answer ? 'You got it!' : `It’s ${question.answer}!`}</Text>
+      <Text accessibilityLiveRegion="polite" style={{ color: colors.ink, fontSize: 17, fontFamily: fonts.heavy }}>{game.selected === question.answer ? 'You got it!' : `It’s ${question.answer}!`}</Text>
       <Button title={game.index === game.questions.length - 1 ? 'See quiz results' : 'Next Pokemon'}
         onPress={() => { if (current.current) update(nextQuestion(current.current)) }} />
     </Panel>}

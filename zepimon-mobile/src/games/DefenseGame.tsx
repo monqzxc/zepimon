@@ -1,14 +1,17 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-import type { ImageSourcePropType } from 'react-native'
+import { Animated, Easing, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import type { ImageSourcePropType, ViewStyle } from 'react-native'
 import { spriteSource } from '../catalog'
 import { typeTheme } from '../HabitatScene'
-import { Button, Copy, Eyebrow, Heading, Panel, colors, styles } from '../ui'
+import { Button, Copy, Eyebrow, Heading, IconButton, Panel, Title, colors, fonts, shadows, styles } from '../ui'
+import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
-import { LANES, PATHS, TICK, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit, gridSize,
+import { LANES, PATHS, TICK, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
+  facingToward, gridSize, unitTarget, moveOf,
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
-import type { Battle, BattleSpec, Heading as Facing, Layout, PathId } from './battle'
+import type { Battle, BattleSpec, Heading as Facing, Layout } from './battle'
+import { ShotSprite, StrikeSprite } from './MoveFx'
 import { TrailTerrain } from './TrailTerrain'
 import { trailWalkers } from '../generated/trail-walkers.js'
 import { autoTeam, cardKey } from './roster'
@@ -17,21 +20,22 @@ import { PixelSprite, TeamPicker } from './TeamPicker'
 import { useGameLoop, useReducedMotion } from './hooks'
 
 export type BattleResult = { won: boolean, score: number, stars: number }
+// preview shows a fixed trail before the battle; initialTeam and onStart let Trail Defense levels keep one team;
+// next adds a button after a win (the next level).
 type Props = {
   layout: Layout, makeSpec: () => BattleSpec, title: string, intro: string, choices: TeamCard[], assists: string[],
-  bonus: number, bonusNote: string, record: string, showStars?: boolean, onFinish: (result: BattleResult) => void
+  bonus: number, bonusNote: string, record: string, showStars?: boolean, onFinish: (result: BattleResult) => void,
+  preview?: BattleSpec, initialTeam?: TeamCard[], onStart?: (team: TeamCard[]) => void, next?: { title: string, onPress: () => void }
 }
 
-const MAX_FIELD = 440
+// The board fits between the top bar and the card tray. Squares never shrink below MIN_CELL so they stay easy to
+// tap: a map too tall for that scrolls on its own while the bar and the tray stay put.
+const MIN_CELL = 36
 const native = Platform.OS !== 'web'
-const shotColors: Record<string, string> = {
-  normal: '#f4ebcf', fire: '#ff8a3d', water: '#57b8ff', electric: '#ffe14d', grass: '#7ddc6b', ice: '#a8f0ff', fighting: '#ff6b5b',
-  poison: '#c77dff', ground: '#d9b77a', flying: '#bfe3ff', psychic: '#ff7fc8', bug: '#b6d84c', rock: '#d9b77a', ghost: '#9d8cff',
-  dragon: '#8f7dff', dark: '#a3a3b8', steel: '#c8d6de', fairy: '#ffb3e0'
-}
-const fxColors = { super: colors.gold, zap: '#ffe14d', berries: '#ff92af', guard: colors.ink, assist: colors.gold, leak: '#ff8a8a' }
-const trailNames: Record<PathId, string> = { switchback: 'SWITCHBACK TRAIL', canyon: 'CANYON TRAIL', spiral: 'SPIRAL TRAIL' }
-// Gen 1-4 walking strips (src/generated/trail-walkers.js): two steps each facing south, north, west, east.
+// The battle board keeps its own colors: its terrain art is darker than the light app theme around it.
+const onBoard = { ink: '#f4ebcf', gold: '#ffe08d', dark: '#071b2c' }
+const fxColors = { super: onBoard.gold, berries: '#ff92af', guard: onBoard.ink, assist: onBoard.gold, leak: '#ff8a8a' }
+// Walking strips (src/generated/trail-walkers.js), Normal and Shiny: two steps each facing south, north, west, east.
 const walkers = trailWalkers as Record<string, ImageSourcePropType>
 const facing: Record<Facing, number> = { S: 0, N: 2, W: 4, E: 6 }
 const STEP_MS = 220
@@ -40,14 +44,16 @@ export function starText(stars: number) {
   return '★'.repeat(stars) + '☆'.repeat(3 - stars)
 }
 
-export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, bonus, bonusNote, record, showStars = false, onFinish }: Props) {
-  const [team, setTeam] = useState(() => autoTeam(choices))
+export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, bonus, bonusNote, record, showStars = false, onFinish,
+  preview, initialTeam, onStart, next }: Props) {
+  const [team, setTeam] = useState(() => initialTeam?.length ? initialTeam : autoTeam(choices))
   const [helper, setHelper] = useState<string | null>(assists[0] ?? null)
   const [game, setGame] = useState<Battle | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
   const [inspect, setInspect] = useState<number | null>(null)
   const [note, setNote] = useState('')
-  const [width, setWidth] = useState(0)
+  const [area, setArea] = useState({ width: 0, height: 0 })
+  const { full, setFull, setFill } = useGameScreen()
   const reduced = useReducedMotion()
   const current = useRef<Battle | null>(null)
   const finish = useRef(onFinish)
@@ -63,10 +69,25 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
   }, [])
   const act = (change: (game: Battle) => Battle) => { if (current.current) update(change(current.current)) }
   const pause = () => act(battle => pauseBattle(battle, performance.now()))
+  const resume = () => act(battle => resumeBattle(battle, performance.now()))
   useGameLoop(() => act(battle => tickBattle(battle, performance.now())), pause)
+  // A running battle lays itself out to the screen; choosing a team scrolls like any page.
+  const active = game !== null
+  useEffect(() => {
+    if (!active) return
+    setFill(true)
+    return () => setFill(false)
+  }, [active, setFill])
+  // Hints float over the board, so they clear themselves.
+  useEffect(() => {
+    if (!note) return
+    const timer = setTimeout(() => setNote(''), 2600)
+    return () => clearTimeout(timer)
+  }, [note])
 
   function start() {
     setPicked(null); setInspect(null); setNote('')
+    onStart?.(team)
     update(startBattle(makeSpec(), team, { bonus, assist: helper }, performance.now()))
   }
 
@@ -77,6 +98,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       <Copy color={colors.gold}>{record}</Copy>
       <Copy small>{bonusNote}</Copy>
     </Panel>
+    {preview?.layout === 'trail' && <MapPreview spec={preview} />}
     {assists.length > 0 && <Panel>
       <Eyebrow>LEGENDARY HELPER</Eyebrow>
       <Copy small>Once per battle, your Expedition friend strikes every foe on the field and slows them down.</Copy>
@@ -89,17 +111,29 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
 
   const spec = game.spec
   const theme = typeTheme(spec.habitat)
-  const { cols, rows } = gridSize(layout)
-  const fieldWidth = Math.min(width, MAX_FIELD)
-  const cell = fieldWidth / cols
+  const { cols, rows } = gridSize(game)
+  // Lanes add a strip of sky above the board (0.7 squares) and Snorlax's row below it (0.8).
+  const units = layout === 'lanes' ? rows + 1.5 : rows
+  const cell = Math.min(area.width / cols, Math.max(area.height / units, MIN_CELL))
+  const fieldWidth = cols * cell
   const top = layout === 'lanes' ? cell * 0.7 : 0
   const height = top + rows * cell + (layout === 'lanes' ? cell * 0.8 : 0)
+  const scrolls = height > area.height + 0.5
+  // Where the board shows inside its area, for the pause screen to cover just the board.
+  const shown = { left: (area.width - fieldWidth) / 2, top: Math.max(0, (area.height - height) / 2), width: fieldWidth, height: Math.min(height, area.height) }
   const playing = game.status === 'playing'
   const over = game.status === 'won' || game.status === 'lost'
   const wait = nextWaveIn(game)
   const pathCells = layout === 'trail' ? PATHS[spec.path].cells : null
   const selected = game.units.find(unit => unit.id === inspect)
   const guards = game.guards.filter(Boolean).length
+  const pickedCard = game.team.find(card => cardKey(card) === picked)
+  const pickedForm = pickedCard && placedForm(game, pickedCard)
+  const hint = pickedForm ? `${pickedForm} · ${kitFor(pickedForm, layout).label} — now tap a free square`
+    : `Tap a card, then a free square${layout === 'trail' ? ' beside the trail' : ''}`
+  const status = over ? 'Battle over.' : game.status === 'paused' ? 'Paused.'
+    : wait !== null ? `${game.wave ? 'Next wave' : 'First wave'} in ${Math.ceil(wait / 1000)}s${game.wave ? '' : ' — place your team!'}`
+    : game.spawns.length ? 'A wave is arriving!' : 'The last foes are on the field!'
 
   function pressCell(col: number, row: number) {
     const battle = current.current
@@ -121,20 +155,28 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       : cardReadyAt(battle, card) > battle.elapsed ? `${card.name} is recharging.` : `You need ◉ ${cost - battle.berries} more berries.`)
   }
 
-  return <View style={{ gap: 12 }}>
-    <Heading>{title}</Heading>
-    <Panel>
-      <View style={[styles.row, { justifyContent: 'space-between' }]}>
-        <Stat label="BERRIES" value={`◉ ${game.berries}`} />
-        <Stat label="WAVE" value={`${Math.max(1, game.wave)} / ${spec.waves}`} />
-        {layout === 'lanes' ? <Stat label="SNORLAX" value={`${guards} / ${LANES}`} /> : <Stat label="LIVES" value={`♥ ${game.lives}`} />}
+  // The top bar and the card tray stay on screen; only an oversized board scrolls between them.
+  return <View style={play.root}>
+    <View style={play.bar}>
+      <View style={play.barRow}>
+        <View style={play.stats}>
+          <Stat label="BERRIES" value={`◉ ${game.berries}`} spoken={`${game.berries} berries`} />
+          <Stat label="WAVE" value={`${Math.max(1, game.wave)}/${spec.waves}`} spoken={`Wave ${Math.max(1, game.wave)} of ${spec.waves}`} />
+          {layout === 'lanes' ? <Stat label="SNORLAX" value={`${guards}/${LANES}`} spoken={`${guards} of ${LANES} Snorlax awake`} />
+            : <Stat label="LIVES" value={`♥ ${game.lives}`} spoken={`${game.lives} lives`} />}
+        </View>
+        {!over && <IconButton name={playing ? 'pause' : 'resume'} label={playing ? 'Pause' : 'Resume battle'} size={40} onPress={playing ? pause : resume} />}
+        <IconButton name={full ? 'fullscreenExit' : 'fullscreen'} label={full ? 'Exit full screen' : 'Full screen'} size={40} onPress={() => setFull(!full)} />
       </View>
-      <Copy small>{over ? 'Battle over.' : wait !== null ? `${game.wave ? 'Next wave' : 'First wave'} in ${Math.ceil(wait / 1000)}s${game.wave ? '' : ' — place your team!'}` : game.spawns.length ? 'A wave is arriving!' : 'The last foes are on the field!'}</Copy>
-    </Panel>
+      <Text numberOfLines={1} style={play.status}>{status}</Text>
+    </View>
 
-    {layout === 'trail' && <Eyebrow>{theme.label.toUpperCase()} · {trailNames[spec.path]}</Eyebrow>}
-    <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{ width: '100%', alignItems: 'center' }}>
-      {width > 0 && <View style={[board.field, { width: fieldWidth, height, backgroundColor: theme.sky }]}>
+    {/* The area takes whatever the bar and the tray leave. Its contents are all absolutely placed, so they never
+        stretch it: a board measured in full screen would otherwise keep the area that tall after leaving it. */}
+    <View style={play.area} onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}>
+      {area.width > 0 && <ScrollView style={StyleSheet.absoluteFill} scrollEnabled={scrolls} nestedScrollEnabled showsVerticalScrollIndicator={scrolls}
+        contentContainerStyle={{ minHeight: area.height, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={[board.field, { width: fieldWidth, height, backgroundColor: theme.sky }]}>
         {layout === 'trail' && <TrailTerrain path={spec.path} cell={cell} theme={theme} />}
         {layout === 'trail' && selected && <View pointerEvents="none" style={[board.range, {
           left: (selected.col + 0.5 - kitFor(selected.name, layout).range) * cell, top: (selected.row + 0.5 - kitFor(selected.name, layout).range) * cell,
@@ -154,7 +196,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
               free && board.free, unit?.id === inspect && board.inspected]}>
             {unit && <>
               <View style={[board.shadow, { width: cell * 0.46, height: cell * 0.1, borderRadius: cell, bottom: cell * 0.14 }]} />
-              <PixelSprite name={unit.name} shiny={unit.shiny} size={cell * 0.86} />
+              <Ally unit={unit} game={game} size={cell * 0.82} reduced={reduced} />
               {unit.hp < unit.maxHp && <Health ratio={unit.hp / unit.maxHp} width={cell * 0.7} />}
               {unit.egg && <Text accessible={false} style={board.egg}>EGG</Text>}
             </>}
@@ -164,6 +206,9 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           style={[board.snorlax, { left: lane * cell, top: top + rows * cell, width: cell, height: cell * 0.8, opacity: awake ? 1 : 0.25 }]}>
           <PixelSprite name="Snorlax" size={cell * 0.7} />
         </View>)}
+        {game.strikes.filter(strike => strike.kind === 'wave').map(strike => <Mover key={strike.id} x={strike.x * cell} y={top + strike.y * cell} size={0} reduced={reduced}>
+          <StrikeSprite strike={strike} elapsed={game.elapsed} cell={cell} reduced={reduced} />
+        </Mover>)}
         {game.enemies.map(enemy => {
           const at = enemyPoint(game, enemy)
           const size = cell * (enemy.boss ? 1.25 : 0.9)
@@ -175,8 +220,11 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
               poisoned={enemy.poisonUntil > game.elapsed} heading={enemyHeading(game, enemy)} step={step} />
           </Mover>
         })}
-        {game.shots.map(shot => <Mover key={shot.id} x={shot.x * cell - cell * 0.1} y={top + shot.y * cell - cell * 0.1} size={cell * 0.2} reduced={reduced}>
-          <View style={[board.shot, { backgroundColor: shotColors[shot.type] || colors.ink }]} />
+        {game.shots.map(shot => <Mover key={shot.id} x={shot.x * cell} y={top + shot.y * cell} size={0} reduced={reduced}>
+          <ShotSprite shot={shot} game={game} cell={cell} reduced={reduced} />
+        </Mover>)}
+        {game.strikes.filter(strike => strike.kind !== 'wave').map(strike => <Mover key={strike.id} x={strike.x * cell} y={top + strike.y * cell} size={0} reduced={reduced}>
+          <StrikeSprite strike={strike} elapsed={game.elapsed} cell={cell} reduced={reduced} />
         </Mover>)}
         {game.drops.map(drop => <Pressable key={drop.id} accessibilityRole="button" accessibilityLabel={`Collect ${drop.value} berries`}
           hitSlop={8} onPress={() => act(battle => collectDrop(battle, drop.id))}
@@ -186,18 +234,36 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
         {game.effects.map(fx => <Text key={fx.id} pointerEvents="none" accessible={false}
           style={[board.fx, { left: fx.x * cell - cell, top: top + fx.y * cell - cell * 0.6, width: cell * 2, color: fxColors[fx.kind],
             fontSize: fx.kind === 'guard' || fx.kind === 'assist' ? 22 : 16 }]}>{fx.text}</Text>)}
+      </View>
+      </ScrollView>}
+      {!!note && <View pointerEvents="none" style={play.note}><Text accessibilityLiveRegion="polite" style={play.noteText}>{note}</Text></View>}
+      {/* Details float over the half of the board away from the Pokemon you tapped. */}
+      {selected && <UnitPanel unit={selected} layout={layout} playing={playing} berries={game.berries}
+        style={selected.row >= rows / 2 ? { top: 8 } : { bottom: 8 }}
+        onEvolve={() => act(battle => evolveUnit(battle, selected.id))}
+        onRelease={() => { act(battle => removeUnit(battle, selected.id)); setInspect(null) }} onClose={() => setInspect(null)} />}
+      {game.status === 'paused' && <View style={[play.scrim, shown]}>
+        <View style={play.sheet}>
+          <Title>Paused</Title>
+          <Copy small>Your team, berries and the next wave are waiting.</Copy>
+          <Button title="Resume battle" onPress={resume} />
+        </View>
       </View>}
+      {over && <View style={[play.scrim, StyleSheet.absoluteFill]}><ScrollView contentContainerStyle={play.scrimScroll}>
+        <View style={[play.sheet, { borderColor: colors.star, borderWidth: 1.5 }]}>
+          <Heading>{game.status === 'won' ? 'Victory!' : layout === 'lanes' ? 'A foe slipped past Snorlax.' : 'The trail was overrun.'}</Heading>
+          <Copy color={colors.ink}>{game.status === 'won' ? `All ${spec.waves} waves cleared.` : `You cleared ${battleScore(game)} of ${spec.waves} waves.`} {game.defeated} Shadow Pokemon calmed.</Copy>
+          {showStars && <Text accessibilityLabel={`${battleStars(game)} of 3 stars`} style={board.stars}>{starText(battleStars(game))}</Text>}
+          {game.status === 'won' && next && <Button title={next.title} onPress={next.onPress} />}
+          <Button title="Play again" secondary={game.status === 'won' && !!next} onPress={start} />
+          <Button title="Change team" secondary onPress={() => update(null)} />
+        </View>
+      </ScrollView></View>}
     </View>
-    {layout === 'trail' && !over && <Copy small>Foes come out of the cave and follow the arrows to the Poke Ball. Each one that reaches it costs a life.</Copy>}
 
-    {!!note && <Copy color={colors.gold}>{note}</Copy>}
-    {selected && <UnitPanel unit={selected} layout={layout} playing={playing} berries={game.berries}
-      onEvolve={() => act(battle => evolveUnit(battle, selected.id))}
-      onRelease={() => { act(battle => removeUnit(battle, selected.id)); setInspect(null) }} onClose={() => setInspect(null)} />}
-
-    {!over && <>
-      <Eyebrow>{picked ? 'NOW TAP A FREE SQUARE' : 'TAP A CARD TO PLACE A POKEMON'}</Eyebrow>
-      <View style={board.tray}>{game.team.map(card => {
+    {!over && <View style={play.tray}>
+      <Text numberOfLines={1} style={play.hint}>{hint}</Text>
+      <View style={play.cards}>{game.team.map(card => {
         const key = cardKey(card)
         const form = placedForm(game, card)
         const kit = kitFor(form, layout)
@@ -206,30 +272,18 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
         return <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: picked === key, disabled: !playing }} disabled={!playing}
           accessibilityLabel={`${form}, ${kit.label}, ${kit.cost} berries${recharge ? `, recharging for ${Math.ceil(recharge / 1000)} seconds` : game.berries < kit.cost ? ', not enough berries yet' : ''}`}
           onPress={() => { setInspect(null); setNote(''); setPicked(picked === key ? null : key) }}
-          style={({ pressed }) => [board.card, picked === key && board.picked, { opacity: pressed ? 0.7 : ready ? 1 : 0.55 }]}>
-          <PixelSprite name={form} shiny={card.shiny} size={40} />
-          <Text style={board.cost}>◉ {kit.cost}</Text>
-          <Text numberOfLines={1} style={board.role}>{recharge ? `${Math.ceil(recharge / 1000)}s` : kit.label}</Text>
+          style={({ pressed }) => [play.card, picked === key && play.picked, { opacity: pressed ? 0.7 : ready ? 1 : 0.5 }]}>
+          <PixelSprite name={form} shiny={card.shiny} size={34} />
+          <Text numberOfLines={1} style={play.cost}>{recharge ? `${Math.ceil(recharge / 1000)}s` : `◉ ${kit.cost}`}</Text>
         </Pressable>
       })}</View>
-      <View style={styles.row}>
-        {playing && <Button title="Pause" secondary onPress={pause} />}
-        {game.status === 'paused' && <Button title="Resume battle" onPress={() => act(battle => resumeBattle(battle, performance.now()))} />}
-        {layout === 'trail' && playing && wait !== null && wait > 1000 && <Button title="Send next wave · +◉ 10" secondary onPress={() => act(sendNextWave)} />}
-        {game.assist && <Button title={game.assist.used ? `${game.assist.name} helped!` : `Call ${game.assist.name}`} disabled={!playing || game.assist.used}
-          onPress={() => act(callAssist)} />}
-      </View>
-      {game.status === 'paused' && <Copy>Paused. Your team, berries and the next wave are waiting.</Copy>}
-    </>}
-
-    {over && <Panel style={{ borderColor: colors.gold }}>
-      <Heading>{game.status === 'won' ? 'Victory!' : layout === 'lanes' ? 'A foe slipped past Snorlax.' : 'The trail was overrun.'}</Heading>
-      <Copy color={colors.ink}>{game.status === 'won' ? `All ${spec.waves} waves cleared.` : `You cleared ${battleScore(game)} of ${spec.waves} waves.`} {game.defeated} Shadow Pokemon calmed.</Copy>
-      {showStars && <Text accessibilityLabel={`${battleStars(game)} of 3 stars`} style={board.stars}>{starText(battleStars(game))}</Text>}
-      <Button title="Play again" onPress={start} />
-      <Button title="Change team" secondary onPress={() => update(null)} />
-    </Panel>}
-    <Copy small>Switching tabs or leaving the app pauses the battle. Returning to the arcade ends it.</Copy>
+      {/* Always laid out, so the board does not jump when a button comes and goes. */}
+      {(layout === 'trail' || game.assist) && <View style={play.actions}>
+        {layout === 'trail' && <SmallButton title="Send next wave · +◉ 10" disabled={!playing || wait === null || wait <= 1000} onPress={() => act(sendNextWave)} />}
+        {game.assist && <SmallButton primary title={game.assist.used ? `${game.assist.name} helped!` : `Call ${game.assist.name}`}
+          disabled={!playing || game.assist.used} onPress={() => act(callAssist)} />}
+      </View>}
+    </View>}
   </View>
 }
 
@@ -247,16 +301,44 @@ function HowTo({ layout }: { layout: Layout }) {
     </>}
     <Copy small>Type matchups matter: super-effective hits do double damage and show ×2.</Copy>
     <Copy small>Pokemon hatched on your watch are marked EGG and know their family’s real egg moves: an extra attack type, harder hits or more health, a bigger harvest for Grass types, or extra health for blockers. Loaners and Safari catches have none.</Copy>
+    <Copy small>Switching tabs or leaving the app pauses the battle. Returning to the arcade ends it.</Copy>
   </Panel>
 }
 
-function Stat({ label, value }: { label: string, value: string }) {
-  return <View><Eyebrow>{label}</Eyebrow><Text style={styles.stat}>{value}</Text></View>
+// A small, still picture of the trail so players can see the map before choosing a team.
+function MapPreview({ spec }: { spec: BattleSpec }) {
+  const { cols, rows, name } = PATHS[spec.path]
+  const theme = typeTheme(spec.habitat)
+  const cell = Math.min(18, 162 / cols, 240 / rows)
+  return <Panel>
+    <Eyebrow>THE MAP · {cols} × {rows} · {theme.label.toUpperCase()}</Eyebrow>
+    <View accessible accessibilityLabel={`Map of ${name}: ${cols} by ${rows} squares`}
+      style={[board.field, { alignSelf: 'center', width: cols * cell, height: rows * cell, backgroundColor: theme.sky }]}>
+      <TrailTerrain path={spec.path} cell={cell} theme={theme} />
+    </View>
+    <Copy small>Foes leave the cave and follow the trail to the Poke Ball.</Copy>
+  </Panel>
+}
+
+// A compact counter in the battle's top bar.
+function Stat({ label, value, spoken }: { label: string, value: string, spoken: string }) {
+  return <View accessible accessibilityLabel={spoken}>
+    <Text style={play.statLabel}>{label}</Text>
+    <Text style={play.statValue}>{value}</Text>
+  </View>
+}
+
+// A pill button small enough for the card tray and the floating details panel.
+function SmallButton({ title, onPress, primary = false, disabled = false }: { title: string, onPress: () => void, primary?: boolean, disabled?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
+    style={({ pressed }) => [play.button, primary ? play.primary : play.secondary, { opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }]}>
+    <Text numberOfLines={1} style={[play.buttonText, primary && { color: colors.onBrand }]}>{title}</Text>
+  </Pressable>
 }
 
 function Health({ ratio, width }: { ratio: number, width: number }) {
   return <View style={[board.health, { width }]}>
-    <View style={{ width: `${Math.max(0, Math.min(1, ratio)) * 100}%`, height: '100%', backgroundColor: ratio > 0.5 ? '#7ddc6b' : ratio > 0.25 ? colors.gold : '#ff6b5b' }} />
+    <View style={{ width: `${Math.max(0, Math.min(1, ratio)) * 100}%`, height: '100%', backgroundColor: ratio > 0.5 ? '#7ddc6b' : ratio > 0.25 ? onBoard.gold : '#ff6b5b' }} />
   </View>
 }
 
@@ -274,21 +356,25 @@ function Mover({ x, y, size, reduced, children }: { x: number, y: number, size: 
   </Animated.View>
 }
 
-// Shadow Pokemon are the normal sprite under a dark tint. Gen 1-4 foes walk with four-direction strips, clipped to the
-// current frame; other forms (and reduced motion) keep a still pose.
+// One frame of a walking strip: the 8-frame row is clipped to a single square. A tint repaints the visible pixels.
+function Strip({ source, size, frame, tint }: { source: ImageSourcePropType, size: number, frame: number, tint?: string }) {
+  const style = { position: 'absolute' as const, top: 0, left: -frame * size, width: size * 8, height: size,
+    ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }
+  return <View style={{ width: size, height: size, overflow: 'hidden' }}>
+    <Image source={source} resizeMode="stretch" fadeDuration={0} style={style} />
+    {!!tint && <Image source={source} resizeMode="stretch" fadeDuration={0} style={[style, { tintColor: tint, opacity: 0.55 }]} />}
+  </View>
+}
+
+// Shadow Pokemon are the normal strip under a dark tint, facing the way they walk; forms without walking art stay still.
 const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, heading, step }: {
   name: string, size: number, ratio: number, boss: boolean, slowed: boolean, poisoned: boolean, heading: Facing, step: number
 }) {
   const strip = walkers[name]
-  const pixel = Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}
-  const sprite = { width: size, height: size, ...pixel }
-  const frame = { position: 'absolute' as const, top: 0, left: -(facing[heading] + step) * size, width: size * 8, height: size, ...pixel }
+  const sprite = { width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }
   return <View style={{ width: size, height: size, alignItems: 'center' }}>
     <View style={[board.shadow, { width: size * 0.5, height: size * 0.11, borderRadius: size, bottom: size * 0.04 }]} />
-    {strip ? <View style={{ width: size, height: size, overflow: 'hidden' }}>
-      <Image source={strip} resizeMode="stretch" fadeDuration={0} style={frame} />
-      <Image source={strip} resizeMode="stretch" fadeDuration={0} style={[frame, { tintColor: '#2a1240', opacity: 0.55 }]} />
-    </View> : <>
+    {strip ? <Strip source={strip} size={size} frame={facing[heading] + step} tint="#2a1240" /> : <>
       <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={sprite} />
       <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { position: 'absolute', tintColor: '#2a1240', opacity: 0.55 }]} />
     </>}
@@ -298,51 +384,96 @@ const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, headi
   </View>
 })
 
-function UnitPanel({ unit, layout, playing, berries, onEvolve, onRelease, onClose }: {
-  unit: Battle['units'][number], layout: Layout, playing: boolean, berries: number, onEvolve: () => void, onRelease: () => void, onClose: () => void
+// Your Pokemon turn to face the foe they attack (or face you while idle), step in place - faster when a foe is in
+// range - and lunge toward the target right after attacking. Growers hop when they harvest. Reduced motion holds still.
+const lungeOffset: Record<Facing, [number, number]> = { E: [1, 0], W: [-1, 0], N: [0, -1], S: [0, 1] }
+function Ally({ unit, game, size, reduced }: { unit: Battle['units'][number], game: Battle, size: number, reduced: boolean }) {
+  const target = unitTarget(game, unit)
+  const heading: Facing = target ? facingToward({ x: unit.col + 0.5, y: unit.row + 0.5 }, enemyPoint(game, target)) : 'S'
+  const step = reduced ? 0 : (Math.floor(game.elapsed / (target ? STEP_MS : STEP_MS * 2)) + unit.id) % 2
+  const acted = !reduced && actedRecently(game, unit)
+  const [dx, dy] = !acted ? [0, 0] : target ? lungeOffset[heading] : [0, -1]
+  return <AllySprite name={unit.name} shiny={unit.shiny} size={size} frame={facing[heading] + step} dx={dx * size * 0.1} dy={dy * size * 0.1} />
+}
+const AllySprite = memo(function AllySprite({ name, shiny, size, frame, dx, dy }: { name: string, shiny: boolean, size: number, frame: number, dx: number, dy: number }) {
+  const strip = walkers[(shiny ? 'Shiny ' : '') + name]
+  return <View style={{ width: size, height: size, transform: [{ translateX: dx }, { translateY: dy }] }}>
+    {strip ? <Strip source={strip} size={size} frame={frame} /> : <PixelSprite name={name} shiny={shiny} size={size} />}
+  </View>
+})
+
+function UnitPanel({ unit, layout, playing, berries, style, onEvolve, onRelease, onClose }: {
+  unit: Battle['units'][number], layout: Layout, playing: boolean, berries: number, style: ViewStyle,
+  onEvolve: () => void, onRelease: () => void, onClose: () => void
 }) {
   const kit = kitFor(unit.name, layout)
   const next = nextForm(unit)
   const perk = eggPerk(unit.name, layout)
-  return <Panel>
-    <View style={styles.row}>
-      <PixelSprite name={unit.name} shiny={unit.shiny} size={56} />
+  const move = moveOf(unit.name, layout)
+  return <View style={[play.floating, style]}>
+    <View style={[styles.row, { flexWrap: 'nowrap' }]}>
+      <PixelSprite name={unit.name} shiny={unit.shiny} size={44} />
       <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '800' }}>{unit.shiny ? 'Shiny ' : ''}{unit.name}</Text>
-        <Copy small>{kit.label} · Health {Math.ceil(unit.hp)} / {unit.maxHp}</Copy>
+        <Title>{unit.shiny ? 'Shiny ' : ''}{unit.name}</Title>
+        <Copy small>{kit.label}{move ? ` · ${move}` : ''}{unit.egg && perk?.kind === 'coverage' ? ` or ${perk.move}` : ''} · Health {Math.ceil(unit.hp)} / {unit.maxHp}{layout === 'trail' && !next ? ' · Fully evolved' : ''}</Copy>
       </View>
     </View>
     <Copy small color={unit.egg && perk ? colors.gold : colors.muted}>{!unit.egg ? 'No egg moves: only Pokemon hatched on your watch know them.'
       : perk ? `Hatched from an egg · Egg move ${perk.move}: ${perk.text}.` : 'Hatched from an egg, but this family has no Gen II–IV egg moves.'}</Copy>
-    {layout === 'trail' && (next ? <Button title={`Evolve to ${next.name} · ◉ ${next.cost}`} disabled={!playing || berries < next.cost} onPress={onEvolve} />
-      : <Copy small>Fully evolved.</Copy>)}
-    <View style={styles.row}>
-      <Button title={`Release · +◉ ${refundFor(unit)}`} secondary disabled={!playing} onPress={onRelease} />
-      <Button title="Close" secondary onPress={onClose} />
+    <View style={play.actions}>
+      {layout === 'trail' && next && <SmallButton primary title={`Evolve to ${next.name} · ◉ ${next.cost}`} disabled={!playing || berries < next.cost} onPress={onEvolve} />}
+      <SmallButton title={`Release · +◉ ${refundFor(unit)}`} disabled={!playing} onPress={onRelease} />
+      <SmallButton title="Close" onPress={onClose} />
     </View>
-  </Panel>
+  </View>
 }
 
 const board = StyleSheet.create({
-  field: { borderWidth: 2, borderColor: colors.edge, borderRadius: 6, overflow: 'hidden' },
+  field: { borderRadius: 16, overflow: 'hidden', ...shadows.card },
   cell: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   free: { borderWidth: 1, borderColor: 'rgba(255, 224, 141, 0.45)', backgroundColor: 'rgba(255, 224, 141, 0.12)' },
   shadow: { position: 'absolute', backgroundColor: 'rgba(2, 16, 27, 0.22)' },
   range: { position: 'absolute', borderWidth: 2, borderColor: 'rgba(84, 199, 196, 0.85)', backgroundColor: 'rgba(84, 199, 196, 0.14)' },
-  inspected: { borderWidth: 2, borderColor: colors.gold },
+  inspected: { borderWidth: 2, borderColor: onBoard.gold },
   snorlax: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   health: { position: 'absolute', bottom: 2, height: 4, backgroundColor: 'rgba(7, 27, 44, 0.8)', borderRadius: 2, overflow: 'hidden' },
-  shot: { width: '100%', height: '100%', borderRadius: 99, borderWidth: 1, borderColor: colors.bg },
   drop: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  fx: { position: 'absolute', textAlign: 'center', fontWeight: '800', textShadowColor: colors.bg, textShadowRadius: 3, textShadowOffset: { width: 1, height: 1 } },
-  boss: { position: 'absolute', top: -2, fontSize: 10, fontWeight: '800', color: colors.bg, backgroundColor: colors.gold, paddingHorizontal: 4, borderRadius: 3, overflow: 'hidden' },
+  fx: { position: 'absolute', textAlign: 'center', fontFamily: fonts.black, textShadowColor: onBoard.dark, textShadowRadius: 3, textShadowOffset: { width: 1, height: 1 } },
+  boss: { position: 'absolute', top: -2, fontSize: 10, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 5, borderRadius: 999, overflow: 'hidden' },
   status: { position: 'absolute', top: 0, right: 0, fontSize: 12 },
-  egg: { position: 'absolute', top: 2, left: 2, fontSize: 8, fontWeight: '800', color: colors.bg, backgroundColor: colors.gold, paddingHorizontal: 2, borderRadius: 2, overflow: 'hidden' },
-  tray: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  card: { flexBasis: '31%', flexGrow: 1, minHeight: 88, alignItems: 'center', justifyContent: 'center', gap: 2, padding: 6,
-    borderWidth: 2, borderColor: '#2d5a70', borderRadius: 5, backgroundColor: colors.panel },
-  picked: { borderColor: colors.gold, backgroundColor: '#1a3d52' },
-  cost: { color: colors.ink, fontWeight: '800', fontSize: 13 },
-  role: { color: colors.muted, fontSize: 11 },
-  stars: { color: colors.gold, fontSize: 26, letterSpacing: 4 }
+  egg: { position: 'absolute', top: 2, left: 2, fontSize: 8, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 3, borderRadius: 999, overflow: 'hidden' },
+  stars: { color: colors.star, fontSize: 26, letterSpacing: 4 }
+})
+
+// The running battle's screen: a top bar, the board area (with anything that floats over it) and the card tray.
+const play = StyleSheet.create({
+  root: { flex: 1, gap: 8 },
+  bar: { backgroundColor: colors.panel, borderColor: colors.line, borderWidth: 1, borderRadius: 18, paddingHorizontal: 10, paddingVertical: 8, gap: 4, ...shadows.card },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stats: { flex: 1, flexDirection: 'row', gap: 16, paddingLeft: 4 },
+  statLabel: { fontFamily: fonts.heavy, color: colors.muted, fontSize: 10, lineHeight: 13, letterSpacing: 0.8 },
+  statValue: { fontFamily: fonts.black, color: colors.ink, fontSize: 17, lineHeight: 22 },
+  status: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 2 },
+  area: { flex: 1, minHeight: 160 },
+  note: { position: 'absolute', top: 8, left: 12, right: 12, alignItems: 'center' },
+  noteText: { overflow: 'hidden', textAlign: 'center', fontFamily: fonts.bold, fontSize: 13, lineHeight: 18, color: colors.onBrand,
+    backgroundColor: 'rgba(31, 42, 54, 0.88)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  scrim: { position: 'absolute', backgroundColor: 'rgba(31, 42, 54, 0.45)', borderRadius: 16, justifyContent: 'center', padding: 12 },
+  scrimScroll: { flexGrow: 1, justifyContent: 'center' },
+  sheet: { backgroundColor: colors.panel, borderRadius: 20, padding: 16, gap: 10, ...shadows.card },
+  floating: { position: 'absolute', left: 8, right: 8, backgroundColor: colors.panel, borderRadius: 18, borderWidth: 1, borderColor: colors.line,
+    padding: 12, gap: 8, boxShadow: '0px 8px 24px rgba(31, 61, 89, 0.22)' },
+  tray: { backgroundColor: colors.panel, borderColor: colors.line, borderWidth: 1, borderRadius: 18, padding: 8, gap: 6,
+    boxShadow: '0px -2px 16px rgba(31, 61, 89, 0.10)' },
+  hint: { fontFamily: fonts.heavy, color: colors.edge, fontSize: 12, lineHeight: 16, paddingHorizontal: 4 },
+  cards: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  card: { flex: 1, maxWidth: 76, minHeight: 60, alignItems: 'center', justifyContent: 'center', gap: 1, paddingVertical: 4,
+    borderWidth: 1.5, borderColor: colors.line, borderRadius: 14, backgroundColor: colors.panel },
+  picked: { borderColor: colors.edge, borderWidth: 2.5, backgroundColor: colors.mint },
+  cost: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  button: { flexGrow: 1, minHeight: 40, borderRadius: 999, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  primary: { backgroundColor: colors.edge },
+  secondary: { backgroundColor: colors.panel, borderWidth: 1.5, borderColor: colors.line },
+  buttonText: { fontFamily: fonts.heavy, fontSize: 13, lineHeight: 17, color: colors.edge }
 })

@@ -6,4 +6,12 @@ See the [upstream contributors and resource credits](https://github.com/rh-hideo
 
 The build script extracts two south-facing poses so the Pokemon faces the viewer, applies the source normal/shiny palettes and fits them to a shared transparent canvas. Static fallback artwork remains from PokeAPI as documented in README.md. Unsupported forms and eggs stay still; no substitute species is animated in their place.
 
-For Route Guard and Trail Defense foes, `scripts/build-trail-walkers.py` takes the same cached overworld sheets (normal palette only) and writes one strip per Gen 1-4 form to `assets/trail/`: two steps each facing south, north, west and east. Sheets without an east pose use the mirrored west pose.
+For Route Guard and Trail Defense, `scripts/build-trail-walkers.py` takes the same cached overworld sheets and writes Normal and Shiny strips for every form to `assets/trail/`: two steps each facing south, north, west and east. Sheets without an east pose use the mirrored west pose. Foes use the Normal strip under a shadow tint; your team uses its own variant.
+
+# Move animations
+
+The attack animations in Route Guard and Trail Defense are the Gen III battle animation sprites from the same repository, [graphics/battle_anims/sprites](https://github.com/rh-hideout/pokeemerald-expansion/tree/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011/graphics/battle_anims/sprites), at the same pinned revision and under the same credits. `scripts/build-move-sprites.py` downloads the sheets it needs into the shared cache, colours each with the palette the game loads for it, and writes upscaled frame strips to `assets/moves/`. Dragon Breath and Fairy Wind recolour the Ember and sparkle sheets, and Bite closes the upper teeth onto a flipped copy, as the game's own Bite does.
+
+# Tab bar Gengar
+
+The Gengar peeking over the tab bar, and floating over its Adventure button, is original vector fan art drawn for this app in `scripts/build-nav-gengar.mjs`, which renders its head, blink, surprised, paw and floating layers to `assets/nav/` with headless Chrome. Gengar belongs to its respective owners.

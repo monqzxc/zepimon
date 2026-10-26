@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
 import { spriteSource } from './catalog'
-import { colors } from './ui'
+import { GradientFill, colors, fonts, shadows } from './ui'
 import { createMemoryGame, hideMismatch, isComplete, revealCard } from './memory'
 import type { MemoryEntry } from './memory'
 
@@ -94,13 +94,14 @@ function MemoryRound({ entries, bestMoves, onComplete }: MemoryMatchProps) {
               accessibilityHint={disabled ? undefined : 'Reveal this Pokemon to find its matching card.'}
               accessibilityState={{ disabled, selected: revealed }}
               style={({ pressed }) => [styles.card, revealed && styles.face, matched && styles.matched, pressed && styles.pressed]}>
+              {!revealed && <GradientFill radius={14.5} />}
               {revealed ? <>
                 <Image source={spriteSource(card.name, card.shiny)} style={styles.sprite} resizeMode="contain" accessible={false} />
                 <Text style={styles.name}>{card.name}</Text>
                 <Text style={[styles.variant, card.shiny && styles.shiny]}>{card.shiny ? 'Shiny' : 'Normal'}{matched ? ' / Matched' : ''}</Text>
               </> : <>
                 <Text style={styles.question}>?</Text>
-                <Text style={styles.variant}>Card {index + 1}</Text>
+                <Text style={[styles.variant, { color: colors.onBrand }]}>Card {index + 1}</Text>
               </>}
             </Pressable>
           )
@@ -115,27 +116,27 @@ function MemoryRound({ entries, bestMoves, onComplete }: MemoryMatchProps) {
 
 const styles = StyleSheet.create({
   game: { gap: 14 },
-  notice: { padding: 20, gap: 12, backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.edge, borderRadius: 12 },
-  title: { color: colors.ink, fontSize: 25, fontWeight: '800' },
-  body: { color: colors.muted, fontSize: 15, lineHeight: 23 },
-  score: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 14, backgroundColor: colors.panel, borderRadius: 10 },
-  scoreText: { color: colors.ink, fontSize: 16, fontWeight: '700' },
-  best: { width: '100%', color: colors.gold, fontSize: 14 },
-  status: { color: colors.muted, fontSize: 15, lineHeight: 22 },
-  win: { color: colors.gold, fontWeight: '700' },
+  notice: { padding: 20, gap: 12, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderRadius: 20, ...shadows.card },
+  title: { color: colors.ink, fontSize: 24, lineHeight: 31, fontFamily: fonts.heavy },
+  body: { color: colors.muted, fontSize: 15, lineHeight: 22, fontFamily: fonts.body },
+  score: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, padding: 16, backgroundColor: colors.panel, borderRadius: 18, borderWidth: 1, borderColor: colors.line, ...shadows.card },
+  scoreText: { color: colors.ink, fontSize: 16, fontFamily: fonts.heavy },
+  best: { width: '100%', color: colors.gold, fontSize: 14, fontFamily: fonts.bold },
+  status: { color: colors.muted, fontSize: 15, lineHeight: 22, fontFamily: fonts.body },
+  win: { color: colors.gold, fontFamily: fonts.heavy },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   card: { width: '31%', minHeight: 146, padding: 6, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: colors.edge, borderRadius: 10, backgroundColor: colors.blue },
+    borderWidth: 1.5, borderColor: colors.line, borderRadius: 16, ...shadows.card },
   face: { backgroundColor: colors.panel },
-  matched: { borderColor: colors.gold },
+  matched: { borderColor: colors.star, borderWidth: 2.5 },
   pressed: { opacity: 0.72 },
   sprite: { width: 72, height: 72 },
-  name: { color: colors.ink, fontSize: 12, fontWeight: '700', textAlign: 'center' },
-  variant: { color: colors.muted, fontSize: 11, textAlign: 'center', marginTop: 6 },
+  name: { color: colors.ink, fontSize: 12, lineHeight: 16, fontFamily: fonts.heavy, textAlign: 'center' },
+  variant: { color: colors.muted, fontSize: 11, lineHeight: 14, fontFamily: fonts.bold, textAlign: 'center', marginTop: 6 },
   shiny: { color: colors.gold },
-  question: { color: colors.ink, fontSize: 40, fontWeight: '800' },
-  restart: { minHeight: 48, padding: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink, borderRadius: 10 },
-  restartText: { color: colors.bg, fontSize: 16, fontWeight: '800' },
+  question: { color: colors.onBrand, fontSize: 40, lineHeight: 48, fontFamily: fonts.black },
+  restart: { minHeight: 50, padding: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.edge, borderRadius: 999 },
+  restartText: { color: colors.onBrand, fontSize: 15, fontFamily: fonts.heavy },
 })
 
 export default MemoryMatch

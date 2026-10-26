@@ -22,6 +22,11 @@ AppSideService(BaseSideService({
     this.uploadCloud()
   },
   onRequest(request, reply) {
+    // The watch asks for the phone's plan when its title screen opens. Offline or unlinked, it keeps its last copy.
+    if (request.method === 'zepimon.plan.get') {
+      this.fetchPlan().then((plan) => reply(null, { plan }), () => reply(null, { plan: null }))
+      return
+    }
     if (request.method !== 'zepimon.snapshot.put') { reply({ message: 'Unknown request' }); return }
     try {
       this.storeSnapshot(request.params)

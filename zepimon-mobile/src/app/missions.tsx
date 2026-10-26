@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { Text, View } from 'react-native'
-import { useJournal } from '../../store'
-import { missions } from '../../progress'
-import { Copy, Eyebrow, Heading, Panel, Screen, colors, styles } from '../../ui'
+import { useJournal } from '../store'
+import { missions } from '../progress'
+import { Copy, Eyebrow, Heading, Hero, IconBubble, Panel, Screen, Title, colors, gradient, styles } from '../ui'
 
 export default function MissionsScreen() {
   const { journal, progress } = useJournal()
@@ -21,9 +21,14 @@ export default function MissionsScreen() {
     { title: 'Secret discoveries', items: all.filter(mission => mission.hidden) }
   ]
   return <Screen>
-    <Eyebrow>SMALL GOALS / BIG ADVENTURES</Eyebrow><Heading>Your quest board</Heading>
-    <Panel><Text style={styles.stat}>{earned} badges earned</Text>
-      <Copy>Progress grows when you import completed adventures. Walk or run at your own pace.</Copy></Panel>
+    <Hero eyebrow="SMALL GOALS · BIG ADVENTURES" title="Your quest board" />
+    <Panel>
+      <View style={[styles.row, { flexWrap: 'nowrap' }]}>
+        <IconBubble name="badge" background="#FFF1D6" color={colors.gold} />
+        <Text style={[styles.stat, { flex: 1 }]}>{earned} badges earned</Text>
+      </View>
+      <Copy>Progress grows with every adventure you save here or import from your watch. Walk or run at your own pace.</Copy>
+    </Panel>
     {sections.map(({ title, items }) =>
       <View key={title} style={{ gap: 12 }}>
         <Heading>{title}</Heading>
@@ -31,14 +36,22 @@ export default function MissionsScreen() {
           const unlockedAt = progress.unlocked[mission.id]
           const complete = mission.weekly ? mission.value >= mission.goal : !!unlockedAt
           const secret = mission.hidden && !unlockedAt
-          return <Panel key={mission.id} style={complete ? { borderColor: colors.gold } : undefined}>
-            <Eyebrow>{secret ? '? / UNDISCOVERED' : complete ? '✦ / COMPLETE' : mission.weekly ? 'THIS WEEK' : 'IN PROGRESS'}</Eyebrow>
-            <Text style={{ color: colors.ink, fontSize: 19, fontWeight: '700' }}>{secret ? 'Hidden achievement' : mission.title}</Text>
+          return <Panel key={mission.id} style={complete ? { borderColor: colors.star, borderWidth: 1.5 } : undefined}>
+            <View style={[styles.row, { flexWrap: 'nowrap', alignItems: 'flex-start' }]}>
+              <IconBubble name={secret ? 'lock' : complete ? 'check' : 'missions'} size={40}
+                background={secret ? colors.sunken : complete ? '#FFF1D6' : colors.mint} color={secret ? colors.muted : complete ? colors.gold : colors.edge} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Eyebrow color={complete ? colors.gold : secret ? colors.muted : colors.edge}>{secret ? 'UNDISCOVERED' : complete ? 'COMPLETE' : mission.weekly ? 'THIS WEEK' : 'IN PROGRESS'}</Eyebrow>
+                <Title>{secret ? 'Hidden achievement' : mission.title}</Title>
+              </View>
+            </View>
             <Copy>{secret ? 'Keep exploring to uncover this badge.' : mission.description}</Copy>
             {!secret && !mission.hidden && <>
               <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: mission.goal, now: Math.min(mission.goal, complete ? mission.goal : mission.value) }}
-                style={{ height: 8, backgroundColor: colors.bg, overflow: 'hidden', borderRadius: 2 }}>
-                <View style={{ height: 8, backgroundColor: complete ? colors.gold : colors.edge, width: `${Math.min(100, (complete ? 1 : mission.value / mission.goal) * 100)}%` }} />
+                style={styles.track}>
+                {/* Keyed so finishing a mission mounts a new fill instead of removing the gradient from a live view. */}
+                <View key={complete ? 'done' : 'progress'} style={[styles.fill, complete ? { backgroundColor: colors.star } : gradient(),
+                  { width: `${Math.min(100, (complete ? 1 : mission.value / mission.goal) * 100)}%` }]} />
               </View>
               <Copy small>{Math.min(mission.goal, complete ? mission.goal : mission.value).toFixed(mission.unit === 'km' ? 1 : 0)} / {mission.goal} {mission.unit}</Copy>
             </>}

@@ -17,8 +17,15 @@ create table if not exists zepimon_private.journals (
   payload jsonb not null,
   updated_at timestamptz not null default now()
 );
+-- The plan Zepimon mobile shares with the watch: the egg chosen on the phone and any adventure it is recording.
+create table if not exists zepimon_private.plans (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  payload jsonb not null,
+  updated_at timestamptz not null default now()
+);
 alter table zepimon_private.links enable row level security;
 alter table zepimon_private.journals enable row level security;
+alter table zepimon_private.plans enable row level security;
 revoke all on all tables in schema zepimon_private from public, anon, authenticated;
 
 create or replace function zepimon_private.valid_name(value text)
@@ -122,6 +129,47 @@ exception when others then return false;
 end;
 $$;
 
+-- One to three distinct Pokemon names, as in an egg's evolution family.
+create or replace function zepimon_private.valid_family(value jsonb)
+returns boolean language plpgsql immutable set search_path = '' as $$
+declare item jsonb;
+begin
+  if jsonb_typeof(value) is distinct from 'array' or jsonb_array_length(value) not between 1 and 3 then return false; end if;
+  if (select count(distinct v) from jsonb_array_elements(value) as t(v)) <> jsonb_array_length(value) then return false; end if;
+  for item in select * from jsonb_array_elements(value) loop
+    if jsonb_typeof(item) <> 'string' or not zepimon_private.valid_name(item #>> '{}') then return false; end if;
+  end loop;
+  return true;
+exception when others then return false;
+end;
+$$;
+
+-- Matches validatePlan in hatdog-app/shared/companion.js. Times are milliseconds since 1970.
+create or replace function zepimon_private.valid_plan(value jsonb)
+returns boolean language plpgsql immutable set search_path = '' as $$
+declare egg jsonb := value->'egg'; phone jsonb := value->'phone';
+begin
+  if value is null or octet_length(value::text) > 4096 or jsonb_typeof(value) <> 'object'
+    or jsonb_typeof(value->'updatedAt') is distinct from 'number'
+    or (value->>'updatedAt')::numeric not between 0 and 8640000000000000 then return false; end if;
+  if egg is not null and egg <> 'null'::jsonb then
+    if jsonb_typeof(egg) <> 'object' or not zepimon_private.valid_family(egg->'family')
+      or (egg->'mega' is not null and egg->'mega' <> 'null'::jsonb
+        and (jsonb_typeof(egg->'mega') <> 'string' or not zepimon_private.valid_name(egg->>'mega')))
+      or jsonb_typeof(value->'eggAt') is distinct from 'number'
+      or (value->>'eggAt')::numeric not between 0 and 8640000000000000 then return false; end if;
+  end if;
+  if phone is not null and phone <> 'null'::jsonb then
+    if jsonb_typeof(phone) <> 'object' or not zepimon_private.valid_family(phone->'family')
+      or coalesce(phone->>'activity', '') not in ('walking', 'running')
+      or jsonb_typeof(phone->'startedAt') is distinct from 'number'
+      or (phone->>'startedAt')::numeric not between 0 and 8640000000000000 then return false; end if;
+  end if;
+  return true;
+exception when others then return false;
+end;
+$$;
+
 -- A 96-bit, short-lived pairing code; only its hash is retained.
 create or replace function public.zepimon_create_link()
 returns jsonb language plpgsql security definer set search_path = '' as $$
@@ -186,7 +234,38 @@ begin
   select jsonb_build_object('journal', payload, 'updatedAt', updated_at) into result
     from zepimon_private.journals where user_id = uid;
   return coalesce(result, '{"journal":null,"updatedAt":null}'::jsonb) || jsonb_build_object('linked',
-    exists(select 1 from zepimon_private.links where user_id = uid and token_hash is not null));
+    exists(select 1 from zepimon_private.links where user_id = uid and token_hash is not null),
+    'plan', (select payload from zepimon_private.plans where user_id = uid));
+end;
+$$;
+
+-- Zepimon mobile saves the plan it shares with the watch. An older plan (a delayed request, another phone) cannot
+-- replace a newer one.
+create or replace function public.zepimon_set_plan(plan jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare uid uuid := auth.uid(); old jsonb;
+begin
+  if uid is null then raise exception 'Sign in first'; end if;
+  if not zepimon_private.valid_plan(plan) then raise exception 'Invalid plan'; end if;
+  select payload into old from zepimon_private.plans where user_id = uid for update;
+  if old is not null and (plan->>'updatedAt')::numeric <= (old->>'updatedAt')::numeric then
+    return jsonb_build_object('accepted', false, 'reason', 'not_newer');
+  end if;
+  insert into zepimon_private.plans(user_id, payload) values(uid, plan)
+    on conflict(user_id) do update set payload = excluded.payload, updated_at = now();
+  return jsonb_build_object('accepted', true);
+end;
+$$;
+
+-- The watch's Zepp service reads the plan with its upload token, which can read nothing else.
+create or replace function public.zepimon_get_plan(upload_token text)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare uid uuid;
+begin
+  if upload_token is null or upload_token !~ '^[a-f0-9]{64}$' then raise exception 'Watch link expired. Link again.'; end if;
+  select user_id into uid from zepimon_private.links where token_hash = extensions.digest(upload_token, 'sha256');
+  if uid is null then raise exception 'Watch link expired. Link again.'; end if;
+  return jsonb_build_object('plan', (select payload from zepimon_private.plans where user_id = uid));
 end;
 $$;
 
@@ -199,7 +278,8 @@ end;
 $$;
 
 revoke all on all functions in schema zepimon_private from public, anon, authenticated;
-revoke all on function public.zepimon_create_link(), public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb), public.zepimon_pull(), public.zepimon_unlink() from public, anon, authenticated;
-grant execute on function public.zepimon_create_link(), public.zepimon_pull(), public.zepimon_unlink() to authenticated;
-grant execute on function public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb) to anon;
+revoke all on function public.zepimon_create_link(), public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb), public.zepimon_pull(), public.zepimon_unlink(),
+  public.zepimon_set_plan(jsonb), public.zepimon_get_plan(text) from public, anon, authenticated;
+grant execute on function public.zepimon_create_link(), public.zepimon_pull(), public.zepimon_unlink(), public.zepimon_set_plan(jsonb) to authenticated;
+grant execute on function public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb), public.zepimon_get_plan(text) to anon;
 commit;

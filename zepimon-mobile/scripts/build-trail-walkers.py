@@ -1,14 +1,13 @@
-"""Build four-direction walking strips for battle enemies from the cached overworld sheets.
+"""Build four-direction walking strips for Route Guard and Trail Defense from the cached overworld sheets.
 
 Usage: python scripts/build-trail-walkers.py   (needs Pillow; reads hatdog-app/data/walk-source, no network)
 
-Each Gen 1-4 form in scripts/walking-catalog.json becomes assets/trail/<stem>.png: eight 44 x 44 frames in a row,
-two steps each facing south, north, west and east. Six-frame sources have no east pose, so east mirrors west.
-All eight frames share one scale and baseline, so a Pokemon does not jump when it turns. Shadow enemies are tinted
-in the app, so only the normal palette is needed. Credits: see SPRITE-CREDITS.md.
+Every form in scripts/walking-catalog.json becomes assets/trail/<stem>.png and <stem>-shiny.png: eight 44 x 44 frames
+in a row, two steps each facing south, north, west and east. Six-frame sources have no east pose, so east mirrors west.
+All eight frames share one scale and baseline, so a Pokemon does not jump when it turns. Foes use the normal strip
+under a shadow tint; your team uses its own Normal or Shiny strip. Credits: see SPRITE-CREDITS.md.
 """
 import json
-import re
 from pathlib import Path
 from PIL import Image
 
@@ -18,51 +17,54 @@ OUT = ROOT / 'assets' / 'trail'
 FRAME = 44
 
 
-def gen_one_to_four():
-    text = (ROOT / 'src' / 'generated' / 'catalog.js').read_text(encoding='utf-8')
-    species = json.loads(re.search(r'export const species = (\{.*?\})\n', text).group(1))
-    return {name for name, info in species.items() if info['gen'] <= 4}
-
-
-def strip(directory):
+def frames(directory, palette_name):
     sheet = Image.open(directory / 'overworld.png')
     side = sheet.height
     count = sheet.width // side
     assert sheet.mode == 'P' and count in (6, 8), directory
-    palette = (directory / 'overworld_normal.pal').read_text().splitlines()
+    palette = (directory / f'overworld_{palette_name}.pal').read_text().splitlines()
     assert palette[:2] == ['JASC-PAL', '0100'] and int(palette[2]) == 16, directory
     sheet.putpalette([int(c) for row in palette[3:19] for c in row.split()])
     sheet.info['transparency'] = 0
-    frames = [sheet.crop((i * side, 0, (i + 1) * side, side)).convert('RGBA') for i in range(count)]
+    poses = [sheet.crop((i * side, 0, (i + 1) * side, side)).convert('RGBA') for i in range(count)]
     if count == 6:
-        frames += [frame.transpose(Image.Transpose.FLIP_LEFT_RIGHT) for frame in frames[4:6]]
-    boxes = [frame.getbbox() for frame in frames]
+        poses += [pose.transpose(Image.Transpose.FLIP_LEFT_RIGHT) for pose in poses[4:6]]
+    return poses
+
+
+def strips(directory):
+    """Normal and Shiny strips sharing one crop and scale, so both variants line up exactly."""
+    variants = [frames(directory, name) for name in ('normal', 'shiny')]
+    boxes = [pose.getbbox() for poses in variants for pose in poses]
     assert all(boxes), directory
     bounds = (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
-    out = Image.new('RGBA', (FRAME * 8, FRAME))
-    for index, frame in enumerate(frames):
-        frame = frame.crop(bounds)
-        scale = 40 / max(frame.size)
-        frame = frame.resize((max(1, round(frame.width * scale)), max(1, round(frame.height * scale))), Image.Resampling.NEAREST)
-        out.paste(frame, (index * FRAME + (FRAME - frame.width) // 2, 42 - frame.height))
-    return out
+    result = []
+    for poses in variants:
+        out = Image.new('RGBA', (FRAME * 8, FRAME))
+        for index, pose in enumerate(poses):
+            pose = pose.crop(bounds)
+            scale = 40 / max(pose.size)
+            pose = pose.resize((max(1, round(pose.width * scale)), max(1, round(pose.height * scale))), Image.Resampling.NEAREST)
+            out.paste(pose, (index * FRAME + (FRAME - pose.width) // 2, 42 - pose.height))
+        result.append(out)
+    return result
 
 
 def main():
     catalog = json.loads((ROOT / 'scripts' / 'walking-catalog.json').read_text(encoding='utf-8'))
-    wanted = gen_one_to_four()
     OUT.mkdir(parents=True, exist_ok=True)
     entries = []
     for name, path in sorted(catalog.items()):
-        if name not in wanted:
-            continue
         stem = path.removeprefix('walk/')
         directory = SOURCE / Path(*stem.split('-'))
         if not (directory / 'overworld.png').exists():
             print('skipped (no cached sheet):', name)
             continue
-        strip(directory).save(OUT / f'{stem}.png', optimize=True)
+        normal, shiny = strips(directory)
+        normal.save(OUT / f'{stem}.png', optimize=True)
+        shiny.save(OUT / f'{stem}-shiny.png', optimize=True)
         entries.append(f"  {json.dumps(name)}: require('../../assets/trail/{stem}.png')")
+        entries.append(f"  {json.dumps('Shiny ' + name)}: require('../../assets/trail/{stem}-shiny.png')")
     (ROOT / 'src' / 'generated' / 'trail-walkers.js').write_text(
         '// Generated by scripts/build-trail-walkers.py. Frames: south, north, west, east (2 steps each). See SPRITE-CREDITS.md.\n'
         'export const trailWalkers = {\n' + ',\n'.join(entries) + '\n}\n', encoding='utf-8')

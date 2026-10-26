@@ -4,7 +4,7 @@ import { LocalStorage } from '@zos/storage'
 import { setWakeUpRelaunch } from '@zos/display'
 import { back } from '@zos/router'
 import { createSprite, drawSprite } from './sprite'
-import { playLoader } from './loader'
+import { JOURNAL_KEY, ACTIVE_KEY, NEXT_KEY, readKey, readActive, readNext, phoneAdventure } from './saved'
 import { legendarySpecies, ensureExpedition, expeditionGoal, clueMilestones } from '../shared/expedition'
 import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords } from './pokemon'
 
@@ -31,6 +31,8 @@ const themes = {
 }
 
 const km = (meters) => (meters / 1000).toFixed(2) + ' km'
+// While the numbers change, the walk in progress is saved at most this often (and whenever the screen closes).
+const ACTIVE_SAVE_MS = 20000
 const dayKey = () => {
   const now = new Date()
   return now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate()
@@ -41,12 +43,14 @@ Page({
     try {
       const options = typeof params === 'string' ? JSON.parse(params) : params
       this.requestedView = options && ['home', 'new', 'history'].includes(options.view) ? options.view : null
-    } catch (_) { this.requestedView = null }
+      // Walk or Run on the title screen: start straight away with this egg (family may be missing for a surprise egg).
+      const start = options && options.start
+      this.quickStart = start && ['walking', 'running'].includes(start.activity) ? start : null
+    } catch (_) { this.requestedView = null; this.quickStart = null }
   },
   build() {
     this.widgets = []
     this.stats = null
-    this.loader = null
     this.ready = false
     this.distance = null
     this.step = null
@@ -56,21 +60,25 @@ Page({
     let stage = 'storage'
     try {
       this.storage = new LocalStorage()
-      this.state = this.storage.getItem('zepimon-v1') || { dex: {}, records: {}, active: null }
-      if (!this.state.dex || !this.state.records) throw new Error('Invalid saved data')
-      ensureExpedition(this.state)
-      refreshPersonalBests(this.state)
-      repairDexRecords(this.state)
-      this.save()
-      this.view = this.requestedView === 'history' ? this.requestedView : this.state.active ? 'session' : this.requestedView || 'home'
+      this.state = this.restore()
       this.index = 0
       this.selectedGeneration = 1
       this.megaIndex = 0
-      stage = 'screen'
-      this.render()
       stage = 'sensors'
       this.distance = new Distance()
       this.step = new Step()
+      if (this.quickStart && !this.state.active) {
+        stage = 'quick start'
+        const start = this.quickStart
+        const route = this.routeFor(start.family)
+        this.begin(route, start.activity, megaChoices(route).includes(start.mega) ? start.mega : megaChoices(route)[0], start.planAt)
+      }
+      this.quickStart = null
+      if (!this.state.active && !readNext(this.storage).egg) this.suggestNext()
+      this.view = this.requestedView === 'history' ? this.requestedView : this.state.active ? 'session' : this.requestedView || 'home'
+      stage = 'screen'
+      this.render()
+      stage = 'sensors'
       this.changed = () => this.sync()
       this.distance.onChange(this.changed)
       this.step.onChange(this.changed)
@@ -97,7 +105,72 @@ Page({
     }
   },
 
-  save() { this.storage.setItem('zepimon-v1', this.state) },
+  // Opens the journal and the adventure in progress. Repairs are saved only when they change something.
+  restore() {
+    const journal = readKey(this.storage, JOURNAL_KEY) || { dex: {}, records: {}, active: null }
+    if (!journal.dex || !journal.records) throw new Error('Invalid saved data')
+    let active = readActive(this.storage, journal)
+    // Older versions kept the adventure in progress inside the journal; it moves to its own key once.
+    const moved = !!journal.active
+    // Saving an adventure writes its record first, so a session whose record already exists was saved before a
+    // restart could clear it.
+    const record = active && journal.records[active.route]
+    const finished = !!(record && record.startedAt === active.startedAt)
+    if (finished) active = null
+    const hadExpedition = !!journal.expedition
+    const bests = JSON.stringify(journal.personalBests || {})
+    ensureExpedition(journal)
+    refreshPersonalBests(journal)
+    const repaired = repairDexRecords(journal)
+    this.state = { ...journal, active }
+    if (moved || !hadExpedition || repaired || JSON.stringify(journal.personalBests) !== bests) this.save()
+    if (moved || finished) this.saveActive(true)
+    return this.state
+  },
+
+  // The journal is saved without the adventure in progress, which has its own key.
+  save() { this.storage.setItem(JOURNAL_KEY, { ...this.state, active: null }) },
+
+  // Saved apart from the journal, at most every ACTIVE_SAVE_MS while it changes, so a walk no longer rewrites the whole
+  // Dex every second. The sensors count from midnight, so a restart before the next save loses no distance.
+  saveActive(force = false) {
+    const now = Date.now()
+    if (!force && now - (this.activeSavedAt || 0) < ACTIVE_SAVE_MS) { this.activeDirty = true; return }
+    this.storage.setItem(ACTIVE_KEY, this.state.active || null)
+    this.activeSavedAt = now
+    this.activeDirty = false
+  },
+
+  updateNext(change) {
+    const before = readNext(this.storage)
+    const next = change(before)
+    if (next !== before) this.storage.setItem(NEXT_KEY, next)
+  },
+
+  // A random egg whose first Pokemon is not in the Dex yet, when there is one.
+  freshRoute() {
+    const dex = this.state.dex
+    const fresh = eggRoutes.filter(route => !dex[routes[route][0]] && !dex['Shiny ' + routes[route][0]])
+    const pool = fresh.length ? fresh : eggRoutes
+    return pool[Math.floor(Math.random() * pool.length)]
+  },
+
+  // Gives the title screen an egg to offer next.
+  suggestNext() {
+    const route = this.freshRoute()
+    this.updateNext(next => ({ ...next, egg: { family: routes[route].slice(), mega: null, from: 'suggested' } }))
+  },
+
+  // The catalog route for a family named by the phone or the title screen; a fresh egg if it is missing or unknown.
+  routeFor(family) {
+    if (Array.isArray(family) && family.length) {
+      const key = family.join('>')
+      let route = routes.findIndex(item => item.join('>') === key)
+      if (route < 0) route = routes.findIndex(item => item[0] === family[0])
+      if (route >= 0 && eggRoutes.includes(route)) return route
+    }
+    return this.freshRoute()
+  },
 
   syncPhone() {
     try { getApp()._options.syncToPhone() }
@@ -112,10 +185,13 @@ Page({
     const day = dayKey()
     const changed = meters !== session.lastMeters || steps !== session.lastSteps || session.day !== day
     const now = Date.now()
+    const newDay = session.day !== day
+    const milestone = Math.floor(session.meters / 5000)
     if (!this.ready || session.day !== day || meters < session.lastMeters || steps < session.lastSteps) this.pace = { awaitingChange: true }
     updateSession(session, meters, steps, day, now)
     this.paceText = currentPace(this.pace, session.meters, now, session.activity, session.steps)
-    if (changed) this.save()
+    // A new day resets the sensors, and a hatch or evolution should never wait for the next save.
+    if (changed) this.saveActive(newDay || Math.floor(session.meters / 5000) !== milestone)
     if (this.view === 'session' && this.stats) this.refreshStats()
   },
 
@@ -177,18 +253,11 @@ Page({
     this.motionTimer = undefined
   },
 
-  // Screen changes play the pulsing Pokeball first; taps during it are ignored.
-  // Paging and Mega cycling update in place and stay instant.
-  load(action) {
-    if (!this.loader) this.loader = playLoader(action)
-  },
+  // Screens change at once: a loading animation only added time before each new screen could draw. The old screen's
+  // widgets are deleted as the new one is built, so a second tap cannot reach them.
+  load(action) { action() },
 
   open(view, index) { this.load(() => this.show(view, index)) },
-
-  stopLoader(remove) {
-    if (this.loader) remove ? this.loader.remove() : this.loader.stop()
-    this.loader = null
-  },
 
   background(name = 'Egg') {
     const colors = themes[primaryType(name)] || themes.normal
@@ -340,7 +409,6 @@ Page({
 
   render() {
     this.stopMotion()
-    this.stopLoader(true)
     this.widgets.forEach((item) => deleteWidget(item))
     this.widgets = []
     this.stats = null
@@ -358,7 +426,7 @@ Page({
       this.text(70, 'Adventure saved!', 22, ink, 28)
       this.text(132, this.expeditionNotice, 22, 0xF2E4B5, 70)
       this.text(218, 'Sync to Zepimon on your phone to follow the clues.', 18, muted, 80)
-      this.button(332, 'Done', () => this.open('home'))
+      this.button(332, 'Done', () => this.load(back))
       return
     }
     if (this.view === 'letters') { this.renderLetterPicker(); return }
@@ -367,7 +435,10 @@ Page({
     if (this.view === 'activity') {
       this.updateBackground(routes[this.pendingRoute][0])
       this.text(70, 'Choose your activity', 22, ink, 28)
-      this.text(110, routes[this.pendingRoute][0] + ' egg', 20, muted, 28)
+      // Recording on both devices would count the same steps twice.
+      const phone = phoneAdventure(readNext(this.storage))
+      this.text(110, phone ? 'Your phone is recording an adventure' : routes[this.pendingRoute][0] + ' egg', phone ? 16 : 20,
+        phone ? 0xF2C46D : muted, 28)
       this.image(142, 'Egg')
       this.button(242, 'Walking', () => this.load(() => this.start(this.pendingRoute, 'walking')), 20, 280, true, 38)
       this.button(286, 'Running', () => this.load(() => this.start(this.pendingRoute, 'running')), 20, 280, false, 38)
@@ -391,14 +462,20 @@ Page({
         this.sync()
         const before = this.state.expedition.meters
         finishSession(this.state, new Date().toISOString())
+        // The record goes in first: if the watch stops before the adventure in progress is cleared, the next start
+        // sees the record and does not save it twice.
         this.save()
+        this.saveActive(true)
+        this.suggestNext()
         this.syncPhone()
         setWakeUpRelaunch({ relaunch: false })
         const after = this.state.expedition.meters
         const encounters = Math.floor(after / expeditionGoal) - Math.floor(before / expeditionGoal)
         const crossed = clueMilestones.some(m => before % expeditionGoal < m && after % expeditionGoal >= m)
         this.expeditionNotice = encounters > 0 ? 'Legendary encounter ready!' : 'A mysterious clue appeared!'
-        this.show(encounters > 0 || crossed ? 'expedition-saved' : 'home')
+        // Back to the title screen, which offers the next egg.
+        if (encounters > 0 || crossed) this.show('expedition-saved')
+        else back()
       }), 20, 280, true)
       this.button(332, this.state.active.activity === 'running' ? 'Keep running' : 'Keep walking', () => this.open('session'))
       return
@@ -428,17 +505,22 @@ Page({
   },
 
   start(route, activity = 'walking') {
-    if (this.state.active) { this.show('session'); return }
+    if (!this.state.active) this.begin(route, activity, megaChoices(route)[this.megaIndex])
+    this.show('session')
+  },
+
+  // Starts the adventure without drawing. planAt marks the phone's chosen egg as used, so the title screen moves on.
+  begin(route, activity, mega, planAt) {
     this.pace = {}
     this.paceText = '--:-- /km'
     this.state.active = {
-      route, activity, startedAt: Date.now(), shiny: rollShiny(), mega: megaChoices(route)[this.megaIndex], meters: 0, steps: 0, day: dayKey(),
+      route, activity, startedAt: Date.now(), shiny: rollShiny(), mega, meters: 0, steps: 0, day: dayKey(),
       lastMeters: this.distance.getCurrent(), lastSteps: this.step.getCurrent()
     }
-    this.save()
+    this.saveActive(true)
+    if (planAt) this.updateNext(next => ({ ...next, usedPlanAt: Math.max(next.usedPlanAt || 0, planAt) }))
     setWakeUpRelaunch({ relaunch: true })
     this.syncPhone()
-    this.show('session')
   },
 
   refreshStats() {
@@ -475,8 +557,8 @@ Page({
 
   onDestroy() {
     this.stopMotion()
-    this.stopLoader(false)
     if (this.ready) this.sync()
+    if (this.activeDirty) this.saveActive(true)
     if (this.distance && this.changed) this.distance.offChange(this.changed)
     if (this.step && this.changed) this.step.offChange(this.changed)
   }

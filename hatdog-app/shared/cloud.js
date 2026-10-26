@@ -1,6 +1,6 @@
 import { cloudConfig } from './cloud-config'
 import { routes } from '../page/catalog'
-import { SNAPSHOT_KEY, SYNC_FRAME_KEY, validateSnapshot } from './companion'
+import { SNAPSHOT_KEY, SYNC_FRAME_KEY, validatePlan, validateSnapshot } from './companion'
 
 export const CLOUD_TOKEN_KEY = 'zepimon-cloud-token'
 export const CLOUD_REQUEST_KEY = 'zepimon-cloud-request'
@@ -30,6 +30,14 @@ export async function cloudRpc(method, body) {
 
 export const cloudMethods = {
   cloudStatus(message) { this.settings.setItem(CLOUD_STATUS_KEY, message) },
+  // The plan Zepimon mobile shares with the watch (chosen egg, phone adventure), read with the upload token, which can
+  // read nothing else. null when the watch is not linked or the phone has not shared a plan.
+  async fetchPlan() {
+    const token = this.settings.getItem(CLOUD_TOKEN_KEY)
+    if (!token) return null
+    const result = await cloudRpc('zepimon_get_plan', { upload_token: token })
+    return validatePlan(result ? result.plan : null)
+  },
   // Watch syncs, links and uploads can overlap; the Pokeball keeps spinning until the last one finishes.
   spinStart() {
     this.spinners = (this.spinners || 0) + 1

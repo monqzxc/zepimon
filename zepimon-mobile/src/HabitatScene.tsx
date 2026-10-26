@@ -130,7 +130,7 @@ export function HabitatScene({ name, shiny = false, compact = false, discovery =
   return <View testID={`habitat-${pokemonType(name)}`} style={[sceneStyles.frame, { height: compact ? 144 : 224, backgroundColor: theme.sky }]}>
     <Backdrop theme={theme} />
     <View style={sceneStyles.pokemon}>
-      {discovery === 'hidden' ? <Text accessibilityLabel="An unknown presence" style={{ color: '#ffe08d', fontSize: 72, textAlign: 'center' }}>?</Text> :
+      {discovery === 'hidden' ? <Text accessibilityLabel="An unknown presence" style={{ color: '#ffe08d', fontSize: 72, lineHeight: 84, fontFamily: 'Nunito_900Black', textAlign: 'center' }}>?</Text> :
         discovery === 'silhouette' ? <Image source={spriteSource(name)} accessibilityLabel="A mysterious Pokemon silhouette" resizeMode="contain"
           style={{ width: compact ? 88 : 132, height: compact ? 88 : 132, tintColor: '#081829' }} /> :
           <Sprite name={name} shiny={shiny} size={compact ? 88 : 132} />}
@@ -139,7 +139,7 @@ export function HabitatScene({ name, shiny = false, compact = false, discovery =
 }
 
 const sceneStyles = StyleSheet.create({
-  frame: { width: '100%', overflow: 'hidden', borderRadius: 4, borderWidth: 2, borderColor: '#ffffff30' },
+  frame: { width: '100%', overflow: 'hidden', borderRadius: 16 },
   pokemon: { position: 'absolute', bottom: '7%', alignSelf: 'center' },
   shadow: { position: 'absolute', left: '38%', top: '89%', width: '24%', height: '4%', backgroundColor: '#12263c50', borderRadius: 20 }
 })

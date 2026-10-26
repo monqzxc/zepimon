@@ -1,9 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { LOANERS, autoTeam, battleType, cardKey, eggMovesOf, familyOf, legendaryAssists, stageOf, teamChoices, wildPool } from '../src/games/roster.ts'
-import { ASSIST_DAMAGE, EGG_HARVEST, EGG_POWER, EGG_TOUGHNESS, LANES, PATHS, PLACE_COOLDOWN, ROWS, START_BERRIES, START_LIVES, TRAIL_COLS, TRAIL_ROWS, battleScore, battleStars,
+import { ASSIST_DAMAGE, EGG_HARVEST, EGG_POWER, EGG_TOUGHNESS, LANES, PATHS, PLACE_COOLDOWN, ROWS, START_BERRIES, START_LIVES, battleScore, battleStars,
   callAssist, canPlace, collectDrop, effectiveness, eggPerk, evolveUnit, kitFor, nextForm, nextWaveIn, pathPoint, pauseBattle, placeUnit, planWaves,
-  removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle, pathHeading, enemyHeading } from '../src/games/battle.ts'
+  removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle, pathHeading, enemyHeading, facingToward, unitTarget, actedRecently, MOVES, moveOf } from '../src/games/battle.ts'
 import { STOPS, freePlaySpec } from '../src/games/adventure.ts'
 
 const seeded = (seed = 1) => () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296 }
@@ -131,11 +131,13 @@ test('placing costs berries, respects the grid, cooldowns and the trail itself',
   assert.equal(removeUnit(placed, placed.units[0].id).berries, placed.berries + 25, 'Half the cost is refunded')
 
   const path = startBattle(trail(), loaners, {}, 0)
-  const [onPath] = [...PATHS.switchback.cells]
+  const { cols, rows, cells } = PATHS.switchback
+  const [onPath] = [...cells]
   const [col, row] = onPath.split(',').map(Number)
   assert.equal(canPlace(path, col, row), false)
-  assert.equal(canPlace(path, TRAIL_COLS - 1, TRAIL_ROWS - 1), true)
-  assert.equal(placeUnit(path, card('Charmander'), TRAIL_COLS - 1, TRAIL_ROWS - 1).units[0].name, 'Charmander')
+  assert.equal(canPlace(path, cols - 1, rows - 1), true)
+  assert.equal(canPlace(path, cols, 0), false, 'Off the board')
+  assert.equal(placeUnit(path, card('Charmander'), cols - 1, rows - 1).units[0].name, 'Charmander')
   const shiny = startBattle(trail(), own(['Shiny Charizard']), {}, 0)
   const fire = placeUnit(shiny, 'Shiny Charizard', 5, 0)
   assert.equal(fire.units[0].name, 'Charmander', 'Trail Defense starts every family at its first stage')
@@ -204,6 +206,23 @@ test('foes face the way the trail runs, and walk south down Route Guard lanes', 
   assert.equal(enemyHeading({ layout: 'trail', spec: trail() }, enemy({ progress: 3 })), 'E')
 })
 
+test('placed Pokemon look at the foe they attack and lunge right after acting', () => {
+  assert.deepEqual([[1, 0], [-1, 0.2], [0.2, -1], [0, 1]].map(([x, y]) => facingToward({ x: 0, y: 0 }, { x, y })), ['E', 'W', 'N', 'S'])
+  let game = placeUnit(startBattle(trail({ waves: 1 }), loaners, {}, 0), card('Squirtle'), 1, 0)
+  const near = enemy({ id: 901, hp: 1000, maxHp: 1000, speed: 0, progress: 1.2 })
+  game = { ...game, spawns: [], enemies: [enemy({ hp: 1000, maxHp: 1000, speed: 0, progress: 18 }), near] }
+  assert.equal(unitTarget(game, game.units[0]).id, 901, 'The same foe the engine shoots at')
+  assert.equal(actedRecently(game, game.units[0]), false)
+  game = run(game, 300)
+  assert.equal(actedRecently(game, game.units[0]), true, 'Just attacked')
+  assert.equal(actedRecently({ ...game, elapsed: game.elapsed + 300 }, game.units[0]), false, 'The lunge lasts only a moment')
+  const grower = placeUnit(startBattle(lanes(), loaners, {}, 0), card('Bulbasaur'), 0, 5)
+  assert.equal(unitTarget({ ...grower, enemies: [enemy({ lane: 0, progress: 2 })] }, grower.units[0]), null, 'Growers watch no one')
+  const wall = placeUnit(startBattle(lanes(), loaners, {}, 0), card('Geodude'), 0, 3)
+  assert.equal(unitTarget({ ...wall, enemies: [enemy({ lane: 0, progress: 2.7 })] }, wall.units[0]).lane, 0, 'A blocker watches the foe nibbling it')
+  assert.equal(unitTarget({ ...wall, enemies: [enemy({ lane: 0, progress: 0.5 })] }, wall.units[0]), null)
+})
+
 test('trail leaks cost lives, a boss costs three, and running out of lives loses', () => {
   let game = startBattle(trail({ waves: 1 }), loaners, {}, 0)
   const end = PATHS.switchback.length
@@ -233,6 +252,45 @@ test('shots use type matchups and effects; defeated trail foes pay berries', () 
   assert.equal(game.defeated, 1)
   assert.equal(battleStars(game), 3)
   assert.equal(battleScore(game), 1)
+})
+
+test('Pokemon attack with their type’s move: shots carry it and each hit leaves a strike that follows its foe, then fades', () => {
+  const types = ['normal', 'fire', 'water', 'electric', 'grass', 'ice', 'fighting', 'poison', 'ground', 'flying', 'psychic', 'bug', 'rock',
+    'ghost', 'dragon', 'dark', 'steel', 'fairy']
+  assert.deepEqual(Object.keys(MOVES).sort(), types.sort(), 'Every type has a move')
+  assert.equal(moveOf('Charmander', 'trail'), 'Ember')
+  assert.equal(moveOf('Geodude', 'trail'), 'Rock Throw', 'Blockers quake on a trail')
+  assert.equal(moveOf('Geodude', 'lanes'), null, 'Blockers and growers do not attack')
+  assert.equal(moveOf('Bulbasaur', 'trail'), null)
+
+  const foes = [enemy({ hp: 1000, maxHp: 1000, speed: 0, progress: 1.2 }), enemy({ id: 901, hp: 1000, maxHp: 1000, speed: 0, progress: 1.6 })]
+  const fight = (key, team = loaners) => ({ ...placeUnit(startBattle(trail({ waves: 1 }), team, {}, 0), key, 1, 0), spawns: [], enemies: foes })
+  let game = run(fight(card('Charmander')), 300)
+  assert.equal(game.shots[0].move, 'fire')
+  game = run(game, 500)
+  const hit = game.strikes.find(strike => strike.kind === 'hit')
+  assert.deepEqual([hit.move, hit.foe], ['fire', 901], 'Ember lands on the foe it was thrown at')
+  assert.ok(game.strikes.some(strike => strike.kind === 'spread' && strike.move === 'fire' && strike.foe === 900), 'The splash catches the foe beside it')
+  const moved = run({ ...game, enemies: game.enemies.map(foe => ({ ...foe, progress: foe.progress + 0.25 })) }, game.lastTick + 100)
+  const { x, y } = moved.strikes.find(strike => strike.id === hit.id)
+  assert.deepEqual({ x, y }, pathPoint('switchback', 1.85), 'The hit stays on its foe')
+  assert.deepEqual(run({ ...moved, units: [] }, moved.lastTick + 600).strikes, [], 'Strikes fade within half a second')
+
+  const zap = run(fight(card('Pikachu')), 500)
+  assert.ok(zap.strikes.some(strike => strike.kind === 'spread' && strike.move === 'electric' && strike.foe === 900), 'Thunder Shock chains to a second foe')
+  const quake = run(fight(card('Geodude')), 300)
+  const wave = quake.strikes.find(strike => strike.kind === 'wave')
+  assert.deepEqual([wave.move, wave.x, wave.y, wave.reach], ['rock', 1.5, 0.5, kitFor('Geodude', 'trail').range])
+  assert.equal(quake.strikes.filter(strike => strike.kind === 'hit').length, 2, 'A quake lands on every foe within reach')
+  const grown = run(placeUnit(startBattle(lanes(), loaners, {}, 0), card('Bulbasaur'), 2, 5), 3500)
+  assert.ok(grown.strikes.some(strike => strike.kind === 'wave' && strike.move === 'grass' && strike.reach === 0 && strike.x === 2.5), 'Growers glow as they harvest')
+
+  const hatched = teamChoices(['Charmander']).filter(item => item.hatched)
+  const shotAt = type => run({ ...fight('Charmander', hatched), enemies: [enemy({ type, hp: 1000, maxHp: 1000, speed: 0, progress: 1.6 })] }, 300).shots[0].move
+  assert.equal(shotAt('psychic'), 'dark', 'Its egg move Crunch, where that hits harder')
+  assert.equal(shotAt('grass'), 'fire')
+  const helped = callAssist({ ...startBattle(trail({ waves: 2 }), loaners, { assist: 'Kyogre' }, 0), enemies: foes })
+  assert.deepEqual(helped.strikes.map(strike => [strike.move, strike.foe]), [['water', 900], ['water', 901]], 'The Legendary’s move lands on every foe')
 })
 
 test('producers drop berries in lanes; tapping collects each drop once', () => {
@@ -301,7 +359,7 @@ test('doing nothing loses; a simple player clears Route 1 and Pewter Trail with 
   assert.ok(battleStars(guarded) >= 2)
 
   const spots = []
-  for (let col = 0; col < TRAIL_COLS; col++) for (let row = 0; row < TRAIL_ROWS; row++) spots.push([col, row])
+  for (let col = 0; col < PATHS.switchback.cols; col++) for (let row = 0; row < PATHS.switchback.rows; row++) spots.push([col, row])
   const near = ([col, row]) => [...PATHS.switchback.cells].filter(cell => { const [c, r] = cell.split(',').map(Number); return Math.hypot(c - col, r - row) <= 2 }).length
   spots.sort((a, b) => near(b) - near(a))
   const builder = game => {

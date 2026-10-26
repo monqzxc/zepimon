@@ -4,6 +4,38 @@ A standalone iPhone and Android companion for Zepimon, built with Expo SDK 57 an
 
 ## Features
 
+### Phone adventures
+
+The **Adventure** tab, the violet Poke Ball in the middle of the tab bar, is the
+phone version of the watch adventure. Tap the ball and it spins, then Gengar pops
+out and floats there, smiling, while the tab is open (tap again for a twirl). Choose an egg (search by name or filter by generation, or take a
+random one), pick a Mega form where the family has one, choose **Walking** or
+**Running** and start. The phone measures distance by GPS: every 5 km in one
+adventure hatches or evolves the egg, with the Mega form at 21 km, and 1 in 50
+eggs is Shiny, as on the watch. While recording you see the walking Pokemon,
+distance, time (including stops), current and average pace, the distance to the
+next hatch or evolution, and the route drawn live. **Finish & save** adds the
+adventure to the Journal, Dex, personal bests, missions and the Walking bonus,
+and it becomes the family's latest record; **Discard** drops it.
+
+Routes are drawn as a line on a plain grid, like Strava without the map, with a
+scale bar; the Journal and the Adventure tab show them beside past adventures.
+GPS fixes less accurate than 35 m, small jitter while standing still and jumps
+faster than running (or walking) speed are ignored. Phones count distance, not
+steps. Phone adventures walk their own Legendary Expedition trail, and they are
+kept apart from the watch journal, so a watch sync never replaces them.
+
+Recording keeps going with the screen off. Android runs it as a foreground
+service with a notification; iPhone uses background location with the blue
+indicator. Both need only **While using the app** permission, never **Allow all
+the time**, because recording always starts from the open app. If location is
+off or not allowed, the tab says so, and **Open location settings** goes to
+Android's location switch or to Zepimon's own settings for permission and
+precise location. If the system stops recording (a restart, a force stop), the
+adventure is kept with a **Resume recording** button.
+
+Missions now open from the Journal (**View missions**) instead of the tab bar.
+
 ### Legendary Expeditions (1.5.0)
 
 Open **Explore expeditions** on the Journal screen. With watch v1.11.0, saved
@@ -34,13 +66,15 @@ the same. A watch reset starts a new trail without removing phone discoveries.
 Open **Play** for three new games and an **Adventure Map** that strings them together:
 
 - **Route Guard** (lane defense): Shadow Pokemon walk down five lanes. Place up to six Pokemon from your Dex (or the six loaners): Grass types grow berries to tap and collect, Rock/Ground/Steel types block, and every other type attacks foes above it in its lane. Each lane's Snorlax wakes once to roll a breach away; a second breach in that lane ends the battle.
-- **Trail Defense** (tower defense): place Pokemon beside a winding trail. Defeated foes pay berries. Every family starts at its first stage and can evolve mid-battle with berries, all the way to its final stage. Foes that reach the end cost lives (a boss costs three).
+- **Trail Defense** (tower defense): place Pokemon beside a winding trail. Defeated foes pay berries. Every family starts at its first stage and can evolve mid-battle with berries, all the way to its final stage. Foes that reach the end cost lives (a boss costs three). Twenty levels in four stages (Viridian Meadows, Cerulean Coast, Ember Peaks, Shadow Summit) on maps that grow from 6 × 8 to 9 × 16 squares, with longer waves and tougher foes; each stage ends on a spiral with a Shadow Legendary boss (Celebi, Lugia, Moltres, Giratina). Levels earn up to three stars, one star opens the next level, and the start screen previews the map. Free play (twelve waves on a classic trail) is still there.
 - **Safari Hunt** (hunting): two minutes, 12 Safari Balls. Tap rustling grass, then throw when the shrinking ring is small. Bait makes a Pokemon less likely to run but harder to catch; rocks do the opposite. Catching the same species in a row raises its Shiny chance from 1 in 60 to as good as 1 in 8.
 - **Adventure Map**: nine stops from Route 1 to Victory Road, alternating the three games. Each stop gives up to three stars, and one star opens the next stop. The final stop ends with a Shadow Mewtwo.
 
-Foes walk with two-step overworld animations: down the lanes in Route Guard, and facing whichever way the trail runs in Trail Defense (Gen 1-4 forms; still sprites otherwise, and with reduced motion). Trail Defense draws its habitat as textured ground with an edged dirt trail, direction chevrons, a cave where foes enter and a Poke Ball goal; tapping a placed Pokemon shows its attack range.
+Foes walk with two-step overworld animations: down the lanes in Route Guard, and facing whichever way the trail runs in Trail Defense. Your own Pokemon (Normal or Shiny) turn to face the foe they attack, step in place - faster when a foe is in range - and lunge toward it right after attacking; growers hop when they harvest, and idle Pokemon face you. Forms without walking art stay still, and reduced motion keeps everyone still. Trail Defense draws its habitat as textured ground with an edged dirt trail, direction chevrons, a cave where foes enter and a Poke Ball goal; tapping a placed Pokemon shows its attack range.
 
-Both defense games use type matchups (super-effective hits do double damage) and let a befriended Expedition Legendary strike every foe once per battle.
+**Move animations.** Every attack plays its move with the Gen III battle animation sprites (see SPRITE-CREDITS.md): Ember fireballs burst into flame, Water Gun splashes, Thunder Shock strikes from above and arcs to a second foe, Shadow Ball, Sludge, Ice Shard, Mach Punch, Pin Missile, Air Cutter, Swift, Fairy Wind and Dragon Breath fly at their target, Bite snaps shut on it, and Confusion, Magnitude, Rock Throw and Metal Claw send a wave out across their whole range. Each type has one move (tap a placed Pokemon to see it); a hatched Pokemon with egg-move coverage plays its egg move's type whenever that hits harder, and growers sparkle as they harvest. Hits follow the foe they land on, and reduced motion shows a still frame instead. `src/generated/move-sprites.js` and `assets/moves/` are built by `python scripts/build-move-sprites.py`.
+
+Both defense games use type matchups (super-effective hits do double damage) and let a befriended Expedition Legendary strike every foe once per battle; its move lands on each of them.
 
 **Egg moves.** Pokemon hatched from an egg on the watch are like bred Pokemon: they know their family's real egg moves from the Gen II–IV games (Gold/Silver/Crystal through HeartGold/SoulSilver), shared by the whole evolution chain. Team cards and the battle board (EGG) show the egg move used in battle, and the Dex record lists the family's egg moves.
 
@@ -62,6 +96,24 @@ Both defense games use type matchups (super-effective hits do double damage) and
 - A Journal with personal bests and completed runs retained across imports.
 - A Pocket Arcade with the Adventure Map, Route Guard, Trail Defense, Safari Hunt, Memory Match, Who’s That Pokémon?, and Berry Catch. Everything works offline and saves best scores and stars on the phone.
 - Weekly goals for 10 km and three active days, career missions, and hidden badges. Weeks run Monday–Sunday in the phone’s local time; completed runs count on their finish date.
+- A bright, Pokémon HOME-inspired look: white rounded cards on a light page, a teal-to-blue gradient for headers and main buttons, the rounded Nunito font (bundled, so it works offline), type-colored badges and a Dex grid with National Dex numbers. Icons use SF Symbols on iOS and Material Symbols on Android and the web. Text colors keep at least 4.5:1 contrast.
+
+## Compatible watches
+
+The Zepimon watch app (`hatdog-app`) runs on these Amazfit models:
+
+| Watch | Screen | Status | Notes |
+| --- | --- | --- | --- |
+| Amazfit Bip 5 Unity | 320 × 380, rectangular | Supported | Zepp OS API 3.0. Covers all three hardware versions (device sources 8782081, 8782088, 8782089). The adventure screen is confirmed working on firmware 2.0.1.4. |
+
+Other models are not supported yet. Every watch screen is drawn at a fixed 320 × 380, and the build scripts only build for the Bip 5 Unity. The generic round-screen target in `hatdog-app/app.json` is left over from the project template and has no layout behind it.
+
+To add a watch:
+
+1. Look it up in Zepp's [device list](https://docs.zepp.com/docs/reference/related-resources/device-list/) for its screen size, device source codes and API level. It needs API 3.0 or later.
+2. Add a target for it in `hatdog-app/app.json`, and build it with `zeus build -t "<watch name>"` (see the `build` and `preview` scripts in `hatdog-app/package.json`).
+3. Adjust the page layouts if its screen differs from 320 × 380.
+4. Test it on the watch, then add a row to the table above.
 
 ## Bring your watch data across
 
@@ -70,6 +122,23 @@ Both defense games use type matchups (super-effective hits do double damage) and
 Open **Sync**, sign in using an email code, and create a one-time linking code. In the Zepp app, open Zepimon's settings → **Sync to Zepimon mobile**, paste the code and link your account. Sync from your connected watch, then return to the phone app and tap **Sync now**. The phone also checks for updates on opening and every minute while visible.
 
 Both apps must have the same Supabase project configured and the database must be installed. See [cloud setup and linking instructions](../zepimon-sync/README.md). Native sign-in sessions are stored in SecureStore. Your normal/shiny Dex entries remain separate, and failed downloads keep your offline journal.
+
+### Using Zepimon with another account
+
+Anyone with their own Amazfit watch and Zepp app can use Zepimon with their own email. Each person signs in with their own email code and links their own watch through their own Zepp app. Their records stay separate from everyone else's, and nobody shares a Zepp password.
+
+1. Install Zepimon on their phone, open **Sync** and sign in with an email code.
+2. Tap **Create linking code**, paste it into Zepimon's settings in *their* Zepp app, and tap **Link account**.
+3. Sync from the watch in Zepp, then tap **Sync now** on the phone.
+
+Each account links one watch. A phone's journal belongs to the first account that syncs on it, so two people cannot take turns signing in on the same phone. Use separate phones.
+
+Before someone else can do this, check the following:
+
+- **Sign-in emails.** Supabase's built-in email service only sends to members of the Supabase project team, at a few emails an hour, so other people would never receive their code. Set up custom SMTP under **Authentication** in the Supabase dashboard. See [Supabase email delivery](https://supabase.com/docs/guides/auth/auth-smtp).
+- **Installing the watch app.** Zepimon is not in the Zepp App Store; it installs from the QR code that `zeus preview` prints, scanned in the Zepp app's developer mode (**Profile → Settings → About**, tap the Zepp logo 7 times). Zepp's docs do not say whether a QR code made under one developer account installs from a Zepp app signed in to a different account, so test it first. If it fails, the other person can create their own Zepp developer account and build the watch app themselves, or the app can be submitted to the Zepp App Store. Developer mode is reported to need an account registered directly with Zepp, not one created through Google sign-in. See [Preview on a watch](https://docs.zepp.com/docs/guides/quick-start/preview/).
+- **Watch model.** The watch app only runs on the models listed in [Compatible watches](#compatible-watches).
+- **Installing the phone app.** On Android, share the APK link from the EAS preview build. On iPhone, installing outside the App Store needs an Apple Developer account with the other person's iPhone registered for ad hoc builds. See [EAS internal distribution](https://docs.expo.dev/build/internal-distribution/).
 
 ### Manual import
 
@@ -80,13 +149,13 @@ Both apps must have the same Supabase project configured and the database must b
 
 Importing the same file again does not double-count runs or mission progress. The watch export contains the latest completed run per family and retained personal bests. Older runs already overwritten on the watch cannot be recovered; regular imports let the phone keep runs it has seen. The Journal shows the latest 20 retained runs. Active adventures do not count toward completed-run missions.
 
-Cloud sync uses Zepp as the watch connection. Manual imports also remain available. The app does not connect directly to the watch over Bluetooth or record phone workouts.
+Cloud sync uses Zepp as the watch connection. Manual imports also remain available. The app does not connect directly to the watch over Bluetooth. Adventures recorded in the phone's **Adventure** tab stay on the phone and are not sent to the watch.
 
 ## Back up your data
 
 Open **Sync** and scroll to **Back up your data**. **Save a backup file** creates `zepimon-backup-YYYY-MM-DD-HHmm.json` and opens the share sheet so you can keep it in Files, Drive, email or another app (on the web it downloads). **Show backup as text** shows the same JSON to copy by hand.
 
-The backup is an ordinary Zepimon export (your watch journal exactly as synced) plus a `phoneBackup` section with everything stored only on this phone: missions and saved runs, best scores, Adventure Map stars, Expedition friends, Safari catches and your buddy. Account links and sign-in details are never included. **Choose JSON file** accepts a backup to bring the watch journal back; restoring the `phoneBackup` section is not built yet.
+The backup is an ordinary Zepimon export (your watch journal exactly as synced) plus a `phoneBackup` section with everything stored only on this phone: missions and saved runs, phone adventures with their routes, best scores, Adventure Map stars, Expedition friends, Safari catches and your buddy. Account links and sign-in details are never included. **Choose JSON file** accepts a backup to bring the watch journal back; restoring the `phoneBackup` section is not built yet.
 
 ## Mini-games
 
@@ -110,6 +179,8 @@ npm start
 ```
 
 Scan the QR code with a compatible **Expo Go** app. The phone and computer should be on the same network. On a physical iPhone, sign into the same Expo account in Expo Go and the CLI (`npx expo login`). Check [Expo Go compatibility](https://expo.dev/go) for SDK 57 during the SDK transition; use an EAS preview build if the available Expo Go version does not support it. See [Expo’s device setup](https://docs.expo.dev/get-started/start-developing/) and the [SDK 57 reference](https://docs.expo.dev/versions/v57.0.0/).
+
+Expo Go has no background location, so the Adventure tab there (and on the web) records only while the app is open on screen. Use the APK or another build to record with the screen off.
 
 ## Checks and exports
 
@@ -188,7 +259,9 @@ Production Android builds use AAB; iOS builds require Apple signing. Building an
 
 ## Data and release limitations
 
-Downloaded/imported journals, retained runs, mission progress, buddy selection, and game scores live in local AsyncStorage. The cloud keeps the latest uploaded watch journal and retained Dex discoveries. It does not back up arcade scores, buddy choice, or the full phone-only run/badge archive. Treat uninstalling or clearing storage as deleting phone-only data. Keep your original Zepp JSON exports; a fresh sign-in can restore the cloud watch snapshot, while reimporting exports restores only what they contain.
+Downloaded/imported journals, retained runs, mission progress, buddy selection, and game scores live in local AsyncStorage. The cloud keeps the latest uploaded watch journal and retained Dex discoveries. It does not back up arcade scores, buddy choice, or the full phone-only run/badge archive. Treat uninstalling or clearing storage as deleting phone-only data, including phone adventures and their routes (save a backup to keep them).
+
+Recording adventures adds location permissions: Android gets fine/coarse location and a location foreground service (no background location), and iOS gets the `location` background mode. Google Play asks apps that use a location foreground service to describe it in the Play Console before release. Keep your original Zepp JSON exports; a fresh sign-in can restore the cloud watch snapshot, while reimporting exports restores only what they contain.
 
 As of **2026-10-17**, `npm audit` reports **28 transitive findings**, mainly in build dependencies, plus the `query-string` URL-decoder dependency chain. The suggested fixes include incompatible major changes or downgrades. Review and resolve the dependency advisories before a public release; do not apply `npm audit fix --force` without checking Expo SDK compatibility.
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { spriteSource } from '../catalog'
-import { Button, Copy, Eyebrow, colors, styles } from '../ui'
+import { Button, Copy, Eyebrow, colors, fonts, styles } from '../ui'
 import { eggPerk, kitFor, placedForm } from './battle'
 import type { Layout } from './battle'
 import { TEAM_SIZE, autoTeam, battleType, cardKey } from './roster'
@@ -68,9 +68,9 @@ function TeamChip({ card, layout, selected, disabled = false, onPress }: { card:
 const picker = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { flexBasis: '48%', flexGrow: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, paddingRight: 14,
-    borderWidth: 2, borderColor: '#2d5a70', borderRadius: 5, backgroundColor: colors.panel },
-  selected: { borderColor: colors.gold, backgroundColor: '#1a3d52' },
-  name: { color: colors.ink, fontSize: 14, fontWeight: '700' },
-  detail: { color: colors.muted, fontSize: 12, lineHeight: 16 },
-  check: { position: 'absolute', top: 2, right: 5, color: colors.gold, fontSize: 14, fontWeight: '800' }
+    borderWidth: 1.5, borderColor: colors.line, borderRadius: 16, backgroundColor: colors.panel },
+  selected: { borderColor: colors.edge, backgroundColor: colors.mint },
+  name: { color: colors.ink, fontSize: 14, lineHeight: 19, fontFamily: fonts.heavy },
+  detail: { color: colors.muted, fontSize: 12, lineHeight: 16, fontFamily: fonts.body },
+  check: { position: 'absolute', top: 3, right: 7, color: colors.edge, fontSize: 14, fontFamily: fonts.black }
 })

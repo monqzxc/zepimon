@@ -1,16 +1,19 @@
 import { Tabs } from 'expo-router'
-import { Text } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { colors } from '../../ui'
+import { View } from 'react-native'
+import { Icon, PokeballIcon } from '../../ui'
+import type { IconName } from '../../ui'
+import { TabBar } from '../../TabBar'
+
+// Adventure (record a walk or run on this phone) sits in the middle. Missions opens from the Journal.
+const tabs: [name: string, title: string, icon: IconName | 'dex'][] = [
+  ['index', 'Journal', 'journal'], ['dex', 'Dex', 'dex'], ['adventure', 'Adventure', 'run'], ['play', 'Play', 'play'], ['import', 'Sync', 'sync']
+]
 
 export default function TabLayout() {
-  const insets = useSafeAreaInsets()
-  return <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.gold, tabBarInactiveTintColor: colors.muted,
-    tabBarStyle: { backgroundColor: colors.bg, borderTopColor: colors.edge, height: 72 + insets.bottom, paddingTop: 2, paddingBottom: Math.max(8, insets.bottom) },
-    tabBarHideOnKeyboard: true, tabBarLabelStyle: { fontSize: 12, lineHeight: 16, fontWeight: '700' } }}>
-    {[
-      ['index', 'Journal', '◈'], ['dex', 'Dex', '▦'], ['missions', 'Missions', '☆'], ['play', 'Play', '✦'], ['import', 'Sync', '⇩']
-    ].map(([name, title, icon]) => <Tabs.Screen key={name} name={name} options={{ title,
-      tabBarIcon: ({ color }) => <Text style={{ fontSize: 23, color }}>{icon}</Text> }} />)}
+  return <Tabs tabBar={props => <TabBar {...props} />} screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }}>
+    {tabs.map(([name, title, icon]) => <Tabs.Screen key={name} name={name} options={{ title,
+      tabBarIcon: ({ color }) => <View style={{ width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+        {icon === 'dex' ? <PokeballIcon size={22} color={color} /> : <Icon name={icon} size={24} color={color} />}
+      </View> }} />)}
   </Tabs>
 }

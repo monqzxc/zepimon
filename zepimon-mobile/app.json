@@ -2,10 +2,10 @@
   "expo": {
     "name": "Zepimon",
     "slug": "zepimon-mobile",
-    "version": "1.7.1",
+    "version": "1.9.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "scheme": "zepimon",
     "ios": {
       "supportsTablet": true,
@@ -18,7 +18,7 @@
         "backgroundColor": "#1C0D3F"
       },
       "package": "com.zepimon.companion",
-      "versionCode": 11
+      "versionCode": 16
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -27,7 +27,17 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Zepimon uses your location while you record an adventure, to measure your distance and draw your route. Your route stays on this phone.",
+          "locationAlwaysAndWhenInUsePermission": "Zepimon uses your location while you record an adventure, to measure your distance and draw your route. Your route stays on this phone.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
     ],
     "extra": {
       "router": {},

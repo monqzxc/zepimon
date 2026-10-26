@@ -3,7 +3,8 @@ import { useLocalSearchParams } from 'expo-router'
 import { useJournal } from '../store'
 import { averagePace, duration, hasAcquisitionDistance, km } from '../journal'
 import { eggMovesOf } from '../games/roster'
-import { Button, Copy, Eyebrow, Habitat, Heading, Panel, Screen, colors } from '../ui'
+import { dexNumber, pokemonType } from '../catalog'
+import { Button, Copy, Eyebrow, Habitat, Heading, Panel, Screen, TypeBadge, colors } from '../ui'
 
 export default function PokemonScreen() {
   const { name: param } = useLocalSearchParams<{ name: string }>()
@@ -11,7 +12,11 @@ export default function PokemonScreen() {
   const { journal, dex, buddy, chooseBuddy } = useJournal()
   const [message, setMessage] = useState('')
   return <Screen>
-    <Eyebrow>POKEMON RECORD</Eyebrow><Heading>{name || 'Unknown Pokemon'}</Heading>
+    <Panel style={{ gap: 6 }}>
+      <Eyebrow color={colors.muted}>{dexNumber(name)}</Eyebrow>
+      <Heading>{name || 'Unknown Pokemon'}</Heading>
+      <TypeBadge type={pokemonType(name)} />
+    </Panel>
     {!!message && <Copy color={colors.gold}>{message}</Copy>}
     {[false, true].map(shiny => {
       const key = (shiny ? 'Shiny ' : '') + name
@@ -33,7 +38,7 @@ export default function PokemonScreen() {
           <Copy color={colors.ink}>Elapsed: {duration(record.elapsedSeconds)}</Copy>
           <Copy>Average pace: {averagePace(record.elapsedSeconds, record.meters)}</Copy>
           <Copy>Hatched at: {duration(record.hatchSeconds)}</Copy>
-          <Copy>Steps: {record.steps.toLocaleString()}</Copy>
+          {record.steps > 0 && <Copy>Steps: {record.steps.toLocaleString()}</Copy>}
         </> : <Copy>This older record has no valid distance for this form. A newer qualifying adventure can update it.</Copy>}
         {!record.source && <Copy small color={colors.gold}>{eggMoves.length
           ? `Hatched from an egg · ${eggMoves.length} egg moves: ${eggMoves.slice(0, 5).map(move => move.name).join(', ')}${eggMoves.length > 5 ? ' and more' : ''}. They power it up in Route Guard and Trail Defense.`
@@ -43,6 +48,6 @@ export default function PokemonScreen() {
           onPress={() => { chooseBuddy(key).then(() => setMessage('Buddy saved to your phone.')).catch(() => setMessage('Could not save your buddy. Please try again.')) }} />
       </Habitat>
     })}
-    <Copy small>Adventure records come from your watch. Expedition friends and ◎ Safari catches are saved on this phone, with Normal and Shiny discoveries kept separately.</Copy>
+    <Copy small>Adventure records come from your watch or the Adventure tab (phones count distance by GPS, not steps). Expedition friends and ◎ Safari catches are saved on this phone, with Normal and Shiny discoveries kept separately.</Copy>
   </Screen>
 }

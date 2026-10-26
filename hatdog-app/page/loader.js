@@ -13,42 +13,22 @@ const ball = [
   [5, 4, 4, 6, dark], [4, 5, 6, 4, dark], [6, 5, 2, 4, cream], [5, 6, 4, 2, cream],
   [4, 2, 2, 1, shine], [3, 3, 1, 2, shine]
 ]
-// Screen pixels per ball pixel: one pulse from 126 px down to 70 px and back in about 0.28 s.
-// Small steps at both ends ease the pulse in and let it settle at full size.
-const units = [9, 8, 6, 5, 6, 8, 9]
-const frameMs = 40
+const unit = 9          // screen pixels per ball pixel: a 126 px ball
+const paintMs = 30      // one frame for the watch to show the ball before it starts the slow work
 
-// Covers the content below the system header, pulses the ball once, then calls done.
-// The watch cannot animate while done runs, so the full-size ball stays up while it builds the next screen.
+// Covers the content below the system header with a still Pokeball, then calls done once it is on screen. The watch
+// cannot draw while done runs (loading the next page), so the ball stays up until that page replaces it. Taps on the
+// cover are ignored. It used to pulse first, which only delayed the next page.
 export function playLoader(done) {
-  const cover = [
+  const left = 160 - 7 * unit
+  const top = 200 - 7 * unit
+  const parts = [
     createWidget(widget.FILL_RECT, { x: 0, y: 64, w: 320, h: 316, color: 0x031A2C }),
     createWidget(widget.TEXT, { x: 20, y: 296, w: 280, h: 28, text: 'Loading...', text_size: 18,
-      color: 0x8CD3F5, align_h: align.CENTER_H })
+      color: 0x8CD3F5, align_h: align.CENTER_H }),
+    ...ball.map(([x, y, w, h, color]) => createWidget(widget.FILL_RECT, { x: left + x * unit, y: top + y * unit, w: w * unit, h: h * unit, color }))
   ]
-  let parts = []
-  let frame = 0
-  let timer
-  const draw = () => {
-    const unit = units[frame]
-    const left = 160 - 7 * unit
-    const top = 200 - 7 * unit
-    // Draw the smaller ball before deleting the larger one so no frame is blank.
-    const next = ball.map(([x, y, w, h, color]) => createWidget(widget.FILL_RECT, {
-      x: left + x * unit, y: top + y * unit, w: w * unit, h: h * unit, color
-    }))
-    parts.forEach(item => deleteWidget(item))
-    parts = next
-  }
-  const tick = () => {
-    timer = undefined
-    if (++frame < units.length) {
-      draw()
-      timer = setTimeout(tick, frameMs)
-    } else done()
-  }
-  draw()
-  timer = setTimeout(tick, frameMs)
+  let timer = setTimeout(() => { timer = undefined; done() }, paintMs)
   const stop = () => {
     if (timer !== undefined) clearTimeout(timer)
     timer = undefined
@@ -57,9 +37,8 @@ export function playLoader(done) {
     stop,
     remove() {
       stop()
-      cover.concat(parts).forEach(item => deleteWidget(item))
-      cover.length = 0
-      parts = []
+      parts.forEach(item => deleteWidget(item))
+      parts.length = 0
     }
   }
 }

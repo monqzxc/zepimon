@@ -5,7 +5,7 @@ import { File } from 'expo-file-system'
 import { useJournal } from '../../store'
 import { dexEntries, parseJournal } from '../../journal'
 import type { Journal } from '../../journal'
-import { Button, Copy, Eyebrow, Heading, Panel, Screen, colors, styles } from '../../ui'
+import { Button, Copy, Eyebrow, Heading, Hero, Panel, Screen, colors, styles } from '../../ui'
 import { CloudPanel } from '../../CloudPanel'
 import { BackupPanel } from '../../BackupPanel'
 
@@ -45,13 +45,13 @@ export default function ImportScreen() {
     finally { setBusy('') }
   }
   return <Screen>
-    <Eyebrow>YOUR CONNECTED JOURNAL</Eyebrow><Heading>Bring your journey.</Heading>
+    <Hero eyebrow="YOUR CONNECTED JOURNAL" title="Bring your journey." />
     <CloudPanel />
     <Eyebrow>MANUAL JSON IMPORT</Eyebrow>
     <Copy>Sync your Zepimon watch data in Zepp, then open Zepimon’s settings and choose “Export JSON”. Save the text as a .json file or paste it below.</Copy>
     <Panel><Copy>JSON imports also work offline. Import again after a walk to update your Dex and mission progress.</Copy>
       <Copy small>The watch stays paired with Zepp. This companion does not record phone workouts.</Copy></Panel>
-    {!!error && <Copy color={colors.gold}>{error}</Copy>}
+    {!!error && <Copy color={colors.danger}>{error}</Copy>}
     {!!message && <Copy color={colors.gold}>{message}</Copy>}
     <Button title={busy === 'file' ? 'Working…' : 'Choose JSON file'} loading={busy === 'file'} disabled={!!busy} onPress={pick} />
     <Eyebrow>OR PASTE YOUR EXPORT</Eyebrow>
