@@ -4,18 +4,31 @@ import { useJournal } from '../store'
 import { averagePace, duration, hasAcquisitionDistance, km } from '../journal'
 import { eggMovesOf } from '../games/roster'
 import { dexNumber, pokemonType } from '../catalog'
+import { eggOf } from '../plan'
+import { useCloud } from '../cloud'
 import { Button, Copy, Eyebrow, Habitat, Heading, Panel, Screen, TypeBadge, colors } from '../ui'
 
 export default function PokemonScreen() {
   const { name: param } = useLocalSearchParams<{ name: string }>()
   const name = typeof param === 'string' ? param : ''
-  const { journal, dex, buddy, chooseBuddy } = useJournal()
+  const { journal, dex, buddy, chooseBuddy, chooseEgg } = useJournal()
+  const { session, linked } = useCloud()
   const [message, setMessage] = useState('')
+  const egg = eggOf(name)
+  // Makes this Pokemon's egg the next one, in the Adventure tab and, through the cloud, on the watch.
+  function hatchNext() {
+    if (!egg) return
+    chooseEgg(egg.family, egg.mega)
+      .then(() => setMessage(`Next egg: ${egg.family[0]}${egg.mega ? `, with ${egg.mega} at 21 km` : ''}. It waits in the Adventure tab` +
+        (session && linked ? ' and on your watch.' : '. Link your watch in Sync to see it there too.')))
+      .catch(() => setMessage('Could not choose this egg. Please try again.'))
+  }
   return <Screen>
     <Panel style={{ gap: 6 }}>
       <Eyebrow color={colors.muted}>{dexNumber(name)}</Eyebrow>
       <Heading>{name || 'Unknown Pokemon'}</Heading>
       <TypeBadge type={pokemonType(name)} />
+      {egg && <Button title="Hatch this next" secondary onPress={hatchNext} />}
     </Panel>
     {!!message && <Copy color={colors.gold}>{message}</Copy>}
     {[false, true].map(shiny => {

@@ -96,7 +96,8 @@ const icons = {
   map: ['map', 'map'], timer: ['timer', 'timer'], cloud: ['icloud', 'cloud_sync'], backup: ['externaldrive', 'backup'], star: ['star', 'star'],
   pause: ['pause.fill', 'pause'], resume: ['play.fill', 'play_arrow'], fullscreen: ['arrow.up.left.and.arrow.down.right', 'fullscreen'],
   fullscreenExit: ['arrow.down.right.and.arrow.up.left', 'fullscreen_exit'], run: ['figure.run', 'directions_run'],
-  location: ['location', 'location_on'], egg: ['oval.portrait', 'egg']
+  location: ['location', 'location_on'], egg: ['oval.portrait', 'egg'], share: ['square.and.arrow.up', 'share'],
+  chevron: ['chevron.right', 'chevron_right']
 } satisfies Record<string, [SFSymbol, AndroidSymbol]>
 export type IconName = keyof typeof icons
 export function Icon({ name, size = 22, color = colors.ink }: { name: IconName, size?: number, color?: ColorValue }) {

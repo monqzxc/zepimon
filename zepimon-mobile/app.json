@@ -2,7 +2,7 @@
   "expo": {
     "name": "Zepimon",
     "slug": "zepimon-mobile",
-    "version": "1.9.2",
+    "version": "1.9.14",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,7 +18,10 @@
         "backgroundColor": "#1C0D3F"
       },
       "package": "com.zepimon.companion",
-      "versionCode": 16
+      "versionCode": 28,
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -37,7 +40,8 @@
           "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "router": {},

@@ -16,12 +16,15 @@ import { restoreLevelStars, saveLevelStars } from './games/levels'
 import { backupSummary, createBackup } from './backup'
 import { restorePhoneRuns, withPhoneRuns, withPhoneTrail } from './phone-adventure'
 import type { PhoneRun } from './phone-adventure'
+import { restorePlan, withEgg, withoutEgg, withPhone } from './plan'
+import type { Plan } from './plan'
 
 const KEY = 'zepimon-mobile-v1'
-type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null, expeditions: ExpeditionProgress, safari: SafariDex, adventure: Record<string, number>, trailLevels: Record<string, number>, phoneRuns: PhoneRun[] }
+type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null, expeditions: ExpeditionProgress, safari: SafariDex, adventure: Record<string, number>, trailLevels: Record<string, number>, phoneRuns: PhoneRun[], plan: Plan | null }
 type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRecord>, importText: (text: string) => Promise<void>, importCloud: (text: string, owner: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void>, befriend: (key: string, index: number) => Promise<void>, recordSafariCatch: (name: string, shiny: boolean) => Promise<void>, recordStars: (stop: string, stars: number) => Promise<void>,
-  recordLevelStars: (level: string, stars: number) => Promise<void>, savePhoneRun: (run: PhoneRun) => Promise<void>, makeBackup: () => string, backupInfo: ReturnType<typeof backupSummary> }
-const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), safari: {}, adventure: {}, trailLevels: {}, phoneRuns: [] }
+  recordLevelStars: (level: string, stars: number) => Promise<void>, savePhoneRun: (run: PhoneRun) => Promise<void>, chooseEgg: (family: string[], mega: string | null) => Promise<void>,
+  setPhoneAdventure: (phone: Plan['phone']) => Promise<void>, dropEgg: () => Promise<void>, receivePlan: (plan: unknown) => Promise<void>, makeBackup: () => string, backupInfo: ReturnType<typeof backupSummary> }
+const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), safari: {}, adventure: {}, trailLevels: {}, phoneRuns: [], plan: null }
 const Context = createContext<Store | null>(null)
 
 // Watch records with this phone's own adventures layered on top; missions and Expeditions count both.
@@ -59,7 +62,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
       const progress = collection ? importProgress(restored, collection) : restored
       latest.current = { journal, buddy, bestMoves, progress, arcadeScores: restoreScores(value.arcadeScores),
         cloudOwner: typeof value.cloudOwner === 'string' ? value.cloudOwner : null, expeditions, safari, adventure: restoreStars(value.adventure),
-        trailLevels: restoreLevelStars(value.trailLevels), phoneRuns }
+        trailLevels: restoreLevelStars(value.trailLevels), phoneRuns, plan: restorePlan(value.plan) }
       setSaved(latest.current)
       if (JSON.stringify(value.progress) !== JSON.stringify(progress) || JSON.stringify(value.expeditions) !== JSON.stringify(expeditions)) {
         try { await AsyncStorage.setItem(KEY, JSON.stringify(latest.current)) }
@@ -118,13 +121,23 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     const collection = walkedJournal({ ...current, expeditions, phoneRuns })!
     return { ...current, phoneRuns, expeditions, progress: importProgress(current.progress, collection) }
   })
+  // The plan shared with the watch (see src/plan.ts); the cloud provider sends each change.
+  const chooseEgg = (family: string[], mega: string | null) => persist(current => ({ ...current, plan: withEgg(current.plan, family, mega) }))
+  const setPhoneAdventure = (phone: Plan['phone']) => persist(current => ({ ...current, plan: withPhone(current.plan, phone) }))
+  const dropEgg = () => persist(current => current.plan?.egg ? { ...current, plan: withoutEgg(current.plan) } : current)
+  // A newer plan from the cloud: this phone after a reinstall, or another phone on the same account.
+  const receivePlan = (raw: unknown) => persist(current => {
+    const plan = restorePlan(raw)
+    return plan && plan.updatedAt > (current.plan?.updatedAt ?? -1) ? { ...current, plan } : current
+  })
   const recordSafariCatch = (name: string, shiny: boolean) => persist(current => ({ ...current, safari: addSafariCatch(current.safari, name, shiny) }))
   const recordStars = (stop: string, stars: number) => persist(current => ({ ...current, adventure: saveStars(current.adventure, stop, stars) }))
   const recordLevelStars = (level: string, stars: number) => persist(current => ({ ...current, trailLevels: saveLevelStars(current.trailLevels, level, stars) }))
   // Backups use the raw saved data, so the watch journal stays exactly as the watch sent it.
   const makeBackup = () => createBackup(latest.current, Date.now(), Constants.expoConfig?.version ?? '')
   return <Context.Provider value={{ ...saved, ...collectionOf(saved), ready, error, importText, importCloud, chooseBuddy, recordWin, recordArcadeScore,
-    befriend, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, makeBackup, backupInfo: backupSummary(saved) }}>{children}</Context.Provider>
+    befriend, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
+    backupInfo: backupSummary(saved) }}>{children}</Context.Provider>
 }
 
 export function useJournal() {

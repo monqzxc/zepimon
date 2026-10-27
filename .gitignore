@@ -1,0 +1,56 @@
+# Dependencies (restore with `npm ci` in each project)
+node_modules/
+
+# Build output
+hatdog-app/dist/
+dist/
+web-build/
+.expo/
+
+# Local scratch: test screenshots, browser profiles and logs
+/tmp/
+*.log
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Secrets and signing keys
+.env
+.env.*
+!.env.example
+credentials.json
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# AI coding assistant skill packs (the same files, copied once per tool)
+/.agents/
+/.augment/
+/.claude/
+/.codebuddy/
+/.codewhale/
+/.continue/
+/.cursor/
+/.factory/
+/.gemini/
+/.github/prompts/
+/.kilocode/
+/.kiro/
+/.opencode/
+/.qoder/
+/.roo/
+/.trae/
+/.warp/
+/.windsurf/

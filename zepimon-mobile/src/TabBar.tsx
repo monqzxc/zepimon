@@ -11,12 +11,14 @@ import { colors, fonts, gradient } from './ui'
 // head is drawn behind the bar and the paws in front. That art (scripts/build-nav-gengar.mjs) sits on a 120 x 100 grid
 // whose row 72 meets the edge. Gengar bobs and blinks while idle, ducks behind the bar when you switch tabs and pops up
 // wide-eyed on the new one, and the labels change over as it passes. Tapping the ball spins it and Gengar pops out of
-// it, floating and smiling until you leave the tab, when it goes back in. Tapping an open tab makes Gengar peek or
-// twirl. With reduced motion everything holds still and jumps.
-const art: Record<'grin' | 'blink' | 'boo' | 'paws' | 'float' | 'floatBlink', ImageSourcePropType> = {
+// it, floating with a wicked grin inside a pulsing shadow aura until you leave the tab, when it goes back in. Tapping
+// an open tab makes Gengar peek, or on the ball's tab, taunt (tongue out, pulling an eye) while the aura flares. The
+// floating art (float-grin, float-taunt) is cut from an illustration onto one 256 x 256 canvas with the feet on the
+// same line, so the two poses swap in place. With reduced motion everything holds still and jumps.
+const art: Record<'grin' | 'blink' | 'boo' | 'paws' | 'float' | 'taunt', ImageSourcePropType> = {
   grin: require('../assets/nav/body-grin.png'), blink: require('../assets/nav/body-blink.png'),
   boo: require('../assets/nav/body-boo.png'), paws: require('../assets/nav/paws.png'),
-  float: require('../assets/nav/float-smile.png'), floatBlink: require('../assets/nav/float-blink.png')
+  float: require('../assets/nav/float-grin.png'), taunt: require('../assets/nav/float-taunt.png')
 }
 // On the bar's darkest tint labels keep 4.5:1 when inactive and 7.8:1 when open.
 const tint = { inactive: '#6B5F8E', active: '#4527A8', mark: '#8A6FD0' }
@@ -34,8 +36,10 @@ const SHOULDER = 10      // and curves into the top edge over this distance
 const MEET = Math.sqrt(NOTCH ** 2 - BUTTON_Y ** 2)   // where the notch's circle crosses the top edge
 const CENTER_SLOT = Math.ceil(2 * (MEET + SHOULDER))  // the middle tab's share of the row: the whole notch
 const TOP_ROOM = BUTTON / 2 - BUTTON_Y + 2            // space above the bar, so the whole ball is tappable
-const FLOAT = 70         // the floating Gengar, drawn a little above the ball's center
-const FLOAT_Y = -8
+const FLOAT = 74         // the floating Gengar, drawn a little above the ball's center
+const FLOAT_Y = -10
+const AURA = 120         // the shadow aura around it
+const WISPS = [{ x: -24, size: 18, delay: 0 }, { x: 20, size: 15, delay: 900 }, { x: -2, size: 13, delay: 1700 }]
 const useNativeDriver = Platform.OS !== 'web'
 
 // Ducks behind the bar, waits, then springs back up with a surprised face and two alert marks.
@@ -108,6 +112,51 @@ function PokeBall({ size, roll }: { size: number, roll: Animated.Value }) {
   </View>
 }
 
+// Ghostly shadow around the floating Gengar: a dark violet glow that breathes, with wisps of shadow drifting up out
+// of it. It flares while Gengar taunts.
+function ShadowAura({ bob, taunt, reduced }: { bob: Animated.Value, taunt: Animated.Value, reduced: boolean }) {
+  const [wisps] = useState(() => WISPS.map(() => new Animated.Value(0)))
+  useEffect(() => {
+    if (reduced) { wisps.forEach(wisp => wisp.setValue(0)); return }
+    const loops = wisps.map((wisp, i) => Animated.loop(Animated.sequence([Animated.delay(WISPS[i].delay),
+      Animated.timing(wisp, { toValue: 1, duration: 2400, easing: Easing.out(Easing.quad), useNativeDriver }),
+      Animated.timing(wisp, { toValue: 0, duration: 0, useNativeDriver })])))
+    loops.forEach(loop => loop.start())
+    return () => loops.forEach(loop => loop.stop())
+  }, [reduced, wisps])
+  const breathe = Animated.add(bob.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.06] }),
+    taunt.interpolate({ inputRange: [0, 1], outputRange: [0, 0.22] }))
+  return <View pointerEvents="none" style={{ position: 'absolute', left: (FLOAT - AURA) / 2, top: (FLOAT - AURA) / 2 + 6, width: AURA, height: AURA }}>
+    <Animated.View style={{ position: 'absolute', width: AURA, height: AURA, transform: [{ scale: breathe }],
+      opacity: Animated.add(bob.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }), taunt.interpolate({ inputRange: [0, 1], outputRange: [0, 0.2] })) }}>
+      <Svg width={AURA} height={AURA} viewBox="0 0 100 100">
+        <Defs><RadialGradient id="zepimon-aura" cx="0.5" cy="0.5" r="0.5">
+          <Stop offset="0" stopColor="#1B0833" stopOpacity="0.8" />
+          <Stop offset="0.5" stopColor="#3D1872" stopOpacity="0.6" />
+          <Stop offset="0.75" stopColor="#5A2DA3" stopOpacity="0.32" />
+          <Stop offset="0.92" stopColor="#7B4CCB" stopOpacity="0.1" />
+          <Stop offset="1" stopColor="#8A5CDB" stopOpacity="0" />
+        </RadialGradient></Defs>
+        <Ellipse cx="50" cy="52" rx="50" ry="46" fill="url(#zepimon-aura)" />
+      </Svg>
+    </Animated.View>
+    {wisps.map((wisp, i) => <Animated.View key={i} style={{ position: 'absolute', left: AURA / 2 + WISPS[i].x - WISPS[i].size / 2, top: AURA * 0.32,
+      width: WISPS[i].size, height: WISPS[i].size,
+      opacity: wisp.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 0.9, 0.5, 0] }),
+      transform: [{ translateY: wisp.interpolate({ inputRange: [0, 1], outputRange: [0, -AURA * 0.36] }) },
+        { scale: wisp.interpolate({ inputRange: [0, 1], outputRange: [1, 0.55] }) }] }}>
+      <Svg width={WISPS[i].size} height={WISPS[i].size} viewBox="0 0 10 10">
+        <Defs><RadialGradient id="zepimon-wisp" cx="0.5" cy="0.5" r="0.5">
+          <Stop offset="0" stopColor="#2A0F4F" stopOpacity="0.75" />
+          <Stop offset="0.6" stopColor="#4B2289" stopOpacity="0.35" />
+          <Stop offset="1" stopColor="#6B3BB8" stopOpacity="0" />
+        </RadialGradient></Defs>
+        <Circle cx="5" cy="5" r="5" fill="url(#zepimon-wisp)" />
+      </Svg>
+    </Animated.View>)}
+  </View>
+}
+
 function useKeyboardShown(enabled: boolean) {
   const [shown, setShown] = useState(false)
   useEffect(() => {
@@ -136,7 +185,8 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   const [blink] = useState(() => new Animated.Value(0))
   const [boo] = useState(() => new Animated.Value(0))
   const [center] = useState(() => new Animated.Value(0))   // 1 while the middle tab is open
-  const [twirl] = useState(() => new Animated.Value(0))
+  const [taunt] = useState(() => new Animated.Value(0))   // 1 while the floating Gengar taunts
+  const [shake] = useState(() => new Animated.Value(0))
   const [roll] = useState(() => new Animated.Value(0))     // the ball's spin, two turns from 0 to 1
   const placed = useRef<{ index: number, width: number } | null>(null)
   const reduced = useReducedMotion()
@@ -234,10 +284,27 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
     const points = [at > 0 ? slotLeft(sides[at - 1]) : slotLeft(index) - side, slotLeft(index), at < sides.length - 1 ? slotLeft(sides[at + 1]) : slotLeft(index) + side]
     return Animated.multiply(x.interpolate({ inputRange: points, outputRange: [0, 1, 0], extrapolate: 'clamp' }), sideOn)
   }
-  // The floating Gengar grows out of the ball, hovers a little higher than the peeking one bobs, and twirls on a tap.
+  // The floating Gengar grows out of the ball, hovers a little higher than the peeking one bobs, and hops up to taunt.
   const floatY = Animated.add(Animated.add(center.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }),
-    bob.interpolate({ inputRange: [0, 1], outputRange: [0, -5] })), twirl.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, -12, 0] }))
+    bob.interpolate({ inputRange: [0, 1], outputRange: [0, -5] })), taunt.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }))
   const floatBox = { position: 'absolute', left: 0, top: 0, width: FLOAT, height: FLOAT } as const
+  // Tongue out, pulling an eye: a quick swap to the taunting pose with a cheeky wobble, then back to the grin.
+  const tease = () => {
+    if (reduced) {
+      taunt.setValue(1)
+      setTimeout(() => taunt.setValue(0), 1200)
+      return
+    }
+    taunt.setValue(0)
+    shake.setValue(0)
+    Animated.sequence([
+      Animated.timing(taunt, { toValue: 1, duration: 110, easing: Easing.out(Easing.quad), useNativeDriver }),
+      Animated.delay(1150),
+      Animated.timing(taunt, { toValue: 0, duration: 200, easing: Easing.in(Easing.quad), useNativeDriver })
+    ]).start()
+    const step = (toValue: number) => Animated.timing(shake, { toValue, duration: 85, easing: Easing.inOut(Easing.sin), useNativeDriver })
+    Animated.sequence([Animated.delay(110), step(1), step(-1), step(1), step(-1), step(0.5), step(0)]).start()
+  }
 
   const tabs = state.routes.map((route, index) => {
     const { options } = descriptors[route.key]
@@ -251,9 +318,8 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
         Animated.timing(roll, { toValue: 1, duration: 650, easing: Easing.out(Easing.cubic), useNativeDriver }).start()
       }
       if (focused) {
-        if (reduced) return
-        if (index !== middle) peek(duck, boo, 260)
-        else { twirl.setValue(0); Animated.timing(twirl, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.cubic), useNativeDriver }).start() }
+        if (index === middle) tease()
+        else if (!reduced) peek(duck, boo, 260)
       } else if (!event.defaultPrevented) navigation.navigate(route.name, route.params)
     }
     const press = { accessibilityRole: 'tab', accessibilityState: { selected: focused }, accessibilityLabel: options.tabBarAccessibilityLabel ?? label,
@@ -321,10 +387,13 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
         <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
           style={{ position: 'absolute', left: width / 2 - FLOAT / 2, top: BUTTON_Y - FLOAT / 2 + FLOAT_Y, width: FLOAT, height: FLOAT,
             opacity: center.interpolate({ inputRange: [0, 0.3], outputRange: [0, 1], extrapolate: 'clamp' }),
-            transform: [{ translateY: floatY }, { scale: center.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) },
-              { rotate: twirl.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }}>
-          <Image source={art.float} fadeDuration={0} style={floatBox} />
-          <Animated.Image source={art.floatBlink} fadeDuration={0} style={[floatBox, { opacity: blink }]} />
+            transform: [{ translateY: floatY }, { scale: center.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }}>
+          <ShadowAura bob={bob} taunt={taunt} reduced={reduced} />
+          <Animated.View style={[floatBox, { transform: [{ rotate: shake.interpolate({ inputRange: [-1, 1], outputRange: ['-7deg', '7deg'] }) },
+            { scale: taunt.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) }] }]}>
+            <Animated.Image source={art.float} fadeDuration={0} style={[floatBox, { opacity: Animated.subtract(1, taunt) }]} />
+            <Animated.Image source={art.taunt} fadeDuration={0} style={[floatBox, { opacity: taunt }]} />
+          </Animated.View>
         </Animated.View>
       </>}
     </View>

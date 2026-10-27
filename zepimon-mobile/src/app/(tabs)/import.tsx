@@ -2,12 +2,19 @@ import { useState } from 'react'
 import { Platform, TextInput } from 'react-native'
 import * as DocumentPicker from 'expo-document-picker'
 import { File } from 'expo-file-system'
+import Constants from 'expo-constants'
 import { useJournal } from '../../store'
 import { dexEntries, parseJournal } from '../../journal'
 import type { Journal } from '../../journal'
 import { Button, Copy, Eyebrow, Heading, Hero, Panel, Screen, colors, styles } from '../../ui'
 import { CloudPanel } from '../../CloudPanel'
 import { BackupPanel } from '../../BackupPanel'
+
+// A version name and, in brackets, its whole-number build code when known: "1.9.9 (build 23)".
+const versionLabel = (name: string, code?: number | string) => code === undefined || code === '' ? name : `${name} (build ${code})`
+// This app's build code from app.json: android.versionCode, or ios.buildNumber when one is set.
+const phoneBuild = Platform.OS === 'android' ? Constants.expoConfig?.android?.versionCode
+  : Platform.OS === 'ios' ? Constants.expoConfig?.ios?.buildNumber : undefined
 
 export default function ImportScreen() {
   const { journal, importText, error } = useJournal()
@@ -70,5 +77,12 @@ export default function ImportScreen() {
     </Panel>}
     {journal && <Copy small>Current journal: {new Date(journal.snapshot.capturedAt).toLocaleString()}. Older exports are rejected; reimporting the same runs does not count them twice.</Copy>}
     <BackupPanel />
+    <Eyebrow>APP VERSIONS</Eyebrow>
+    <Panel>
+      <Copy color={colors.ink}>Phone app: {Constants.expoConfig?.version ? versionLabel(Constants.expoConfig.version, phoneBuild) : 'Unknown'}</Copy>
+      <Copy color={colors.ink}>Watch app: {journal?.snapshot.appVersion
+        ? versionLabel(journal.snapshot.appVersion, journal.snapshot.appVersionCode) : 'Sync your watch to see it'}</Copy>
+      <Copy small>The watch app’s version and build number come with each watch sync, as in Zepp.</Copy>
+    </Panel>
   </Screen>
 }

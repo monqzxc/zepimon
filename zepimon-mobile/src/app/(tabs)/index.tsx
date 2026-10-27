@@ -2,12 +2,10 @@ import { useMemo } from 'react'
 import { router } from 'expo-router'
 import { Text, View } from 'react-native'
 import { useJournal } from '../../store'
-import { averagePace, dexEntries, duration, km, personalBests, recordForm } from '../../journal'
-import { completedRuns, missions } from '../../progress'
-import type { SavedRun } from '../../progress'
-import { decodePath } from '../../phone-adventure'
-import type { PhoneRun } from '../../phone-adventure'
-import { RouteView } from '../../RouteView'
+import { dexEntries, duration, km, personalBests, recordForm } from '../../journal'
+import { missions } from '../../progress'
+import { allAdventures } from '../../adventures'
+import { AdventureCard } from '../../AdventureCard'
 import { Button, Copy, Eyebrow, Habitat, Heading, Hero, IconBubble, Panel, Screen, Sprite, Title, colors, styles } from '../../ui'
 import type { IconName } from '../../ui'
 
@@ -19,25 +17,13 @@ function StatTile({ icon, value, label }: { icon: IconName | 'pokeball', value: 
   </Panel>
 }
 
-// A recent adventure. Ones recorded on this phone show their route beside the Pokemon.
-function RunCard({ run, phone }: { run: SavedRun, phone?: PhoneRun }) {
-  const points = useMemo(() => phone ? decodePath(phone.path) : [], [phone])
-  return <Panel>
-    <View style={[styles.row, { flexWrap: 'nowrap' }]}>
-      <View style={{ borderRadius: 18, backgroundColor: colors.sunken }}><Sprite name={recordForm(run.family, run.record)} shiny={run.record.shiny} size={64} /></View>
-      <View style={{ flex: 1, gap: 2 }}><Title>{run.record.shiny ? 'Shiny ' : ''}{recordForm(run.family, run.record)}</Title>
-        <Copy>{km(run.record.meters)} · {duration(run.record.elapsedSeconds)}</Copy>
-        <Copy small>{phone ? 'This phone · ' : ''}{new Date(run.record.finishedAt).toLocaleString()} · Pace {averagePace(run.record.elapsedSeconds, run.record.meters)}</Copy></View>
-      {phone && <View style={{ width: 84 }}><RouteView points={points} height={64} compact label={`Route of ${km(run.record.meters)}`} /></View>}
-    </View>
-  </Panel>
-}
+// The Journal shows the latest few; All adventures lists every one.
+const RECENT = 5
 
 export default function JournalScreen() {
   const { journal, buddy, progress, error, expeditions, phoneRuns } = useJournal()
-  const phoneOf = (run: SavedRun) => phoneRuns.find(item => item.record.finishedAt === run.record.finishedAt && item.family.join('>') === run.family.join('>'))
   const name = buddy?.replace(/^Shiny /, '') || 'Gible'
-  const runs = completedRuns(progress)
+  const runs = useMemo(() => allAdventures(progress, phoneRuns), [progress, phoneRuns])
   const total = runs.reduce((sum, run) => sum + run.record.meters, 0)
   const badges = missions(journal, progress).filter(mission => !mission.weekly && progress.unlocked[mission.id]).length
   const bests = journal ? personalBests(journal) : {}
@@ -77,6 +63,7 @@ export default function JournalScreen() {
         </View>
         <Copy>{runs.length} completed adventures kept on this phone</Copy>
         {journal.snapshot.capturedAt > 0 && <Copy small>Last watch snapshot: {new Date(journal.snapshot.capturedAt).toLocaleString()}</Copy>}
+        {runs.length > 0 && <Button title="View all adventures" onPress={() => router.push('/adventures')} secondary />}
         <Button title="View missions" onPress={() => router.push('/missions')} secondary />
       </Panel>
       {journal.snapshot.active && <Panel>
@@ -101,8 +88,9 @@ export default function JournalScreen() {
       })}
       <Heading>Recent adventures</Heading>
       {!runs.length && <Copy>Completed adventures appear here after you save one in the Adventure tab, or on your watch and sync through Zepp.</Copy>}
-      {runs.slice(0, 20).map(run => <RunCard key={run.id} run={run} phone={phoneOf(run)} />)}
-      <Copy small>Showing the latest 20 runs. Adventures recorded on this phone are all kept here. The watch export keeps the latest run per family and personal bests, so import regularly to grow your watch history.</Copy>
+      {runs.slice(0, RECENT).map(run => <AdventureCard key={run.id} adventure={run} />)}
+      {runs.length > 0 && <Button title={`View all ${runs.length} ${runs.length === 1 ? 'adventure' : 'adventures'}`} secondary onPress={() => router.push('/adventures')} />}
+      {runs.length > 0 && <Copy small>Tap an adventure for its route, stats and Pokemon. Every adventure from this phone and your watch is kept. The watch sends its last 30 with each sync, so sync at least that often.</Copy>}
     </>}
   </Screen>
 }

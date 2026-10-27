@@ -2,15 +2,22 @@ import { createWidget, widget } from '@zos/ui'
 import { spritePath } from './pokemon'
 import { walkSprites } from './walk-sprites'
 
-const sheets = {}
-Object.keys(walkSprites).forEach(name => {
-  sheets[spritePath(name)] = true
-  sheets[spritePath(name, true)] = true
-})
+// Image files that hold two walking poses side by side. Built on first use, not while the page loads.
+let sheets = null
+function isSheet(path) {
+  if (!sheets) {
+    sheets = {}
+    Object.keys(walkSprites).forEach(name => {
+      sheets[spritePath(name)] = true
+      sheets[spritePath(name, true)] = true
+    })
+  }
+  return !!sheets[path]
+}
 
 export function drawSprite(canvas, name, shiny, size, frame = 0) {
   const path = spritePath(name, shiny)
-  const sheet = !!sheets[path]
+  const sheet = isSheet(path)
   const pose = walkSprites[name.replace(/^Shiny /, '')] ? frame : 0
   canvas.clear({ x: 0, y: 0, w: size, h: size })
   // The canvas clips the other pose; both frames share one installed image file.

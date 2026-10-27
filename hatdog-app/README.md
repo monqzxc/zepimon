@@ -12,6 +12,72 @@ npm run preview
 
 ## Minimal watch and Zepp bridge (v1.9.0)
 
+### One-tap start and eggs chosen on the phone
+
+The title screen now starts an adventure in one tap. It shows the **next egg**
+with **Walk** and **Run**, plus **Change egg** (the full egg picker) and
+**History**. The next egg is, in order: the egg chosen in Zepimon mobile (its
+Adventure tab or **Hatch this next** in the Dex) until the watch starts it, then
+the watch's own pick, then a suggestion: a random egg whose first Pokemon is not
+in your Dex yet. With no egg known yet it says **Surprise egg** and picks one on
+start. After saving, the watch suggests a new egg and returns to the title.
+
+The phone's choice travels phone → Supabase → Zepp → watch. Each time the title
+screen opens, the watch asks the Zepp service for the plan; offline or unlinked,
+it keeps the last one. The plan also says whether the phone is recording an
+adventure: then the title shows **Your phone is recording an adventure**, and
+Walk or Run needs a second tap, so the same steps are not counted twice. The
+phone shows the watch's adventure in progress (from the last sync) the same way.
+The upload token can read this plan and nothing else. Re-run
+`zepimon-sync/schema.sql` in Supabase to add the plan table and functions.
+
+### One shared adventure (1.15)
+
+The watch and Zepimon mobile now share one adventure, whichever starts it. The
+watch shares its adventure as it starts, about once a minute while it records
+(with each distance update) and when it is saved. When the phone records one,
+the title screen shows it under **ON YOUR PHONE** (Pokemon, Walk or Run,
+distance, how recent) and offers **Continue here** instead of Walk and Run; it
+checks again every minute while open. Continuing takes the adventure over with
+its egg, Shiny roll, start time and distance so far, and only the watch's new
+distance counts from then on. If the phone takes over, the watch stops without
+saving and says **Continued on your phone**; finishing an adventure the phone
+has taken over saves nothing here. A share that cannot reach the phone waits
+and goes with the next plan request. The Zepimon page in Zepp has an
+**ADVENTURE** section with the same adventure, or the egg chosen in the app.
+Re-run `zepimon-sync/schema.sql` to add the `adventures` table and its
+functions.
+
+### Adventures recorded on the phone (1.13)
+
+Adventures recorded in Zepimon mobile's Adventure tab now reach the watch. The
+same request that fetches the plan brings the phone adventures saved since the
+last one received (the cloud's `seq`, up to 30 at a time). The title screen only
+stores them (`zepimon-phone-runs`), so it still never loads the catalog. The
+adventure screen adds them to the journal when it opens. Their Pokemon join the
+Dex (`X / 552 acquired`), each becomes its family's **Last** record unless the
+watch has a newer one, and an older phone adventure can still set a personal
+best in **History**. Phone distance stays on the phone's own Legendary
+Expedition trail, so the watch's **Expedition** line is unchanged. Each
+adventure arrives once, and when the watch's journal syncs back the phone
+recognizes its own adventures, so nothing is counted twice. Routes stay on the
+phone. Re-run `zepimon-sync/schema.sql` to add the `phone_runs` table and its
+two functions; the upload token can read phone adventures but never write them.
+
+The other way, every walk and run saved on the watch now reaches the phone's
+**Recent adventures**, not just each family's latest. The journal keeps a log of
+the last 30 saved adventures (`recent`), and every sync sends it, so walking the
+same egg twice between syncs keeps both. The existing cloud schema passes the
+log through unchanged; no migration is needed.
+
+Speed: the title screen and the app entry no longer load the Pokemon catalog
+(they read only small storage keys), the walk in progress is saved under its own
+key at most every 20 seconds (immediately on a hatch, evolution, new day or exit)
+instead of rewriting the whole journal on every step, opening the adventure
+screen saves only when a repair changes something, screens change without the
+loading animation, and `page/catalog.js` builds its sprite paths and generations
+from Dex numbers instead of listing them (70 KB → 22 KB, same exports).
+
 ### Legendary Expeditions (v1.11.0)
 
 Legendary and Mythical Pokemon now come from phone expeditions rather than new
@@ -103,6 +169,10 @@ Distances are meters, elapsed time is seconds and finish dates are ISO strings.
 The phone adds `receivedAt` (phone epoch milliseconds). The route index mapping
 is in `page/catalog.js`. Internal daily sensor baselines are excluded. Phone
 storage key: `zepimon-phone-v1`; watch key `zepimon-v1` is unchanged. The same contract is used by the standalone app cloud sync.
+On the watch, the adventure in progress lives under `zepimon-active` (older
+versions kept it inside `zepimon-v1`; it moves on the first open) and the title
+screen's next egg and the phone's plan under `zepimon-next`. Snapshots still
+carry the adventure in progress as `active`.
 The cloud upload wraps the snapshot in `{ exportVersion: 1, app: 'Zepimon',
 exportedAt, receivedAt, snapshot, routes }`. `routes` includes the index-to-names
 mapping, so the file is readable without separately obtaining the catalog.
@@ -115,15 +185,11 @@ Zepp settings renderer still need verification on the user's phone/watch.
 
 The UI uses the dark pixel theme with blue menus, stepped borders and a cream
 distance card. Scenery and frames use native rectangles with existing sprites.
-The title screen shows a moonlit forest, lake and path with Gible,
-today's total activity distance, **Start Adventure** and **History**.
-While an adventure is active, the main button reads **Continue adventure** and
-resumes that run. With no active adventure it reads **Start Adventure**.
-The label is refreshed from the saved state whenever the title page opens.
-A full-width History button sits below Start Adventure.
-Start Adventure opens a blue pixel adventure hub with an egg,
-collection count and New Egg / Random Egg buttons, plus Back to the title.
-New Egg opens generation selection, whose **Back to title** button returns
+The title screen shows the next egg on a small night meadow, today's total
+activity distance, **Walk** / **Run** and **Change egg** / **History** (see
+One-tap start above). While an adventure is active, it shows **Continue
+adventure** and **History** instead. The screen is refreshed from the saved
+state whenever it opens. Change egg opens generation selection, whose **Back to title** button returns
 directly to the title screen. **Random Egg** (v1.10.1) picks an evolution route
 with equal odds from eligible egg routes, including Extra Mega families, and
 opens its preview. You can choose its Mega form before tapping
@@ -288,24 +354,24 @@ Selecting a previously completed route starts another egg at zero; old records
 remain until the new adventure is finished. Pokedex entries show the latest
 qualifying saved distance, steps, timing and finish date.
 
-Active sessions are saved on sensor changes and app exit. Reopening resumes
+Active sessions are saved at most every 20 seconds while the counters change,
+right away on a hatch, evolution or new day, and on app exit. Reopening resumes
 the session using changes in the watch's daily activity counters; walking
 while the app is closed also counts until you finish. Wake-up relaunch is
 enabled during an adventure. This is an activity-counter game, not a GPS
 workout recorder, and does not start the watch's native workout mode.
 
-Version 1.11.1 adds a Pokeball loader. Buttons that open another screen first cover the content area with a pixel
-Pokeball that pulses once, shrinking from 126 to 70 pixels and growing back
-over seven 40 ms frames (about 0.28 s), then open the screen. The watch cannot
-animate while a screen builds, so the full-size ball stays up until it appears.
-Taps during the animation are ignored. Paging and Mega cycling update in place and
-stay instant. The ball is drawn with native rectangles (`page/loader.js`), so
-no image files are added.
+Version 1.11.1 added a Pokeball loader. It is now a still pixel Pokeball that
+covers the title screen for one frame while the adventure page loads (the watch
+cannot draw while a page builds); taps meanwhile are ignored. Screens inside the
+adventure page change at once. The ball is drawn with native rectangles
+(`page/loader.js`), so no image files are added.
 
 ## Device verification still required
 
-- Check that the Pokeball loader animates smoothly and does not make menus
-  feel slow on Bip 5 Unity.
+- Check that Walk and Run on the title screen start quickly, and that a choice
+  made in Zepimon mobile appears on the title screen after reopening it with the
+  phone nearby and online.
 
 - Grant step, distance and local storage permissions when installing.
 - Compare a short walk with the watch's distance display. The implementation

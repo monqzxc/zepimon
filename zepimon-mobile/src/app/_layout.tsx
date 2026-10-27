@@ -9,8 +9,10 @@ import { Nunito_900Black } from '@expo-google-fonts/nunito/900Black'
 import { JournalProvider, useJournal } from '../store'
 import { Copy, PokeballLoader, Screen, colors, fonts } from '../ui'
 import { CloudProvider } from '../cloud'
-// Defines the background location task; it must load with the app, before any screen.
-import '../tracker'
+import { CrashReport, CrashScreen } from '../CrashReport'
+
+// An error on any screen shows what happened, with Share, instead of closing the app.
+export const ErrorBoundary = CrashScreen
 
 export default function Layout() {
   return <JournalProvider><CloudProvider><Navigator /></CloudProvider></JournalProvider>
@@ -31,6 +33,11 @@ function Navigator() {
       <Stack.Screen name="pokemon" options={{ title: 'Pokemon record' }} />
       <Stack.Screen name="expeditions" options={{ title: 'Legendary Expeditions' }} />
       <Stack.Screen name="missions" options={{ title: 'Missions' }} />
+      <Stack.Screen name="eggs" options={{ title: 'Choose an egg' }} />
+      <Stack.Screen name="share" options={{ title: 'Share adventure' }} />
+      <Stack.Screen name="adventures" options={{ title: 'All adventures' }} />
+      <Stack.Screen name="adventure-details" options={{ title: 'Adventure' }} />
     </Stack>
+    <CrashReport />
   </>
 }

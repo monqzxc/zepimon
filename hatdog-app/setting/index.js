@@ -1,4 +1,4 @@
-import { SNAPSHOT_KEY, SYNC_KEY, STATUS_KEY, SYNC_FRAME_KEY, validateSnapshot } from '../shared/companion'
+import { SNAPSHOT_KEY, SYNC_KEY, STATUS_KEY, SYNC_FRAME_KEY, SHARED_KEY, SHARED_REQUEST_KEY, sharedName, validateAdventure, validatePlan, validateSnapshot } from '../shared/companion'
 import { routes } from '../page/catalog'
 import { CLOUD_TOKEN_KEY, CLOUD_REQUEST_KEY, CLOUD_STATUS_KEY, CLOUD_SENT_KEY, CLOUD_LINKED_KEY } from '../shared/cloud'
 import { cloudConfig } from '../shared/cloud-config'
@@ -183,6 +183,38 @@ AppSettingsPage({
       ...(cloudMessage ? [status(cloudMessage, toneOf(cloudMessage), theme.ink, spinFor(cloudMessage))] : [])
     ]) : section('CLOUD SYNC', [label('Cloud sync is not configured in this build.', 15), label('You can still use Export JSON below.', 13, theme.muted)])
 
+    // The egg and adventure the watch and the Zepimon app share. The page asks the Zepp service for a fresh copy when
+    // it opens or shows again after a while, and on Refresh; meanwhile it shows the last one.
+    const askShared = () => {
+      this.sharedAskedAt = Date.now()
+      storage.setItem(SHARED_REQUEST_KEY, String(this.sharedAskedAt))
+    }
+    if (linked && Date.now() - (this.sharedAskedAt || 0) > 20000) askShared()
+    let shared = {}
+    try { shared = JSON.parse(storage.getItem(SHARED_KEY) || '{}') || {} } catch (_) { shared = {} }
+    const read = (check, value) => { try { return check(value) } catch (_) { return null } }
+    const adventure = read(validateAdventure, shared.adventure)
+    const plan = read(validatePlan, shared.plan)
+    const live = adventure && !adventure.ended && Date.now() - adventure.at < 12 * 3600000 ? adventure : null
+    // Until the watch shares its adventure (an older watch app, or before it reaches Zepp), the one in its last sync.
+    const synced = !live && snapshot && snapshot.active && routes[snapshot.active.route] ? snapshot.active : null
+    const problem = typeof shared.error === 'string' ? shared.error : ''
+    const adventureCard = section('ADVENTURE', [...(live ? [
+      title(sharedName(live)),
+      label((live.activity === 'running' ? 'Running' : 'Walking') + ' · ' + (live.meters / 1000).toFixed(2) + ' km · recording on your ' + live.device, 14),
+      label('Updated ' + when(live.at) + '. To switch devices, tap Continue here on your ' + (live.device === 'phone' ? 'watch' : 'phone') + '.', 13, theme.muted, { marginTop: '6px' })
+    ] : synced ? [
+      title(sharedName({ family: routes[synced.route], meters: synced.meters, mega: synced.mega || null, shiny: !!synced.shiny })),
+      label((synced.activity === 'running' ? 'Running' : 'Walking') + ' · ' + (synced.meters / 1000).toFixed(2) + ' km · recording on your watch', 14),
+      label('As of the last watch sync' + (receivedAt ? ', ' + when(receivedAt) : '') + '. Keep Zepimon open on your watch to share it with the app.', 13, theme.muted, { marginTop: '6px' })
+    ] : [
+      title(plan && plan.egg ? plan.egg.family[0] + ' egg' : 'No adventure in progress'),
+      label(plan && plan.egg ? 'Chosen in the Zepimon app. Walk or Run on your watch, or Start in the app, to begin.'
+        : 'Choose an egg in the Zepimon app, or start an adventure on your watch. Both show the same one.', 13, theme.muted)
+    ]), ...(problem ? [status(problem, theme.alert)] : []),
+    ...(Number.isFinite(shared.at) ? [label('Checked ' + when(shared.at) + '. Your watch checks whenever Zepimon is open on it.', 12, theme.muted, { marginTop: '8px' })] : []),
+    button('Refresh', askShared, 'ghost')])
+
     const syncCard = section('WATCH SYNC', [
       label(linked ? 'Sync now to send your latest steps, hatches and Dex to your account.' : 'Pull the latest progress from your watch onto this phone.', 14),
       button(syncing ? 'Syncing…' : 'Sync from watch', () => storage.setItem(SYNC_KEY, String(Date.now())), linked && !changing ? 'primary' : 'secondary'),
@@ -244,8 +276,11 @@ AppSettingsPage({
       pokedex('Connect your adventure', 'View your Dex and journeys in the standalone Zepimon app. Zepp connects your watch to your account.',
         linked ? badge('ACCOUNT LINKED', theme.green) : badge(cloudConfig.url ? 'NOT LINKED YET' : 'OFFLINE MODE', theme.yellow), busy ? frame : null),
       ...(banner ? [banner] : []),
-      ...(linked ? [trainerCard, syncCard, transferCard, manageCard] : [linkCard, syncCard, transferCard]),
-      label('Progress stays saved on your watch when offline. Open Zepimon on your phone after uploading.', 12, theme.muted, { marginTop: '20px', textAlign: 'center' })
+      ...(linked ? [trainerCard, adventureCard, syncCard, transferCard, manageCard] : [linkCard, syncCard, transferCard]),
+      label('Progress stays saved on your watch when offline. Open Zepimon on your phone after uploading.', 12, theme.muted, { marginTop: '20px', textAlign: 'center' }),
+      // The version the watch reported at its last sync: version.name and, in brackets, its whole-number version.code.
+      ...(snapshot && snapshot.appVersion ? [label('Watch app ' + snapshot.appVersion +
+        (snapshot.appVersionCode !== undefined ? ' (build ' + snapshot.appVersionCode + ')' : ''), 12, theme.muted, { marginTop: '6px', textAlign: 'center' })] : [])
     ])
   }
 })

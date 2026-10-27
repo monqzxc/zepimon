@@ -2,9 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { addFix, currentForm, currentPace, decodePath, distanceBetween, earnedForms, eggs, encodePath, expeditionNews, finishAdventure, megaChoices,
-  newAdventure, nextMilestone, phoneTrail, restoreActive, restorePhoneRuns, saveActive, simplifyPath, withPhoneRuns, withPhoneTrail } from '../src/phone-adventure.ts'
+  newAdventure, nextMilestone, phoneTrail, restoreActive, restorePhoneRuns, runsToShare, saveActive, simplifyPath, withPhoneRuns, withPhoneTrail } from '../src/phone-adventure.ts'
 import { parseJournal, personalBests } from '../src/journal.ts'
 import { emptyExpeditions } from '../src/expeditions.ts'
+import { mergeRuns } from '../src/progress.ts'
 
 const bulbasaur = ['Bulbasaur', 'Ivysaur', 'Venusaur']
 const start = Date.UTC(2026, 9, 26, 6, 0)
@@ -111,6 +112,27 @@ test('a watch journal keeps its own data, and the newest record per family wins'
   assert.deepEqual(merged.snapshot.dex.Bulbasaur, watch.snapshot.dex.Bulbasaur, 'An older phone adventure does not replace a newer watch record')
   const odd = withPhoneRuns(watch, [{ ...newer, family: ['Missingno'] }])
   assert.deepEqual(odd.routes.at(-1), ['Missingno'], 'Unknown families get their own route')
+})
+
+test('adventures go to the watch without routes, and come back from it counted once', () => {
+  const run = (id, meters, finishedAt) => ({ id, family: bulbasaur, path: 'abc', record: { meters, steps: 0, shiny: false, activity: 'walking',
+    finishedAt, startedAt: Date.parse(finishedAt) - 3600000, elapsedSeconds: 3600, form: meters >= 5000 ? 'Bulbasaur' : 'Egg' } })
+  const runs = [run('phone-2', 6000, '2026-10-21T03:00:00.000Z'), run('phone-1', 3000, '2026-10-20T03:00:00.000Z'), run('phone-3', 5200, '2026-10-22T03:00:00.000Z')]
+  const shared = runsToShare(runs, new Set(['phone-3']))
+  assert.deepEqual(shared.map(item => item.id), ['phone-1', 'phone-2'], 'Not sent yet, oldest first')
+  assert.ok(shared.every(item => !('path' in item)), 'Routes stay on the phone')
+  assert.deepEqual(runsToShare(runs, new Set(), 2).map(item => item.id), ['phone-2', 'phone-3'], 'With many to send, the newest go first')
+  assert.deepEqual(runsToShare(runs, new Set(runs.map(item => item.id))), [])
+  // phone-2 is saved here; then the watch adds it to its journal, as its latest Bulbasaur record and longest adventure,
+  // and syncs that journal back.
+  const watch = parseJournal(readFileSync(new URL('../examples/demo-export.json', import.meta.url), 'utf8'))
+  const route = watch.routes.findIndex(family => family.join('>') === bulbasaur.join('>'))
+  const synced = { ...watch, snapshot: { ...watch.snapshot, records: { ...watch.snapshot.records, [route]: { ...runs[0].record } },
+    personalBests: { ...watch.snapshot.personalBests, distance: { ...runs[0].record, route } } } }
+  const saved = mergeRuns([], withPhoneRuns(watch, [runs[0]]))
+  assert.equal(saved.filter(item => item.record.finishedAt === runs[0].record.finishedAt).length, 1)
+  const after = mergeRuns(saved, withPhoneRuns(synced, [runs[0]]))
+  assert.deepEqual(after.map(item => item.id), saved.map(item => item.id), 'A phone adventure that came back from the watch is still one adventure')
 })
 
 test('phone adventures walk their own expedition trail', () => {

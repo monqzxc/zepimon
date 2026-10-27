@@ -1,7 +1,8 @@
 import type { ImageSourcePropType } from 'react-native'
-import { species, megaForms, sprites, shinySprites } from './generated/catalog.js'
+import { species, sprites, shinySprites } from './generated/catalog.js'
 import { pokemonTypes } from './generated/types.js'
 import { spriteSources } from './generated/sprites.js'
+import { generationOf, speciesNumber } from './pokedex'
 
 const normal = sprites as Record<string, string>
 const shiny = shinySprites as Record<string, string>
@@ -15,20 +16,9 @@ export function spriteSource(name: string, isShiny = false): ImageSourcePropType
 export function pokemonType(name: string): string {
   return (pokemonTypes as Record<string, string>)[name.replace(/^Shiny /, '')] || 'normal'
 }
-function baseSpecies(name: string) {
-  const catalog = species as Record<string, { id: number, gen: number }>
-  const megas = megaForms as Record<string, string[]>
-  const plain = name.replace(/^Shiny /, '')
-  const base = catalog[plain] ? plain : Object.keys(megas).find(key => megas[key].includes(plain))
-  return base ? catalog[base] : undefined
-}
-export function pokemonGeneration(name: string): number {
-  return baseSpecies(name)?.gen || 0
-}
+export const pokemonGeneration = generationOf
 // National Dex number (Mega forms share their base species' number), 0 when unknown.
-export function pokemonNumber(name: string): number {
-  return baseSpecies(name)?.id || 0
-}
+export const pokemonNumber = speciesNumber
 export const dexNumber = (name: string) => {
   const id = pokemonNumber(name)
   return id ? 'No. ' + String(id).padStart(4, '0') : 'No. ----'

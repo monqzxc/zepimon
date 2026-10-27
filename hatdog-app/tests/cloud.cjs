@@ -3,11 +3,16 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
 
+// The real phone-adventure check, from its own sandbox; snapshots and plans pass through unchecked here.
+const companion = vm.createContext({ validateExpedition: value => value })
+vm.runInContext(fs.readFileSync('shared/companion.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), companion)
+
 function setup(fetcher) {
   const values = new Map()
   const context = vm.createContext({ setTimeout, clearTimeout,
     cloudConfig: { url: 'https://test.supabase.co', key: 'sb_publishable_test' }, routes: [['Bulbasaur']],
-    fetch: fetcher, SNAPSHOT_KEY: 'snapshot', SYNC_FRAME_KEY: 'frame', validateSnapshot: value => value, validatePlan: value => value })
+    fetch: fetcher, SNAPSHOT_KEY: 'snapshot', SYNC_FRAME_KEY: 'frame', validateSnapshot: value => value, validatePlan: value => value,
+    validatePhoneRuns: companion.validatePhoneRuns, validateAdventure: companion.validateAdventure })
   vm.runInContext(fs.readFileSync('shared/cloud.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
     '\nglobalThis.serviceMethods = cloudMethods; globalThis.keys = { CLOUD_TOKEN_KEY, CLOUD_REQUEST_KEY, CLOUD_STATUS_KEY, CLOUD_SENT_KEY };', context)
   const service = { ...context.serviceMethods, settings: { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) } }
@@ -101,4 +106,47 @@ test('the watch reads the phone plan with its upload token, and only once linked
   assert.equal((await service.fetchPlan()).updatedAt, 5)
   assert.match(calls[0].url, /\/rpc\/zepimon_get_plan$/)
   assert.deepEqual(JSON.parse(calls[0].body), { upload_token: 'b'.repeat(64) })
+})
+
+test('the watch reads phone adventures after the last one it received, skipping any it cannot read', async () => {
+  const calls = []
+  const run = { id: 'phone-1', seq: 9, family: ['Eevee', 'Vaporeon'], record: { meters: 5400, steps: 0, shiny: false, finishedAt: '2026-10-20T03:00:00.000Z' } }
+  const { service, values, keys } = setup(async request => {
+    calls.push(request)
+    return { status: 200, body: JSON.stringify({ runs: [run, { ...run, id: 'no spaces allowed' }, { ...run, id: 'phone-2', record: { meters: -1 } }] }) }
+  })
+  assert.equal((await service.fetchPhoneRuns(0)).length, 0, 'An unlinked watch asks for nothing')
+  assert.equal(calls.length, 0)
+  values.set(keys.CLOUD_TOKEN_KEY, 'b'.repeat(64))
+  const runs = await service.fetchPhoneRuns(8)
+  assert.deepEqual(Array.from(runs, item => item.id), ['phone-1'])
+  assert.equal(runs[0].record.meters, 5400)
+  assert.match(calls[0].url, /\/rpc\/zepimon_get_phone_runs$/)
+  assert.deepEqual(JSON.parse(calls[0].body), { upload_token: 'b'.repeat(64), after: 8 })
+  await service.fetchPhoneRuns(undefined)
+  assert.equal(JSON.parse(calls[1].body).after, 0, 'A watch that never received one starts from the beginning')
+})
+
+test('the watch shares its adventure and reads the shared one with its upload token', async () => {
+  const calls = []
+  const adventure = { id: 'adv-1', family: ['Eevee'], mega: null, shiny: false, activity: 'running', startedAt: 1, device: 'watch',
+    deviceAt: 1, meters: 800, hatchSeconds: null, at: 2, ended: false }
+  const { service, values, keys } = setup(async request => {
+    calls.push(request)
+    return { status: 200, body: JSON.stringify(/share/.test(request.url) ? { adventure: { ...adventure, device: 'phone', deviceAt: 5 } }
+      : { plan: null, adventure }) }
+  })
+  assert.equal(await service.fetchShared(), null, 'An unlinked watch asks for nothing')
+  await assert.rejects(service.shareAdventure(adventure), /Link your account/)
+  assert.equal(calls.length, 0)
+  values.set(keys.CLOUD_TOKEN_KEY, 'b'.repeat(64))
+  const shared = await service.fetchShared()
+  assert.equal(shared.adventure.meters, 800)
+  assert.equal(shared.plan, null)
+  const answer = await service.shareAdventure(adventure)
+  assert.equal(answer.device, 'phone', 'The answer says who records it now')
+  assert.match(calls[1].url, /\/rpc\/zepimon_watch_share_adventure$/)
+  assert.deepEqual(JSON.parse(calls[1].body), { upload_token: 'b'.repeat(64), adventure })
+  await assert.rejects(service.shareAdventure({ ...adventure, device: 'tablet' }), /Invalid shared adventure/)
+  assert.equal(calls.length, 2, 'An invalid adventure is never sent')
 })

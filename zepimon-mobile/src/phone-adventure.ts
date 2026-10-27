@@ -16,7 +16,9 @@ export type ActiveAdventure = {
   points: [number, number][],   // the route so far, one [latitude, longitude] per accepted fix
   anchor: Fix | null,           // the last accepted fix: the next distance is measured from here
   last: Fix | null,             // the latest fix of any quality, for the GPS status
-  recent: [number, number][]    // [time, meters] over the last minute, for the current pace
+  recent: [number, number][],   // [time, meters] over the last minute, for the current pace
+  shareId: string,              // the adventure shared with the watch (see src/shared-adventure.ts)
+  deviceAt: number              // when this phone started it or took it over
 }
 // A saved phone adventure. record has the same shape the watch saves; path is the route as an encoded polyline.
 export type PhoneRun = { id: string, family: string[], record: DexRecord, path: string }
@@ -46,7 +48,7 @@ export function nextMilestone(family: string[], meters: number): number | null {
 export function newAdventure(family: string[], activity: Activity, mega: string | null, now: number, random = Math.random): ActiveAdventure {
   const choices = megaChoices(family)
   return { family: [...family], activity, startedAt: now, shiny: rollShiny(random), mega: mega && choices.includes(mega) ? mega : choices[0] ?? null,
-    meters: 0, hatchSeconds: null, points: [], anchor: null, last: null, recent: [] }
+    meters: 0, hatchSeconds: null, points: [], anchor: null, last: null, recent: [], shareId: `adv-${now}`, deviceAt: now }
 }
 
 const EARTH_RADIUS = 6371008.8
@@ -206,6 +208,15 @@ export function withPhoneRuns(journal: Journal | null, runs: PhoneRun[]): Journa
   return { ...base, routes, snapshot: { ...base.snapshot, dex, records, personalBests: bestRecords(candidates, base.snapshot.personalBests) } }
 }
 
+// The adventures to share with the watch through the cloud, without their routes (the watch draws none): the ones
+// not sent yet, oldest first, at most 50 at a time as the cloud accepts. Sharing one twice changes nothing.
+export function runsToShare(runs: PhoneRun[], sent: ReadonlySet<string>, limit = 50): Omit<PhoneRun, 'path'>[] {
+  return runs.filter(run => !sent.has(run.id))
+    .sort((a, b) => Date.parse(a.record.finishedAt) - Date.parse(b.record.finishedAt))
+    .slice(-limit)
+    .map(({ id, family, record }) => ({ id, family, record }))
+}
+
 // Phone adventures walk their own Legendary Expedition trail beside the watch's: its seed comes from the first phone
 // adventure, so the trail and its rewards stay the same however often it is rebuilt.
 export function phoneTrail(runs: PhoneRun[]): Expedition | null {
@@ -262,7 +273,10 @@ export function restoreActive(text: string): ActiveAdventure | null {
       mega: typeof value.mega === 'string' ? value.mega : null, meters: value.meters,
       hatchSeconds: Number.isFinite(value.hatchSeconds) ? value.hatchSeconds : null,
       points: typeof value.points === 'string' ? decodePath(value.points) : [], anchor: fix(value.anchor), last: fix(value.last),
-      recent: Array.isArray(value.recent) ? value.recent.filter((pair: unknown) => Array.isArray(pair) && pair.length === 2 && pair.every(Number.isFinite)) : [] }
+      recent: Array.isArray(value.recent) ? value.recent.filter((pair: unknown) => Array.isArray(pair) && pair.length === 2 && pair.every(Number.isFinite)) : [],
+      // Adventures saved before sharing existed get the id they would have had.
+      shareId: typeof value.shareId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value.shareId) ? value.shareId : `adv-${value.startedAt}`,
+      deviceAt: Number.isFinite(value.deviceAt) ? value.deviceAt : value.startedAt }
   } catch {
     return null
   }

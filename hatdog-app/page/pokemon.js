@@ -153,7 +153,8 @@ export function updateSession(session, meters, steps, day, now = Date.now()) {
   }
 }
 
-export function refreshPersonalBests(state) {
+// extra: more records to consider, such as phone adventures older than their family's latest record.
+export function refreshPersonalBests(state, extra = []) {
   const bests = state.personalBests || {}
   const fields = { distance: 'meters', elapsed: 'elapsedSeconds', hatch: 'hatchSeconds' }
   const score = (record, metric) => {
@@ -168,8 +169,7 @@ export function refreshPersonalBests(state) {
   Object.keys(fields).forEach((metric) => {
     if (score(bests[metric], metric) !== null) winners[metric] = { ...bests[metric] }
   })
-  Object.keys(state.records).forEach((key) => {
-    const candidate = { ...state.records[key], route: Number(key) }
+  Object.keys(state.records).map((key) => ({ ...state.records[key], route: Number(key) })).concat(extra).forEach((candidate) => {
     Object.keys(fields).forEach((metric) => {
       const value = score(candidate, metric)
       const previous = score(winners[metric], metric)
@@ -198,6 +198,24 @@ function dexRecord(record) {
     elapsedSeconds: Number.isFinite(record.elapsedSeconds) && record.elapsedSeconds >= 0 ? record.elapsedSeconds : null,
     hatchSeconds: Number.isFinite(record.hatchSeconds) && record.hatchSeconds > 0 && Number.isFinite(record.elapsedSeconds) && record.elapsedSeconds >= record.hatchSeconds
       ? record.hatchSeconds : null }
+}
+
+// Adds an adventure recorded on Zepimon mobile as if it had been saved here: its Pokemon join the Dex and it becomes
+// the family's latest record, unless the watch already has newer ones. Phone distance stays on the phone's own
+// Expedition trail. Returns the record as a personal-best candidate, or null for a family this catalog lacks.
+export function applyPhoneRun(state, run) {
+  const family = run.family.join('>')
+  const route = routes.findIndex((item) => item.join('>') === family)
+  if (route < 0) return null
+  const record = { ...run.record }
+  const finished = Date.parse(record.finishedAt)
+  const newer = (previous) => !previous || !(Date.parse(previous.finishedAt) > finished)
+  if (newer(state.records[route])) state.records[route] = record
+  acquiredForms(route, record.meters, record.mega).forEach((name) => {
+    const key = (record.shiny ? 'Shiny ' : '') + name
+    if (newer(state.dex[key])) state.dex[key] = dexRecord(record)
+  })
+  return { ...record, route }
 }
 
 export function repairDexRecords(state) {
@@ -231,6 +249,10 @@ export function repairDexRecords(state) {
   return changed
 }
 
+// The adventures saved on this watch, newest last. The phone keeps every one from this log, even when the same egg is
+// walked again before a sync and its family record is replaced.
+const RECENT_LIMIT = 30
+
 export function finishSession(state, finishedAt) {
   if (!state.active) return
   // Seed old saves before replacing this route's latest journey.
@@ -250,6 +272,8 @@ export function finishSession(state, finishedAt) {
     elapsedSeconds: seconds, hatchSeconds,
     shiny: !!session.shiny, mega: session.mega, form: currentForm(session.route, session.meters, session.mega)
   }
+  state.recent = (Array.isArray(state.recent) ? state.recent : [])
+    .concat({ ...state.records[session.route], route: session.route }).slice(-RECENT_LIMIT)
   earned.forEach((name) => {
     const key = session.shiny ? 'Shiny ' + name : name
     state.dex[key] = dexRecord(state.records[session.route])

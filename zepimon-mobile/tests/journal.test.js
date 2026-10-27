@@ -50,6 +50,27 @@ test('imports and sanitizes the current watch export, including separate variant
     [name, normal.meters, shiny.meters]), [['Bulbasaur', 5500, 6000]]);
 });
 
+test('keeps the watch app version and version code from a sync, and none from older watch builds or unreadable values', () => {
+  assert.equal(parse(envelope()).snapshot.appVersion, undefined);
+  assert.equal(parse(envelope()).snapshot.appVersionCode, undefined);
+  const value = envelope();
+  value.snapshot.appVersion = '1.13';
+  value.snapshot.appVersionCode = 44;
+  const current = parse(value);
+  assert.equal(current.snapshot.appVersion, '1.13');
+  assert.equal(current.snapshot.appVersionCode, 44);
+  const incoming = envelope();
+  incoming.snapshot.capturedAt++;
+  incoming.snapshot.appVersion = '1.14';
+  incoming.snapshot.appVersionCode = 45;
+  const received = receiveCloudJournal(JSON.stringify(incoming), current, null, 'account-a');
+  assert.deepEqual([received.snapshot.appVersion, received.snapshot.appVersionCode], ['1.14', 45]);
+  value.snapshot.appVersion = '<b>1.13</b>';
+  value.snapshot.appVersionCode = '44';
+  assert.equal(parse(value).snapshot.appVersion, undefined);
+  assert.equal(parse(value).snapshot.appVersionCode, undefined);
+});
+
 test('keeps legacy timing unavailable and optional personal bests absent', () => {
   const value = envelope();
   value.receivedAt = null;

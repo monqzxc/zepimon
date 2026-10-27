@@ -72,6 +72,83 @@ test('private cloud journals, one-time links, replay protection, validation and 
     await role('authenticated', bob)
     assert.equal((await rpc('zepimon_pull')).plan, null, 'Plans are private to their account')
   })
+  await t.test('the phone and the watch share one adventure and hand it over', async () => {
+    const adventure = (device, deviceAt, at, extra = {}) => ({ id: 'adv-1000', family: ['Pikachu', 'Raichu'], mega: null, shiny: false,
+      activity: 'walking', startedAt: 1000, device, deviceAt, meters: 0, hatchSeconds: null, at, ended: false, ...extra })
+    const phone = value => rpc('zepimon_share_adventure', [JSON.stringify(value)])
+    const watch = value => rpc('zepimon_watch_share_adventure', [token, JSON.stringify(value)])
+    await role('anon')
+    await assert.rejects(phone(adventure('phone', 1000, 1000)), /permission denied/)
+    assert.equal((await rpc('zepimon_get_plan', [token])).adventure, null, 'Nothing shared yet')
+    await role('authenticated', alice)
+    // The phone starts and reports progress.
+    assert.equal((await phone(adventure('phone', 1000, 1000))).adventure.device, 'phone')
+    assert.equal((await phone(adventure('phone', 1000, 61000, { meters: 900 }))).adventure.meters, 900)
+    assert.equal((await phone(adventure('phone', 1000, 30000, { meters: 500 }))).adventure.meters, 900, 'Older progress is ignored')
+    await assert.rejects(phone({ ...adventure('phone', 1000, 1000), device: 'tablet' }), /Invalid adventure/)
+    await assert.rejects(phone({ ...adventure('phone', 1000, 1000), family: [] }), /Invalid adventure/)
+    // The watch sees it, then takes it over with the distance so far.
+    await role('anon')
+    assert.equal((await rpc('zepimon_get_plan', [token])).adventure.meters, 900)
+    assert.equal((await watch(adventure('watch', 70000, 70000, { meters: 900 }))).adventure.device, 'watch')
+    await role('authenticated', alice)
+    const told = (await phone(adventure('phone', 1000, 75000, { meters: 1300 }))).adventure
+    assert.equal(told.device, 'watch', 'The phone learns the watch took over, and its later progress is ignored')
+    assert.equal(told.meters, 900)
+    assert.equal((await rpc('zepimon_pull')).adventure.device, 'watch', 'The phone sync carries the shared adventure')
+    // The phone takes it back, then finishes it; an ended adventure stays ended.
+    assert.equal((await phone(adventure('phone', 90000, 90000, { meters: 1500 }))).adventure.device, 'phone')
+    assert.equal((await phone(adventure('phone', 90000, 95000, { meters: 1600, ended: true }))).adventure.ended, true)
+    await role('anon')
+    assert.equal((await watch(adventure('watch', 99000, 99000, { meters: 1700 }))).adventure.ended, true, 'An ended adventure cannot be taken over')
+    // A new adventure replaces an ended one; an older adventure cannot replace a newer one still going.
+    const next = { ...adventure('watch', 200000, 200000), id: 'adv-200000', startedAt: 200000, family: ['Eevee'] }
+    assert.equal((await watch(next)).adventure.id, 'adv-200000')
+    await role('authenticated', alice)
+    assert.equal((await phone({ ...adventure('phone', 150000, 150000), id: 'adv-150000', startedAt: 150000 })).adventure.id, 'adv-200000')
+    await assert.rejects(db.query('select * from zepimon_private.adventures'), /permission denied/)
+    await role('authenticated', bob)
+    assert.equal((await rpc('zepimon_pull')).adventure, null, 'Adventures are private to their account')
+    await role('anon')
+    await assert.rejects(rpc('zepimon_watch_share_adventure', ['0'.repeat(64), JSON.stringify(next)]), /Watch link expired/)
+  })
+  await t.test('the phone shares its adventures; the watch reads each one once, in arrival order', async () => {
+    const run = (id, finishedAt, extra = {}) => ({ id, family: ['Charmander', 'Charmeleon', 'Charizard'],
+      record: { meters: 5200, steps: 0, shiny: false, activity: 'walking', finishedAt, startedAt: 1000, elapsedSeconds: 1900, form: 'Charmander' }, ...extra })
+    const add = runs => rpc('zepimon_add_phone_runs', [JSON.stringify(runs)])
+    const read = after => rpc('zepimon_get_phone_runs', [token, after])
+    await role('anon')
+    await assert.rejects(add([run('phone-1', '2026-10-20T03:00:00.000Z')]), /permission denied/)
+    assert.deepEqual((await read(0)).runs, [], 'Nothing until the phone shares an adventure')
+    await role('authenticated', alice)
+    assert.deepEqual(await add([run('phone-1', '2026-10-20T03:00:00.000Z'), run('phone-2', '2026-10-21T03:00:00.000Z')]), { added: 2, skipped: 0 })
+    assert.deepEqual(await add([run('phone-2', '2026-10-21T03:00:00.000Z'), run('bad id!', '2026-10-21T03:00:00.000Z'),
+      run('phone-3', '2026-10-22T03:00:00.000Z', { family: ['Eevee', 'Eevee'] }), run('phone-4', 'not a date')]), { added: 0, skipped: 3 },
+    'Sharing again adds nothing, and invalid adventures are skipped')
+    await assert.rejects(add(Array.from({ length: 51 }, (_, i) => run('phone-x' + i, '2026-10-20T03:00:00.000Z'))), /Invalid adventures/)
+    await role('anon')
+    const first = (await read(0)).runs
+    assert.deepEqual(first.map(item => item.id), ['phone-1', 'phone-2'])
+    assert.equal(first[0].record.meters, 5200)
+    await role('authenticated', alice)
+    // Shared late, it finished before the others but still arrives after them.
+    await add([run('phone-0', '2026-10-19T03:00:00.000Z')])
+    await role('anon')
+    const later = (await read(first[1].seq)).runs
+    assert.deepEqual(later.map(item => item.id), ['phone-0'])
+    assert.deepEqual((await read(later[0].seq)).runs, [])
+    await assert.rejects(rpc('zepimon_get_phone_runs', ['0'.repeat(64), 0]), /Watch link expired/)
+    await assert.rejects(db.query('select * from zepimon_private.phone_runs'), /permission denied/)
+    await role('authenticated', bob)
+    assert.equal((await add([run('phone-1', '2026-10-20T03:00:00.000Z')])).added, 1, 'Adventures are kept per account')
+    await role('authenticated', alice)
+    await add(Array.from({ length: 50 }, (_, i) => run('bulk-' + i, '2026-10-23T03:00:00.000Z')))
+    for (let batch = 0; batch < 10; batch++) await add(Array.from({ length: 50 }, (_, i) => run(`more-${batch}-${i}`, '2026-10-23T03:00:00.000Z')))
+    await role('anon')
+    let count = 0
+    for (let after = 0, page; (page = (await read(after)).runs).length; after = page[page.length - 1].seq) count += page.length
+    assert.equal(count, 500, 'The newest 500 are kept')
+  })
   await t.test('older/duplicate snapshots cannot overwrite, missing shiny entries survive watch resets', async () => {
     await role('anon')
     assert.equal((await upload(token, journal(9999))).accepted, false)
@@ -79,10 +156,12 @@ test('private cloud journals, one-time links, replay protection, validation and 
     const next = journal(20000)
     next.snapshot.expedition = { seed: 345, startedAt: 1000, meters: 27000 }
     next.snapshot.dex = { Bulbasaur: { ...record, meters: 6500 } }
+    next.snapshot.recent = [{ ...record, meters: 3000, hatchSeconds: null, route: 0 }, { ...record, meters: 6500, route: 0 }]
     await upload(token, next)
     await role('authenticated', alice)
     const saved = (await rpc('zepimon_pull')).journal
     assert.deepEqual(saved.snapshot.expedition, next.snapshot.expedition, 'The existing cloud schema retains expedition progress without a migration')
+    assert.deepEqual(saved.snapshot.recent, next.snapshot.recent, "The watch's recent adventures pass through without a migration")
     assert.equal(saved.snapshot.dex.Bulbasaur.meters, 6500)
     assert.ok(saved.snapshot.dex['Shiny Bulbasaur'])
   })

@@ -12,7 +12,7 @@ vm.runInContext(fs.readFileSync('shared/expedition.js', 'utf8').replace(/export 
   '\nglobalThis.expeditionTools = { legendarySpecies, ensureExpedition, expeditionGoal, clueMilestones, expeditionEncounter, validateExpedition }', context)
 Object.assign(context, context.expeditionTools)
 vm.runInContext(fs.readFileSync('page/pokemon.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
-  '\nglobalThis.logic = { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, dexPokemon, primaryType, spritePath, nextMilestone, acquiredForms, currentForm, elapsedSeconds, elapsedLabel, paceLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords, hasDexDistance }', context)
+  '\nglobalThis.logic = { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, dexPokemon, primaryType, spritePath, nextMilestone, acquiredForms, currentForm, elapsedSeconds, elapsedLabel, paceLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords, hasDexDistance, applyPhoneRun }', context)
 const { routes, currentForm, updateSession, finishSession } = context.logic
 assert.equal(context.logic.elapsedSeconds({ startedAt: 1000 }, 62000), 61)
 assert.equal(context.logic.elapsedSeconds({ startedAt: 1000 }, 500), 0)
@@ -141,6 +141,8 @@ assert.equal(context.logic.dexPokemon({ Bulbasaur: {}, 'Shiny Bulbasaur': {} }).
 assert.equal(Array.from({ length: 100 }, (_, i) => context.logic.rollShiny(() => (i + 0.5) / 100)).filter(Boolean).length, 2)
 assert.equal(context.logic.rollShiny(() => 0.01999), true)
 assert.equal(context.logic.rollShiny(() => 0.02), false)
+// The catalog builds its sprite paths from Dex numbers; every one must be a real file.
+for (const path of Object.values(context.catalog.sprites)) assert.ok(fs.existsSync('assets/bip-5-unity/' + path), path)
 for (const path of Object.values(context.catalog.shinySprites)) assert.ok(fs.existsSync('assets/bip-5-unity/' + path))
 assert.equal(new Set(routes.flat()).size, 552)
 for (let id = 1; id <= 493; id++) assert.ok(Object.values(context.catalog.species).some(s => s.id === id))
@@ -210,6 +212,12 @@ state.active = { ...active, meters: 0, shiny: true }
 finishSession(state, '2026-10-19T00:00:00Z')
 assert.equal(JSON.stringify(state.dex), earnedBeforeZeroRun, 'A zero-distance save preserves both acquired variants')
 assert.equal(state.records[0].meters, 0, 'The latest route journey still replaces its predecessor')
+assert.deepEqual(Array.from(state.recent, item => item.meters), [15000, 5500, 21000, 1000, 21000, 0],
+  'Every saved adventure is logged for the phone, even when the same egg is walked again')
+assert.deepEqual(JSON.parse(JSON.stringify(state.recent.at(-1))), JSON.parse(JSON.stringify({ ...state.records[0], route: 0 })))
+for (let i = 0; i < 40; i++) { state.active = { ...active, meters: 100 + i }; finishSession(state, '2026-10-20T00:00:00Z') }
+assert.equal(state.recent.length, 30, 'The log keeps the latest 30')
+assert.equal(state.recent.at(-1).meters, 139)
 
 const timed = { dex: {}, records: {}, active: { ...active, meters: 5000,
   startedAt: Date.parse('2026-10-15T01:00:00.000Z') } }
@@ -335,6 +343,9 @@ const timeouts = new Map()
 const live = new Set()
 let timerId = 0
 let phoneSyncs = 0
+// What the adventure screen shares with the phone, and the shared adventure the cloud answers with.
+const shares = []
+let shareReply = null
 let pageBacks = 0
 let widgetsCreated = 0
 let widgetsDeleted = 0
@@ -363,7 +374,7 @@ const savedActive = () => JSON.parse(keys.get('zepimon-active') ?? 'null')
 const savedNext = () => JSON.parse(keys.get('zepimon-next') ?? '{}')
 Object.assign(context, {
   ...context.logic, Distance, Step, LocalStorage, console,
-  getApp: () => ({ _options: { syncToPhone() { phoneSyncs++ } } }),
+  getApp: () => ({ _options: { syncToPhone() { phoneSyncs++ }, shareAdventure(adventure, done = () => {}) { shares.push(JSON.parse(JSON.stringify(adventure))); done(shareReply) } } }),
   back: () => { pageBacks++ },
   widget: { TEXT: 1, BUTTON: 2, IMG: 3, FILL_RECT: 4, CANVAS: 5 }, align: { CENTER_H: 1 }, prop: { TEXT: 1, MORE: 2 }, text_style: { WRAP: 1 }, event: { CLICK_UP: 1 },
   setInterval(callback) { const id = ++timerId; timers.set(id, callback); return id },
@@ -420,7 +431,7 @@ context.drawSprite(fallbackCanvas, 'Egg', false, 176, 1)
 assert.equal(fallbackCanvas.drawn.w, 176)
 vm.runInContext(fs.readFileSync('shared/companion.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, ''), context)
 vm.runInContext(fs.readFileSync('page/saved.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
-  '\nglobalThis.saved = { nextEgg, phoneAdventure, withPlan, readActive }', context)
+  '\nglobalThis.saved = { nextEgg, phoneAdventure, withPlan, readActive, readPhoneRuns, withReceivedRuns }', context)
 vm.runInContext(fs.readFileSync('page/adventure.js', 'utf8').replace(/^import .*\r?\n/gm, ''), context)
 page.build()
 assert.equal(journalWrites, 1, 'A first start saves the new journal once')
@@ -935,6 +946,140 @@ page.onDestroy()
   assert.ok(phoneAdventure(recording, 2000))
   assert.equal(phoneAdventure(recording, 1000 + 13 * 3600000), null, 'A forgotten phone adventure stops blocking')
 }
+// Adventures recorded on Zepimon mobile join the journal when this screen opens, each once, without moving the watch's
+// own Expedition trail. The newer record wins, and an older phone adventure can still be a personal best.
+{
+  const { readPhoneRuns, withReceivedRuns } = context.saved
+  const routeOf = family => routes.findIndex(item => item.join('>') === family.join('>'))
+  const pikachu = ['Pikachu', 'Raichu']
+  const phoneRecord = (meters, finishedAt, extra = {}) => ({ meters, steps: 0, shiny: false, activity: 'running', finishedAt,
+    startedAt: Date.parse(finishedAt) - 3600000, elapsedSeconds: 3600, form: 'Charmeleon', ...extra })
+  const watchRecord = { meters: 5100, steps: 6500, shiny: false, finishedAt: '2026-10-25T03:00:00.000Z', elapsedSeconds: 4000, form: 'Charmander' }
+  stored = JSON.stringify({ dex: { Charmander: watchRecord }, records: { [routeOf(charmander)]: watchRecord }, active: null,
+    expedition: { seed: 1, startedAt: 1000, meters: 4000 } })
+  keys.clear()
+  const runs = [
+    { id: 'phone-old', seq: 3, family: charmander, record: phoneRecord(10400, '2026-10-20T03:00:00.000Z', { hatchSeconds: 1500 }) },
+    { id: 'phone-new', seq: 4, family: pikachu, record: phoneRecord(5300, '2026-10-26T03:00:00.000Z', { shiny: true, form: 'Pikachu' }) },
+    { id: 'phone-unknown', seq: 5, family: ['Missingno'], record: phoneRecord(5000, '2026-10-26T04:00:00.000Z') }]
+  const received = withReceivedRuns(readPhoneRuns(new LocalStorage()), runs)
+  assert.equal(received.after, 5)
+  assert.equal(withReceivedRuns(received, runs.slice(0, 1)).pending.length, 3, 'The same adventure arriving twice waits once')
+  keys.set('zepimon-phone-runs', JSON.stringify(received))
+  const writesBefore = journalWrites
+  page.onInit({ view: 'home' })
+  page.build()
+  let journal = JSON.parse(stored)
+  assert.equal(journalWrites, writesBefore + 1, 'Phone adventures are saved into the journal once')
+  assert.equal(journal.records[routeOf(charmander)].meters, 5100, "The watch's newer record stays the family's latest")
+  assert.equal(journal.dex.Charmander.meters, 5100, 'A newer Dex record is kept')
+  assert.equal(journal.dex.Charmeleon.meters, 10400, 'Pokemon evolved on the phone join the Dex')
+  assert.equal(journal.records[routeOf(pikachu)].meters, 5300, 'A newer phone adventure becomes the latest record')
+  assert.equal(journal.dex['Shiny Pikachu'].steps, 0)
+  assert.equal(journal.dex['Shiny Raichu'], undefined)
+  assert.equal(journal.personalBests.distance.meters, 10400, 'An older phone adventure can still be the longest')
+  assert.equal(journal.personalBests.hatch.hatchSeconds, 1500)
+  assert.equal(journal.expedition.meters, 4000, 'Phone distance stays on the phone trail')
+  assert.deepEqual(JSON.parse(keys.get('zepimon-phone-runs')), { after: 5, pending: [] })
+  page.onDestroy()
+  page.build()
+  journal = JSON.parse(stored)
+  assert.equal(journalWrites, writesBefore + 1, 'Reopening adds nothing again')
+  assert.equal(journal.personalBests.distance.meters, 10400, 'The personal best stays')
+  page.onDestroy()
+}
+// The adventure is shared with the phone as it starts and about once a minute while it records. If the phone takes
+// it over, the watch stops without saving.
+{
+  stored = JSON.stringify({ dex: {}, records: {}, active: null, expedition: { seed: 1, startedAt: 1000, meters: 0 } })
+  keys.clear()
+  shares.length = 0
+  shareReply = null
+  context.testNow += 1000
+  page.onInit({ start: { activity: 'walking', family: charmander } })
+  page.build()
+  const startedAt = page.state.active.startedAt
+  assert.equal(shares.length, 1, 'Starting shares the adventure')
+  assert.deepEqual([shares[0].id, shares[0].device, shares[0].deviceAt, shares[0].meters, shares[0].ended], ['adv-' + startedAt, 'watch', startedAt, 0, false])
+  assert.deepEqual(shares[0].family, charmander)
+  context.testNow += 30000; distance += 300; page.sync()
+  assert.equal(shares.length, 1, 'Progress waits about a minute')
+  context.testNow += 31000; distance += 10; page.sync()
+  assert.equal(shares.length, 2)
+  assert.equal(shares[1].meters, 310)
+  const writes = journalWrites
+  shareReply = { ...shares[1], device: 'phone', deviceAt: startedAt + 70000, at: context.testNow }
+  context.testNow += 61000; distance += 10; page.sync()
+  assert.equal(page.view, 'handed-over', 'The phone took over')
+  assert.ok(page.widgets.some(item => item.text === 'Continued on your phone'))
+  assert.equal(page.state.active, null)
+  assert.equal(savedActive(), null, 'Nothing is left recording here')
+  assert.equal(journalWrites, writes, 'The watch does not save what the phone continues')
+  page.onDestroy()
+}
+// Continue here: the watch takes over the phone's adventure with its egg, start and distance so far, and finishing
+// shares it as ended and saves it here.
+{
+  shares.length = 0
+  shareReply = null
+  const onPhone = { id: 'adv-5000', family: charmander, mega: 'Mega Charizard X', shiny: true, activity: 'running', startedAt: 5000,
+    device: 'phone', deviceAt: 5000, meters: 4800, hatchSeconds: null, at: context.testNow - 30000, ended: false }
+  keys.set('zepimon-next', JSON.stringify({ adventure: onPhone }))
+  page.onInit({ takeover: true })
+  page.build()
+  const session = page.state.active
+  assert.equal(page.view, 'session')
+  assert.deepEqual([routes[session.route][0], session.startedAt, session.meters, session.shiny, session.mega, session.shareId, session.activity],
+    ['Charmander', 5000, 4800, true, 'Mega Charizard X', 'adv-5000', 'running'])
+  assert.ok(session.deviceAt > 5000)
+  assert.deepEqual([shares[0].device, shares[0].meters, shares[0].deviceAt], ['watch', 4800, session.deviceAt], 'The cloud learns the watch took it')
+  distance += 300
+  page.sync()
+  assert.equal(page.state.active.meters, 5100, 'Only new distance counts here')
+  assert.ok(page.state.active.hatchSeconds > 0, 'The egg hatches on the watch')
+  click('Finish & save')
+  click('Save & finish')
+  assert.equal(shares.at(-1).ended, true)
+  assert.equal(shares.at(-1).meters, 5100)
+  const saved = JSON.parse(stored).records[routes.findIndex(item => item.join('>') === charmander.join('>'))]
+  assert.deepEqual([saved.meters, saved.startedAt, saved.shiny], [5100, 5000, true])
+  page.onDestroy()
+}
+// An adventure started before sharing existed gets the id it would have had, and is shared from then on.
+{
+  shares.length = 0
+  shareReply = null
+  const older = { route: 0, activity: 'walking', startedAt: context.testNow - 600000, shiny: false, mega: null, meters: 900, steps: 1200,
+    day: 'old', lastMeters: distance, lastSteps: steps }
+  keys.set('zepimon-active', JSON.stringify(older))
+  page.onInit({ view: 'home' })
+  page.build()
+  assert.equal(page.state.active.shareId, 'adv-' + older.startedAt)
+  assert.equal(page.state.active.deviceAt, older.startedAt)
+  assert.equal(savedActive().shareId, 'adv-' + older.startedAt, 'The id is saved with it')
+  context.testNow += 61000
+  distance += 5
+  page.sync()
+  assert.equal(shares.length, 1, 'It is shared on the next update')
+  assert.equal(shares[0].id, 'adv-' + older.startedAt)
+  page.onDestroy()
+  keys.delete('zepimon-active')
+}
+// Finishing an adventure the phone has taken over meanwhile saves nothing here.
+{
+  shares.length = 0
+  context.testNow += 1000
+  page.onInit({ start: { activity: 'walking', family: charmander } })
+  page.build()
+  const active = page.state.active
+  keys.set('zepimon-next', JSON.stringify({ ...savedNext(), adventure: { ...shares[0], device: 'phone', deviceAt: active.deviceAt + 1000 } }))
+  const writes = journalWrites
+  click('Finish & save')
+  click('Save & finish')
+  assert.equal(page.view, 'handed-over')
+  assert.equal(journalWrites, writes)
+  page.onDestroy()
+}
 // Canvas scaling keeps the visible pose large without drawing outside its bounds.
 for (const update of imageUpdates) {
   assert.ok(update.w === update.h || update.w === update.h * 2)
@@ -981,10 +1126,10 @@ const bootContext = vm.createContext({
     assert.ok(options.x >= 0 && options.x + options.w <= 320)
     assert.ok(options.y >= 64 && options.y + options.h <= 380, 'Title content overlaps system header or screen edge')
     bootDrawn.push(options)
-    return { clear() {}, drawImage(value) { options.image = value.image; options.drawn = value },
+    return { options, clear() {}, drawImage(value) { options.image = value.image; options.drawn = value },
       setProperty(property, value) { if (property === 1) options.text = value; else Object.assign(options, value) } }
   },
-  deleteWidget() {},
+  deleteWidget(item) { const index = bootDrawn.indexOf(item.options); if (index >= 0) bootDrawn.splice(index, 1) },
   getApp: () => ({ _options: { fetchPlan(done) { planCallback = done } } }),
   push(options) { destination = options.url; navigationParams = options.params }, console
 })
@@ -1011,6 +1156,10 @@ const reopen = () => { close(); bootDrawn.length = 0; destination = undefined; n
 // A first visit: a surprise egg, and four buttons.
 assert.ok(bootDrawn.some(item => item.image === 'pokemon/egg.png' && item.drawn.w === 72), 'The egg is drawn without the catalog')
 assert.ok(shown('Surprise egg'))
+assert.ok(shown('Ready to start'))
+planCallback(undefined, 'no answer from Zepp')
+assert.ok(shown('Ready · no answer from Zepp'), 'The title says when the phone could not be checked')
+planCallback(undefined, undefined)
 assert.ok(shown('Ready to start'))
 assert.ok(bootDrawn.some(item => item.text === (distance / 1000).toFixed(2)))
 assert.equal(bootDrawn.filter(item => item.click_func).length, 4)
@@ -1060,6 +1209,29 @@ assert.ok(shown('Tap again to record here too'))
 tap('Walk')
 flushBootTimeouts()
 assert.equal(destination, 'page/adventure')
+// An adventure the phone shares: the title shows it and offers Continue here instead of starting a second one.
+const sharedOnPhone = { id: 'adv-7000', family: ['Charmander', 'Charmeleon', 'Charizard'], mega: 'Mega Charizard X', shiny: true,
+  activity: 'running', startedAt: Date.now() - 3600000, device: 'phone', deviceAt: Date.now() - 3600000, meters: 6200, hatchSeconds: 2400,
+  at: Date.now() - 120000, ended: false }
+titleKeys.set('zepimon-next', JSON.stringify({ adventure: sharedOnPhone }))
+reopen()
+assert.ok(shown('ON YOUR PHONE'))
+assert.ok(shown('Shiny Charmander'))
+assert.ok(shown('Run · 6.20 km'))
+assert.ok(shown('Recording on your phone · 2 min ago'))
+assert.ok(!shown('Walk') && !shown('Change egg'), 'No second adventure while the phone records one')
+tap('Continue here  >')
+flushBootTimeouts()
+assert.equal(navigationParams.takeover, true)
+reopen()
+assert.equal(bootTimers.size, 1, 'The open title keeps checking the phone')
+planCallback({ adventure: { ...sharedOnPhone, ended: true } })
+assert.ok(shown('Walk') && !shown('Continue here  >'), 'Once the phone finishes, Walk and Run return')
+assert.ok(shown('NEXT EGG'))
+planCallback = null
+bootTimers.get(1)()
+assert.equal(typeof planCallback, 'function', 'Each minute the open title asks the phone again')
+titleKeys.set('zepimon-next', JSON.stringify({}))
 // An adventure in progress: Continue and History only, from its own key or, before the first update, the journal.
 titleKeys.set('zepimon-active', JSON.stringify(activeForHistory))
 const keysBeforeTitle = JSON.stringify([...titleKeys])

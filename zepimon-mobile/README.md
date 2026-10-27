@@ -8,8 +8,9 @@ A standalone iPhone and Android companion for Zepimon, built with Expo SDK 57 an
 
 The **Adventure** tab, the violet Poke Ball in the middle of the tab bar, is the
 phone version of the watch adventure. Tap the ball and it spins, then Gengar pops
-out and floats there, smiling, while the tab is open (tap again for a twirl). Choose an egg (search by name or filter by generation, or take a
-random one), pick a Mega form where the family has one, choose **Walking** or
+out and floats there with a wicked grin inside a pulsing shadow aura while the tab is open; tap again and he
+taunts, tongue out and pulling an eye, as the aura flares. Choose an egg, or take a
+random one, pick a Mega form where the family has one, choose **Walking** or
 **Running** and start. The phone measures distance by GPS: every 5 km in one
 adventure hatches or evolves the egg, with the Mega form at 21 km, and 1 in 50
 eggs is Shiny, as on the watch. While recording you see the walking Pokemon,
@@ -18,12 +19,44 @@ next hatch or evolution, and the route drawn live. **Finish & save** adds the
 adventure to the Journal, Dex, personal bests, missions and the Walking bonus,
 and it becomes the family's latest record; **Discard** drops it.
 
+**Choose an egg** opens a Pokedex-style list (1.9.5): cards with the Dex
+number, sprite, type and evolutions, and how many of the family are already in
+your Dex (a Poke Ball when all are). Sort by **Lowest No.**, **Highest No.**,
+**A–Z** or **Z–A**; filter by generation (Gen 1 · Kanto to Gen 9 · Paldea, from
+the eggs themselves, so new generations appear on their own), by type, and by
+**Not caught** (a family with a Pokemon missing from your Dex) or **Caught**.
+Search finds a name (accents optional), a type, or a Dex number such as `25` or `#025`.
+Filters match any Pokemon of the family, so the Pichu egg is under Kanto too.
+**Random** picks from the current results, and the sort and filters stay as you
+left them until the app closes.
+
 Routes are drawn as a line on a plain grid, like Strava without the map, with a
 scale bar; the Journal and the Adventure tab show them beside past adventures.
 GPS fixes less accurate than 35 m, small jitter while standing still and jumps
 faster than running (or walking) speed are ignored. Phones count distance, not
 steps. Phone adventures walk their own Legendary Expedition trail, and they are
 kept apart from the watch journal, so a watch sync never replaces them.
+
+**Share an adventure as an image.** Tap **Share image** on any adventure (in the
+Journal, **All adventures**, **Your routes** or its details), or **Share
+adventure image** right after saving one. It makes a 1080 × 1920 PNG,
+story size, like a Strava share card: the route, a Pokemon as large pixel art,
+and the distance, pace and time. Watch adventures have no route, so their card
+shows the Pokemon and stats. Before saving, choose:
+
+- **Pokemon:** the one the adventure reached (the default), the egg, or any
+  form it passed on the way.
+- **Style:** **Original** (the battle sprite), **Walking** (the overworld
+  sprite stepping to the right) or **Facing front** (the overworld sprite
+  looking at you). The egg and forms without overworld art have only Original.
+- **Size:** **Small**, **Medium**, **Large** or **Extra large**.
+- **Background:** **Dark**, or **Clear**, which is see-through for laying over
+  your own photo.
+
+Style, size and background stay as you left them until the app closes. **Share
+or save image** opens the share sheet to save it to Photos or Files, print it
+or post it. The web build downloads the PNG instead. Sprites are enlarged by whole
+numbers from their own pixels (`src/pixel-art.ts`), so they stay sharp.
 
 Recording keeps going with the screen off. Android runs it as a foreground
 service with a notification; iPhone uses background location with the blue
@@ -34,7 +67,66 @@ Android's location switch or to Zepimon's own settings for permission and
 precise location. If the system stops recording (a restart, a force stop), the
 adventure is kept with a **Resume recording** button.
 
+**If the app crashes (1.9.4).** Zepimon keeps its own crash report, so no
+computer or developer options are needed. On Android, a crash is written down
+just before the app closes, and the next start shows **Zepimon closed
+unexpectedly** with the details (plus Android's own record of recent crashes and
+freezes on Android 11 and later); **Share report** sends it by chat or email.
+An error inside a screen shows **Something went wrong** with **Try again** and
+**Share report** instead of closing the app. After a crash, and after each
+install or update, the next start drops the saved location task once, so a
+failing recorder cannot crash the app on every start. If the crash came during
+an adventure, recording switches to **Keep Zepimon open** mode, which records
+only while the app is on screen (no foreground service), until **Record with the
+screen off again** is tapped. The location task is defined in the app entry,
+`index.js`, so it is ready when Android starts the app in the background to
+deliver locations.
+
 Missions now open from the Journal (**View missions**) instead of the tab bar.
+
+**One egg, phone and watch.** With your watch linked in **Sync**, the egg you
+choose in the Adventure tab (or with **Hatch this next** on a Pokemon's Dex page)
+is also the next egg on the watch's title screen, ready for one tap on Walk or
+Run. Starting it on either one uses it up. While the phone records, the watch
+warns before recording too, and the Adventure tab shows an adventure in progress
+on the watch (as of its last sync) and asks for a second tap before starting
+here, so the same steps are not counted twice. The plan goes through the cloud
+when you are signed in; see [zepimon-sync](../zepimon-sync/README.md).
+
+**One shared adventure (1.9.9).** Whichever device starts an adventure, the
+phone, the watch and the Zepimon page in Zepp show the same one: its Pokemon,
+Walk or Run, and distance, updated about once a minute (also with the phone's
+screen off). The other device does not start a second one; it offers
+**Continue here** instead. Continuing takes the adventure over with its egg,
+Shiny roll, start time and distance so far; the device that had it stops
+without saving, and the Adventure tab says **Continued on your watch** when the
+watch takes over. Only the device recording at the end saves it, so steps are
+never counted twice; if both ever save it (each offline when the other took
+over), the Journal counts it once with the longer distance. Starting with the
+egg chosen here uses it up on both devices. Needs the watch linked in **Sync**
+and `zepimon-sync/schema.sql` re-run in Supabase.
+
+**Phone adventures on the watch (1.9.7).** Adventures saved here also go to the
+watch, through the cloud and without their routes. You can pick the Pokemon on the
+phone and record either here or, with one tap, on the watch, and both end up in
+the watch's journal. The next time Zepimon opens on the watch with Zepp
+connected, it adds their Pokemon to its Dex, makes each the family's latest
+record unless the watch has a newer one, and updates its personal bests. Phone
+distance keeps walking the phone's own Expedition trail. When the watch's
+journal syncs back, the phone recognizes its own adventures, so missions and
+runs never count one twice. Needs the watch linked in **Sync** and
+`zepimon-sync/schema.sql` re-run in Supabase.
+
+**Recent adventures from both devices.** The Journal keeps every walk and run
+from the watch as well as from this phone, each marked **Watch** or **This
+phone** with Walk or Run. **Recent adventures** shows the latest 5; **View all
+adventures** (also under **Your routes** in the Adventure tab) lists every one
+by month, with its total distance, and filters by device. Tap any adventure for
+its details: the Pokemon it reached (each opens its Dex record), date and start
+and finish times, distance, time, average pace, hatch time and steps where
+known, the route for phone adventures, and **Share image**. The watch sends its
+last 30 adventures with each sync, so two walks with the same egg between syncs
+both appear; older watch versions still send only each family's latest.
 
 ### Legendary Expeditions (1.5.0)
 
@@ -93,6 +185,11 @@ Both defense games use type matchups (super-effective hits do double damage) and
 
 - Gen 1–4 Pokémon and the extra Mega families, with bundled sprites and type-themed habitats.
 - Separate Normal and Shiny Dex entries, saved run details, and a selectable buddy.
+- The Dex sorts and filters like the egg picker: **Lowest No.**, **Highest No.**,
+  **A–Z** or **Z–A** (Mega forms sit beside their species), generation with
+  region names, type, and **Show** All, Normal, Shiny or Safari. Search takes a
+  name, a type or a Dex number, and the count shows how many of your Pokemon
+  match. Both screens share `src/pokedex.ts` and `src/PokedexFilters.tsx`.
 - A Journal with personal bests and completed runs retained across imports.
 - A Pocket Arcade with the Adventure Map, Route Guard, Trail Defense, Safari Hunt, Memory Match, Who’s That Pokémon?, and Berry Catch. Everything works offline and saves best scores and stars on the phone.
 - Weekly goals for 10 km and three active days, career missions, and hidden badges. Weeks run Monday–Sunday in the phone’s local time; completed runs count on their finish date.

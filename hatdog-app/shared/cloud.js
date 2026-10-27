@@ -1,6 +1,6 @@
 import { cloudConfig } from './cloud-config'
 import { routes } from '../page/catalog'
-import { SNAPSHOT_KEY, SYNC_FRAME_KEY, validatePlan, validateSnapshot } from './companion'
+import { SNAPSHOT_KEY, SYNC_FRAME_KEY, validateAdventure, validatePhoneRuns, validatePlan, validateSnapshot } from './companion'
 
 export const CLOUD_TOKEN_KEY = 'zepimon-cloud-token'
 export const CLOUD_REQUEST_KEY = 'zepimon-cloud-request'
@@ -37,6 +37,28 @@ export const cloudMethods = {
     if (!token) return null
     const result = await cloudRpc('zepimon_get_plan', { upload_token: token })
     return validatePlan(result ? result.plan : null)
+  },
+  // The plan and the adventure the watch shares with the phone, read together. null when the watch is not linked.
+  async fetchShared() {
+    const token = this.settings.getItem(CLOUD_TOKEN_KEY)
+    if (!token) return null
+    const result = await cloudRpc('zepimon_get_plan', { upload_token: token })
+    return { plan: validatePlan(result ? result.plan : null), adventure: validateAdventure(result ? result.adventure : null) }
+  },
+  // Shares the watch's adventure (started, progress, taken over or ended) and returns the shared one as it now stands.
+  async shareAdventure(adventure) {
+    const token = this.settings.getItem(CLOUD_TOKEN_KEY)
+    if (!token) throw new Error('Link your account to share adventures.')
+    const result = await cloudRpc('zepimon_watch_share_adventure', { upload_token: token, adventure: validateAdventure(adventure) })
+    return validateAdventure(result ? result.adventure : null)
+  },
+  // Adventures recorded on Zepimon mobile after the one the watch received last (after is the cloud's seq), oldest
+  // first, read with the same token. Empty when the watch is not linked.
+  async fetchPhoneRuns(after) {
+    const token = this.settings.getItem(CLOUD_TOKEN_KEY)
+    if (!token) return []
+    const result = await cloudRpc('zepimon_get_phone_runs', { upload_token: token, after: Number.isSafeInteger(after) && after > 0 ? after : 0 })
+    return validatePhoneRuns(result ? result.runs : null)
   },
   // Watch syncs, links and uploads can overlap; the Pokeball keeps spinning until the last one finishes.
   spinStart() {

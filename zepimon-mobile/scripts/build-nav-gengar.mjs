@@ -5,7 +5,8 @@
 // Writes transparent PNGs to assets/nav/ at two pixels per grid unit. Four share a 120 x 100 grid so they stack
 // exactly: body-grin, body-blink and body-boo (the head, drawn behind the pill) and paws (drawn in front of it). Row 72
 // of that grid is where the pill's top edge meets the art; below the cheeks the body tapers so the pill's rounded
-// shoulders hide it. float-smile and float-blink (120 x 120) are the whole Gengar floating over the Adventure button.
+// shoulders hide it. The Gengar floating over the Adventure button (float-grin, float-taunt) is cut from an illustration
+// instead; see the note in src/TabBar.tsx.
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -54,29 +55,6 @@ const paw = `<path fill="url(#skin)" d="M6.5,74.5 C4.5,67 9,61 16,61 C23,61 28,6
   <path fill="none" stroke-width="1.8" d="M13.5,73 L13.5,77.5 M20,72.5 L20,77.5"/>`
 const paws = `<g transform="rotate(-12 17 70)">${paw}</g><g transform="translate(120 0) scale(-1 1) rotate(-12 17 70)">${paw}</g>`
 
-// The whole Gengar floating over the Adventure button (a 120 x 120 grid): round body, dangling feet, both arms up,
-// happy eyes and the famous grin. float-blink closes the eyes into happy arcs.
-const floatBody = `<ellipse cx="45" cy="101" rx="9" ry="6" fill="url(#skin)"/><ellipse cx="75" cy="101" rx="9" ry="6" fill="url(#skin)"/>
-  <path fill="url(#skin)" d="M27,64 C20,61 13,55 10,48 Q8,43 13,43.5 C19,46 24,52 30,56 Z"/>
-  <path fill="url(#skin)" d="M93,64 C100,61 107,55 110,48 Q112,43 107,43.5 C101,46 96,52 90,56 Z"/>
-  <path fill="url(#skin)" d="M60,100 C39,100 24,89 23,71 C22.5,63 24.5,56 28,50 C24,40 18,29 14.5,21 Q13,16.5 17.5,17.5 C26,21.5 34,27.5 40,33.5
-    Q43.5,27.5 46.5,23.5 Q49.5,27 52,30 Q55,22 58.5,16.5 Q62,22.5 64,28.5 Q67,24.5 70.5,21 Q72.5,25 74,29.5 C81,25.5 91,19.5 100.5,14.5
-    Q105,12.5 104,17.5 C102,27 98,38.5 92,49 C95.5,55.5 97.5,63 97,71 C96,89 81,100 60,100 Z"/>
-  <path fill="#5D4488" stroke="none" d="M18.5,21.5 C25,25 31,29.5 36,34 L27.5,44 C24,37 21,29 18.5,21.5 Z"/>
-  <path fill="#5D4488" stroke="none" d="M100,18.5 C99,26 96.5,34 93,42 L82.5,30.5 C88,26.5 94,22 100,18.5 Z"/>
-  <ellipse cx="46" cy="41" rx="9" ry="4" fill="#fff" opacity=".22" stroke="none" transform="rotate(-14 46 41)"/>
-  <ellipse cx="31" cy="72" rx="5" ry="3" fill="#F28BB0" opacity=".45" stroke="none"/><ellipse cx="89" cy="72" rx="5" ry="3" fill="#F28BB0" opacity=".45" stroke="none"/>
-  <path fill="#fff" stroke-width="2.2" d="M38,70 Q60,79 82,70 Q77,90 60,91 Q43,90 38,70 Z"/>
-  <path fill="none" stroke-width="1.6" d="M47,74 L48.5,87 M54,75.5 L54.5,90 M60,76 L60,91 M66,75.5 L65.5,90 M73,74 L71.5,87"/>`
-const floats = {
-  'float-smile': `${floatBody}
-  <path fill="url(#eye)" stroke-width="2.2" d="M34,61 Q45,42 56,61 Q45,66 34,61 Z"/><path fill="url(#eye)" stroke-width="2.2" d="M64,61 Q75,42 86,61 Q75,66 64,61 Z"/>
-  <ellipse cx="45.5" cy="57.5" rx="3.2" ry="3.8" fill="#2B1838" stroke="none"/><ellipse cx="74.5" cy="57.5" rx="3.2" ry="3.8" fill="#2B1838" stroke="none"/>
-  <circle cx="44.3" cy="55.8" r="1.2" fill="#fff" stroke="none"/><circle cx="73.3" cy="55.8" r="1.2" fill="#fff" stroke="none"/>`,
-  'float-blink': `${floatBody}
-  <path fill="none" stroke-width="3.2" d="M36,60 Q45,49 54,60 M66,60 Q75,49 84,60"/>`
-}
-
 function chrome() {
   const candidates = [process.env.CHROME, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -89,8 +67,7 @@ function chrome() {
 const browser = chrome()
 const work = mkdtempSync(join(tmpdir(), 'nav-gengar-'))
 mkdirSync(OUT, { recursive: true })
-const layers = { ...Object.fromEntries(Object.entries(faces).map(([name, face]) => [`body-${name}`, [head + face, 100]])), paws: [paws, 100],
-  ...Object.fromEntries(Object.entries(floats).map(([name, art]) => [name, [art, 120]])) }
+const layers = { ...Object.fromEntries(Object.entries(faces).map(([name, face]) => [`body-${name}`, [head + face, 100]])), paws: [paws, 100] }
 try {
   for (const [name, [art, rows]] of Object.entries(layers)) {
     const page = join(work, `${name}.html`)

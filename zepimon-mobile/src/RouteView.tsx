@@ -12,24 +12,29 @@ const SCALES = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000
 const routeColor = '#1374B8'
 const startColor = '#16B5A0'
 
+// The route fitted and centred in a width × height box, pad from each edge: an SVG path, its first and last points,
+// and the scale in pixels per metre. The share image (src/ShareCard.tsx) draws routes with it too.
+export function routeShape(points: [number, number][], width: number, height: number, pad: number) {
+  if (!(width > 0) || !points.length) return null
+  const cos = Math.cos(points[0][0] * Math.PI / 180)
+  const xy = points.map(([lat, lng]) => [lng * cos * METRES_PER_DEGREE, -lat * METRES_PER_DEGREE])
+  const xs = xy.map(p => p[0]), ys = xy.map(p => p[1])
+  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+  const scale = Math.min((width - 2 * pad) / Math.max(maxX - minX, MIN_SPAN), (height - 2 * pad) / Math.max(maxY - minY, MIN_SPAN))
+  const centre = [(minX + maxX) / 2, (minY + maxY) / 2]
+  const screen = xy.map(([x, y]) => [width / 2 + (x - centre[0]) * scale, height / 2 + (y - centre[1]) * scale])
+  return { path: screen.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' '),
+    start: screen[0], end: screen[screen.length - 1], count: screen.length, scale }
+}
+
 export function RouteView({ points, height, live = false, compact = false, label }: {
   points: [number, number][], height: number, live?: boolean, compact?: boolean, label: string
 }) {
   const [width, setWidth] = useState(0)
   const pad = compact ? 8 : 22
-  let path = '', start: number[] | null = null, end: number[] | null = null, scale = 0
-  if (width > 0 && points.length) {
-    const cos = Math.cos(points[0][0] * Math.PI / 180)
-    const xy = points.map(([lat, lng]) => [lng * cos * METRES_PER_DEGREE, -lat * METRES_PER_DEGREE])
-    const xs = xy.map(p => p[0]), ys = xy.map(p => p[1])
-    const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
-    scale = Math.min((width - 2 * pad) / Math.max(maxX - minX, MIN_SPAN), (height - 2 * pad) / Math.max(maxY - minY, MIN_SPAN))
-    const centre = [(minX + maxX) / 2, (minY + maxY) / 2]
-    const screen = xy.map(([x, y]) => [width / 2 + (x - centre[0]) * scale, height / 2 + (y - centre[1]) * scale])
-    path = screen.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ')
-    start = screen[0]
-    end = screen.length > 1 || live ? screen[screen.length - 1] : null
-  }
+  const shape = routeShape(points, width, height, pad)
+  const path = shape?.path ?? '', start = shape?.start ?? null, scale = shape?.scale ?? 0
+  const end = shape && (shape.count > 1 || live) ? shape.end : null
   // A scale bar about a quarter of the width, at a round distance.
   const bar = scale ? SCALES.filter(metres => metres * scale <= width / 3).at(-1) : undefined
   const grid = compact ? 16 : 28

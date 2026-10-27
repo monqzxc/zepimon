@@ -23,9 +23,27 @@ create table if not exists zepimon_private.plans (
   payload jsonb not null,
   updated_at timestamptz not null default now()
 );
+-- Adventures recorded on Zepimon mobile, for the watch to add to its journal. seq orders them as they arrive, so the
+-- watch can ask for the ones after the last it received even when a phone shares an older adventure late.
+create table if not exists zepimon_private.phone_runs (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  id text not null,
+  payload jsonb not null,
+  seq bigint generated always as identity,
+  primary key (user_id, id)
+);
+create index if not exists phone_runs_seq on zepimon_private.phone_runs(user_id, seq);
+-- The one adventure the phone and the watch share: who records it now, and its distance so far.
+create table if not exists zepimon_private.adventures (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  payload jsonb not null,
+  updated_at timestamptz not null default now()
+);
 alter table zepimon_private.links enable row level security;
 alter table zepimon_private.journals enable row level security;
 alter table zepimon_private.plans enable row level security;
+alter table zepimon_private.phone_runs enable row level security;
+alter table zepimon_private.adventures enable row level security;
 revoke all on all tables in schema zepimon_private from public, anon, authenticated;
 
 create or replace function zepimon_private.valid_name(value text)
@@ -170,6 +188,68 @@ exception when others then return false;
 end;
 $$;
 
+-- Matches validatePhoneRun in hatdog-app/shared/companion.js: an id from the phone, the egg's family and the saved
+-- record, in the watch's own record format.
+create or replace function zepimon_private.valid_phone_run(value jsonb)
+returns boolean language plpgsql immutable set search_path = '' as $$
+begin
+  return value is not null and octet_length(value::text) <= 2048 and jsonb_typeof(value) = 'object'
+    and jsonb_typeof(value->'id') = 'string' and value->>'id' ~ '^[A-Za-z0-9_-]{1,64}$'
+    and zepimon_private.valid_family(value->'family') and zepimon_private.valid_record(value->'record');
+exception when others then return false;
+end;
+$$;
+
+-- Matches validateAdventure in hatdog-app/shared/companion.js. device records it now, since deviceAt (its start or
+-- the moment it took over); meters is its distance as of at. Times are milliseconds since 1970.
+create or replace function zepimon_private.valid_adventure(value jsonb)
+returns boolean language plpgsql immutable set search_path = '' as $$
+declare field text;
+begin
+  if value is null or octet_length(value::text) > 2048 or jsonb_typeof(value) <> 'object'
+    or jsonb_typeof(value->'id') is distinct from 'string' or value->>'id' !~ '^[A-Za-z0-9_-]{1,64}$'
+    or not zepimon_private.valid_family(value->'family')
+    or coalesce(value->>'activity', '') not in ('walking', 'running')
+    or coalesce(value->>'device', '') not in ('phone', 'watch')
+    or jsonb_typeof(value->'shiny') is distinct from 'boolean' or jsonb_typeof(value->'ended') is distinct from 'boolean'
+    or jsonb_typeof(value->'meters') is distinct from 'number' or (value->>'meters')::numeric not between 0 and 100000000 then return false; end if;
+  foreach field in array array['startedAt', 'deviceAt', 'at'] loop
+    if jsonb_typeof(value->field) is distinct from 'number' or (value->>field)::numeric not between 0 and 8640000000000000 then return false; end if;
+  end loop;
+  if value->'mega' is not null and value->'mega' <> 'null'::jsonb
+    and (jsonb_typeof(value->'mega') <> 'string' or not zepimon_private.valid_name(value->>'mega')) then return false; end if;
+  if value->'hatchSeconds' is not null and value->'hatchSeconds' <> 'null'::jsonb
+    and (jsonb_typeof(value->'hatchSeconds') <> 'number' or (value->>'hatchSeconds')::numeric <= 0) then return false; end if;
+  return true;
+exception when others then return false;
+end;
+$$;
+
+-- Keeps the shared adventure, from either device, and returns it as it now stands. A device's update is taken when
+-- it starts a newer adventure (or the last one ended), takes the same adventure over (a newer deviceAt), or reports
+-- progress on the adventure it still records. A device that was taken over gets the newer state back instead, which
+-- tells it to stop. An ended adventure stays ended.
+create or replace function zepimon_private.share_adventure(uid uuid, adventure jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare old jsonb; same boolean; newer boolean;
+begin
+  if not zepimon_private.valid_adventure(adventure) then raise exception 'Invalid adventure'; end if;
+  select payload into old from zepimon_private.adventures where user_id = uid for update;
+  same := old is not null and old->>'id' = adventure->>'id';
+  newer := old is null or (adventure->>'deviceAt')::numeric > (old->>'deviceAt')::numeric;
+  if old is null
+    or (not same and ((old->>'ended')::boolean or newer))
+    or (same and not (old->>'ended')::boolean and (newer
+      or (old->>'device' = adventure->>'device' and (adventure->>'deviceAt')::numeric = (old->>'deviceAt')::numeric
+        and (adventure->>'at')::numeric >= (old->>'at')::numeric))) then
+    insert into zepimon_private.adventures(user_id, payload) values(uid, adventure)
+      on conflict(user_id) do update set payload = excluded.payload, updated_at = now();
+    return adventure;
+  end if;
+  return old;
+end;
+$$;
+
 -- A 96-bit, short-lived pairing code; only its hash is retained.
 create or replace function public.zepimon_create_link()
 returns jsonb language plpgsql security definer set search_path = '' as $$
@@ -235,7 +315,29 @@ begin
     from zepimon_private.journals where user_id = uid;
   return coalesce(result, '{"journal":null,"updatedAt":null}'::jsonb) || jsonb_build_object('linked',
     exists(select 1 from zepimon_private.links where user_id = uid and token_hash is not null),
-    'plan', (select payload from zepimon_private.plans where user_id = uid));
+    'plan', (select payload from zepimon_private.plans where user_id = uid),
+    'adventure', (select payload from zepimon_private.adventures where user_id = uid));
+end;
+$$;
+
+-- Zepimon mobile shares the adventure it records (or ends, or takes over) and gets the shared one back.
+create or replace function public.zepimon_share_adventure(adventure jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'Sign in first'; end if;
+  return jsonb_build_object('adventure', zepimon_private.share_adventure(auth.uid(), adventure));
+end;
+$$;
+
+-- The same for the watch, through its Zepp service and upload token.
+create or replace function public.zepimon_watch_share_adventure(upload_token text, adventure jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare uid uuid;
+begin
+  if upload_token is null or upload_token !~ '^[a-f0-9]{64}$' then raise exception 'Watch link expired. Link again.'; end if;
+  select user_id into uid from zepimon_private.links where token_hash = extensions.digest(upload_token, 'sha256');
+  if uid is null then raise exception 'Watch link expired. Link again.'; end if;
+  return jsonb_build_object('adventure', zepimon_private.share_adventure(uid, adventure));
 end;
 $$;
 
@@ -257,7 +359,7 @@ begin
 end;
 $$;
 
--- The watch's Zepp service reads the plan with its upload token, which can read nothing else.
+-- The watch's Zepp service reads the plan and the shared adventure with its upload token, which can read nothing else.
 create or replace function public.zepimon_get_plan(upload_token text)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare uid uuid;
@@ -265,7 +367,43 @@ begin
   if upload_token is null or upload_token !~ '^[a-f0-9]{64}$' then raise exception 'Watch link expired. Link again.'; end if;
   select user_id into uid from zepimon_private.links where token_hash = extensions.digest(upload_token, 'sha256');
   if uid is null then raise exception 'Watch link expired. Link again.'; end if;
-  return jsonb_build_object('plan', (select payload from zepimon_private.plans where user_id = uid));
+  return jsonb_build_object('plan', (select payload from zepimon_private.plans where user_id = uid),
+    'adventure', (select payload from zepimon_private.adventures where user_id = uid));
+end;
+$$;
+
+-- Zepimon mobile shares the adventures it saved. Sharing one again changes nothing, and an invalid one is skipped so
+-- it cannot hold back the rest. The newest 500 are kept.
+create or replace function public.zepimon_add_phone_runs(runs jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare uid uuid := auth.uid(); run jsonb; added integer := 0; skipped integer := 0; n integer;
+begin
+  if uid is null then raise exception 'Sign in first'; end if;
+  if jsonb_typeof(runs) is distinct from 'array' or jsonb_array_length(runs) > 50 then raise exception 'Invalid adventures'; end if;
+  for run in select * from jsonb_array_elements(runs) loop
+    if not zepimon_private.valid_phone_run(run) then skipped := skipped + 1; continue; end if;
+    insert into zepimon_private.phone_runs(user_id, id, payload) values(uid, run->>'id', run) on conflict do nothing;
+    get diagnostics n = row_count;
+    added := added + n;
+  end loop;
+  delete from zepimon_private.phone_runs where user_id = uid and seq in
+    (select seq from zepimon_private.phone_runs where user_id = uid order by seq desc offset 500);
+  return jsonb_build_object('added', added, 'skipped', skipped);
+end;
+$$;
+
+-- The watch's Zepp service reads the phone's adventures after the last one it received (seq), oldest first, 30 at a
+-- time, with its upload token.
+create or replace function public.zepimon_get_phone_runs(upload_token text, after bigint)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare uid uuid;
+begin
+  if upload_token is null or upload_token !~ '^[a-f0-9]{64}$' then raise exception 'Watch link expired. Link again.'; end if;
+  select user_id into uid from zepimon_private.links where token_hash = extensions.digest(upload_token, 'sha256');
+  if uid is null then raise exception 'Watch link expired. Link again.'; end if;
+  return jsonb_build_object('runs', coalesce((select jsonb_agg(payload || jsonb_build_object('seq', seq) order by seq)
+    from (select payload, seq from zepimon_private.phone_runs where user_id = uid and seq > coalesce(after, 0)
+      order by seq limit 30) as waiting), '[]'::jsonb));
 end;
 $$;
 
@@ -279,7 +417,11 @@ $$;
 
 revoke all on all functions in schema zepimon_private from public, anon, authenticated;
 revoke all on function public.zepimon_create_link(), public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb), public.zepimon_pull(), public.zepimon_unlink(),
-  public.zepimon_set_plan(jsonb), public.zepimon_get_plan(text) from public, anon, authenticated;
-grant execute on function public.zepimon_create_link(), public.zepimon_pull(), public.zepimon_unlink(), public.zepimon_set_plan(jsonb) to authenticated;
-grant execute on function public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb), public.zepimon_get_plan(text) to anon;
+  public.zepimon_set_plan(jsonb), public.zepimon_get_plan(text), public.zepimon_add_phone_runs(jsonb), public.zepimon_get_phone_runs(text,bigint),
+  public.zepimon_share_adventure(jsonb), public.zepimon_watch_share_adventure(text,jsonb)
+  from public, anon, authenticated;
+grant execute on function public.zepimon_create_link(), public.zepimon_pull(), public.zepimon_unlink(), public.zepimon_set_plan(jsonb),
+  public.zepimon_add_phone_runs(jsonb), public.zepimon_share_adventure(jsonb) to authenticated;
+grant execute on function public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb), public.zepimon_get_plan(text),
+  public.zepimon_get_phone_runs(text,bigint), public.zepimon_watch_share_adventure(text,jsonb) to anon;
 commit;

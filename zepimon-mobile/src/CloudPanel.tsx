@@ -89,6 +89,6 @@ export function CloudPanel() {
     </>}
     {!!notice && <Copy color={colors.gold}>{notice}</Copy>}
     {!!message && <Copy color={colors.gold}>{message}</Copy>}
-    <Copy small>This sync uploads your watch’s Dex and adventure records to your Zepimon account. Arcade scores and phone-only history stay on this phone.</Copy>
+    <Copy small>This sync uploads your watch’s Dex and adventure records to your Zepimon account. Adventures recorded on this phone go to your watch too, without their routes. Arcade scores stay on this phone.</Copy>
   </Panel>
 }

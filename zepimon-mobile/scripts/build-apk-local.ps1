@@ -47,8 +47,10 @@ Set-Content $lock $PID
 try {
 
 Write-Host "`n== Copy project to $BuildDir" -ForegroundColor Cyan
-# Keeps the copy's packages, native project, credentials and APKs.
-robocopy $source $BuildDir /MIR /XD node_modules android ios .expo dist web-build credentials apk /XF credentials.json *.jks .build.lock /NFL /NDL /NJH /NJS /NP | Out-Null
+# Keeps the copy's packages, native project, credentials and APKs. android and ios are named by full
+# path: local modules (modules\*\android) must still be copied.
+$native = foreach ($dir in 'android', 'ios') { Join-Path $source $dir; Join-Path $BuildDir $dir }
+robocopy $source $BuildDir /MIR /XD node_modules @native .expo dist web-build credentials apk /XF credentials.json *.jks .build.lock /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "Copying the project failed (robocopy exit code $LASTEXITCODE)" }
 Set-Location $BuildDir
 

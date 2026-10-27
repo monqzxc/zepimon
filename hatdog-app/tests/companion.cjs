@@ -12,7 +12,7 @@ const compiled = (path, context) => vm.runInContext('(function(){' + read(path).
     const [local, exported] = pair.trim().split(/ as /)
     return (exported || local) + ':' + local
   }).join(',') + '});') + '})()', context, { filename: path })
-const contract = ['SNAPSHOT_KEY', 'SYNC_KEY', 'STATUS_KEY', 'SYNC_FRAME_KEY', 'makeSnapshot', 'validateSnapshot', 'validatePlan']
+const contract = ['SNAPSHOT_KEY', 'SYNC_KEY', 'STATUS_KEY', 'SYNC_FRAME_KEY', 'makeSnapshot', 'validateSnapshot', 'validatePlan', 'validatePhoneRun', 'validatePhoneRuns', 'validateAdventure', 'sharedName', 'SHARED_KEY', 'SHARED_REQUEST_KEY']
 const clone = value => JSON.parse(JSON.stringify(value))
 const quiet = { log() {}, error() {}, warn() {}, debug() {} }
 const Logger = { getLogger: () => ({ ...quiet }) }
@@ -69,6 +69,7 @@ async function main() {
   const watch = vm.createContext({ Buffer, console: quiet, setTimeout, clearTimeout,
     __$$R$$__: name => { assert.ok(sdk[name], 'Unexpected SDK dependency: ' + name); return sdk[name] },
     connectStatus: ble.connectStatus,
+    getPackageInfo: () => ({ appId: 20600, version: { code: 44, name: '1.13' } }),
     LocalStorage: class {
       getItem(key) { return key === 'zepimon-v1' ? clone(watchState) : watchKeys.has(key) ? clone(watchKeys.get(key)) : undefined }
       setItem(key, value) { if (key === 'zepimon-v1') watchState = clone(value); else watchKeys.set(key, clone(value)) }
@@ -99,7 +100,7 @@ async function main() {
   phone.routes = clone(watch.routes)
   source('shared/cloud-config.js', phone, ['cloudConfig'])
   source('shared/cloud.js', phone, ['cloudMethods', 'CLOUD_REQUEST_KEY', 'CLOUD_STATUS_KEY'])
-  source('page/saved.js', watch, ['JOURNAL_KEY', 'ACTIVE_KEY', 'NEXT_KEY', 'readKey', 'readActive', 'readNext', 'nextEgg', 'phoneAdventure', 'withPlan'])
+  source('page/saved.js', watch, ['JOURNAL_KEY', 'ACTIVE_KEY', 'NEXT_KEY', 'readKey', 'readActive', 'readNext', 'nextEgg', 'phoneAdventure', 'withPlan', 'PHONE_RUNS_KEY', 'readPhoneRuns', 'withReceivedRuns', 'withShared', 'withoutPending'])
   source('app.js', watch)
   source('app-side/index.js', phone)
   phoneService.onInit()
@@ -122,7 +123,9 @@ async function main() {
   watchState = { dex: { Bulbasaur: { ...normal, meters: 5500 }, 'Shiny Bulbasaur': { ...normal, meters: 8000, shiny: true } },
     records: { 0: { ...normal, form: 'Bulbasaur', elapsedSeconds: 3600, startedAt: Date.parse(normal.finishedAt) - 3600000 } },
     active: { route: 0, meters: 800, steps: 1200, shiny: true, startedAt: Date.now() - 600000, lastMeters: 9999, day: 'test' },
-    expedition: { seed: 345, startedAt: 1000, meters: 27000 }
+    expedition: { seed: 345, startedAt: 1000, meters: 27000 },
+    recent: [{ ...normal, meters: 3100, finishedAt: '2026-10-14T02:00:00.000Z', form: 'Egg', route: 0 },
+      { ...normal, form: 'Bulbasaur', elapsedSeconds: 3600, route: 0 }]
   }
   const before = clone(watchState)
   watchApp.syncToPhone()
@@ -135,6 +138,9 @@ async function main() {
   assert.equal(watchState.active.lastMeters, before.active.lastMeters, 'Sync must not mutate watch data')
   assert.equal(saved().records[0].elapsedSeconds, 3600)
   assert.deepEqual(saved().expedition, watchState.expedition, 'Expedition counter must survive real ZML framing')
+  assert.equal(saved().appVersion, '1.13', 'The watch app version travels with the snapshot for Zepimon mobile')
+  assert.equal(saved().appVersionCode, 44, 'So does its whole-number version code')
+  assert.deepEqual(saved().recent.map(item => item.meters), [3100, 5200], 'Both Bulbasaur adventures reach the phone, not just the latest')
 
   watchState.dex.Bulbasaur.meters = 6100
   settingsStorage.setItem(phone.SYNC_KEY, 'manual-request')
@@ -148,9 +154,17 @@ async function main() {
   assert.equal(phoneStorage.get(phone.SNAPSHOT_KEY), good, 'Bad updates must preserve the last snapshot')
   for (const mutation of [value => { value.dex.Bulbasaur.meters = -1 },
     value => { value.active.route = -1 }, value => { value.records[0].finishedAt = 'invalid' },
-    value => { value.dex = JSON.parse('{"__proto__": {}}') }]) {
+    value => { value.dex = JSON.parse('{"__proto__": {}}') },
+    value => { value.recent = [{ meters: 10, steps: 1, finishedAt: '2026-10-15T02:00:00.000Z' }] },
+    value => { value.recent = Array.from({ length: 51 }, () => ({ ...value.records[0], route: 0 })) }]) {
     const value = saved(); mutation(value)
     assert.throws(() => phone.validateSnapshot(value))
+  }
+  for (const appVersion of ['', '<b>1.13</b>', 113, 'x'.repeat(33)]) {
+    assert.equal(phone.validateSnapshot({ ...saved(), appVersion }).appVersion, undefined, 'An unreadable app version is left out, not a failed sync')
+  }
+  for (const appVersionCode of [-1, 4.5, '44', null]) {
+    assert.equal(phone.validateSnapshot({ ...saved(), appVersionCode }).appVersionCode, undefined, 'An unreadable version code is left out too')
   }
 
   const originalRequest = phoneService.request
@@ -205,6 +219,7 @@ async function main() {
   assert.equal(phoneService.spinners, 0)
   assert.ok(saved().dex.Bulbasaur)
   assert.ok(saved().dex['Shiny Bulbasaur'])
+  assert.match(texts(render()), /^Watch app 1\.13 \(build 44\)$/m, 'Zepp shows the synced watch app version and its version code')
 
   // The real phone importer must accept the exact text produced by Zepp settings.
   const { parseJournal } = await import('../../zepimon-mobile/src/journal.ts')
@@ -298,15 +313,153 @@ async function main() {
   assert.match(texts(render()), /Account removed from this phone/)
   assert.equal(nodes(render()).find(n => n.component === 'TextInput').props.label, 'One-time linking code', 'The code form returns after unlinking')
 
-  // Watch sync recovers overwritten Dex data from a surviving completed journey and persists it.
+  // The watch asks Zepp for the phone's plan and keeps the newest one for the title screen.
+  phoneStorage.set(ui.CLOUD_TOKEN_KEY, 'c'.repeat(64))
+  const sharedPlan = { egg: { family: ['Charmander', 'Charmeleon', 'Charizard'], mega: null }, eggAt: 40, phone: null, updatedAt: 50 }
+  const phoneRun = (id, seq) => ({ id, seq, family: ['Charmander', 'Charmeleon', 'Charizard'], record: { meters: 10400, steps: 0,
+    shiny: false, activity: 'running', finishedAt: '2026-10-20T03:00:00.000Z', startedAt: 1000, elapsedSeconds: 3700, form: 'Charmeleon' } })
+  let cloudCalls = 0
+  const runRequests = []
+  phone.fetch = async request => {
+    cloudCalls++
+    if (/zepimon_get_phone_runs$/.test(request.url)) {
+      runRequests.push(JSON.parse(request.body))
+      return { status: 200, body: JSON.stringify({ runs: runRequests.length === 1 ? [phoneRun('phone-1', 7), { id: 'unreadable', seq: 8 }] : [] }) }
+    }
+    return { status: 200, body: JSON.stringify({ plan: sharedPlan }) }
+  }
+  let planNote
+  watchApp.fetchPlan(next => { planNote = next })
+  await drain()
+  assert.equal(cloudCalls, 2, 'The plan and the phone adventures are read together')
+  assert.equal(planNote.plan.egg.family[0], 'Charmander')
+  assert.equal(watchKeys.get('zepimon-next').plan.updatedAt, 50, 'The plan is kept for the title screen')
+  assert.equal(runRequests[0].after, 0)
+  assert.deepEqual(watchKeys.get('zepimon-phone-runs').pending.map(run => run.id), ['phone-1'],
+    'Phone adventures wait for the adventure screen, and one the watch cannot read is skipped')
+  assert.equal(watchKeys.get('zepimon-phone-runs').after, 7)
+  planNote = 'unchanged'
+  watchApp.fetchPlan(next => { planNote = next })
+  await drain()
+  assert.equal(planNote, undefined, 'The same plan again changes nothing')
+  assert.equal(runRequests[1].after, 7, 'The watch asks only for adventures after the last one it received')
+  assert.equal(watchKeys.get('zepimon-phone-runs').pending.length, 1)
+  phone.fetch = async () => { throw new Error('Offline') }
+  watchApp.fetchPlan(next => { planNote = next })
+  await drain()
+  assert.equal(watchKeys.get('zepimon-next').plan.updatedAt, 50, 'Offline, the watch keeps its last plan')
+
+  // The shared adventure: the watch shares its own, keeps the one the cloud answers with, and an undelivered share
+  // goes out with the next plan request. The Zepimon page in Zepp shows it.
+  const onWatch = { id: 'adv-9000', family: ['Charmander', 'Charmeleon', 'Charizard'], mega: 'Mega Charizard X', shiny: false,
+    activity: 'walking', startedAt: 9000, device: 'watch', deviceAt: 9000, meters: 5400, hatchSeconds: 2100, at: Date.now() - 60000, ended: false }
+  const cloudCalls2 = []
+  let cloudAdventure = null
+  phone.fetch = async request => {
+    const body = JSON.parse(request.body)
+    cloudCalls2.push(request.url.replace(/.*\/rpc\//, ''))
+    if (/zepimon_watch_share_adventure$/.test(request.url)) { cloudAdventure = body.adventure; return { status: 200, body: JSON.stringify({ adventure: cloudAdventure }) } }
+    if (/zepimon_get_phone_runs$/.test(request.url)) return { status: 200, body: JSON.stringify({ runs: [] }) }
+    return { status: 200, body: JSON.stringify({ plan: sharedPlan, adventure: cloudAdventure }) }
+  }
+  let current = 'none'
+  watchApp.shareAdventure(onWatch, value => { current = value })
+  await drain()
+  assert.equal(current.meters, 5400, 'The watch gets the shared adventure back')
+  assert.equal(watchKeys.get('zepimon-next').pendingShare, null, 'A delivered share is not kept waiting')
+  assert.equal(watchKeys.get('zepimon-next').adventure.id, 'adv-9000')
+  assert.equal(JSON.parse(phoneStorage.get(ui.SHARED_KEY)).adventure.device, 'watch', 'Zepp keeps it for the Zepimon page')
+  let page = texts(render())
+  assert.match(page, /ADVENTURE/)
+  assert.match(page, /Charmander/)
+  assert.match(page, /Walking · 5\.40 km · recording on your watch/)
+  assert.equal(phoneStorage.get(ui.SHARED_REQUEST_KEY) > 0, true, 'Opening the page asks Zepp for a fresh copy')
+  // Offline, the share waits and goes out first with the next plan request.
+  connected = false
+  watchApp.shareAdventure({ ...onWatch, meters: 6000, at: Date.now() })
+  await drain()
+  assert.equal(watchKeys.get('zepimon-next').pendingShare.meters, 6000)
+  connected = true
+  cloudCalls2.length = 0
+  watchApp.fetchPlan(() => {})
+  await drain()
+  assert.equal(cloudCalls2[0], 'zepimon_watch_share_adventure', 'The waiting share is sent first')
+  assert.equal(watchKeys.get('zepimon-next').pendingShare, null)
+  assert.equal(watchKeys.get('zepimon-next').adventure.meters, 6000)
+  // The phone takes it over: the next plan request brings that back.
+  cloudAdventure = { ...cloudAdventure, device: 'phone', deviceAt: 20000, meters: 6100 }
+  watchApp.fetchPlan(() => {})
+  await drain()
+  assert.equal(watchKeys.get('zepimon-next').adventure.device, 'phone')
+  page = texts(render())
+  assert.match(page, /recording on your phone/)
+  assert.match(page, /tap Continue here on your watch/)
+  // If the cloud cannot be reached, Zepp still shows the watch's adventure, and says why it was not shared.
+  const reachable = phone.fetch
+  phone.fetch = async () => { throw new Error('Network request failed') }
+  phoneStorage.set(ui.SHARED_KEY, '{}')
+  watchApp.shareAdventure({ ...onWatch, id: 'adv-9500', startedAt: 9500, deviceAt: 9500, meters: 120, at: Date.now() })
+  await drain()
+  page = texts(render())
+  assert.match(page, /0\.12 km · recording on your watch/, 'The page shows what the watch sent')
+  assert.match(page, /Could not reach your Zepimon account: Network request failed/)
+  assert.equal(watchKeys.get('zepimon-next').pendingShare.id, 'adv-9500', 'The share waits for the next try')
+  phone.fetch = reachable
+  // Without any share (an older watch app), the page shows the adventure from the last watch sync.
+  const syncedBefore = phoneStorage.get(phone.SNAPSHOT_KEY)
+  phoneStorage.set(ui.SHARED_KEY, '{}')
+  phoneStorage.set(phone.SNAPSHOT_KEY, JSON.stringify({ schemaVersion: 1, capturedAt: 5, dex: {}, records: {}, receivedAt: Date.now(),
+    active: { route: 0, meters: 2500, steps: 3000, shiny: false, activity: 'running', startedAt: 1 } }))
+  page = texts(render())
+  assert.match(page, /Bulbasaur egg/)
+  assert.match(page, /Running · 2\.50 km · recording on your watch/)
+  assert.match(page, /As of the last watch sync/)
+  phoneStorage.set(phone.SNAPSHOT_KEY, syncedBefore)
+  // An adventure the phone starts reaches the page when it opens again later, or on Refresh.
+  cloudAdventure = { ...onWatch, id: 'adv-9900', startedAt: 9900, device: 'phone', deviceAt: 9900, meters: 300, at: Date.now() }
+  settingsPage.sharedAskedAt = Date.now()
+  render()
+  await drain()
+  assert.doesNotMatch(texts(render()), /recording on your phone/, 'Within 20 seconds the page does not ask again by itself')
+  click(render(), 'Refresh')
+  await drain()
+  page = texts(render())
+  assert.match(page, /Walking · 0\.30 km · recording on your phone/)
+  assert.match(page, /Checked /)
+  cloudAdventure = { ...cloudAdventure, meters: 900, at: Date.now() }
+  settingsPage.sharedAskedAt = Date.now() - 30000
+  render()
+  await drain()
+  assert.match(texts(render()), /0\.90 km · recording on your phone/, 'Opening the page again later asks for a fresh copy')
+  // The plan reply stays small: phone adventures come in their own requests, ten at a time, until the watch catches up.
+  const backlog = Array.from({ length: 25 }, (_, i) => phoneRun('phone-b' + i, 100 + i))
+  phone.fetch = async request => {
+    const body = JSON.parse(request.body)
+    if (/zepimon_get_phone_runs$/.test(request.url)) return { status: 200, body: JSON.stringify({ runs: backlog.filter(run => run.seq > body.after).slice(0, 30) }) }
+    return { status: 200, body: JSON.stringify({ plan: sharedPlan, adventure: cloudAdventure }) }
+  }
+  watchKeys.set('zepimon-phone-runs', { after: 99, pending: [] })
+  watchApp.fetchPlan(() => {})
+  await drain()
+  assert.equal(watchKeys.get('zepimon-phone-runs').pending.length, 10)
+  assert.equal(watchKeys.get('zepimon-phone-runs').after, 109)
+  watchApp.fetchPlan(() => {})
+  await drain()
+  watchApp.fetchPlan(() => {})
+  await drain()
+  assert.equal(watchKeys.get('zepimon-phone-runs').pending.length, 25, 'Each visit brings the next ones')
+  assert.equal(watchKeys.get('zepimon-phone-runs').after, 124)
+  watchKeys.delete('zepimon-phone-runs')
+  phoneStorage.set(ui.CLOUD_TOKEN_KEY, '')
+
+  // Sync sends the journal as stored and never rewrites it: the adventure screen repairs old Dex records when it
+  // opens, so the app entry does not have to load the Pokemon catalog (see adventure.cjs).
   const watchBeforeRepair = clone(watchState)
   watchState.dex.Bulbasaur = { ...normal, meters: 0, steps: 0 }
   watchApp.syncToPhone()
   await drain()
-  assert.equal(watchState.dex.Bulbasaur.meters, watchState.records[0].meters)
-  assert.equal(watchState.dex.Bulbasaur.elapsedSeconds, 3600)
-  assert.equal(saved().dex.Bulbasaur.meters, watchState.records[0].meters)
-  assert.equal(saved().dex.Bulbasaur.elapsedSeconds, 3600)
+  assert.equal(saved().dex.Bulbasaur.meters, 0)
+  assert.equal(watchState.dex.Bulbasaur.meters, 0, 'Syncing never rewrites the watch journal')
   assert.equal(saved().dex['Shiny Bulbasaur'].meters, 8000)
   watchState = watchBeforeRepair
   watchApp.syncToPhone()

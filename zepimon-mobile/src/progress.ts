@@ -10,8 +10,9 @@ const runId = (family: string[], record: DexRecord) => JSON.stringify([family, D
 
 export function mergeRuns(previous: SavedRun[], journal: Journal): SavedRun[] {
   const runs = new Map(previous.map(run => [run.id, run]))
-  // The watch retains one run per family and three bests; Dex stages repeat those same runs.
-  const candidates = [...Object.values(journal.snapshot.personalBests || {}),
+  // The watch sends its latest adventures (recent), one run per family and three bests, which overlap; Dex stages
+  // repeat those same runs. Older watch versions send no recent log.
+  const candidates = [...(journal.snapshot.recent || []), ...Object.values(journal.snapshot.personalBests || {}),
     ...Object.entries(journal.snapshot.records).map(([route, record]) => ({ ...record, route: Number(route) }))]
   for (const { route, ...record } of candidates) {
     const family = journal.routes[route]
@@ -35,7 +36,20 @@ export function weekStart(now: number): number {
 }
 
 export function completedRuns(progress: Progress, now = Date.now()): SavedRun[] {
-  return progress.runs.filter(({ record }) => record.meters > 0 && Date.parse(record.finishedAt) <= now)
+  // One adventure shared by the phone and the watch is saved by whichever finishes it. If both saved it (each offline
+  // when the other took over), it shares its family and start time and counts once, with the longer distance.
+  const kept = new Map<string, number>()
+  const runs: SavedRun[] = []
+  for (const run of progress.runs) {
+    if (!(run.record.meters > 0 && Date.parse(run.record.finishedAt) <= now)) continue
+    const key = run.record.startedAt != null ? `${run.family.join('>')}@${run.record.startedAt}` : null
+    const index = key === null ? undefined : kept.get(key)
+    if (index === undefined) {
+      if (key !== null) kept.set(key, runs.length)
+      runs.push(run)
+    } else if (run.record.meters > runs[index].record.meters) runs[index] = run
+  }
+  return runs
 }
 
 export function missions(journal: Journal | null, progress: Progress, now = Date.now()): Mission[] {

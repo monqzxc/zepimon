@@ -24,7 +24,13 @@ export type Snapshot = {
   records: Record<string, DexRecord>;
   active: (Omit<DexRecord, 'finishedAt'> & { route: number }) | null;
   personalBests?: Partial<Record<Metric, BestRecord>>;
+  // The latest adventures saved on the watch (up to 30), so the phone keeps each one, not only each family's latest.
+  recent?: BestRecord[];
   expedition?: { seed: number, startedAt: number, meters: number };
+  // The watch app's version at that sync: its name, such as "1.15", and its whole-number version code, such as 46.
+  // Watch builds before they were added do not send them.
+  appVersion?: string;
+  appVersionCode?: number;
 };
 export type Journal = {
   exportVersion: 1;
@@ -79,14 +85,14 @@ export function parseJournal(text: string, current?: Journal | null): Journal {
   const hasRoute = (route: number) => Number.isInteger(route) && route >= 0 && route < routes.length;
   if (!timestamp(snapshot.capturedAt) || Object.keys(snapshot.records).some((key) => !hasRoute(Number(key))) ||
       (snapshot.active && !hasRoute(snapshot.active.route)) ||
-      Object.values(snapshot.personalBests || {}).some((record) => !hasRoute(record.route))) {
+      [...Object.values(snapshot.personalBests || {}), ...(snapshot.recent || [])].some((record) => !hasRoute(record.route))) {
     throw new Error('This export references a missing Pokemon route or invalid capture time.');
   }
   if (Object.keys(snapshot.dex).some((name) => !pokemonName(name.replace(/^Shiny /, '')))) {
     throw new Error('This export has an invalid Pokemon name.');
   }
   const records = [...Object.values(snapshot.dex), ...Object.values(snapshot.records),
-    ...Object.values(snapshot.personalBests || {}), ...(snapshot.active ? [snapshot.active] : [])];
+    ...Object.values(snapshot.personalBests || {}), ...(snapshot.recent || []), ...(snapshot.active ? [snapshot.active] : [])];
   if (records.some((record) =>
     (record.startedAt != null && !timestamp(record.startedAt)) ||
     (record.form !== undefined && !pokemonName(record.form)) ||

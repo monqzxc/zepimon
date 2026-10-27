@@ -4,9 +4,9 @@ import { LocalStorage } from '@zos/storage'
 import { setWakeUpRelaunch } from '@zos/display'
 import { back } from '@zos/router'
 import { createSprite, drawSprite } from './sprite'
-import { JOURNAL_KEY, ACTIVE_KEY, NEXT_KEY, readKey, readActive, readNext, phoneAdventure } from './saved'
+import { JOURNAL_KEY, ACTIVE_KEY, NEXT_KEY, PHONE_RUNS_KEY, readKey, readActive, readNext, readPhoneRuns, phoneAdventure } from './saved'
 import { legendarySpecies, ensureExpedition, expeditionGoal, clueMilestones } from '../shared/expedition'
-import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords } from './pokemon'
+import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords, applyPhoneRun } from './pokemon'
 
 const ink = 0xFFFFFF
 const muted = 0x8CD3F5
@@ -33,6 +33,8 @@ const themes = {
 const km = (meters) => (meters / 1000).toFixed(2) + ' km'
 // While the numbers change, the walk in progress is saved at most this often (and whenever the screen closes).
 const ACTIVE_SAVE_MS = 20000
+// The adventure is shared with the phone and Zepp about this often while it records.
+const SHARE_MS = 60000
 const dayKey = () => {
   const now = new Date()
   return now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate()
@@ -46,7 +48,9 @@ Page({
       // Walk or Run on the title screen: start straight away with this egg (family may be missing for a surprise egg).
       const start = options && options.start
       this.quickStart = start && ['walking', 'running'].includes(start.activity) ? start : null
-    } catch (_) { this.requestedView = null; this.quickStart = null }
+      // Continue here on the title screen: take over the adventure the phone is recording.
+      this.takeover = !!(options && options.takeover)
+    } catch (_) { this.requestedView = null; this.quickStart = null; this.takeover = false }
   },
   build() {
     this.widgets = []
@@ -73,7 +77,13 @@ Page({
         const route = this.routeFor(start.family)
         this.begin(route, start.activity, megaChoices(route).includes(start.mega) ? start.mega : megaChoices(route)[0], start.planAt)
       }
+      const shared = this.takeover && !this.state.active ? phoneAdventure(readNext(this.storage)) : null
+      if (shared && shared.id) {
+        stage = 'continue'
+        this.continueShared(shared)
+      }
       this.quickStart = null
+      this.takeover = false
       if (!this.state.active && !readNext(this.storage).egg) this.suggestNext()
       this.view = this.requestedView === 'history' ? this.requestedView : this.state.active ? 'session' : this.requestedView || 'home'
       stage = 'screen'
@@ -117,14 +127,20 @@ Page({
     const record = active && journal.records[active.route]
     const finished = !!(record && record.startedAt === active.startedAt)
     if (finished) active = null
+    // An adventure started before sharing existed gets the id it would have had, so the phone and Zepp see it too.
+    const unshared = !!(active && !active.shareId && Number.isFinite(active.startedAt))
+    if (unshared) active = { ...active, shareId: 'adv-' + active.startedAt, deviceAt: active.startedAt }
     const hadExpedition = !!journal.expedition
     const bests = JSON.stringify(journal.personalBests || {})
     ensureExpedition(journal)
-    refreshPersonalBests(journal)
+    // Adventures recorded on Zepimon mobile join the journal here, where the catalog is loaded.
+    const received = readPhoneRuns(this.storage)
+    refreshPersonalBests(journal, received.pending.map(run => applyPhoneRun(journal, run)).filter(Boolean))
     const repaired = repairDexRecords(journal)
     this.state = { ...journal, active }
-    if (moved || !hadExpedition || repaired || JSON.stringify(journal.personalBests) !== bests) this.save()
-    if (moved || finished) this.saveActive(true)
+    if (moved || !hadExpedition || repaired || received.pending.length || JSON.stringify(journal.personalBests) !== bests) this.save()
+    if (received.pending.length) this.storage.setItem(PHONE_RUNS_KEY, { after: received.after, pending: [] })
+    if (moved || finished || unshared) this.saveActive(true)
     return this.state
   },
 
@@ -193,6 +209,60 @@ Page({
     // A new day resets the sensors, and a hatch or evolution should never wait for the next save.
     if (changed) this.saveActive(newDay || Math.floor(session.meters / 5000) !== milestone)
     if (this.view === 'session' && this.stats) this.refreshStats()
+    this.shareProgress()
+  },
+
+  // The adventure in progress as the phone and Zepp see it.
+  shared(session, ended = false) {
+    const now = Date.now()
+    return { id: session.shareId, family: routes[session.route].slice(), mega: session.mega || null, shiny: !!session.shiny,
+      activity: session.activity, startedAt: session.startedAt, device: 'watch', deviceAt: session.deviceAt,
+      meters: Math.floor(session.meters), hatchSeconds: Number.isFinite(session.hatchSeconds) ? session.hatchSeconds : null, at: now, ended }
+  },
+
+  // Shares the adventure as it starts and about once a minute while it records, and learns from the reply whether
+  // the phone took it over.
+  shareProgress(force = false) {
+    const session = this.state.active
+    if (!session || !session.shareId) return
+    const now = Date.now()
+    if (!force && now >= (this.sharedAt || 0) && now - (this.sharedAt || 0) < SHARE_MS) return
+    this.sharedAt = now
+    try { getApp()._options.shareAdventure(this.shared(session), (current) => { if (this.takenOver(current)) this.handOver() }) }
+    catch (error) { console.log('Zepimon share unavailable:', String(error)) }
+  },
+
+  // The phone took this adventure over after this watch started or took it.
+  takenOver(current) {
+    const session = this.state.active
+    return !!(session && current && current.id === session.shareId && current.device !== 'watch' && current.deviceAt > session.deviceAt)
+  },
+
+  // Stops recording here without saving: the phone continues the same adventure and saves it.
+  handOver() {
+    this.handedAt = this.state.active.meters
+    this.state.active = null
+    this.saveActive(true)
+    setWakeUpRelaunch({ relaunch: false })
+    this.show('handed-over')
+  },
+
+  // Takes over the adventure the phone is recording: the same egg, start time and distance so far. From here only
+  // the watch's own new distance counts.
+  continueShared(shared) {
+    const route = this.routeFor(shared.family)
+    const now = Date.now()
+    this.pace = {}
+    this.paceText = '--:-- /km'
+    this.state.active = {
+      route, activity: shared.activity, startedAt: shared.startedAt, shiny: shared.shiny,
+      mega: megaChoices(route).includes(shared.mega) ? shared.mega : megaChoices(route)[0],
+      meters: shared.meters, steps: 0, day: dayKey(), lastMeters: this.distance.getCurrent(), lastSteps: this.step.getCurrent(),
+      ...(shared.hatchSeconds ? { hatchSeconds: shared.hatchSeconds } : {}), shareId: shared.id, deviceAt: Math.max(now, shared.deviceAt + 1)
+    }
+    this.saveActive(true)
+    setWakeUpRelaunch({ relaunch: true })
+    this.shareProgress(true)
   },
 
   rect(x, y, w, h, color) {
@@ -429,6 +499,14 @@ Page({
       this.button(332, 'Done', () => this.load(back))
       return
     }
+    if (this.view === 'handed-over') {
+      this.background()
+      this.text(70, 'Continued on your phone', 22, ink, 28)
+      this.image(120, 'Egg')
+      this.text(224, 'Your phone took over this adventure at ' + km(this.handedAt || 0) + '. Finish it there: it reaches your watch when saved.', 17, muted, 96)
+      this.button(332, 'Done', () => this.load(back))
+      return
+    }
     if (this.view === 'letters') { this.renderLetterPicker(); return }
     if (this.view === 'choose') { this.renderEggList(); return }
     this.background()
@@ -460,6 +538,12 @@ Page({
       this.text(202, "Replaces this route's last record", 17, muted, 48)
       this.button(278, 'Save & finish', () => this.load(() => {
         this.sync()
+        // The phone continued this adventure: it saves it, so the watch must not save it too.
+        if (this.takenOver(readNext(this.storage).adventure)) { this.handOver(); return }
+        if (this.state.active.shareId) {
+          try { getApp()._options.shareAdventure(this.shared(this.state.active, true)) }
+          catch (error) { console.log('Zepimon share unavailable:', String(error)) }
+        }
         const before = this.state.expedition.meters
         finishSession(this.state, new Date().toISOString())
         // The record goes in first: if the watch stops before the adventure in progress is cleared, the next start
@@ -513,13 +597,15 @@ Page({
   begin(route, activity, mega, planAt) {
     this.pace = {}
     this.paceText = '--:-- /km'
+    const now = Date.now()
     this.state.active = {
-      route, activity, startedAt: Date.now(), shiny: rollShiny(), mega, meters: 0, steps: 0, day: dayKey(),
-      lastMeters: this.distance.getCurrent(), lastSteps: this.step.getCurrent()
+      route, activity, startedAt: now, shiny: rollShiny(), mega, meters: 0, steps: 0, day: dayKey(),
+      lastMeters: this.distance.getCurrent(), lastSteps: this.step.getCurrent(), shareId: 'adv-' + now, deviceAt: now
     }
     this.saveActive(true)
     if (planAt) this.updateNext(next => ({ ...next, usedPlanAt: Math.max(next.usedPlanAt || 0, planAt) }))
     setWakeUpRelaunch({ relaunch: true })
+    this.shareProgress(true)
     this.syncPhone()
   },
 

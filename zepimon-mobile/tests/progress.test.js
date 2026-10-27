@@ -35,6 +35,20 @@ test('retains earlier runs when a new watch run replaces the same family', () =>
   assert.equal(before.runs.length, 1, 'Import does not mutate the saved state before persistence succeeds')
 })
 
+test('keeps every watch adventure in the recent log, even two with the same egg between syncs', () => {
+  // Walked Bulbasaur on the 15th and again on the 16th before the phone synced: the record holds only the second.
+  const recent = [{ ...run(15, { meters: 3200, hatchSeconds: undefined, activity: 'walking' }), route: 0 },
+    { ...run(16, { activity: 'running' }), route: 0 }]
+  const source = journal({ 0: recent[1] }, { recent })
+  assert.equal(source.snapshot.recent.length, 2, 'The importer keeps the log')
+  const imported = importProgress(emptyProgress(), source, now)
+  assert.deepEqual(imported.runs.map(item => item.record.meters), [5500, 3200])
+  assert.equal(imported.runs[1].record.activity, 'walking')
+  assert.equal(importProgress(imported, source, now + 1000).runs.length, 2, 'The same log again adds nothing')
+  assert.equal(importProgress(emptyProgress(), journal(), now).runs.length, 1, 'An older watch without the log still counts its records')
+  assert.throws(() => journal({ 0: run() }, { recent: [{ ...run(), route: 7 }] }), /missing Pokemon route/)
+})
+
 test('dedup uses family names instead of numeric route IDs or export timestamps', () => {
   const source = journal()
   const before = importProgress(emptyProgress(), source, now)
