@@ -3,9 +3,10 @@ import { useFocusEffect } from 'expo-router'
 import { Text, View } from 'react-native'
 import { useJournal } from '../store'
 import { missions } from '../progress'
-import { Copy, Eyebrow, Heading, Hero, IconBubble, Panel, Screen, Title, colors, gradient, styles } from '../ui'
+import { Copy, Eyebrow, Heading, Hero, IconBubble, Panel, Screen, Title, colors, gradient, styles, useTheme } from '../ui'
 
 export default function MissionsScreen() {
+  useTheme()
   const { journal, progress } = useJournal()
   const [now, setNow] = useState(Date.now)
   useFocusEffect(useCallback(() => {
@@ -24,7 +25,7 @@ export default function MissionsScreen() {
     <Hero eyebrow="SMALL GOALS · BIG ADVENTURES" title="Your quest board" />
     <Panel>
       <View style={[styles.row, { flexWrap: 'nowrap' }]}>
-        <IconBubble name="badge" background="#FFF1D6" color={colors.gold} />
+        <IconBubble name="badge" background={colors.goldTint} color={colors.gold} />
         <Text style={[styles.stat, { flex: 1 }]}>{earned} badges earned</Text>
       </View>
       <Copy>Progress grows with every adventure you save here or import from your watch. Walk or run at your own pace.</Copy>
@@ -39,7 +40,7 @@ export default function MissionsScreen() {
           return <Panel key={mission.id} style={complete ? { borderColor: colors.star, borderWidth: 1.5 } : undefined}>
             <View style={[styles.row, { flexWrap: 'nowrap', alignItems: 'flex-start' }]}>
               <IconBubble name={secret ? 'lock' : complete ? 'check' : 'missions'} size={40}
-                background={secret ? colors.sunken : complete ? '#FFF1D6' : colors.mint} color={secret ? colors.muted : complete ? colors.gold : colors.edge} />
+                background={secret ? colors.sunken : complete ? colors.goldTint : colors.mint} color={secret ? colors.muted : complete ? colors.gold : colors.edge} />
               <View style={{ flex: 1, gap: 2 }}>
                 <Eyebrow color={complete ? colors.gold : secret ? colors.muted : colors.edge}>{secret ? 'UNDISCOVERED' : complete ? 'COMPLETE' : mission.weekly ? 'THIS WEEK' : 'IN PROGRESS'}</Eyebrow>
                 <Title>{secret ? 'Hidden achievement' : mission.title}</Title>

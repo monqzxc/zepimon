@@ -54,7 +54,7 @@ export function BackupPanel() {
   }
 
   const { watchRecords, runs, friends, safari, stars, scores } = backupInfo
-  // Shown under Your data in Settings, which gives the heading.
+  // Settings → Back up your data (src/app/settings/backup.tsx).
   return <>
     <Panel>
       <Heading>Keep a copy of your adventure</Heading>
@@ -71,7 +71,7 @@ export function BackupPanel() {
         <TextInput accessibilityLabel="Zepimon backup JSON" multiline value={text} onChangeText={() => {}} selectTextOnFocus
           autoCorrect={false} autoCapitalize="none" style={[styles.input, { minHeight: 148, maxHeight: 280, textAlignVertical: 'top', fontSize: 12 }]} />
       </>}
-      <Copy small>Account links and sign-in details are never included. To bring a watch journal back, open Import a watch export below and choose the backup file.</Copy>
+      <Copy small>Account links and sign-in details are never included. To bring a watch journal back, open Import a watch export in Settings and choose the backup file.</Copy>
     </Panel>
   </>
 }

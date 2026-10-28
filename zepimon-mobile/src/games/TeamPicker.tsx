@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native'
 import { spriteSource } from '../catalog'
-import { Button, Copy, Eyebrow, colors, fonts, styles } from '../ui'
+import { Button, Copy, Eyebrow, colors, fonts, styles, themedStyles } from '../ui'
 import { eggPerk, kitFor, placedForm } from './battle'
 import type { Layout } from './battle'
 import { TEAM_SIZE, autoTeam, battleType, cardKey } from './roster'
@@ -65,7 +65,7 @@ function TeamChip({ card, layout, selected, disabled = false, onPress }: { card:
   </Pressable>
 }
 
-const picker = StyleSheet.create({
+const picker = themedStyles(() => ({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { flexBasis: '48%', flexGrow: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, paddingRight: 14,
     borderWidth: 1.5, borderColor: colors.line, borderRadius: 16, backgroundColor: colors.panel },
@@ -73,4 +73,4 @@ const picker = StyleSheet.create({
   name: { color: colors.ink, fontSize: 14, lineHeight: 19, fontFamily: fonts.heavy },
   detail: { color: colors.muted, fontSize: 12, lineHeight: 16, fontFamily: fonts.body },
   check: { position: 'absolute', top: 3, right: 7, color: colors.edge, fontSize: 14, fontFamily: fonts.black }
-})
+}))

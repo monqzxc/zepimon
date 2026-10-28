@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { router, useLocalSearchParams } from 'expo-router'
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
+import { FlatList, Pressable, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useJournal } from '../store'
 import { eggs } from '../phone-adventure'
 import { caughtCount, defaultEggFilter, filterEggs, generationsOf, isFiltered, typesOf } from '../pokedex'
 import type { EggFilter, EggStatus } from '../pokedex'
 import { FilterSection, GenerationFilter, ResultLine, SearchBox, SortSwitch, TypeFilter } from '../PokedexFilters'
-import { dexNumber, pokemonType, typeTints } from '../catalog'
+import { dexNumber, pokemonType } from '../catalog'
 import { PixelSprite } from '../games/TeamPicker'
-import { Chip, Copy, PokeballIcon, TypeBadge, colors, fonts, shadows, styles } from '../ui'
+import { Chip, Copy, PokeballIcon, TypeBadge, colors, fonts, shadows, styles, themedStyles, typeTints, useTheme } from '../ui'
 
 // Choose the next egg like browsing a Pokedex: sort by number or name, filter by generation, type and what your Dex
 // still misses, or search a name or number. Opened from the Adventure tab; the choice goes to the watch as well.
@@ -23,6 +23,7 @@ let remembered = defaultEggFilter
 const remember = (filter: EggFilter) => { remembered = filter }
 
 export default function EggsScreen() {
+  useTheme()
   const { current } = useLocalSearchParams<{ current?: string }>()
   const { dex, chooseEgg } = useJournal()
   const [filter, setFilter] = useState<EggFilter>(() => ({ ...remembered, query: '' }))
@@ -79,7 +80,7 @@ function EggCard({ family, caught, current, onPress }: { family: string[], caugh
   </View>
 }
 
-const eggStyles = StyleSheet.create({
+const eggStyles = themedStyles(() => ({
   card: { flex: 1, alignItems: 'center', gap: 5, padding: 8, paddingTop: 8, borderRadius: 18, backgroundColor: colors.panel,
     borderWidth: 1.5, borderColor: colors.line, ...shadows.card },
   current: { borderColor: colors.edge, borderWidth: 2.5 },
@@ -89,4 +90,4 @@ const eggStyles = StyleSheet.create({
   name: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 14, lineHeight: 18, textAlign: 'center' },
   chain: { width: '100%', fontFamily: fonts.body, color: colors.muted, fontSize: 11, lineHeight: 14, textAlign: 'center' },
   currentText: { fontFamily: fonts.heavy, color: colors.edge, fontSize: 10, letterSpacing: 0.6 }
-})
+}))

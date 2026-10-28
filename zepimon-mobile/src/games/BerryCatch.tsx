@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from 'expo-router'
-import { AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-import { Button, Copy, Eyebrow, Heading, Panel, colors, fonts, styles } from '../ui'
+import { AppState, Platform, Pressable, Text, View } from 'react-native'
+import { Button, Copy, Eyebrow, Heading, Panel, colors, fonts, styles, themedStyles } from '../ui'
 import { BERRY_DURATION, BERRY_ROUNDS, catchBerry, pauseBerries, readyBerries, resumeBerries, startBerries, tickBerries } from './berries'
 import type { BerryGame } from './berries'
 
@@ -62,7 +62,7 @@ export function BerryCatch({ best, onComplete }: { best?: number, onComplete: (s
   </View>
 }
 
-const berryStyles = StyleSheet.create({
+const berryStyles = themedStyles(() => ({
   garden: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, padding: 10, borderRadius: 20, backgroundColor: '#8FD18A', borderWidth: 1.5, borderColor: '#73BE6D' },
   plot: { width: '31%', aspectRatio: 1.15, minHeight: 56, maxHeight: 108, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#78C171', borderRadius: 14, backgroundColor: '#B4E3AD' },
   ripe: { borderColor: colors.star, borderWidth: 2.5, backgroundColor: '#D7F2D1' },
@@ -70,4 +70,4 @@ const berryStyles = StyleSheet.create({
   leaf: { position: 'absolute', width: 20, height: 10, left: 4, top: -8, backgroundColor: '#8bd685', borderWidth: 2, borderColor: '#326241', borderRadius: 2 },
   shine: { position: 'absolute', width: 6, height: 8, left: 5, top: 5, backgroundColor: '#ffd5cf' },
   seed: { position: 'absolute', width: 4, height: 4, right: 4, bottom: 5, backgroundColor: '#ffd5cf' },
-})
+}))

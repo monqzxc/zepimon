@@ -6,10 +6,12 @@ A standalone iPhone and Android companion for Zepimon, built with Expo SDK 57 an
 
 ### Phone adventures
 
-The **Adventure** tab, the violet Poke Ball in the middle of the tab bar, is the
+The **Adventure** tab, the Poke Ball in the middle of the tab bar, is the
 phone version of the watch adventure. Tap the ball and it spins, then Gengar pops
-out and floats there with a wicked grin inside a pulsing shadow aura while the tab is open; tap again and he
-taunts, tongue out and pulling an eye, as the aura flares. Choose an egg, or take a
+out in a cap, T-shirt and shorts and floats there inside a pulsing shadow aura
+while the tab is open, working out: standing, waving (tongue out, with a wink),
+lifting, push-ups, sit-ups and worn out, the next pose every 3 seconds or as soon
+as you tap the ball again. Choose an egg, or take a
 random one, pick a Mega form where the family has one, choose **Walking** or
 **Running** and start. The phone measures distance by GPS: every 5 km in one
 adventure hatches or evolves the egg, with the Mega form at 21 km, and 1 in 50
@@ -183,16 +185,37 @@ both appear; older watch versions still send only each family's latest.
 
 ### Settings
 
-The last tab, **Settings** (it was **Sync**), is grouped the way people look for
-things: **Account** (sign in with an email code, sign out), **Watch** (link it
-through Zepp, Sync now, a replacement code, disconnect), **App settings**,
-**Your data** (backups, and importing a watch's JSON export, folded away until
-needed) and **About** (phone and watch versions, credits). App settings are kept
-on this phone: **Start adventures as** Walking or Running (the Adventure tab's
-first choice), **Record with the screen off** (the foreground-service recording,
-which a crash during an adventure turns off), and **Motion**, which follows the
-phone's reduce-motion setting or always reduces animations in this app. The
-open tab's icon sits on a soft violet pill.
+The last tab, **Settings** (it was **Sync**), opens on your profile: your buddy
+as the picture, your trainer name (set under **Edit profile**, kept on this
+phone) and your account's email. Below it, grouped lists in the order people
+look for things: **Preferences**, **Account** (sign in with an email code, the
+**Watch** page to link it through Zepp, get a replacement code or disconnect,
+**Sync now**, and **Log out**, which asks for a second tap), **Your data**
+(backups, and importing a watch's JSON export) and **About** (phone and watch
+versions, credits). Longer settings open on their own page. Preferences are kept
+on this phone: **Theme**, **Start adventures as** Walking or Running (the
+Adventure tab's first choice), **Reduce motion** (off follows the phone's
+reduce-motion setting) and **Record with the screen off** (the foreground-service
+recording, which a crash during an adventure turns off). The open tab's icon
+sits on a soft violet pill.
+
+**Theme** picks a Pokemon, **Gengar** (ghostly violet, the default), **Deoxys**
+(cosmic orange-red and teal) or **Pikachu** (electric yellow), from small
+previews of each with the Pokemon perched on a tiny tab bar. Its **Appearance**
+is System, Light or Dark; System follows the phone's dark mode and switches with
+it. A theme recolors the whole app in both appearances: pages and cards, the
+accent on chips and links, the gradient on banners and main buttons, the second
+accent (Gengar's red eyes, Deoxys's teal, Pikachu's cheeks) and the tab bar.
+In the Deoxys theme the tab bar's Pokemon is Deoxys in its training gear: it
+peeks over the open tab in place of Gengar, floats out of an orange-red ball
+with a teal stripe and steps on the ball during an adventure, and floats through
+the same six workout poses. With reduced motion the poses change only on a tap.
+Both Pokemon's floating poses, and Deoxys's peeking art, are cut from the
+`*-fitness*.png` sheets in `pokemon_data/` by `scripts/build-nav-poses.py`. Every text color keeps at least 4.5:1 contrast in all six palettes, which
+`tests/palettes.test.js` checks. Share images and the route map keep their own
+colors. The palettes are in `src/palettes.ts` and the active one in
+`src/theme.ts`; styles that use them are made with `themedStyles`, and each
+screen calls `useTheme()` so it redraws when the theme changes.
 
 ### Legendary Expeditions (1.5.0)
 

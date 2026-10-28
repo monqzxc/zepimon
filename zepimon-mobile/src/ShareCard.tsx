@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Ref } from 'react'
-import { Image, PixelRatio, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Image, PixelRatio, Platform, Pressable, Text, View } from 'react-native'
 import type { ImageSourcePropType, TextStyle } from 'react-native'
 import { router } from 'expo-router'
 import { Asset } from 'expo-asset'
@@ -18,7 +18,7 @@ import { crop, decodePng, pixelArt } from './pixel-art'
 import type { PixelArt } from './pixel-art'
 import { routeShape } from './RouteView'
 import { Backdrop, habitatTheme } from './HabitatScene'
-import { Icon, PokeballIcon, colors, fonts, typeLabel } from './ui'
+import { Icon, PokeballIcon, colors, fonts, typeLabel, themedStyles } from './ui'
 
 // A saved adventure as a story-sized image, like a Strava share card: the route and a Pokemon from the adventure,
 // drawn as enlarged pixel art, with its distance, pace and time. The share screen (src/app/share.tsx) picks the
@@ -47,6 +47,7 @@ const LANDSCAPE_HEIGHT = 1100
 const ROUTE_COLORS = ['#3BE8C4', '#4AA8FF']
 const DARK = '#0D1218'
 const WHITE = '#FFFFFF'
+const STAR = '#C27C00'
 
 type AssetSource = Parameters<typeof Asset.fromModule>[0]
 // Overworld art covers about 600 forms; eggs and some forms have only the battle sprite. The front pose is the Dex's
@@ -243,7 +244,7 @@ function Wordmark({ kit: { u, text }, size }: { kit: Kit, size: number }) {
 
 // The type and personal best as small badges, or null when neither is shown.
 function tagRow({ u, shown, pokemon }: Kit) {
-  const tags = [shown.type && [shown.type, typeColors[pokemonType(pokemon)] || typeColors.normal], shown.best && [shown.best, colors.star]]
+  const tags = [shown.type && [shown.type, typeColors[pokemonType(pokemon)] || typeColors.normal], shown.best && [shown.best, STAR]]
     .filter((tag): tag is [string, string] => !!tag)
   if (!tags.length) return null
   return <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 14 * u, maxWidth: 960 * u }}>
@@ -300,8 +301,8 @@ export function ShareRunButton({ id }: { id: string }) {
   </Pressable>
 }
 
-const card = StyleSheet.create({
+const card = themedStyles(() => ({
   share: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', minHeight: 34, marginTop: 4,
     paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.mint },
   shareText: { fontFamily: fonts.heavy, fontSize: 13, lineHeight: 18, color: colors.edge }
-})
+}))

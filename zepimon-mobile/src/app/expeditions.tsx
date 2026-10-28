@@ -7,7 +7,7 @@ import type { Trail } from '../expeditions'
 import { clueMilestones } from '../generated/expedition.js'
 import { km } from '../journal'
 import { pokemonType } from '../catalog'
-import { Button, Copy, Eyebrow, HabitatScene, Heading, Hero, Panel, Screen, colors, gradient, styles } from '../ui'
+import { Button, Copy, Eyebrow, HabitatScene, Heading, Hero, Panel, Screen, colors, gradient, styles, useTheme } from '../ui'
 
 const stories: Record<string, { title: string, clues: string[], actions: string[], welcome: string }> = {
   Articuno: { title: 'The shimmering feather', clues: ['A frosted feather rests beside the trail.', 'Wing-shaped shadows sweep across the snow.', 'Articuno lands in a quiet snowy clearing.'],
@@ -21,6 +21,7 @@ const stories: Record<string, { title: string, clues: string[], actions: string[
 }
 
 export default function ExpeditionsScreen() {
+  useTheme()
   const { journal, expeditions } = useJournal()
   const [friend, setFriend] = useState('')
   const trails = Object.entries(expeditions.trails).sort((a, b) => a[1].startedAt - b[1].startedAt)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AccessibilityInfo, Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { AccessibilityInfo, Animated, Easing, Platform, Pressable, Text, View } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -9,7 +9,7 @@ import type { SharedAdventure } from './shared-adventure'
 import { currentForm } from './phone-adventure'
 import { PixelSprite } from './games/TeamPicker'
 import { useReducedMotion } from './games/hooks'
-import { Icon, colors, fonts, shadows } from './ui'
+import { Icon, colors, fonts, shadows, themedStyles } from './ui'
 
 // "A new adventure started" across the top of any screen when the watch starts one, as the next sync brings it (at
 // once when the app comes to the front, then about once a minute). It closes after a few seconds or with its close
@@ -81,7 +81,7 @@ export function AdventureBanner() {
   </Animated.View>
 }
 
-const banner = StyleSheet.create({
+const banner = themedStyles(() => ({
   wrap: { position: 'absolute', left: 12, right: 12, alignItems: 'center', zIndex: 20, elevation: 20 },
   card: { width: '100%', maxWidth: 520, flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, paddingRight: 4,
     borderRadius: 20, backgroundColor: colors.panel, borderWidth: 1.5, borderColor: colors.edge },
@@ -91,4 +91,4 @@ const banner = StyleSheet.create({
   title: { fontFamily: fonts.heavy, fontSize: 16, lineHeight: 21, color: colors.ink },
   detail: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.muted },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }
-})
+}))

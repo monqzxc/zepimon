@@ -6,9 +6,10 @@ import { eggMovesOf } from '../games/roster'
 import { dexNumber, pokemonType } from '../catalog'
 import { eggOf } from '../plan'
 import { useCloud } from '../cloud'
-import { Button, Copy, Eyebrow, Habitat, Heading, Panel, Screen, TypeBadge, colors } from '../ui'
+import { Button, Copy, Eyebrow, Habitat, Heading, Panel, Screen, TypeBadge, colors, useTheme } from '../ui'
 
 export default function PokemonScreen() {
+  useTheme()
   const { name: param } = useLocalSearchParams<{ name: string }>()
   const name = typeof param === 'string' ? param : ''
   const { journal, dex, buddy, chooseBuddy, chooseEgg } = useJournal()

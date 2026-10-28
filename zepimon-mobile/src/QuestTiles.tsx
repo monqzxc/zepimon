@@ -1,9 +1,9 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { router } from 'expo-router'
 import type { Href } from 'expo-router'
 import { useJournal } from './store'
 import { missions } from './progress'
-import { Icon, colors, fonts } from './ui'
+import { Icon, colors, fonts, themedStyles, glass } from './ui'
 import type { IconName } from './ui'
 
 // Missions and Legendary Expeditions on the Adventure tab, as two pastel tiles like the Journal's: this week's distance
@@ -17,11 +17,11 @@ export function QuestTiles() {
   const earned = badges.filter(mission => progress.unlocked[mission.id]).length
   const waiting = Object.values(expeditions.trails).reduce((sum, trail) => sum + Math.floor(trail.meters / 25000) - trail.claimed, 0)
   return <View style={tiles.row}>
-    <Tile href="/missions" icon="missions" tint="#DDF4EF" ink={colors.edge} title="Missions"
+    <Tile href="/missions" icon="missions" tint={colors.mint} ink={colors.edge} title="Missions"
       line={`${earned} of ${badges.length} badges`}
       detail={week ? `This week ${Math.min(week.value, week.goal).toFixed(1)} of ${week.goal} km` : ''}
       fill={week ? Math.min(1, week.value / week.goal) : 0} />
-    <Tile href="/expeditions" icon="explore" tint="#ECE6FB" ink="#6242C8" title="Expeditions"
+    <Tile href="/expeditions" icon="explore" tint={colors.altTint} ink={colors.alt} title="Expeditions"
       line={waiting ? `${waiting} encounter${waiting === 1 ? '' : 's'} waiting` : 'A Legendary awaits'}
       detail="Three clues across 25 km" />
   </View>
@@ -42,13 +42,13 @@ function Tile({ href, icon, tint, ink, title, line, detail, fill }: {
   </Pressable>
 }
 
-const tiles = StyleSheet.create({
+const tiles = themedStyles(() => ({
   row: { flexDirection: 'row', gap: 12 },
   tile: { flex: 1, minHeight: 168, borderRadius: 26, padding: 16, justifyContent: 'space-between', gap: 12 },
-  badge: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255, 255, 255, 0.85)', alignItems: 'center', justifyContent: 'center' },
+  badge: { width: 40, height: 40, borderRadius: 20, backgroundColor: glass(0.85), alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: fonts.black, fontSize: 21, lineHeight: 26 },
   line: { fontFamily: fonts.bold, color: colors.ink, fontSize: 14, lineHeight: 19 },
-  track: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255, 255, 255, 0.9)', overflow: 'hidden', marginVertical: 3 },
+  track: { height: 6, borderRadius: 3, backgroundColor: glass(0.9), overflow: 'hidden', marginVertical: 3 },
   fill: { height: 6, borderRadius: 3 },
   detail: { fontFamily: fonts.body, color: colors.muted, fontSize: 12, lineHeight: 16 }
-})
+}))

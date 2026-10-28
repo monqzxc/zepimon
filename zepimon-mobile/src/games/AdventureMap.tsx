@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native'
-import { typeTints } from '../catalog'
-import { Button, Copy, Eyebrow, Hero, Panel, colors, fonts, styles } from '../ui'
+import { Text, View } from 'react-native'
+
+import { Button, Copy, Eyebrow, Hero, Panel, colors, fonts, styles, themedStyles, typeTints } from '../ui'
 import { STOPS, stopUnlocked } from './adventure'
 import type { Stop } from './adventure'
 import { starText } from './DefenseGame'
@@ -44,7 +44,7 @@ export function AdventureMap({ stars, onPlay }: { stars: Record<string, number>,
   </View>
 }
 
-const map = StyleSheet.create({
+const map = themedStyles(() => ({
   stop: { flexDirection: 'row', gap: 10 },
   rail: { width: 18, alignItems: 'center', paddingTop: 22 },
   dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: colors.line, backgroundColor: colors.panel },
@@ -54,4 +54,4 @@ const map = StyleSheet.create({
   locked: { boxShadow: 'none' },
   title: { color: colors.ink, fontSize: 20, lineHeight: 26, fontFamily: fonts.heavy },
   stars: { color: colors.star, fontSize: 22, letterSpacing: 4 }
-})
+}))

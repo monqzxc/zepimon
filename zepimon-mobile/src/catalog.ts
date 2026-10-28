@@ -23,15 +23,5 @@ export const dexNumber = (name: string) => {
   const id = pokemonNumber(name)
   return id ? 'No. ' + String(id).padStart(4, '0') : 'No. ----'
 }
-// Official type colors, darkened where needed so white badge text stays readable (4.5:1).
-export const typeColors: Record<string, string> = {
-  normal: '#747674', fire: '#e42829', water: '#2574d9', electric: '#937100', grass: '#358722', ice: '#268097',
-  fighting: '#ba5d00', poison: '#9141cb', ground: '#915121', flying: '#557a9e', psychic: '#d53a6c', bug: '#707c13',
-  rock: '#7a765a', ghost: '#704170', dragon: '#5060e1', dark: '#624d4e', steel: '#4a7c8e', fairy: '#ae52ae'
-}
-// Pale tints of the same type colors for card backgrounds; dark text stays above 11:1 on all of them.
-export const typeTints: Record<string, string> = {
-  normal: '#f0f0f0', fire: '#fbdddd', water: '#ddebfc', electric: '#fef5d6', grass: '#e0f0dd', ice: '#e0f7fd',
-  fighting: '#ffebd6', poison: '#ede1f7', ground: '#ede3db', flying: '#ebf4fc', psychic: '#fce1ea', bug: '#edf0da',
-  rock: '#f2f1eb', ghost: '#e8e1e8', dragon: '#e3e6fa', dark: '#e6e3e3', steel: '#e6f0f4', fairy: '#fce8fc'
-}
+// Type colors and their card tints, one set per theme, are in src/palettes.ts.
+export { typeColors } from './palettes'

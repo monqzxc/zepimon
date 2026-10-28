@@ -8,8 +8,8 @@ import { BackHandler, Image, Text, View } from 'react-native'
 import { BerryCatch, BerryIcon } from '../../games/BerryCatch'
 import { PokemonQuiz } from '../../games/PokemonQuiz'
 import type { ArcadeGame } from '../../games/scores'
-import { spriteSource, typeTints } from '../../catalog'
-import { Button, Copy, Eyebrow, Hero, IconBubble, IconButton, Panel, Screen, Sprite, Title, colors, styles } from '../../ui'
+import { spriteSource } from '../../catalog'
+import { Button, Copy, Eyebrow, Hero, IconBubble, IconButton, Panel, Screen, Sprite, Title, colors, styles, typeTints, useTheme } from '../../ui'
 import { GameScreenContext } from '../../games/fullscreen'
 import { DefenseGame, starText } from '../../games/DefenseGame'
 import type { BattleResult } from '../../games/DefenseGame'
@@ -28,6 +28,7 @@ type Launch = { game: 'guard' | 'trail' | 'safari', stop?: Stop, level?: Level }
 type Selected = 'memory' | 'quiz' | 'berries' | 'map' | 'levels' | Launch | null
 
 export default function PlayScreen() {
+  useTheme()
   const { dex, progress, adventure, trailLevels, bestMoves, recordWin, arcadeScores, recordArcadeScore, recordStars, recordLevelStars, recordSafariCatch } = useJournal()
   const [message, setMessage] = useState('')
   const [selected, setSelected] = useState<Selected>(null)
@@ -105,7 +106,7 @@ export default function PlayScreen() {
       <Hero eyebrow="ZEPIMON · POCKET ARCADE" title="A little trail break.">
         <Copy color={colors.onBrand}>An adventure map, three battle and hunting games, and three quick puzzles. Everything works offline and saves on this phone.</Copy>
       </Hero>
-      <Panel style={{ backgroundColor: colors.mint, borderColor: '#BFE8DF' }}>
+      <Panel style={{ backgroundColor: colors.mint, borderColor: colors.mintLine }}>
         <View style={[styles.row, { flexWrap: 'nowrap' }]}>
           <IconBubble name="walk" background={colors.panel} />
           <View style={{ flex: 1 }}><Eyebrow>WALKING BONUS · THIS WEEK</Eyebrow><Text style={styles.stat}>{bonus.km} / {BONUS_KM_CAP} km</Text></View>

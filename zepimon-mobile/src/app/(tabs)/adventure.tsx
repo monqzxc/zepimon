@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Animated, Easing, Image, Platform, Pressable, Text, View } from 'react-native'
 import type { ImageSourcePropType } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
 import { useJournal } from '../../store'
@@ -7,7 +7,7 @@ import { averagePace, duration, km, recordForm } from '../../journal'
 import type { Journal } from '../../journal'
 import { useCloud } from '../../cloud'
 import type { Plan } from '../../plan'
-import { pokemonType, spriteSource, typeTints } from '../../catalog'
+import { pokemonType, spriteSource } from '../../catalog'
 import { walkingFrames } from '../../generated/walking.js'
 import { currentForm, currentPace, earnedForms, eggs, encodePath, expeditionNews, finishAdventure, megaChoices, nextMilestone, phoneTrail } from '../../phone-adventure'
 import type { ActiveAdventure, Activity, PhoneRun } from '../../phone-adventure'
@@ -21,7 +21,7 @@ import { AdventureCard } from '../../AdventureCard'
 import { QuestTiles } from '../../QuestTiles'
 import { PixelSprite } from '../../games/TeamPicker'
 import { useReducedMotion } from '../../games/hooks'
-import { Button, Chip, Copy, Eyebrow, Heading, Hero, Icon, IconBubble, Panel, PokeballLoader, Screen, Title, colors, fonts, styles } from '../../ui'
+import { Button, Chip, Copy, Eyebrow, Heading, Hero, Icon, IconBubble, Panel, PokeballLoader, Screen, Title, colors, fonts, styles, themedStyles, typeTints, glass, useTheme } from '../../ui'
 
 // The phone version of the watch adventure: pick an egg, walk or run, and the phone measures the distance by GPS and
 // draws the route on a map. Saving adds it to the Journal, Dex, missions and Expeditions just like a watch adventure.
@@ -29,6 +29,7 @@ import { Button, Chip, Copy, Eyebrow, Heading, Hero, Icon, IconBubble, Panel, Po
 type Summary = { run: PhoneRun, news: ReturnType<typeof expeditionNews> }
 
 export default function AdventureScreen() {
+  useTheme()
   const tracker = useTracker()
   const [summary, setSummary] = useState<Summary | null>(null)
   if (!tracker.ready) return <Screen><View style={{ alignItems: 'center', paddingTop: 96 }}><PokeballLoader /></View></Screen>
@@ -246,7 +247,7 @@ function Stage({ family, meters, mega, shiny, activity, status, live }: {
     <Heading>{(shiny ? 'Shiny ' : '') + (form === 'Egg' ? `${family[0]} egg` : form)}</Heading>
     <Copy small color={colors.ink}>{next === null ? 'Final form reached!' : `${km(next - meters)} to ${next === 21000 ? 'Mega' : form === 'Egg' ? 'hatch' : 'evolve'}`}</Copy>
     <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
-      style={[styles.track, { backgroundColor: 'rgba(255, 255, 255, 0.7)' }]}>
+      style={[styles.track, { backgroundColor: glass(0.7) }]}>
       <View style={[styles.fill, { width: `${progress * 100}%`, backgroundColor: colors.edge }]} />
     </View>
   </View>
@@ -446,14 +447,14 @@ function Saved({ summary: { run, news }, onDone }: { summary: Summary, onDone: (
   </>
 }
 
-const adventure = StyleSheet.create({
+const adventure = themedStyles(() => ({
   art: { width: 84, height: 84, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   choice: { flex: 1, minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 18, borderWidth: 1.5,
     borderColor: colors.line, backgroundColor: colors.panel },
   chosen: { borderColor: colors.edge, borderWidth: 2.5, backgroundColor: colors.mint },
   choiceText: { fontFamily: fonts.heavy, fontSize: 15, color: colors.muted },
   stage: { borderRadius: 24, padding: 18, gap: 8, borderWidth: 1, borderColor: colors.line },
-  live: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255, 255, 255, 0.8)' },
+  live: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: glass(0.8) },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
   liveText: { fontFamily: fonts.black, fontSize: 11, letterSpacing: 1, color: colors.ink },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -461,4 +462,4 @@ const adventure = StyleSheet.create({
   statValue: { fontFamily: fonts.black, color: colors.ink, fontSize: 28, lineHeight: 36 },
   statUnit: { fontFamily: fonts.heavy, color: colors.muted, fontSize: 15 },
   gps: { fontFamily: fonts.bold, fontSize: 13, color: colors.muted, textAlign: 'center' }
-})
+}))

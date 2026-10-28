@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Image, Text, View } from 'react-native'
-import { spriteSource, typeTints } from '../catalog'
-import { Button, Copy, Eyebrow, Heading, Panel, colors, fonts, styles } from '../ui'
+import { spriteSource } from '../catalog'
+import { Button, Copy, Eyebrow, Heading, Panel, colors, fonts, styles, typeTints } from '../ui'
 import { answerQuiz, createQuiz, nextQuestion, QUIZ_LENGTH, quizComplete } from './quiz'
 import type { Quiz } from './quiz'
 

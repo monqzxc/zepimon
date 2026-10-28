@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-import { pokemonType, typeTints } from '../catalog'
+import { Animated, Easing, Platform, Pressable, Text, View } from 'react-native'
+import { pokemonType } from '../catalog'
 import type { DexRecord } from '../journal'
-import { Button, Copy, Eyebrow, Heading, Panel, colors, fonts, styles } from '../ui'
+import { Button, Copy, Eyebrow, Heading, Panel, colors, fonts, styles, themedStyles, typeTints } from '../ui'
 import { PATCHES, SAFARI_DURATION, ZONES, approachPatch, pauseSafari, readySafari, resumeSafari, ringScale, runAway, shinyOdds,
   startSafari, throwBait, throwBall, throwQuality, throwRock, tickSafari } from './safari'
 import type { SafariGame, Zone } from './safari'
@@ -12,7 +12,7 @@ import { useGameLoop, useReducedMotion } from './hooks'
 import { TICK } from './battle'
 
 const native = Platform.OS !== 'web'
-const qualityColors = { excellent: '#23803E', great: colors.gold, nice: colors.ink }
+const qualityColor = (quality: 'excellent' | 'great' | 'nice') => ({ excellent: colors.success, great: colors.gold, nice: colors.ink })[quality]
 const qualityText = { excellent: 'Excellent!', great: 'Great!', nice: 'Nice' }
 const throwText = { excellent: 'Excellent throw!', great: 'Great throw!', nice: 'Nice throw.' }
 type Props = {
@@ -103,9 +103,9 @@ export function SafariHunt({ zone: fixedZone, bonusBalls, bonusNote, record, goa
       <Text style={hunt.name}>{encounter.shiny ? 'Shiny ' : ''}{encounter.name}</Text>
       <View style={hunt.stage}>
         <PixelSprite name={encounter.name} shiny={encounter.shiny} size={132} />
-        <Ring scale={scale} next={ringScale({ ...game, elapsed: game.elapsed + TICK })} color={qualityColors[quality]} reduced={reduced} />
+        <Ring scale={scale} next={ringScale({ ...game, elapsed: game.elapsed + TICK })} color={qualityColor(quality)} reduced={reduced} />
       </View>
-      <Text style={[hunt.quality, { color: qualityColors[quality] }]}>Ring: {qualityText[quality]}</Text>
+      <Text style={[hunt.quality, { color: qualityColor(quality) }]}>Ring: {qualityText[quality]}</Text>
       {encounter.mood !== 'calm' && <Copy small color={colors.ink}>{encounter.mood === 'eating' ? 'Eating bait — calmer, but harder to catch.' : 'Angry — easier to catch, but quick to run.'}</Copy>}
       <View style={{ alignSelf: 'stretch', gap: 10 }}>
         <Button title={`Throw Safari Ball · ${game.balls} left`} disabled={!playing} onPress={() => act(throwBall)} />
@@ -174,7 +174,7 @@ function Grass({ bright }: { bright: boolean }) {
   </View>
 }
 
-const hunt = StyleSheet.create({
+const hunt = themedStyles(() => ({
   field: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, padding: 10, borderRadius: 20, backgroundColor: '#8FD18A', borderWidth: 1.5, borderColor: '#73BE6D' },
   patch: { width: '31%', aspectRatio: 1.15, minHeight: 64, maxHeight: 110, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#78C171', borderRadius: 14, backgroundColor: '#B4E3AD' },
   rustling: { borderColor: colors.star, borderWidth: 2.5, backgroundColor: '#D7F2D1' },
@@ -188,4 +188,4 @@ const hunt = StyleSheet.create({
   ring: { position: 'absolute', width: 176, height: 176, borderRadius: 88, borderWidth: 4 },
   quality: { fontFamily: fonts.heavy, fontSize: 16 },
   message: { color: colors.ink, fontSize: 15, lineHeight: 22, fontFamily: fonts.bold }
-})
+}))

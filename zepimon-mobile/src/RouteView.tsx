@@ -45,11 +45,11 @@ export function RouteView({ points, height, live = false, compact = false, label
     {width > 0 && <Svg width={width} height={height}>
       {Array.from({ length: Math.ceil(width / grid) }, (_, i) => <Line key={`x${i}`} x1={i * grid} y1={0} x2={i * grid} y2={height} stroke={colors.line} strokeWidth={1} />)}
       {Array.from({ length: Math.ceil(height / grid) }, (_, i) => <Line key={`y${i}`} x1={0} y1={i * grid} x2={width} y2={i * grid} stroke={colors.line} strokeWidth={1} />)}
-      {!!path && <Path d={path} fill="none" stroke="#FFFFFF" strokeWidth={stroke + 3} strokeLinecap="round" strokeLinejoin="round" />}
+      {!!path && <Path d={path} fill="none" stroke={colors.panel} strokeWidth={stroke + 3} strokeLinecap="round" strokeLinejoin="round" />}
       {!!path && <Path d={path} fill="none" stroke={routeColor} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />}
-      {start && <Circle cx={start[0]} cy={start[1]} r={compact ? 3.5 : 6} fill={startColor} stroke="#FFFFFF" strokeWidth={2} />}
+      {start && <Circle cx={start[0]} cy={start[1]} r={compact ? 3.5 : 6} fill={startColor} stroke={colors.panel} strokeWidth={2} />}
       {end && live && <Circle cx={end[0]} cy={end[1]} r={13} fill={routeColor} opacity={0.18} />}
-      {end && <Circle cx={end[0]} cy={end[1]} r={compact ? 3.5 : 7} fill={live ? routeColor : colors.ink} stroke="#FFFFFF" strokeWidth={2} />}
+      {end && <Circle cx={end[0]} cy={end[1]} r={compact ? 3.5 : 7} fill={live ? routeColor : colors.ink} stroke={colors.panel} strokeWidth={2} />}
       {!compact && bar && <Line x1={12} y1={height - 12} x2={12 + bar * scale} y2={height - 12} stroke={colors.muted} strokeWidth={3} strokeLinecap="round" />}
     </Svg>}
     {!compact && bar && <Text style={{ position: 'absolute', left: 12, bottom: 17, fontFamily: fonts.bold, fontSize: 11, color: colors.muted }}>

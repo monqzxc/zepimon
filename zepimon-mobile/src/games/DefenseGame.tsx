@@ -4,7 +4,7 @@ import { Animated, Easing, Image, Platform, Pressable, ScrollView, StyleSheet, T
 import type { ImageSourcePropType, ViewStyle } from 'react-native'
 import { spriteSource } from '../catalog'
 import { typeTheme } from '../HabitatScene'
-import { Button, Copy, Eyebrow, Heading, IconButton, Panel, Title, colors, fonts, shadows, styles } from '../ui'
+import { Button, Copy, Eyebrow, Heading, IconButton, Panel, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
 import { LANES, PATHS, TICK, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
@@ -332,7 +332,7 @@ function Stat({ label, value, spoken }: { label: string, value: string, spoken: 
 function SmallButton({ title, onPress, primary = false, disabled = false }: { title: string, onPress: () => void, primary?: boolean, disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
     style={({ pressed }) => [play.button, primary ? play.primary : play.secondary, { opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }]}>
-    <Text numberOfLines={1} style={[play.buttonText, primary && { color: colors.onBrand }]}>{title}</Text>
+    <Text numberOfLines={1} style={[play.buttonText, primary && { color: colors.onEdge }]}>{title}</Text>
   </Pressable>
 }
 
@@ -428,7 +428,7 @@ function UnitPanel({ unit, layout, playing, berries, style, onEvolve, onRelease,
   </View>
 }
 
-const board = StyleSheet.create({
+const board = themedStyles(() => ({
   field: { borderRadius: 16, overflow: 'hidden', ...shadows.card },
   cell: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   free: { borderWidth: 1, borderColor: 'rgba(255, 224, 141, 0.45)', backgroundColor: 'rgba(255, 224, 141, 0.12)' },
@@ -443,10 +443,10 @@ const board = StyleSheet.create({
   status: { position: 'absolute', top: 0, right: 0, fontSize: 12 },
   egg: { position: 'absolute', top: 2, left: 2, fontSize: 8, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 3, borderRadius: 999, overflow: 'hidden' },
   stars: { color: colors.star, fontSize: 26, letterSpacing: 4 }
-})
+}))
 
 // The running battle's screen: a top bar, the board area (with anything that floats over it) and the card tray.
-const play = StyleSheet.create({
+const play = themedStyles(() => ({
   root: { flex: 1, gap: 8 },
   bar: { backgroundColor: colors.panel, borderColor: colors.line, borderWidth: 1, borderRadius: 18, paddingHorizontal: 10, paddingVertical: 8, gap: 4, ...shadows.card },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -456,7 +456,7 @@ const play = StyleSheet.create({
   status: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 2 },
   area: { flex: 1, minHeight: 160 },
   note: { position: 'absolute', top: 8, left: 12, right: 12, alignItems: 'center' },
-  noteText: { overflow: 'hidden', textAlign: 'center', fontFamily: fonts.bold, fontSize: 13, lineHeight: 18, color: colors.onBrand,
+  noteText: { overflow: 'hidden', textAlign: 'center', fontFamily: fonts.bold, fontSize: 13, lineHeight: 18, color: '#FFFFFF',
     backgroundColor: 'rgba(31, 42, 54, 0.88)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   scrim: { position: 'absolute', backgroundColor: 'rgba(31, 42, 54, 0.45)', borderRadius: 16, justifyContent: 'center', padding: 12 },
   scrimScroll: { flexGrow: 1, justifyContent: 'center' },
@@ -476,4 +476,4 @@ const play = StyleSheet.create({
   primary: { backgroundColor: colors.edge },
   secondary: { backgroundColor: colors.panel, borderWidth: 1.5, borderColor: colors.line },
   buttonText: { fontFamily: fonts.heavy, fontSize: 13, lineHeight: 17, color: colors.edge }
-})
+}))

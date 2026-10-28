@@ -4,30 +4,26 @@ import type { ColorValue, StyleProp, ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { SymbolView } from 'expo-symbols'
 import type { AndroidSymbol, SFSymbol } from 'expo-symbols'
-import { pokemonType, typeColors, typeTints } from './catalog'
+import { pokemonType, typeColors } from './catalog'
+import { colors, themedStyles, typeTints } from './theme'
 import { HabitatScene, habitatTheme } from './HabitatScene'
 import { PokeballLoader } from './PokeballLoader'
 export { Sprite } from './Sprite'
 export { HabitatScene } from './HabitatScene'
 export { PokeballLoader } from './PokeballLoader'
+export { colors, glass, themedStyles, typeTints, useTheme } from './theme'
 
-// A bright, Pokemon HOME-style light theme. Text colors keep at least 4.5:1 on both white cards and the page:
-// ink 14.6, muted 6.1, edge (teal accent) 5.1, gold 5.6, danger 5.2. star is for large glyphs only (3.4:1).
-export const colors = {
-  bg: '#EEF3F7', panel: '#FFFFFF', sunken: '#F4F7FA', line: '#DCE4EA', mint: '#DDF4EF',
-  ink: '#1F2A36', muted: '#566472', edge: '#0B7C73', blue: '#1374B8', bright: '#16B5A0',
-  gold: '#9A5800', star: '#C27C00', danger: '#C53B3B', onBrand: '#FFFFFF'
-}
 // Nunito is loaded in src/app/_layout.tsx. Each weight is its own family so Android picks the right file.
 export const fonts = { body: 'Nunito_600SemiBold', bold: 'Nunito_700Bold', heavy: 'Nunito_800ExtraBold', black: 'Nunito_900Black' }
-export const BRAND_GRADIENT = 'linear-gradient(135deg, #0B8577 0%, #1374B8 100%)'
-// Native draws CSS gradients through experimental_backgroundImage; the web takes plain backgroundImage.
-export function gradient(css = BRAND_GRADIENT, fallback = colors.edge): ViewStyle {
+// The theme's brand gradient by default. Native draws CSS gradients through experimental_backgroundImage; the web takes
+// plain backgroundImage.
+export function gradient(css = colors.brand, fallback = colors.brandFrom): ViewStyle {
   return (Platform.OS === 'web' ? { backgroundColor: fallback, backgroundImage: css } : { backgroundColor: fallback, experimental_backgroundImage: css }) as ViewStyle
 }
+// raised glows in the theme's brand color.
 export const shadows = {
   card: { boxShadow: '0px 4px 16px rgba(31, 61, 89, 0.08)' } as ViewStyle,
-  raised: { boxShadow: '0px 6px 16px rgba(19, 116, 184, 0.28)' } as ViewStyle
+  get raised() { return { boxShadow: `0px 6px 16px ${colors.glow}` } as ViewStyle }
 }
 
 export function Copy({ children, small = false, color = colors.muted }: React.PropsWithChildren<{ small?: boolean, color?: string }>) {
@@ -49,7 +45,7 @@ export function Panel({ children, style }: React.PropsWithChildren<{ style?: Sty
 // The gradient banner that opens each tab, with a faint Poke Ball in the corner.
 export function Hero({ eyebrow, title, children }: React.PropsWithChildren<{ eyebrow: string, title: string }>) {
   return <View style={[styles.hero, gradient(), shadows.raised]}>
-    <View pointerEvents="none" accessible={false} style={styles.heroMark}><PokeballIcon size={190} color="rgba(255, 255, 255, 0.16)" stroke={14} /></View>
+    <View pointerEvents="none" accessible={false} style={styles.heroMark}><PokeballIcon size={190} color={colors.onBrand} stroke={14} /></View>
     <Text style={styles.heroEyebrow}>{eyebrow}</Text>
     <Text accessibilityRole="header" style={styles.heroTitle}>{title}</Text>
     {children}
@@ -78,7 +74,7 @@ export function Button({ title, onPress, secondary = false, disabled = false, lo
 export function Chip({ label, selected, onPress }: { label: string, selected: boolean, onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ selected }} hitSlop={4} onPress={onPress}
     style={({ pressed }) => [styles.chip, selected && styles.chipOn, { opacity: pressed ? 0.8 : 1 }]}>
-    <Text style={[styles.chipText, selected && { color: colors.onBrand }]}>{label}</Text>
+    <Text style={[styles.chipText, selected && { color: colors.onEdge }]}>{label}</Text>
   </Pressable>
 }
 export const typeLabel = (type: string) => type[0].toUpperCase() + type.slice(1)
@@ -99,7 +95,10 @@ const icons = {
   location: ['location', 'location_on'], egg: ['oval.portrait', 'egg'], share: ['square.and.arrow.up', 'share'],
   chevron: ['chevron.right', 'chevron_right'], close: ['xmark', 'close'], settings: ['gearshape', 'settings'],
   phone: ['iphone', 'smartphone'], watch: ['applewatch', 'watch'], clock: ['clock', 'schedule'], steps: ['shoeprints.fill', 'footprint'],
-  back: ['chevron.left', 'arrow_back']
+  back: ['chevron.left', 'arrow_back'], palette: ['paintpalette', 'palette'], person: ['person.crop.circle', 'account_circle'],
+  logout: ['rectangle.portrait.and.arrow.right', 'logout'], info: ['info.circle', 'info'], doc: ['doc.text', 'description'],
+  download: ['square.and.arrow.down', 'download'], sun: ['sun.max', 'light_mode'], moon: ['moon', 'dark_mode'],
+  contrast: ['circle.lefthalf.filled', 'contrast'], edit: ['pencil', 'edit']
 } satisfies Record<string, [SFSymbol, AndroidSymbol]>
 export type IconName = keyof typeof icons
 const symbolBox = { alignItems: 'center', justifyContent: 'center' } as const
@@ -160,7 +159,7 @@ export function Habitat({ name, shiny = false, children }: React.PropsWithChildr
     {children}
   </Panel>
 }
-export const styles = StyleSheet.create({
+export const styles = themedStyles(() => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 16 },
   // The bottom padding keeps the end of the screen clear of the Gengar peeking over the tab bar (src/TabBar.tsx).
@@ -171,7 +170,7 @@ export const styles = StyleSheet.create({
   eyebrow: { fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16, letterSpacing: 1.1 },
   panel: { backgroundColor: colors.panel, borderColor: colors.line, borderWidth: 1, borderRadius: 20, padding: 18, gap: 10, ...shadows.card },
   hero: { borderRadius: 24, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 24, gap: 6, overflow: 'hidden' },
-  heroMark: { position: 'absolute', right: -42, top: -46 },
+  heroMark: { position: 'absolute', right: -42, top: -46, opacity: 0.16 },
   heroEyebrow: { fontFamily: fonts.heavy, color: colors.onBrand, fontSize: 12, lineHeight: 16, letterSpacing: 1.1, opacity: 0.92 },
   heroTitle: { fontFamily: fonts.black, color: colors.onBrand, fontSize: 28, lineHeight: 35 },
   button: { minHeight: 50, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 22, justifyContent: 'center' },
@@ -191,6 +190,6 @@ export const styles = StyleSheet.create({
   habitatTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   habitatLabel: { flexShrink: 1, fontFamily: fonts.bold, color: colors.muted, fontSize: 13, textAlign: 'right' },
   // A rounded progress track and its fill.
-  track: { height: 10, borderRadius: 5, backgroundColor: '#E2E9EF', overflow: 'hidden' },
+  track: { height: 10, borderRadius: 5, backgroundColor: colors.track, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 5 }
-})
+}))

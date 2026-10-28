@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { router } from 'expo-router'
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
+import { FlatList, Pressable, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useJournal } from '../../store'
 import { entriesFromDex } from '../../journal'
 import { defaultDexFilter, filterDex, fromSafari, generationsOf, isFiltered, typesOf } from '../../pokedex'
 import type { DexFilter, DexVariant } from '../../pokedex'
 import { FilterSection, GenerationFilter, ResultLine, SearchBox, SortSwitch, TypeFilter } from '../../PokedexFilters'
-import { dexNumber, pokemonType, typeTints } from '../../catalog'
-import { Chip, Copy, Hero, Sprite, TypeBadge, colors, fonts, shadows, styles } from '../../ui'
+import { dexNumber, pokemonType } from '../../catalog'
+import { Chip, Copy, Hero, Sprite, TypeBadge, colors, fonts, shadows, styles, themedStyles, typeTints, useTheme } from '../../ui'
 
 // Your collection as a Pokedex: sort by number or name, filter by generation, type and variant, or search a name,
 // type or number. A variant caught in Safari Hunt keeps its ◎ mark until the watch hatches the same variant.
@@ -16,6 +16,7 @@ const GAP = 5
 const variants: [DexVariant, string][] = [['all', 'All'], ['normal', 'Normal'], ['shiny', 'Shiny'], ['safari', 'Safari']]
 
 export default function DexScreen() {
+  useTheme()
   const { journal, dex } = useJournal()
   const [filter, setFilter] = useState<DexFilter>(defaultDexFilter)
   const change = (next: Partial<DexFilter>) => setFilter(value => ({ ...value, ...next }))
@@ -70,7 +71,7 @@ export default function DexScreen() {
   </SafeAreaView>
 }
 
-const dexStyles = StyleSheet.create({
+const dexStyles = themedStyles(() => ({
   card: { flex: 1, alignItems: 'center', gap: 6, padding: 8, paddingTop: 10, borderRadius: 18, backgroundColor: colors.panel,
     borderWidth: 1, borderColor: colors.line, ...shadows.card },
   number: { alignSelf: 'flex-start', fontFamily: fonts.bold, color: colors.muted, fontSize: 11, lineHeight: 14 },
@@ -78,6 +79,6 @@ const dexStyles = StyleSheet.create({
   details: { width: '100%', minHeight: 48, alignItems: 'center', gap: 5 },
   name: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 14, lineHeight: 18, textAlign: 'center' },
   marks: { fontFamily: fonts.bold, color: colors.gold, fontSize: 11, lineHeight: 14, textAlign: 'center' },
-  badge: { fontFamily: fonts.heavy, color: colors.gold, backgroundColor: '#FFF1D6', fontSize: 10, letterSpacing: 0.6, paddingHorizontal: 7,
+  badge: { fontFamily: fonts.heavy, color: colors.gold, backgroundColor: colors.goldTint, fontSize: 10, letterSpacing: 0.6, paddingHorizontal: 7,
     paddingVertical: 2, borderRadius: 999, overflow: 'hidden' }
-})
+}))

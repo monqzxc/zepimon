@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { ReactNode } from 'react'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -6,18 +6,19 @@ import { useJournal } from '../store'
 import { averagePace, km, recordForm } from '../journal'
 import { adventureFacts, bestLabels, findAdventure } from '../adventures'
 import type { Adventure } from '../adventures'
-import { pokemonType, typeColors, typeTints } from '../catalog'
+import { pokemonType, typeColors } from '../catalog'
 import { describeAdventure, shortDuration } from '../journal-calendar'
 import { RouteMap } from '../RouteMap'
 import { cardTitle } from '../ShareCard'
 import { PixelSprite } from '../games/TeamPicker'
-import { Button, Copy, Icon, Panel, Screen, Title, colors, fonts, shadows } from '../ui'
+import { Button, Copy, Icon, Panel, Screen, Title, colors, fonts, shadows, themedStyles, typeTints, glass, useTheme } from '../ui'
 import type { IconName } from '../ui'
 
 // One saved adventure, opened from a Journal tile: a pastel header in its Pokemon's type colour with the date, then a
 // sheet with what happened, its times and stats, the Pokemon it reached, the route (phone adventures) and a Share
 // button. id is a Journal run's id or a phone adventure's own id.
 export default function AdventureDetailsScreen() {
+  useTheme()
   const { id } = useLocalSearchParams<{ id?: string }>()
   const { progress, phoneRuns } = useJournal()
   const adventure = findAdventure(id, progress, phoneRuns)
@@ -70,7 +71,7 @@ function Details({ adventure }: { adventure: Adventure }) {
       <View style={page.inner}>
         <Pressable accessibilityRole="button" accessibilityLabel="Share image" onPress={share}
           style={({ pressed }) => [page.fab, { backgroundColor: ink, opacity: pressed ? 0.85 : 1 }]}>
-          <Icon name="share" size={24} color={colors.onBrand} />
+          <Icon name="share" size={24} color="#FFFFFF" />
         </Pressable>
         <Text accessibilityRole="header" style={page.title}>{cardTitle(family, record)}</Text>
         <Text style={page.description}>{describeAdventure(adventure, facts)}</Text>
@@ -121,10 +122,10 @@ function Row({ icon, lead, label, value, side }: { icon?: IconName, lead?: React
   </View>
 }
 
-const page = StyleSheet.create({
+const page = themedStyles(() => ({
   header: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 20, paddingBottom: 30, gap: 18 },
   bar: { flexDirection: 'row', justifyContent: 'space-between' },
-  round: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(255, 255, 255, 0.75)', alignItems: 'center', justifyContent: 'center' },
+  round: { width: 46, height: 46, borderRadius: 23, backgroundColor: glass(0.75), alignItems: 'center', justifyContent: 'center' },
   hero: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
   day: { fontFamily: fonts.black, color: colors.ink, fontSize: 40, lineHeight: 46 },
   weekday: { fontFamily: fonts.body, color: colors.ink, fontSize: 24, lineHeight: 30, opacity: 0.75 },
@@ -147,4 +148,4 @@ const page = StyleSheet.create({
   avatar: { width: 58, height: 58, borderRadius: 29, backgroundColor: colors.sunken, borderWidth: 3, borderColor: colors.panel,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   chain: { flex: 1, marginLeft: 12, fontFamily: fonts.bold, color: colors.ink, fontSize: 14, lineHeight: 19 }
-})
+}))

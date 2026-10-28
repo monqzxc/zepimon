@@ -1,6 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { typeTints } from '../catalog'
-import { Button, Copy, Eyebrow, Hero, Panel, colors, fonts, styles } from '../ui'
+import { Pressable, Text, View } from 'react-native'
+import { Button, Copy, Eyebrow, Hero, Panel, colors, fonts, styles, themedStyles, typeTints, glass } from '../ui'
 import { STAR_GOALS } from './AdventureMap'
 import { PATHS } from './battle'
 import { starText } from './DefenseGame'
@@ -62,16 +61,16 @@ function LevelTile({ level, stars, open, current, onPress }: { level: Level, sta
   </Pressable>
 }
 
-const grid = StyleSheet.create({
+const grid = themedStyles(() => ({
   title: { color: colors.ink, fontSize: 20, lineHeight: 26, fontFamily: fonts.heavy },
   locked: { boxShadow: 'none' },
   row: { flexDirection: 'row', gap: 6 },
   tile: { flex: 1, minHeight: 80, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 6, borderWidth: 1.5, borderRadius: 14 },
   open: { borderColor: colors.line, backgroundColor: colors.panel },
   done: { borderColor: colors.star, backgroundColor: colors.panel },
-  shut: { borderColor: colors.line, backgroundColor: 'rgba(255, 255, 255, 0.5)' },
+  shut: { borderColor: colors.line, backgroundColor: glass(0.5) },
   current: { borderColor: colors.edge, borderWidth: 2.5, backgroundColor: colors.mint },
   number: { color: colors.ink, fontSize: 21, lineHeight: 26, fontFamily: fonts.black },
   stars: { color: colors.gold, fontSize: 11, lineHeight: 14, letterSpacing: 1 },
   size: { color: colors.muted, fontSize: 10, lineHeight: 13, fontFamily: fonts.heavy, letterSpacing: 0.4 }
-})
+}))

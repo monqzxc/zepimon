@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Image, Pressable, Text, View } from 'react-native'
 import { spriteSource } from './catalog'
-import { GradientFill, colors, fonts, shadows } from './ui'
+import { GradientFill, colors, fonts, shadows, themedStyles } from './ui'
 import { createMemoryGame, hideMismatch, isComplete, revealCard } from './memory'
 import type { MemoryEntry } from './memory'
 
@@ -114,7 +114,7 @@ function MemoryRound({ entries, bestMoves, onComplete }: MemoryMatchProps) {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   game: { gap: 14 },
   notice: { padding: 20, gap: 12, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderRadius: 20, ...shadows.card },
   title: { color: colors.ink, fontSize: 24, lineHeight: 31, fontFamily: fonts.heavy },
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   shiny: { color: colors.gold },
   question: { color: colors.onBrand, fontSize: 40, lineHeight: 48, fontFamily: fonts.black },
   restart: { minHeight: 50, padding: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.edge, borderRadius: 999 },
-  restartText: { color: colors.onBrand, fontSize: 15, fontFamily: fonts.heavy },
-})
+  restartText: { color: colors.onEdge, fontSize: 15, fontFamily: fonts.heavy },
+}))
 
 export default MemoryMatch

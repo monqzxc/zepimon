@@ -7,7 +7,7 @@ import { km } from '../journal'
 import { allAdventures } from '../adventures'
 import type { Adventure } from '../adventures'
 import { AdventureCard } from '../AdventureCard'
-import { Button, Chip, Copy, Eyebrow, Heading, Panel, styles } from '../ui'
+import { Button, Chip, Copy, Eyebrow, Heading, Panel, styles, useTheme } from '../ui'
 
 // Every saved adventure, from the watch and this phone, newest first and grouped by month. Opened from the Journal
 // and the Adventure tab; each one opens its details.
@@ -16,6 +16,7 @@ const devices: [Device, string][] = [['all', 'All'], ['phone', 'This phone'], ['
 const month = (adventure: Adventure) => new Date(adventure.record.finishedAt).toLocaleDateString([], { month: 'long', year: 'numeric' })
 
 export default function AdventuresScreen() {
+  useTheme()
   const { progress, phoneRuns } = useJournal()
   const [device, setDevice] = useState<Device>('all')
   const all = useMemo(() => allAdventures(progress, phoneRuns), [progress, phoneRuns])

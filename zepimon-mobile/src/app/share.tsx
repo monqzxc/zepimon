@@ -13,7 +13,7 @@ import type { CardBackground, CardDesign, CardDetail, CardOptions, SpriteSize, S
 import { habitatTheme } from '../HabitatScene'
 import { FilterSection } from '../PokedexFilters'
 import { PixelSprite } from '../games/TeamPicker'
-import { Button, Chip, Copy, Panel, Screen, Title, colors, fonts } from '../ui'
+import { Button, Chip, Copy, Panel, Screen, Title, colors, fonts, themedStyles, useTheme } from '../ui'
 
 // The share image of one saved adventure, opened from its card or details. id is a Journal run's id or a phone
 // adventure's own (see src/adventures.ts); only phone adventures have a route to draw.
@@ -32,6 +32,7 @@ let remembered: CardOptions = { design: 'classic', style: 'default', size: 'medi
 const remember = (options: CardOptions) => { remembered = options }
 
 export default function ShareScreen() {
+  useTheme()
   const { id } = useLocalSearchParams<{ id?: string }>()
   const { phoneRuns, progress } = useJournal()
   const adventure = findAdventure(id, progress, phoneRuns)
@@ -163,7 +164,7 @@ function Checkerboard() {
   </Svg>
 }
 
-const share = StyleSheet.create({
+const share = themedStyles(() => ({
   frame: { borderRadius: 20, overflow: 'hidden', backgroundColor: '#0D1218' },
   tile: { alignItems: 'center', minWidth: 76, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1.5,
     borderColor: colors.line, backgroundColor: colors.panel },
@@ -175,7 +176,7 @@ const share = StyleSheet.create({
   box: { width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: colors.line, backgroundColor: colors.panel,
     alignItems: 'center', justifyContent: 'center' },
   boxOn: { backgroundColor: colors.edge, borderColor: colors.edge },
-  tick: { fontFamily: fonts.black, fontSize: 15, lineHeight: 18, color: colors.onBrand },
+  tick: { fontFamily: fonts.black, fontSize: 15, lineHeight: 18, color: colors.onEdge },
   checkLabel: { fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20, color: colors.ink },
   checkHint: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.muted }
-})
+}))

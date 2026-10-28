@@ -1,11 +1,11 @@
 import { useState, type PropsWithChildren } from 'react'
-import { Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native'
+import { Modal, Platform, Pressable, ScrollView, Share, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Constants from 'expo-constants'
 import type { ErrorBoundaryProps } from 'expo-router'
 import { acknowledgeCrash, lastCrash } from '../modules/zepimon-diagnostics'
 import { useTracker } from './tracker'
-import { colors } from './ui'
+import { colors, themedStyles } from './ui'
 
 // Crash reports anyone can send, without a computer or developer options. Both screens use only plain React Native
 // views and the system font, so they still work when the app's own components are what failed.
@@ -53,7 +53,7 @@ function Report({ title, children, report, actions }: PropsWithChildren<{ title:
   </View>
 }
 
-const sheet = StyleSheet.create({
+const sheet = themedStyles(() => ({
   page: { flex: 1, gap: 12, paddingHorizontal: 20, backgroundColor: colors.bg },
   title: { fontSize: 24, fontWeight: '800', color: colors.ink },
   intro: { fontSize: 15, lineHeight: 22, color: colors.muted },
@@ -61,5 +61,5 @@ const sheet = StyleSheet.create({
   report: { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 11, lineHeight: 16, color: colors.ink },
   button: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 999, backgroundColor: colors.edge },
   secondary: { backgroundColor: colors.panel, borderWidth: 1.5, borderColor: colors.edge },
-  buttonText: { fontSize: 16, fontWeight: '800', color: colors.onBrand }
-})
+  buttonText: { fontSize: 16, fontWeight: '800', color: colors.onEdge }
+}))

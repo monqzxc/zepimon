@@ -1,19 +1,18 @@
 import { useRef } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import { router } from 'expo-router'
 import type { Adventure } from './adventures'
 import { km, recordForm } from './journal'
 import { periods, shortDuration, summary } from './journal-calendar'
 import type { Period } from './journal-calendar'
-import { pokemonType, typeColors, typeTints } from './catalog'
+import { pokemonType, typeColors } from './catalog'
 import { cardTitle } from './ShareCard'
 import { PixelSprite } from './games/TeamPicker'
-import { Icon, colors, fonts } from './ui'
+import { Icon, colors, fonts, themedStyles, typeTints, glass } from './ui'
 
 // The Journal's calendar pieces: a strip of days whose open tab joins the day card below it, the day card itself
 // (with your buddy standing on its edge), Week / Month / Year chips and pastel bento tiles, one per adventure.
 
-const CARD = '#FFFFFF'
 const two = (value: number) => String(value).padStart(2, '0')
 
 // onAtStart says whether the strip is scrolled to its start, where the first tab sits on the card's corner.
@@ -103,20 +102,20 @@ export function BentoTile({ adventure, tall }: { adventure: Adventure, tall: boo
   </Pressable>
 }
 
-const strip = StyleSheet.create({
+const strip = themedStyles(() => ({
   row: { alignItems: 'flex-end', gap: 6, paddingRight: 8 },
   day: { minWidth: 46, height: 44, paddingHorizontal: 12, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.55)', marginBottom: 6 },
-  // The open day is a tab: white like the card, square at the bottom where it meets it.
+    backgroundColor: glass(0.55), marginBottom: 6 },
+  // The open day is a tab: the card color, square at the bottom where it meets it.
   open: { minWidth: 72, height: 56, paddingHorizontal: 18, borderTopLeftRadius: 22, borderTopRightRadius: 22, alignItems: 'center',
-    justifyContent: 'center', backgroundColor: CARD },
+    justifyContent: 'center', backgroundColor: colors.panel },
   label: { fontFamily: fonts.body, color: colors.muted, fontSize: 16, lineHeight: 21 },
   openLabel: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 17 },
   dot: { width: 5, height: 5, borderRadius: 3, marginTop: 3 }
-})
+}))
 
-const card = StyleSheet.create({
-  card: { backgroundColor: CARD, borderRadius: 28, padding: 20, paddingTop: 22, gap: 14,
+const card = themedStyles(() => ({
+  card: { backgroundColor: colors.panel, borderRadius: 28, padding: 20, paddingTop: 22, gap: 14,
     boxShadow: '0px 10px 24px rgba(31, 61, 89, 0.08)' },
   // Your buddy stands on the card's top edge, like Gengar on the tab bar.
   buddy: { position: 'absolute', right: 14, top: -58, zIndex: 1 },
@@ -131,21 +130,21 @@ const card = StyleSheet.create({
   fact: { fontFamily: fonts.bold, color: colors.ink, fontSize: 14, lineHeight: 19 },
   factValue: { fontFamily: fonts.body, color: colors.muted },
   buddyLine: { fontFamily: fonts.body, color: colors.muted, fontSize: 13, lineHeight: 18 }
-})
+}))
 
-const chips = StyleSheet.create({
+const chips = themedStyles(() => ({
   row: { flexDirection: 'row', gap: 10 },
   chip: { minHeight: 40, paddingHorizontal: 20, borderRadius: 999, justifyContent: 'center', borderWidth: 1.5, borderColor: colors.line },
-  on: { backgroundColor: CARD, borderColor: CARD, boxShadow: '0px 4px 12px rgba(31, 61, 89, 0.08)' },
+  on: { backgroundColor: colors.panel, borderColor: colors.panel, boxShadow: '0px 4px 12px rgba(31, 61, 89, 0.08)' },
   label: { fontFamily: fonts.body, color: colors.muted, fontSize: 15, lineHeight: 20 },
   onLabel: { fontFamily: fonts.heavy, color: colors.ink }
-})
+}))
 
-const tile = StyleSheet.create({
+const tile = themedStyles(() => ({
   tile: { borderRadius: 26, padding: 16, justifyContent: 'space-between', gap: 10 },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  badge: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255, 255, 255, 0.85)', alignItems: 'center', justifyContent: 'center' },
+  badge: { width: 30, height: 30, borderRadius: 15, backgroundColor: glass(0.85), alignItems: 'center', justifyContent: 'center' },
   dateTall: { fontFamily: fonts.heavy, fontSize: 28, lineHeight: 34 },
   date: { fontFamily: fonts.heavy, fontSize: 17, lineHeight: 22 },
   title: { fontFamily: fonts.bold, color: colors.ink, fontSize: 13, lineHeight: 18 }
-})
+}))

@@ -5,7 +5,7 @@
 // Writes transparent PNGs to assets/nav/ at two pixels per grid unit. Four share a 120 x 100 grid so they stack
 // exactly: body-grin, body-blink and body-boo (the head, drawn behind the pill) and paws (drawn in front of it). Row 72
 // of that grid is where the pill's top edge meets the art; below the cheeks the body tapers so the pill's rounded
-// shoulders hide it. The Gengar floating over the Adventure button (float-grin, float-taunt) is cut from an illustration
+// shoulders hide it. The Gengar floating over the Adventure button is cut from illustrations
 // instead; see the note in src/TabBar.tsx.
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'

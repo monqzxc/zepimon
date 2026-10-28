@@ -8,28 +8,61 @@ import { useTracker } from './tracker'
 import { onWatch } from './shared-adventure'
 import type { Activity } from './phone-adventure'
 import { walkingFrames } from './generated/walking.js'
-import { colors, fonts, gradient } from './ui'
+import { colors, fonts, gradient, themedStyles, useTheme } from './ui'
+import type { ThemeName } from './palettes'
 
-// A floating glass tab bar. The middle tab (Adventure) is a violet Poke Ball sitting in a notch cut into the bar.
-// The open tab shows in a deep violet with a heavier label, and a Gengar peeks over the bar's top edge above it: the
-// head is drawn behind the bar and the paws in front. That art (scripts/build-nav-gengar.mjs) sits on a 120 x 100 grid
-// whose row 72 meets the edge. Gengar bobs and blinks while idle, ducks behind the bar when you switch tabs and pops up
-// wide-eyed on the new one, and the labels change over as it passes. Tapping the ball spins it and Gengar pops out of
-// it, floating with a wicked grin inside a pulsing shadow aura until you leave the tab, when it goes back in. Tapping
-// an open tab makes Gengar peek, or on the ball's tab, taunt (tongue out, pulling an eye) while the aura flares. The
-// floating art (float-grin, float-taunt) is cut from an illustration onto one 256 x 256 canvas with the feet on the
-// same line, so the two poses swap in place. While an adventure goes on, here or on the watch, Gengar leaves its perch
-// and steps on top of the ball as its pixel sprite while the ball rolls (twice as fast when running); on the ball's
-// tab it steps in place of the floating art. With reduced motion everything holds still and jumps.
-const art: Record<'grin' | 'blink' | 'boo' | 'paws' | 'float' | 'taunt', ImageSourcePropType> = {
-  grin: require('../assets/nav/body-grin.png'), blink: require('../assets/nav/body-blink.png'),
-  boo: require('../assets/nav/body-boo.png'), paws: require('../assets/nav/paws.png'),
-  float: require('../assets/nav/float-grin.png'), taunt: require('../assets/nav/float-taunt.png')
+// A floating glass tab bar. The middle tab (Adventure) is a Poke Ball sitting in a notch cut into the bar.
+// The open tab shows in the bar's accent with a heavier label, and the theme's Pokemon (Gengar, or Deoxys in the Deoxys
+// theme; see mascots) peeks over the bar's top edge above it: the head is drawn behind the bar and the paws in front.
+// That art sits on a 120 x 100 grid whose row 72 meets the edge. The Pokemon bobs and blinks while idle, ducks behind
+// the bar when you switch tabs and pops up wide-eyed on the new one, and the labels change over as it passes. Tapping
+// another open tab makes it peek. Tapping the ball spins it and the Pokemon pops out of it in its training gear,
+// floating inside a pulsing aura until you leave the tab, when it goes back in. Floating, it works out: standing,
+// waving, lifting, push-ups, sit-ups and worn out, the next pose every 3 seconds or when you tap the ball again, each
+// arriving with a hop as the aura flares. The poses (scripts/build-nav-poses.py) share one canvas with the ground on
+// one line, so the Pokemon keeps its size between them. While an adventure goes on, here or on the watch, the Pokemon
+// leaves its perch and steps on top of the ball as its pixel sprite while the ball rolls (twice as fast when running);
+// on the ball's tab it steps in place of the floating art. With reduced motion everything holds still and jumps, and
+// the poses change only on a tap.
+type Mascot = {
+  walker: string,
+  art: Record<'grin' | 'blink' | 'boo' | 'paws', ImageSourcePropType>,
+  // The floating poses over the ball, in the order they take turns.
+  floats: ImageSourcePropType[],
+  // The ball's body, band and stripe, its button's rings from the outside in, its outline and its shading's dark side.
+  ball: { body: string, band: string, stripe: string, rings: [string, string, string], rim: string, shade: string },
+  // The aura's and the wisps' colors from the middle out.
+  aura: [string, string, string, string, string], wisp: [string, string, string]
 }
-// On the bar's darkest tint labels keep 4.5:1 when inactive and 7.8:1 when open.
-const tint = { inactive: '#6B5F8E', active: '#4527A8', mark: '#8A6FD0' }
-// Page content fades into the page color just above the bar instead of ending on a hard edge.
-const FADE_GRADIENT = `linear-gradient(180deg, ${colors.bg}00 0%, ${colors.bg} 100%)`
+const gengar: Mascot = {
+  walker: 'Gengar',
+  art: {
+    grin: require('../assets/nav/body-grin.png'), blink: require('../assets/nav/body-blink.png'),
+    boo: require('../assets/nav/body-boo.png'), paws: require('../assets/nav/paws.png')
+  },
+  floats: [require('../assets/nav/gengar/float-stand.png'), require('../assets/nav/gengar/float-wave.png'),
+    require('../assets/nav/gengar/float-lift.png'), require('../assets/nav/gengar/float-pushup.png'),
+    require('../assets/nav/gengar/float-situp.png'), require('../assets/nav/gengar/float-tired.png')],
+  ball: { body: '#8A5CDB', band: '#2E1A4A', stripe: '#9E72EC', rings: ['#8A5CDB', '#A47EEE', '#C2A4F6'], rim: '#2A1745', shade: '#1A0B33' },
+  aura: ['#1B0833', '#3D1872', '#5A2DA3', '#7B4CCB', '#8A5CDB'], wisp: ['#2A0F4F', '#4B2289', '#6B3BB8']
+}
+// All of Deoxys's art, the peeking head too, is cut from pokemon_data/deoxys-fitness.png. Its ball is orange-red with a
+// teal stripe.
+const deoxys: Mascot = {
+  walker: 'Deoxys',
+  art: {
+    grin: require('../assets/nav/deoxys/head-idle.png'), blink: require('../assets/nav/deoxys/head-blink.png'),
+    boo: require('../assets/nav/deoxys/head-boo.png'), paws: require('../assets/nav/deoxys/paws.png')
+  },
+  floats: [require('../assets/nav/deoxys/float-stand.png'), require('../assets/nav/deoxys/float-wave.png'),
+    require('../assets/nav/deoxys/float-lift.png'), require('../assets/nav/deoxys/float-pushup.png'),
+    require('../assets/nav/deoxys/float-situp.png'), require('../assets/nav/deoxys/float-tired.png')],
+  ball: { body: '#D4502E', band: '#3A1A12', stripe: '#3FB6C8', rings: ['#D4502E', '#E8785A', '#F5AE95'], rim: '#35160E', shade: '#2A0C06' },
+  aura: ['#0E4450', '#177A8A', '#2FA3B8', '#4FD3E3', '#7FE3EE'], wisp: ['#0F4A57', '#1F8CA0', '#4FD3E3']
+}
+// Pikachu keeps Gengar until it has art of its own.
+const mascots: Record<ThemeName, Mascot> = { gengar, deoxys, pikachu: gengar }
+// The bar's colors (colors.tab*) come with the theme, like the lilac glass bar of Gengar's light theme.
 const BAR = 66
 const INSET = 6          // between the bar's edge and its tabs
 const ROW = BAR - 2 * INSET
@@ -42,23 +75,24 @@ const SHOULDER = 10      // and curves into the top edge over this distance
 const MEET = Math.sqrt(NOTCH ** 2 - BUTTON_Y ** 2)   // where the notch's circle crosses the top edge
 const CENTER_SLOT = Math.ceil(2 * (MEET + SHOULDER))  // the middle tab's share of the row: the whole notch
 const TOP_ROOM = BUTTON / 2 - BUTTON_Y + 2            // space above the bar, so the whole ball is tappable
-const FLOAT = 74         // the floating Gengar, drawn a little above the ball's center
+const FLOAT = 74         // the floating Pokemon, drawn a little above the ball's center
+const POSE_W = FLOAT * 1.25   // its poses are 320 x 256, wider than tall, so lifted dumbbells fit
 const FLOAT_Y = -10
 const AURA = 98          // the shadow aura around it
 const WISPS = [{ x: -20, size: 14, delay: 0 }, { x: 17, size: 12, delay: 900 }, { x: -2, size: 10, delay: 1700 }]
-const STRIDER = 46       // the stepping Gengar on the ball during an adventure
+const STRIDER = 46       // the stepping Pokemon on the ball during an adventure
 const useNativeDriver = Platform.OS !== 'web'
 const strides = walkingFrames as Record<string, ImageSourcePropType[]>
 
-// Gengar's overworld sprite stepping in place, like Pokemon on the Adventure tab while recording.
-function Strider({ activity, size, reduced }: { activity: Activity, size: number, reduced: boolean }) {
+// The Pokemon's overworld sprite stepping in place, like Pokemon on the Adventure tab while recording.
+function Strider({ name, activity, size, reduced }: { name: string, activity: Activity, size: number, reduced: boolean }) {
   const [frame, setFrame] = useState(0)
   useEffect(() => {
     if (reduced) return
     const timer = setInterval(() => setFrame(value => 1 - value), activity === 'running' ? 200 : 400)
     return () => clearInterval(timer)
   }, [activity, reduced])
-  return <Image source={strides.Gengar[reduced ? 0 : frame]} fadeDuration={0} resizeMode="contain"
+  return <Image source={strides[name][reduced ? 0 : frame]} fadeDuration={0} resizeMode="contain"
     style={{ width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }} />
 }
 
@@ -98,43 +132,45 @@ function edgeDrop(x: number, width: number) {
   return d ? r - Math.sqrt(Math.max(0, r * r - d * d)) : 0
 }
 
-// A violet take on the Cherish Ball: a dark band with a bright stripe and a ringed button. The band and button turn
-// with the ball; the shading and shine stay put, as if lit from the top left.
-function PokeBall({ size, roll }: { size: number, roll: Animated.Value | Animated.AnimatedAddition<number> }) {
-  const ink = '#2E1A4A'
+// A take on the Cherish Ball in the Pokemon's colors: a dark band with a bright stripe and a ringed button. The band
+// and button turn with the ball; the shading and shine stay put, as if lit from the top left.
+function PokeBall({ size, roll, paint }: { size: number, roll: Animated.Value | Animated.AnimatedAddition<number>, paint: Mascot['ball'] }) {
+  const ink = paint.band
   return <View style={{ width: size, height: size }}>
     <Animated.View style={{ position: 'absolute', width: size, height: size,
       transform: [{ rotate: roll.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '720deg'] }) }] }}>
       <Svg width={size} height={size} viewBox="0 0 100 100">
         <Defs><ClipPath id="zepimon-ball"><Circle cx="50" cy="50" r="47" /></ClipPath></Defs>
-        <Circle cx="50" cy="50" r="47" fill="#8A5CDB" />
+        <Circle cx="50" cy="50" r="47" fill={paint.body} />
         <G clipPath="url(#zepimon-ball)">
           <Rect x="0" y="40.5" width="100" height="19" fill={ink} />
-          <Rect x="0" y="47.5" width="100" height="5" fill="#9E72EC" />
+          <Rect x="0" y="47.5" width="100" height="5" fill={paint.stripe} />
         </G>
         <Circle cx="50" cy="50" r="16.5" fill={ink} />
-        <Circle cx="50" cy="50" r="12.5" fill="#8A5CDB" stroke={ink} strokeWidth="1.5" />
-        <Circle cx="50" cy="50" r="8" fill="#A47EEE" stroke={ink} strokeWidth="1.5" />
-        <Circle cx="50" cy="50" r="4" fill="#C2A4F6" stroke={ink} strokeWidth="1.2" />
+        <Circle cx="50" cy="50" r="12.5" fill={paint.rings[0]} stroke={ink} strokeWidth="1.5" />
+        <Circle cx="50" cy="50" r="8" fill={paint.rings[1]} stroke={ink} strokeWidth="1.5" />
+        <Circle cx="50" cy="50" r="4" fill={paint.rings[2]} stroke={ink} strokeWidth="1.2" />
       </Svg>
     </Animated.View>
     <Svg width={size} height={size} viewBox="0 0 100 100" style={StyleSheet.absoluteFill}>
       <Defs><RadialGradient id="zepimon-ball-light" cx="0.38" cy="0.32" r="0.75">
         <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.3" />
         <Stop offset="0.45" stopColor="#FFFFFF" stopOpacity="0" />
-        <Stop offset="1" stopColor="#1A0B33" stopOpacity="0.55" />
+        <Stop offset="1" stopColor={paint.shade} stopOpacity="0.55" />
       </RadialGradient></Defs>
       <Circle cx="50" cy="50" r="47" fill="url(#zepimon-ball-light)" />
       <Ellipse cx="33" cy="24" rx="13" ry="6.5" fill="#FFFFFF" opacity="0.55" transform="rotate(-35 33 24)" />
       <Ellipse cx="22.5" cy="37" rx="3" ry="2" fill="#FFFFFF" opacity="0.4" transform="rotate(-60 22.5 37)" />
-      <Circle cx="50" cy="50" r="47" fill="none" stroke="#2A1745" strokeWidth="1.5" />
+      <Circle cx="50" cy="50" r="47" fill="none" stroke={paint.rim} strokeWidth="1.5" />
     </Svg>
   </View>
 }
 
 // Ghostly shadow around the floating Gengar: a dark violet glow that breathes, with wisps of shadow drifting up out
-// of it. It flares while Gengar taunts.
-function ShadowAura({ bob, taunt, reduced }: { bob: Animated.Value, taunt: Animated.Value, reduced: boolean }) {
+// of it (in Deoxys's teal, a psychic glow). It flares as each new pose arrives.
+function ShadowAura({ bob, flare, reduced, aura, wisp: tint }: {
+  bob: Animated.Value, flare: Animated.Value, reduced: boolean, aura: Mascot['aura'], wisp: Mascot['wisp']
+}) {
   const [wisps] = useState(() => WISPS.map(() => new Animated.Value(0)))
   useEffect(() => {
     if (reduced) { wisps.forEach(wisp => wisp.setValue(0)); return }
@@ -145,17 +181,17 @@ function ShadowAura({ bob, taunt, reduced }: { bob: Animated.Value, taunt: Anima
     return () => loops.forEach(loop => loop.stop())
   }, [reduced, wisps])
   const breathe = Animated.add(bob.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1.03] }),
-    taunt.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] }))
+    flare.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] }))
   return <View pointerEvents="none" style={{ position: 'absolute', left: (FLOAT - AURA) / 2, top: (FLOAT - AURA) / 2 + 6, width: AURA, height: AURA }}>
     <Animated.View style={{ position: 'absolute', width: AURA, height: AURA, transform: [{ scale: breathe }],
-      opacity: Animated.add(bob.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.7] }), taunt.interpolate({ inputRange: [0, 1], outputRange: [0, 0.2] })) }}>
+      opacity: Animated.add(bob.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.7] }), flare.interpolate({ inputRange: [0, 1], outputRange: [0, 0.2] })) }}>
       <Svg width={AURA} height={AURA} viewBox="0 0 100 100">
         <Defs><RadialGradient id="zepimon-aura" cx="0.5" cy="0.5" r="0.5">
-          <Stop offset="0" stopColor="#1B0833" stopOpacity="0.55" />
-          <Stop offset="0.5" stopColor="#3D1872" stopOpacity="0.35" />
-          <Stop offset="0.75" stopColor="#5A2DA3" stopOpacity="0.15" />
-          <Stop offset="0.92" stopColor="#7B4CCB" stopOpacity="0.04" />
-          <Stop offset="1" stopColor="#8A5CDB" stopOpacity="0" />
+          <Stop offset="0" stopColor={aura[0]} stopOpacity="0.55" />
+          <Stop offset="0.5" stopColor={aura[1]} stopOpacity="0.35" />
+          <Stop offset="0.75" stopColor={aura[2]} stopOpacity="0.15" />
+          <Stop offset="0.92" stopColor={aura[3]} stopOpacity="0.04" />
+          <Stop offset="1" stopColor={aura[4]} stopOpacity="0" />
         </RadialGradient></Defs>
         <Ellipse cx="50" cy="52" rx="50" ry="46" fill="url(#zepimon-aura)" />
       </Svg>
@@ -167,9 +203,9 @@ function ShadowAura({ bob, taunt, reduced }: { bob: Animated.Value, taunt: Anima
         { scale: wisp.interpolate({ inputRange: [0, 1], outputRange: [1, 0.55] }) }] }}>
       <Svg width={WISPS[i].size} height={WISPS[i].size} viewBox="0 0 10 10">
         <Defs><RadialGradient id="zepimon-wisp" cx="0.5" cy="0.5" r="0.5">
-          <Stop offset="0" stopColor="#2A0F4F" stopOpacity="0.75" />
-          <Stop offset="0.6" stopColor="#4B2289" stopOpacity="0.35" />
-          <Stop offset="1" stopColor="#6B3BB8" stopOpacity="0" />
+          <Stop offset="0" stopColor={tint[0]} stopOpacity="0.75" />
+          <Stop offset="0.6" stopColor={tint[1]} stopOpacity="0.35" />
+          <Stop offset="1" stopColor={tint[2]} stopOpacity="0" />
         </RadialGradient></Defs>
         <Circle cx="5" cy="5" r="5" fill="url(#zepimon-wisp)" />
       </Svg>
@@ -205,13 +241,16 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   const [blink] = useState(() => new Animated.Value(0))
   const [boo] = useState(() => new Animated.Value(0))
   const [center] = useState(() => new Animated.Value(0))   // 1 while the middle tab is open
-  const [taunt] = useState(() => new Animated.Value(0))   // 1 while the floating Gengar taunts
+  const [flare] = useState(() => new Animated.Value(0))   // up to 1 as a new floating pose arrives
   const [shake] = useState(() => new Animated.Value(0))
   const [roll] = useState(() => new Animated.Value(0))     // the ball's spin, two turns from 0 to 1
-  const [spin] = useState(() => new Animated.Value(0))     // its roll under Gengar's feet during an adventure
+  const [spin] = useState(() => new Animated.Value(0))     // its roll under the Pokemon's feet during an adventure
   const rolling = useMemo(() => Animated.add(roll, spin), [roll, spin])
   const placed = useRef<{ index: number, width: number } | null>(null)
   const reduced = useReducedMotion()
+  // The navigator does not render this bar again when the theme changes, so it listens itself.
+  const mascot = mascots[useTheme().theme]
+  const { art, floats } = mascot
   // Walking or running while an adventure goes on here, or on the watch as the cloud last had it.
   const tracker = useTracker()
   const moving = tracker.active?.activity ?? onWatch(tracker.shared)?.activity ?? null
@@ -222,7 +261,7 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
     loop.start()
     return () => loop.stop()
   }, [moving, reduced, spin])
-  // Meanwhile Gengar has left its perch; when the adventure ends it pops back up there, surprised.
+  // Meanwhile the Pokemon has left its perch; when the adventure ends it pops back up there, surprised.
   const wasMoving = useRef(moving)
   useEffect(() => {
     if (wasMoving.current && !moving && !reduced) peek(duck, boo, 200)
@@ -240,6 +279,27 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   const side = Math.max(1, middle < 0 ? rowWidth / count : (rowWidth - CENTER_SLOT) / (count - 1))
   const slotLeft = (index: number) => middle < 0 || index <= middle ? index * side : middle * side + CENTER_SLOT + (index - middle - 1) * side
   const sides = state.routes.map((_, index) => index).filter(index => index !== middle)
+  // Which floating pose shows, counting up from 0 each time the ball's tab opens (shown modulo the number of poses).
+  const ballOpen = state.index === middle
+  const [cycle, setCycle] = useState({ open: ballOpen, pose: 0 })
+  if (cycle.open !== ballOpen) setCycle({ open: ballOpen, pose: 0 })
+  const nextPose = () => setCycle(value => ({ ...value, pose: value.pose + 1 }))
+  // With several poses the next shows every 3 seconds while they are on screen; a tap shows it early and starts the
+  // wait again. With reduced motion they change only on a tap.
+  useEffect(() => {
+    if (!cycle.open || floats.length < 2 || moving || reduced) return
+    const timer = setTimeout(() => setCycle(value => ({ ...value, pose: value.pose + 1 })), 3000)
+    return () => clearTimeout(timer)
+  }, [cycle.open, cycle.pose, floats.length, moving, reduced])
+  // Each new pose arrives with a little hop while the aura flares.
+  useEffect(() => {
+    if (!cycle.pose || reduced) return
+    flare.setValue(0)
+    Animated.sequence([
+      Animated.timing(flare, { toValue: 1, duration: 110, easing: Easing.out(Easing.quad), useNativeDriver }),
+      Animated.timing(flare, { toValue: 0, duration: 280, easing: Easing.in(Easing.quad), useNativeDriver })
+    ]).start()
+  }, [cycle.pose, reduced, flare])
 
   // Idle: a slow bob with a head tilt, and a blink now and then (every third one doubled).
   useEffect(() => {
@@ -256,9 +316,9 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
     return () => loops.forEach(loop => loop.stop())
   }, [reduced, bob, blink])
 
-  // Move to the focused tab. Side to side, Gengar slides along the bar and peeks up on arrival. Onto the middle tab it
-  // ducks, the ball finishes its spin and Gengar pops out of it; back off it, Gengar returns and the ball spins back.
-  // The first layout lets Gengar say hello; a resize just snaps.
+  // Move to the focused tab. Side to side, the Pokemon slides along the bar and peeks up on arrival. Onto the middle
+  // tab it ducks, the ball finishes its spin and it pops out of the ball; back off it, it returns and the ball spins
+  // back. The first layout lets the Pokemon say hello; a resize just snaps.
   useEffect(() => {
     if (!width) return
     const onMiddle = state.index === middle
@@ -304,7 +364,7 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   const pawDrop = duck.interpolate({ inputRange: [0, 1], outputRange: [0, 8], extrapolate: 'clamp' })
   const markScale = boo.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] })
   const artBox = { position: 'absolute', left: 0, top: 0, width: size, height: 100 * unit } as const
-  // Over the rounded ends of the bar, Gengar sits lower and leans so both paws stay on the edge.
+  // Over the rounded ends of the bar, the Pokemon sits lower and leans so both paws stay on the edge.
   const seat = sides.map(index => {
     const left = INSET + slotLeft(index) + artLeft
     const [low, high] = [edgeDrop(left + 17 * unit, width), edgeDrop(left + 103 * unit, width)]
@@ -315,31 +375,24 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   const lean = seat.length > 1 ? x.interpolate({ inputRange: seats, outputRange: seat.map(item => `${item.lean}deg`), extrapolate: 'clamp' })
     : `${seat[0]?.lean ?? 0}deg`
   const perch = [{ translateX: x }, { translateY: drop }, { rotate: lean }]
-  // Each side tab turns violet and bold as Gengar arrives over it; none does while the ball's tab is open.
+  // Each side tab turns to the accent and bold as the Pokemon arrives over it; none does while the ball's tab is open.
   const sideOn = center.interpolate({ inputRange: [0, 1], outputRange: [1, 0], extrapolate: 'clamp' })
   const lit = (index: number) => {
     const at = sides.indexOf(index)
     const points = [at > 0 ? slotLeft(sides[at - 1]) : slotLeft(index) - side, slotLeft(index), at < sides.length - 1 ? slotLeft(sides[at + 1]) : slotLeft(index) + side]
     return Animated.multiply(x.interpolate({ inputRange: points, outputRange: [0, 1, 0], extrapolate: 'clamp' }), sideOn)
   }
-  // The floating Gengar grows out of the ball, hovers a little higher than the peeking one bobs, and hops up to taunt.
+  // The floating Pokemon grows out of the ball, hovers a little higher than the peeking one bobs, and hops as a new pose
+  // arrives.
   const floatY = Animated.add(Animated.add(center.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }),
-    bob.interpolate({ inputRange: [0, 1], outputRange: [0, -5] })), taunt.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }))
+    bob.interpolate({ inputRange: [0, 1], outputRange: [0, -5] })), flare.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }))
   const floatBox = { position: 'absolute', left: 0, top: 0, width: FLOAT, height: FLOAT } as const
-  // Tongue out, pulling an eye: a quick swap to the taunting pose with a cheeky wobble, then back to the grin.
+  const poseBox = { position: 'absolute', left: (FLOAT - POSE_W) / 2, top: 0, width: POSE_W, height: FLOAT } as const
+  // Tapping the open ball shows the next pose with a cheeky wobble.
   const tease = () => {
-    if (reduced) {
-      taunt.setValue(1)
-      setTimeout(() => taunt.setValue(0), 1200)
-      return
-    }
-    taunt.setValue(0)
+    nextPose()
+    if (reduced) return
     shake.setValue(0)
-    Animated.sequence([
-      Animated.timing(taunt, { toValue: 1, duration: 110, easing: Easing.out(Easing.quad), useNativeDriver }),
-      Animated.delay(1150),
-      Animated.timing(taunt, { toValue: 0, duration: 200, easing: Easing.in(Easing.quad), useNativeDriver })
-    ]).start()
     const step = (toValue: number) => Animated.timing(shake, { toValue, duration: 85, easing: Easing.inOut(Easing.sin), useNativeDriver })
     Animated.sequence([Animated.delay(110), step(1), step(-1), step(1), step(-1), step(0.5), step(0)]).start()
   }
@@ -347,7 +400,7 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   const tabs = state.routes.map((route, index) => {
     const { options } = descriptors[route.key]
     const label = options.title ?? route.name
-    const icon = (focused: boolean) => options.tabBarIcon?.({ focused, color: focused ? tint.active : tint.inactive, size: 24 })
+    const icon = (focused: boolean) => options.tabBarIcon?.({ focused, color: focused ? colors.tabActive : colors.tabInk, size: 24 })
     const focused = index === state.index
     const onPress = () => {
       const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true })
@@ -369,7 +422,8 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
 
   return <View style={[styles.wrap, { paddingTop: middle >= 0 ? TOP_ROOM : 6, paddingBottom: Math.max(insets.bottom, 10),
     paddingHorizontal: 14 + Math.max(insets.left, insets.right) }, barHidden && { display: 'none' }]}>
-    <View pointerEvents="none" style={[styles.fade, gradient(FADE_GRADIENT, 'transparent')]} />
+    {/* Page content fades into the page color just above the bar instead of ending on a hard edge. */}
+    <View pointerEvents="none" style={[styles.fade, gradient(`linear-gradient(180deg, ${colors.bg}00 0%, ${colors.bg} 100%)`, 'transparent')]} />
     <View style={styles.bar} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
       {width > 0 && sides.length > 0 && !moving && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
         style={[styles.perch, { width: side, transform: perch }]}>
@@ -385,10 +439,10 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
       </Animated.View>}
       {width > 0 && <Svg pointerEvents="none" width={width} height={BAR} style={StyleSheet.absoluteFill}>
         <Defs><LinearGradient id="zepimon-bar" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#F7F4FF" /><Stop offset="1" stopColor="#E7E0FB" />
+          <Stop offset="0" stopColor={colors.tabTop} /><Stop offset="1" stopColor={colors.tabBottom} />
         </LinearGradient></Defs>
-        <Path d={outline(width, middle >= 0)} fill="none" stroke="rgba(118, 92, 205, 0.18)" strokeWidth={3} />
-        <Path d={outline(width, middle >= 0)} fill="url(#zepimon-bar)" stroke="rgba(255, 255, 255, 0.95)" strokeWidth={1.5} />
+        <Path d={outline(width, middle >= 0)} fill="none" stroke={colors.tabHalo} strokeWidth={3} />
+        <Path d={outline(width, middle >= 0)} fill="url(#zepimon-bar)" stroke={colors.tabRim} strokeWidth={1.5} />
       </Svg>}
       <View accessibilityRole="tablist" style={[styles.row, { width: Math.max(0, rowWidth) }]}>
         {width > 0 && tabs.map(({ route, index, label, icon, focused, press }) => {
@@ -420,24 +474,25 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
             transform: [{ scaleX: bob.interpolate({ inputRange: [0, 1], outputRange: [1, 0.72] }) }] }]} />
           <Animated.View style={[styles.ball, { opacity: center.interpolate({ inputRange: [0, 0.6], outputRange: [1, 0], extrapolate: 'clamp' }),
             transform: [{ scale: center.interpolate({ inputRange: [0, 1], outputRange: [1, 0.45], extrapolate: 'clamp' }) }] }]}>
-            <PokeBall size={BUTTON} roll={moving ? rolling : roll} />
+            <PokeBall size={BUTTON} roll={moving ? rolling : roll} paint={mascot.ball} />
           </Animated.View>
         </Pressable>
         {moving && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
           style={{ position: 'absolute', left: width / 2 - STRIDER / 2, top: BUTTON_Y - BUTTON / 2 - STRIDER + 8,
             opacity: center.interpolate({ inputRange: [0, 0.4], outputRange: [1, 0], extrapolate: 'clamp' }) }}>
-          <Strider activity={moving} size={STRIDER} reduced={reduced} />
+          <Strider name={mascot.walker} activity={moving} size={STRIDER} reduced={reduced} />
         </Animated.View>}
         <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
           style={{ position: 'absolute', left: width / 2 - FLOAT / 2, top: BUTTON_Y - FLOAT / 2 + FLOAT_Y, width: FLOAT, height: FLOAT,
             opacity: center.interpolate({ inputRange: [0, 0.3], outputRange: [0, 1], extrapolate: 'clamp' }),
             transform: [{ translateY: floatY }, { scale: center.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }}>
-          <ShadowAura bob={bob} taunt={taunt} reduced={reduced} />
+          <ShadowAura bob={bob} flare={flare} reduced={reduced} aura={mascot.aura} wisp={mascot.wisp} />
           <Animated.View style={[floatBox, { transform: [{ rotate: shake.interpolate({ inputRange: [-1, 1], outputRange: ['-7deg', '7deg'] }) },
-            { scale: taunt.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) }] }]}>
-            {moving ? <Strider activity={moving} size={FLOAT} reduced={reduced} /> : <>
-              <Animated.Image source={art.float} fadeDuration={0} style={[floatBox, { opacity: Animated.subtract(1, taunt) }]} />
-              <Animated.Image source={art.taunt} fadeDuration={0} style={[floatBox, { opacity: taunt }]} />
+            { scale: flare.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) }] }]}>
+            {moving ? <Strider name={mascot.walker} activity={moving} size={FLOAT} reduced={reduced} /> : <>
+              {/* Every pose stays mounted, so each is loaded before its turn and the change is instant. */}
+              {floats.map((source, index) => <Image key={index} source={source} fadeDuration={0}
+                style={[poseBox, { opacity: index === cycle.pose % floats.length ? 1 : 0 }]} />)}
             </>}
           </Animated.View>
         </Animated.View>
@@ -446,22 +501,22 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   </View>
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: { backgroundColor: colors.bg },
   fade: { position: 'absolute', left: 0, right: 0, top: -16, height: 16 },
   bar: { width: '100%', maxWidth: 520, alignSelf: 'center', height: BAR, borderRadius: BAR / 2,
-    boxShadow: '0px 10px 20px rgba(94, 66, 180, 0.16)' },
+    boxShadow: `0px 10px 20px ${colors.tabShadow}` },
   row: { position: 'absolute', left: INSET, top: INSET, height: ROW, flexDirection: 'row' },
   face: { height: ROW, alignItems: 'center', justifyContent: 'center', gap: 2 },
   // The open tab's icon sits on a soft violet pill; every icon keeps the same box, so nothing shifts as it moves.
   iconSlot: { height: 28, paddingHorizontal: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  pill: { backgroundColor: 'rgba(98, 66, 200, 0.16)' },
-  label: { fontFamily: fonts.body, fontSize: 11, lineHeight: 14, color: tint.inactive, textAlign: 'center' },
-  activeLabel: { fontFamily: fonts.black, color: tint.active },
-  // Gengar's seat: a thin strip along the bar's top edge over one tab. It turns about the middle of that edge.
+  pill: { backgroundColor: colors.tabPill },
+  label: { fontFamily: fonts.body, fontSize: 11, lineHeight: 14, color: colors.tabInk, textAlign: 'center' },
+  activeLabel: { fontFamily: fonts.black, color: colors.tabActive },
+  // The Pokemon's seat: a thin strip along the bar's top edge over one tab. It turns about the middle of that edge.
   perch: { position: 'absolute', left: INSET, top: 0, height: 1 },
-  mark: { position: 'absolute', width: 3, height: 9, borderRadius: 2, backgroundColor: tint.mark },
+  mark: { position: 'absolute', width: 3, height: 9, borderRadius: 2, backgroundColor: colors.tabMark },
   button: { position: 'absolute', top: BUTTON_Y - BUTTON / 2, width: BUTTON, height: BUTTON, alignItems: 'center', justifyContent: 'center' },
   ball: { width: BUTTON, height: BUTTON, borderRadius: BUTTON / 2, boxShadow: '0px 8px 18px rgba(74, 40, 150, 0.38)' },
   shadow: { position: 'absolute', bottom: 8, width: 26, height: 5, borderRadius: 3, backgroundColor: 'rgba(43, 24, 56, 0.2)' }
-})
+}))

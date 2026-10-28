@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { router, useFocusEffect } from 'expo-router'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { useJournal } from '../../store'
 import { dexEntries, duration, km, personalBests, recordForm } from '../../journal'
 import type { Metric } from '../../journal'
@@ -10,7 +10,7 @@ import { adventuresIn, adventuresOn, bento, periodRange, recentDays, shortDurati
 import type { Period } from '../../journal-calendar'
 import { BentoTile, DayCard, DayStrip, PeriodChips } from '../../JournalCalendar'
 import { PixelSprite } from '../../games/TeamPicker'
-import { Button, Copy, Eyebrow, Panel, Screen, Title, colors, fonts } from '../../ui'
+import { Button, Copy, Eyebrow, Panel, Screen, Title, colors, fonts, themedStyles, useTheme } from '../../ui'
 
 // The Journal is a calendar. Pick a day for its distance and time (your buddy stands on that card), then browse the
 // adventures of its week, month or year as bento tiles; each opens its details. Personal bests follow. Missions and
@@ -21,6 +21,7 @@ const TILES = 12
 const periodNames: Record<Period, string> = { week: 'This week', month: 'This month', year: 'This year' }
 
 export default function JournalScreen() {
+  useTheme()
   const { journal, buddy, progress, error, phoneRuns } = useJournal()
   const runs = useMemo(() => allAdventures(progress, phoneRuns), [progress, phoneRuns])
   // Today moves on if the app stays open past midnight.
@@ -111,7 +112,7 @@ function PersonalBests({ journal }: { journal: NonNullable<ReturnType<typeof use
   </View>
 }
 
-const page = StyleSheet.create({
+const page = themedStyles(() => ({
   header: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
   title: { fontFamily: fonts.black, color: colors.ink, fontSize: 34, lineHeight: 40 },
   counts: { alignItems: 'flex-end', paddingBottom: 4 },
@@ -126,4 +127,4 @@ const page = StyleSheet.create({
   best: { flex: 1, backgroundColor: colors.panel, borderRadius: 22, padding: 12, gap: 4, alignItems: 'flex-start' },
   bestValue: { fontFamily: fonts.black, color: colors.ink, fontSize: 18, lineHeight: 24 },
   bestLabel: { fontFamily: fonts.body, color: colors.muted, fontSize: 12, lineHeight: 16 }
-})
+}))

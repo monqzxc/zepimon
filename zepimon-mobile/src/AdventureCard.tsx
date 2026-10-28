@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, View } from 'react-native'
 import { router } from 'expo-router'
 import type { Adventure } from './adventures'
 import { averagePace, duration, km, recordForm } from './journal'
@@ -7,7 +7,7 @@ import { decodePath } from './phone-adventure'
 import { RouteView } from './RouteView'
 import { ShareRunButton, cardTitle } from './ShareCard'
 import { PixelSprite } from './games/TeamPicker'
-import { Copy, Icon, Title, colors, styles } from './ui'
+import { Copy, Icon, Title, colors, styles, themedStyles } from './ui'
 
 // A saved adventure in the Journal, All adventures and the Adventure tab. Tapping it opens its details (the share
 // button sits beside the tappable area, not inside it, so screen readers reach both).
@@ -36,10 +36,10 @@ export function AdventureCard({ adventure }: { adventure: Adventure }) {
   </View>
 }
 
-const card = StyleSheet.create({
+const card = themedStyles(() => ({
   panel: { padding: 0, gap: 0 },
   main: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, paddingBottom: 6 },
   art: { borderRadius: 18, backgroundColor: colors.sunken },
   // Lines the share button up with the text above it.
   footer: { paddingLeft: 80, paddingRight: 14, paddingBottom: 14 }
-})
+}))

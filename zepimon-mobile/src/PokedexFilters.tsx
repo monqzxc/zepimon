@@ -1,9 +1,9 @@
 import type { PropsWithChildren } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { sortOrders } from './pokedex'
 import type { SortOrder } from './pokedex'
-import { typeColors, typeTints } from './catalog'
-import { Chip, Eyebrow, Icon, colors, fonts, styles, typeLabel } from './ui'
+import { typeColors } from './catalog'
+import { Chip, Eyebrow, Icon, colors, fonts, styles, typeLabel, themedStyles, typeTints } from './ui'
 
 // The Pokedex-style controls of the Dex tab and the egg picker: search, sort, and filter rows.
 
@@ -30,7 +30,7 @@ export function SortSwitch({ value, onChange }: { value: SortOrder, onChange: (s
     <View accessibilityRole="radiogroup" style={filters.sorts}>{sortOrders.map(([sort, label]) =>
       <Pressable key={sort} accessibilityRole="radio" accessibilityState={{ checked: value === sort }} onPress={() => onChange(sort)}
         style={({ pressed }) => [filters.sort, value === sort && filters.sortOn, { opacity: pressed ? 0.8 : 1 }]}>
-        <Text numberOfLines={1} style={[filters.sortText, value === sort && { color: colors.onBrand }]}>{label}</Text>
+        <Text numberOfLines={1} style={[filters.sortText, value === sort && { color: colors.onEdge }]}>{label}</Text>
       </Pressable>)}</View>
   </View>
 }
@@ -53,7 +53,7 @@ export function TypeFilter({ types, value, onChange }: { types: string[], value:
       return <Pressable key={type} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${typeLabel(type)} type`} hitSlop={4}
         onPress={() => onChange(type)}
         style={({ pressed }) => [filters.typeChip, { backgroundColor: selected ? color : typeTints[type] || colors.panel, borderColor: color, opacity: pressed ? 0.8 : 1 }]}>
-        <Text style={[styles.chipText, { color: selected ? colors.onBrand : colors.ink }]}>{typeLabel(type)}</Text>
+        <Text style={[styles.chipText, { color: selected ? '#FFFFFF' : colors.ink }]}>{typeLabel(type)}</Text>
       </Pressable>
     })}
   </FilterSection>
@@ -72,7 +72,7 @@ export function ResultLine({ text, onClear, onRandom }: { text: string, onClear?
   </View>
 }
 
-const filters = StyleSheet.create({
+const filters = themedStyles(() => ({
   search: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 50, paddingHorizontal: 16, borderRadius: 999,
     backgroundColor: colors.panel, borderWidth: 1.5, borderColor: colors.line },
   searchInput: { flex: 1, minHeight: 48, color: colors.ink, fontFamily: fonts.body, fontSize: 16 },
@@ -84,4 +84,4 @@ const filters = StyleSheet.create({
   typeChip: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 16, borderRadius: 999, borderWidth: 1.5 },
   count: { flex: 1, fontFamily: fonts.bold, color: colors.muted, fontSize: 14, lineHeight: 19 },
   link: { fontFamily: fonts.heavy, color: colors.edge, fontSize: 14, lineHeight: 19 }
-})
+}))
