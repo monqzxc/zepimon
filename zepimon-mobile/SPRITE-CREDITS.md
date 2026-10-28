@@ -21,6 +21,6 @@ The Gengar peeking over the tab bar, and floating over its Adventure button, is 
 The Safari Zone's art comes from the same repository, [rh-hideout/pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion/tree/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011), at the same pinned revision and under the same [upstream credits](https://github.com/rh-hideout/pokeemerald-expansion/blob/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011/CREDITS.md). `scripts/build-safari-map.py` downloads what it needs into the shared cache and writes `assets/safari/`:
 
 - Brendan's and May's walking sheets (`graphics/object_events/pics/people/`), recoloured for Zepimon: a purple-and-white cap and a black-and-white shirt. Only the cap and shirt rows change; bags, shoes, skin and hair keep Emerald's colours.
-- The tall grass, ground dust and shadow field effects (`graphics/field_effects/pics/`), the item ball and pushable boulder (`graphics/object_events/pics/misc/`) and the Safari Ball (`graphics/balls/`).
+- The tall grass, ground dust and shadow field effects (`graphics/field_effects/pics/`), the item ball (`graphics/object_events/pics/misc/`) and the Safari Ball (`graphics/balls/`).
 - The long grass and pond battle backgrounds (`graphics/battle_environment/`), drawn from their tilemaps and palettes.
-- The map tiles: the general primary tileset and one secondary tileset (`data/tilesets/`), arranged into our own layout in `scripts/safari/`.
+- The map tiles: the General and Lilycove tilesets (`data/tilesets/`), the pair Emerald's own Safari Zone uses, arranged into our own layout in `scripts/safari/`. Rocks are Emerald's Safari Zone rock tiles.
