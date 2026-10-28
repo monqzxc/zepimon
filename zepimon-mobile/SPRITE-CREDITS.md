@@ -15,3 +15,12 @@ The attack animations in Route Guard and Trail Defense are the Gen III battle an
 # Tab bar Gengar
 
 The Gengar peeking over the tab bar, and floating over its Adventure button, is original vector fan art drawn for this app in `scripts/build-nav-gengar.mjs`, which renders its head, blink, surprised, paw and floating layers to `assets/nav/` with headless Chrome. Gengar belongs to its respective owners.
+
+# Safari Zone
+
+The Safari Zone's art comes from the same repository, [rh-hideout/pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion/tree/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011), at the same pinned revision and under the same [upstream credits](https://github.com/rh-hideout/pokeemerald-expansion/blob/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011/CREDITS.md). `scripts/build-safari-map.py` downloads what it needs into the shared cache and writes `assets/safari/`:
+
+- Brendan's and May's walking sheets (`graphics/object_events/pics/people/`), recoloured for Zepimon: a purple-and-white cap and a black-and-white shirt. Only the cap and shirt rows change; bags, shoes, skin and hair keep Emerald's colours.
+- The tall grass, ground dust and shadow field effects (`graphics/field_effects/pics/`), the item ball and pushable boulder (`graphics/object_events/pics/misc/`) and the Safari Ball (`graphics/balls/`).
+- The long grass and pond battle backgrounds (`graphics/battle_environment/`), drawn from their tilemaps and palettes.
+- The map tiles: the general primary tileset and one secondary tileset (`data/tilesets/`), arranged into our own layout in `scripts/safari/`.
