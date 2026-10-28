@@ -24,7 +24,7 @@ It stays offline, runs on Android, iPhone and web, and needs no new native modul
 | 4 | A round ends on a **step budget**, running out of balls, or leaving through the gate. The walking bonus adds steps. |
 | 5 | **One map, four areas** (Meadow, Lakeside, Rocky Mountain, Night Forest) plus a gate, with a scrolling camera. |
 | 6 | **Real Emerald tiles** from pokeemerald-expansion, built into map images from our own text layout. |
-| 7 | Map images are built ahead of time, and the game is drawn with React Native views and Reanimated. There is no Skia and no per-tile views. |
+| 7 | Map images are built ahead of time, and the game is drawn with React Native views and React Native's `Animated` with the native driver (the app's existing pattern; Reanimated is installed only as an expo-router dependency and unused). There is no Skia and no per-tile views. |
 | 8 | The base Shiny rate is **1 in 100**. Chains improve it to 1 in 8 after 4 chained catches. |
 | 9 | Brendan and May wear a Zepimon outfit: a **purple and white cap** (Brendan's band and May's bandana turn from green to Gengar-theme purple) and a **black and white shirt**. Everything else keeps Emerald's colours. |
 
@@ -157,12 +157,18 @@ ledges make one-way shortcuts.
 
      The white of Brendan's cap (9, 14) and of May's bandana and sleeves (9, 14) stays white. The rules live in one
      table in the script and match the throwaway preview shown during brainstorming on 2026-10-28.
-   - `grass.png`, `dust.png`, `shadow.png`, `item.png`, `boulder.png` and `safari-ball.png`, each enlarged 4×.
+   - `grass.png`, `dust.png`, `shadow.png`, `item.png` and `safari-ball.png`, each enlarged 4×.
    - `battle-grass.png` and `battle-pond.png`: rendered from the battle-environment tilemaps and palettes, then enlarged.
-5. **Data.** It writes `zepimon-mobile/src/generated/safari-map.js` containing `cols`, `rows`, `tiles` (one string per
-   row, using the layout characters), `areas` (one string per row), `starts` (`gate`, `meadow`, `lake`, `mountain`,
-   `night` as `{ x, y }`), `chunk` (8), and `chunks` (`{ ground, top? }` image requires keyed by `"cx,cy"`), plus the
-   `require`s for the sprites above.
+5. **Data.** It writes two generated files:
+   - `zepimon-mobile/src/generated/safari-map.js`, plain data with no `require`, so Node tests and `safari-zone.ts` can
+     import it. It contains `cols`, `rows`, `chunk` (8), `tiles` (one string per row, using the layout characters),
+     `areas` (one string per row), `starts` (`gate`, `meadow`, `lake`, `mountain`, `night` as `{ x, y }`) and `chunks`
+     (`{ top: boolean }` keyed by `"cx,cy"`).
+   - `zepimon-mobile/src/generated/safari-assets.js` with the image `require`s: `safariSprites` (the sprites and
+     backgrounds above) and `safariChunks` (`{ ground, top? }` keyed by `"cx,cy"`).
+
+   Boulders (`R`) are baked into the ground chunks from `pushable_boulder.png`, since they never move. Item balls are
+   drawn at runtime, because they disappear when picked up.
 6. **Validation** (the build fails, writing nothing): mismatched file sizes, unknown characters, missing or wrong-size
    source sheets, more or fewer than 6 items, a missing start, or grass in the gate area.
 
@@ -178,7 +184,7 @@ battle environments and ball, at the same pinned revision and under the same ups
 | `src/games/safari.ts` (trimmed) | **Catch rules.** Game status, balls, chain, encounter, ring clock (`elapsed`, advanced by `tickSafari` while playing, with **no** time limit), `throwBall` / `throwBait` / `throwRock` / `runAway`, `catchChance`, `fleeChance`, the new `shinyOdds`, `pauseSafari` / `resumeSafari`, and the Dex functions (`addSafariCatch`, `restoreSafariDex`, `withSafariCatches`). **Removed:** `PATCHES`, `RUSTLE_MS`, `SAFARI_DURATION`, `rustle` / `nextRustle`, `approachPatch`. **New:** `meetWild(game, zone, random)`. | `roster.ts` |
 | `src/games/safari-zone.ts` (new, no screen code) | **Walking rules.** The zone state (position, facing, buddy tile, steps left, items taken, rustle tile and next rustle step, grass cooldown, pending gate prompt) layered on `SafariGame`. `startZone(start, bonusKm, now, random)`; `walk(game, direction, now, random)` returns `{ game, event }`, where `event` is `moved`, `bumped`, `hopped`, `item`, `sign`, `rustle`, `encounter`, `gate` or `out-of-steps`; `confirmLeave` / `stayInZone`; `pathTo(from, to)` (breadth-first search over the tile grid that crosses ledges only downhill and returns `null` when unreachable); `areaAt`, `tileAt`. | `safari.ts`, `generated/safari-map.js` |
 | `src/games/SafariZone.tsx` (new; replaces `SafariHunt.tsx`) | Start panel, HUD (steps, balls, caught, area), map ↔ encounter switch, gate prompt, results panel (moved from `SafariHunt.tsx`), catch-saving news (as now), fill mode while playing. Props as `SafariHunt` today, except that `zone` now means the start area and `bonusBalls` becomes `bonusKm`, from which both extra balls and extra steps follow. `play.tsx`'s bonus note then mentions steps too. | the units below |
-| `src/games/SafariWorld.tsx` | Draws the map. The trainer is centred and the map container slides under it. It mounts only chunks within one chunk of the viewport, draws trainer and buddy strips (the `Strip` technique from `DefenseGame.tsx`), grass rustle, dust, shadow and items, and glides each step over `STEP_MS` = **220 ms** with Reanimated (reduced motion: no glide). In tap mode it turns a tap into a tile and flashes ✕ on unreachable tiles. | `safari-map.js`, Reanimated |
+| `src/games/SafariWorld.tsx` | Draws the map. The trainer is centred and the map container slides under it. It mounts only chunks overlapping the viewport plus a 2-tile margin (at most 12 on a phone), draws trainer and buddy strips (the `Strip` technique from `DefenseGame.tsx`), grass rustle, dust, shadow and items, and glides each step over `STEP_MS` = **220 ms** with `Animated` and the native driver, like `Mover` in `DefenseGame.tsx` (reduced motion: no glide). In tap mode it turns a tap into a tile and flashes ✕ on unreachable tiles. | `safari-map.js`, `Animated` |
 | `src/games/SafariEncounter.tsx` | Flash and wipe, battle background, Pokémon, Shiny sparkle, ring (moved from `SafariHunt.tsx`) and the action buttons. | `safari.ts` |
 | `src/games/DPad.tsx` | Four buttons. Press-and-hold repeats a step every `STEP_MS`, and a press during a step is queued as the next direction. On the web, arrow keys and WASD do the same. | — |
 
@@ -210,7 +216,8 @@ battle environments and ball, at the same pinned revision and under the same ups
 - **Tap-to-walk:** an unreachable target shows ✕ and doesn't move you. A target that is a wall walks to the nearest
   reachable neighbour if there is one. A new tap or D-pad press replaces the path.
 - **Catch save failure:** today's message ("Could not save … Your other catches are safe.").
-- **Memory:** chunks more than one chunk outside the viewport unmount.
+- **Memory:** chunks more than 2 tiles outside the viewport unmount, which is enough to cover a step or hop glide and
+  keeps at most 12 decoded chunk images on a phone.
 
 ## Accessibility
 
