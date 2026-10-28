@@ -51,9 +51,11 @@ export function throwQuality(scale: number): ThrowQuality {
   return scale <= 0.45 ? 'excellent' : scale <= 0.7 ? 'great' : 'nice'
 }
 
-// Repeated catches of the same species raise its Shiny chance from 1 in 60 to as good as 1 in 8.
+export const SHINY_BASE = 100
+
+// Repeated catches of the same species raise its Shiny chance from 1 in 100 to as good as 1 in 8.
 export function shinyOdds(game: SafariGame, name: string): number {
-  return game.chain.name === name ? Math.max(8, 60 - 13 * game.chain.count) : 60
+  return game.chain.name === name ? Math.max(8, SHINY_BASE - 23 * game.chain.count) : SHINY_BASE
 }
 
 export function catchChance(name: string, mood: Mood, quality: ThrowQuality): number {
@@ -80,11 +82,17 @@ export function tickSafari(game: SafariGame, now: number, random = Math.random):
 export function approachPatch(game: SafariGame, patch: number, now: number, random = Math.random): SafariGame {
   const next = tickSafari(game, now, random)
   if (next.status !== 'playing' || next.encounter || patch !== next.rustle) return next
-  const pool = pools[next.zone]
-  const chained = next.chain.count > 0 && pool.some(wild => wild.name === next.chain.name) && random() < 0.35
-  const name = chained ? next.chain.name : pickWeighted(pool, random).name
-  const shiny = random() < 1 / shinyOdds(next, name)
-  return { ...next, encounter: { name, shiny, mood: 'calm', since: next.elapsed }, lastThrow: null,
+  return meetWild(next, next.zone, random)
+}
+
+// A wild Pokemon from the zone's pool. A chained species comes back 35% of the time when it lives in that zone.
+export function meetWild(game: SafariGame, zone: Zone, random = Math.random): SafariGame {
+  if (game.status !== 'playing' || game.encounter) return game
+  const pool = pools[zone]
+  const chained = game.chain.count > 0 && pool.some(wild => wild.name === game.chain.name) && random() < 0.35
+  const name = chained ? game.chain.name : pickWeighted(pool, random).name
+  const shiny = random() < 1 / shinyOdds(game, name)
+  return { ...game, zone, encounter: { name, shiny, mood: 'calm', since: game.elapsed }, lastThrow: null,
     message: `A wild ${shiny ? 'Shiny ' : ''}${name} appeared!` }
 }
 

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { PATCHES, RING_MS, RUSTLE_MS, SAFARI_BALLS, SAFARI_DURATION, ZONES, addSafariCatch, approachPatch, catchChance, fleeChance,
-  pauseSafari, readySafari, restoreSafariDex, resumeSafari, ringScale, runAway, shinyOdds, startSafari, throwBait, throwBall,
+  meetWild, pauseSafari, readySafari, restoreSafariDex, resumeSafari, ringScale, runAway, shinyOdds, startSafari, throwBait, throwBall,
   throwQuality, throwRock, tickSafari, withSafariCatches } from '../src/games/safari.ts'
 import { wildPool } from '../src/games/roster.ts'
 import { dexEntries } from '../src/journal.ts'
@@ -73,9 +73,9 @@ test('catches build a Shiny chain; fleeing breaks it', () => {
   assert.deepEqual(game.chain, { name, count: 1 })
   assert.equal(game.balls, SAFARI_BALLS - 1)
   assert.match(game.message, /Gotcha/)
-  assert.equal(shinyOdds(game, name), 47)
+  assert.equal(shinyOdds(game, name), 77)
   assert.equal(shinyOdds({ ...game, chain: { name, count: 9 } }, name), 8, 'Chains top out at 1 in 8')
-  assert.equal(shinyOdds(game, 'Somebody else'), 60)
+  assert.equal(shinyOdds(game, 'Somebody else'), 100)
   const again = { ...game, encounter: { name, shiny: false, mood: 'calm', since: game.elapsed } }
   assert.equal(throwBall(again, 300, always(0)).chain.count, 2)
   const fled = throwBall(again, 300, rolls(0.99, 0))
@@ -84,6 +84,34 @@ test('catches build a Shiny chain; fleeing breaks it', () => {
   assert.match(fled.message, /ran away/)
   const shiny = approachPatch({ ...game, rustle: 4 }, 4, 300, always(0))
   assert.equal(shiny.encounter.shiny, true, 'A roll under the odds is Shiny')
+})
+
+test('Shiny odds start at 1 in 100 and a chain improves them to 1 in 8', () => {
+  const game = startSafari('meadow', 0, 0, always(0.5))
+  const chained = count => ({ ...game, chain: { name: 'Pidgey', count } })
+  assert.deepEqual([0, 1, 2, 3, 4, 9].map(count => shinyOdds(chained(count), 'Pidgey')), [100, 77, 54, 31, 8, 8])
+  assert.equal(shinyOdds(chained(3), 'Rattata'), 100)
+})
+
+test('meetWild starts a calm encounter from the zone pool, only while playing with none in progress', () => {
+  const game = { ...startSafari('meadow', 0, 0, always(0.5)), elapsed: 4200 }
+  const met = meetWild(game, 'lake', always(0.5))
+  assert.equal(met.zone, 'lake')
+  assert.ok(wildPool(ZONES.lake.types).some(wild => wild.name === met.encounter.name))
+  assert.deepEqual([met.encounter.mood, met.encounter.since, met.lastThrow], ['calm', 4200, null])
+  assert.match(met.message, /^A wild .+ appeared!$/)
+  assert.strictEqual(meetWild(met, 'lake'), met)
+  const paused = pauseSafari(game, 10)
+  assert.strictEqual(meetWild(paused, 'lake'), paused)
+})
+
+test('meetWild meets the chained species again 35% of the time when it lives in that zone', () => {
+  const lake = wildPool(ZONES.lake.types)
+  const name = lake.at(-1).name
+  assert.notEqual(lake[0].name, name)
+  const chained = { ...startSafari('lake', 0, 0, always(0.5)), chain: { name, count: 2 } }
+  assert.equal(meetWild(chained, 'lake', rolls(0.34, 0.99)).encounter.name, name)
+  assert.equal(meetWild(chained, 'lake', rolls(0.35, 0, 0.99)).encounter.name, lake[0].name)
 })
 
 test('the round ends when the last ball is thrown or time runs out; pause keeps the clock', () => {
