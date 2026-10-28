@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { adventuresIn, adventuresOn, bento, describeAdventure, periodRange, recentDays, shortDuration, summary } from '../src/journal-calendar.ts'
+import { adventuresByDay, adventuresIn, adventuresOn, bento, calendarMonths, describeAdventure, monthGrid, periodRange, recentDays, shortDuration, summary } from '../src/journal-calendar.ts'
 
 const at = (day, hour = 9, month = 9) => new Date(2026, month, day, hour).getTime()
 const run = (id, finished, extra = {}) => ({ id, device: 'phone', family: ['Pikachu', 'Raichu'],
@@ -63,4 +63,37 @@ test('an adventure describes itself: where, how far, and what the egg became', (
     'A run on your watch, 10.40 km with your Pikachu egg. It hatched into a shiny Pikachu after 31 min, then grew into Raichu.')
   assert.equal(describeAdventure(run('c', at(28), { activity: undefined, meters: 5000 }), facts(['Pikachu'])),
     'An adventure with this phone, 5.00 km with your Pikachu egg. It hatched into Pikachu.')
+})
+
+test('a month is calendar weeks from Monday, blank before the 1st and after the last day', () => {
+  // 1 Oct 2026 is a Thursday: three blanks, then five weeks in all.
+  const october = monthGrid(at(28))
+  assert.equal(october.length, 5)
+  assert.ok(october.every(week => week.length === 7))
+  assert.deepEqual(october[0].slice(0, 4), [null, null, null, at(1, 0)])
+  assert.equal(october[4][5], at(31, 0))
+  assert.equal(october[4][6], null)
+  // February 2027 starts on a Monday and fills four weeks exactly.
+  const february = monthGrid(new Date(2027, 1, 10).getTime())
+  assert.equal(february.length, 4)
+  assert.equal(february[0][0], new Date(2027, 1, 1).getTime())
+  assert.equal(february[3][6], new Date(2027, 1, 28).getTime())
+})
+
+test('adventures group by the day they finished, newest first', () => {
+  const days = adventuresByDay(runs)
+  assert.deepEqual(days.get('2026-10-28').map(item => item.id), ['b', 'a'])
+  assert.deepEqual(days.get('2026-04-15').map(item => item.id), ['f'])
+  assert.equal(days.has('2026-10-27'), false)
+})
+
+test('the calendar offers this month back to the first adventure, at least a year', () => {
+  const months = calendarMonths(runs, now)
+  assert.equal(months.length, 12, 'April to October is under a year, so a year is offered')
+  assert.equal(months[0], new Date(2026, 9, 1).getTime())
+  assert.equal(months[11], new Date(2025, 10, 1).getTime())
+  const older = calendarMonths([...runs, run('g', new Date(2024, 5, 3).getTime())], now)
+  assert.equal(older.length, 29, 'June 2024 to October 2026')
+  assert.equal(older.at(-1), new Date(2024, 5, 1).getTime())
+  assert.equal(calendarMonths([], now).length, 12)
 })

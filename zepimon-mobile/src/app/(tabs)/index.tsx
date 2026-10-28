@@ -10,11 +10,12 @@ import { adventuresIn, adventuresOn, bento, periodRange, recentDays, shortDurati
 import type { Period } from '../../journal-calendar'
 import { BentoTile, DayCard, DayStrip, PeriodChips } from '../../JournalCalendar'
 import { PixelSprite } from '../../games/TeamPicker'
-import { Button, Copy, Eyebrow, Panel, Screen, Title, colors, fonts, themedStyles, useTheme } from '../../ui'
+import { Button, Copy, Eyebrow, Icon, Panel, Screen, Title, colors, fonts, themedStyles, useTheme } from '../../ui'
 
 // The Journal is a calendar. Pick a day for its distance and time (your buddy stands on that card), then browse the
-// adventures of its week, month or year as bento tiles; each opens its details. Personal bests follow. Missions and
-// Legendary Expeditions live on the Adventure tab.
+// adventures of its week, month or year as bento tiles; each opens its details. Personal bests follow. The calendar
+// button opens the Calendar (src/app/calendar.tsx) to pick any day of any month. Missions and Legendary Expeditions live
+// on the Adventure tab.
 
 // The most tiles a period shows; All adventures lists every one.
 const TILES = 12
@@ -55,6 +56,11 @@ export default function JournalScreen() {
         <Text style={page.count}>{pokemon}<Text style={page.countLabel}> Pokemon</Text></Text>
         <Text style={page.count}>{badges}<Text style={page.countLabel}> badges</Text></Text>
       </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="View calendar" hitSlop={6}
+        onPress={() => router.push({ pathname: '/calendar', params: { day: String(day) } })}
+        style={({ pressed }) => [page.calendar, { opacity: pressed ? 0.7 : 1 }]}>
+        <Icon name="calendar" size={22} color={colors.edge} />
+      </Pressable>
     </View>
     {!!error && <Copy color={colors.danger}>{error}</Copy>}
 
@@ -116,6 +122,8 @@ const page = themedStyles(() => ({
   header: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
   title: { fontFamily: fonts.black, color: colors.ink, fontSize: 34, lineHeight: 40 },
   counts: { alignItems: 'flex-end', paddingBottom: 4 },
+  calendar: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.panel,
+    borderWidth: 1, borderColor: colors.line, marginBottom: 2 },
   count: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 16, lineHeight: 21 },
   countLabel: { fontFamily: fonts.body, color: colors.muted, fontSize: 13 },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },

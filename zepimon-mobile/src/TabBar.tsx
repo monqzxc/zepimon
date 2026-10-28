@@ -12,8 +12,8 @@ import { colors, fonts, gradient, themedStyles, useTheme } from './ui'
 import type { ThemeName } from './palettes'
 
 // A floating glass tab bar. The middle tab (Adventure) is a Poke Ball sitting in a notch cut into the bar.
-// The open tab shows in the bar's accent with a heavier label, and the theme's Pokemon (Gengar, or Deoxys in the Deoxys
-// theme; see mascots) peeks over the bar's top edge above it: the head is drawn behind the bar and the paws in front.
+// The open tab shows in the bar's accent with a heavier label, and the theme's Pokemon (Gengar, Deoxys or Pikachu; see
+// mascots) peeks over the bar's top edge above it: the head is drawn behind the bar and the paws in front.
 // That art sits on a 120 x 100 grid whose row 72 meets the edge. The Pokemon bobs and blinks while idle, ducks behind
 // the bar when you switch tabs and pops up wide-eyed on the new one, and the labels change over as it passes. Tapping
 // another open tab makes it peek. Tapping the ball spins it and the Pokemon pops out of it in its training gear,
@@ -60,8 +60,21 @@ const deoxys: Mascot = {
   ball: { body: '#D4502E', band: '#3A1A12', stripe: '#3FB6C8', rings: ['#D4502E', '#E8785A', '#F5AE95'], rim: '#35160E', shade: '#2A0C06' },
   aura: ['#0E4450', '#177A8A', '#2FA3B8', '#4FD3E3', '#7FE3EE'], wisp: ['#0F4A57', '#1F8CA0', '#4FD3E3']
 }
-// Pikachu keeps Gengar until it has art of its own.
-const mascots: Record<ThemeName, Mascot> = { gengar, deoxys, pikachu: gengar }
+// Pikachu's art is all cut from pokemon_data/pikachu-fitness.png; its blink is drawn, as no pose there shuts its eyes.
+// Its ball is yellow with a stripe as red as its cheeks, and its aura an electric yellow glow.
+const pikachu: Mascot = {
+  walker: 'Pikachu',
+  art: {
+    grin: require('../assets/nav/pikachu/head-idle.png'), blink: require('../assets/nav/pikachu/head-blink.png'),
+    boo: require('../assets/nav/pikachu/head-boo.png'), paws: require('../assets/nav/pikachu/paws.png')
+  },
+  floats: [require('../assets/nav/pikachu/float-stand.png'), require('../assets/nav/pikachu/float-wave.png'),
+    require('../assets/nav/pikachu/float-lift.png'), require('../assets/nav/pikachu/float-pushup.png'),
+    require('../assets/nav/pikachu/float-situp.png'), require('../assets/nav/pikachu/float-tired.png')],
+  ball: { body: '#F2C21B', band: '#3B2A0A', stripe: '#E0483A', rings: ['#F2C21B', '#FFD95A', '#FFF0A6'], rim: '#3B2A0A', shade: '#4A3300' },
+  aura: ['#5C4500', '#A07800', '#E8B800', '#FFDA4A', '#FFE98A'], wisp: ['#7A5A00', '#D9A800', '#FFE066']
+}
+const mascots: Record<ThemeName, Mascot> = { gengar, deoxys, pikachu }
 // The bar's colors (colors.tab*) come with the theme, like the lilac glass bar of Gengar's light theme.
 const BAR = 66
 const INSET = 6          // between the bar's edge and its tabs

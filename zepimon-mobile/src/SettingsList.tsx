@@ -1,5 +1,5 @@
 import React, { Fragment } from 'react'
-import { Modal, Pressable, Switch, Text, View } from 'react-native'
+import { Modal, Pressable, ScrollView, Switch, Text, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Icon, colors, fonts, shadows, themedStyles } from './ui'
 import type { IconName } from './ui'
@@ -64,20 +64,23 @@ function IconTile({ name, danger = false }: { name: IconName, danger?: boolean }
   </View>
 }
 
-// One of a few choices, picked from a sheet that slides up from the bottom. Picking one closes it.
+// One of several choices, picked from a sheet that slides up from the bottom; a long list scrolls. Picking one closes it.
 export function ChoiceSheet<T extends string>({ title, open, options, value, onChoose, onClose }: {
   title: string, open: boolean, options: { value: T, label: string, detail?: string }[], value: T, onChoose: (value: T) => void, onClose: () => void
 }) {
   const insets = useSafeAreaInsets()
+  const { height } = useWindowDimensions()
   return <Modal visible={open} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
     <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={[list.scrim, { backgroundColor: colors.scrim }]} />
     <View style={[list.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
       <View style={list.handle} />
       <Text accessibilityRole="header" style={list.sheetTitle}>{title}</Text>
-      <SettingsGroup radio>
-        {options.map(option => <SettingsRadio key={option.value} label={option.label} detail={option.detail} checked={option.value === value}
-          onPress={() => { onChoose(option.value); onClose() }} />)}
-      </SettingsGroup>
+      <ScrollView style={{ maxHeight: height * 0.6 }} contentContainerStyle={{ paddingBottom: 2 }}>
+        <SettingsGroup radio>
+          {options.map(option => <SettingsRadio key={option.value} label={option.label} detail={option.detail} checked={option.value === value}
+            onPress={() => { onChoose(option.value); onClose() }} />)}
+        </SettingsGroup>
+      </ScrollView>
     </View>
   </Modal>
 }

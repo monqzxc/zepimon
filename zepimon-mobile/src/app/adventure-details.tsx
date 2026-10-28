@@ -6,12 +6,12 @@ import { useJournal } from '../store'
 import { averagePace, km, recordForm } from '../journal'
 import { adventureFacts, bestLabels, findAdventure } from '../adventures'
 import type { Adventure } from '../adventures'
-import { pokemonType, typeColors } from '../catalog'
+import { pokemonType } from '../catalog'
 import { describeAdventure, shortDuration } from '../journal-calendar'
 import { RouteMap } from '../RouteMap'
 import { cardTitle } from '../ShareCard'
 import { PixelSprite } from '../games/TeamPicker'
-import { Button, Copy, Icon, Panel, Screen, Title, colors, fonts, shadows, themedStyles, typeTints, glass, useTheme } from '../ui'
+import { Button, Copy, Icon, Panel, Screen, Title, colors, fonts, shadows, themedStyles, typeInks, typeTints, glass, useTheme } from '../ui'
 import type { IconName } from '../ui'
 
 // One saved adventure, opened from a Journal tile: a pastel header in its Pokemon's type colour with the date, then a
@@ -41,7 +41,7 @@ function Details({ adventure }: { adventure: Adventure }) {
   const facts = adventureFacts(adventure, journal)
   const form = recordForm(family, record)
   const type = pokemonType(form === 'Egg' ? family[0] : form)
-  const ink = typeColors[type] || colors.edge
+  const ink = typeInks[type] || colors.edge
   const finished = new Date(record.finishedAt)
   const started = facts.started != null ? new Date(facts.started) : null
   const running = record.activity === 'running'

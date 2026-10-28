@@ -11,7 +11,7 @@ import { PokeballLoader } from './PokeballLoader'
 export { Sprite } from './Sprite'
 export { HabitatScene } from './HabitatScene'
 export { PokeballLoader } from './PokeballLoader'
-export { colors, glass, themedStyles, typeTints, useTheme } from './theme'
+export { colors, glass, themedStyles, typeInks, typeTints, useTheme } from './theme'
 
 // Nunito is loaded in src/app/_layout.tsx. Each weight is its own family so Android picks the right file.
 export const fonts = { body: 'Nunito_600SemiBold', bold: 'Nunito_700Bold', heavy: 'Nunito_800ExtraBold', black: 'Nunito_900Black' }
@@ -98,7 +98,8 @@ const icons = {
   back: ['chevron.left', 'arrow_back'], palette: ['paintpalette', 'palette'], person: ['person.crop.circle', 'account_circle'],
   logout: ['rectangle.portrait.and.arrow.right', 'logout'], info: ['info.circle', 'info'], doc: ['doc.text', 'description'],
   download: ['square.and.arrow.down', 'download'], sun: ['sun.max', 'light_mode'], moon: ['moon', 'dark_mode'],
-  contrast: ['circle.lefthalf.filled', 'contrast'], edit: ['pencil', 'edit']
+  contrast: ['circle.lefthalf.filled', 'contrast'], edit: ['pencil', 'edit'], calendar: ['calendar', 'calendar_month'], plus: ['plus', 'add'],
+  chevronDown: ['chevron.down', 'expand_more']
 } satisfies Record<string, [SFSymbol, AndroidSymbol]>
 export type IconName = keyof typeof icons
 const symbolBox = { alignItems: 'center', justifyContent: 'center' } as const

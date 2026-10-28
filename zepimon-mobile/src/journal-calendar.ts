@@ -8,7 +8,7 @@ import type { Adventure, AdventureFacts } from './adventures.ts'
 export type Period = 'week' | 'month' | 'year'
 export const periods: [Period, string][] = [['week', 'Week'], ['month', 'Month'], ['year', 'Year']]
 
-const startOfDay = (time: number) => { const date = new Date(time); date.setHours(0, 0, 0, 0); return date.getTime() }
+export const startOfDay = (time: number) => { const date = new Date(time); date.setHours(0, 0, 0, 0); return date.getTime() }
 
 // Today and the days before it, newest first: the strip under the title. A day "has" adventures when one finished then.
 export function recentDays(adventures: Adventure[], now: number, count = 14): { key: string, start: number, has: boolean }[] {
@@ -44,6 +44,38 @@ export function adventuresIn(adventures: Adventure[], [start, end]: [number, num
 export function adventuresOn(adventures: Adventure[], day: number): Adventure[] {
   const key = dayKey(day)
   return adventuresIn(adventures, [-Infinity, Infinity]).filter(run => dayKey(Date.parse(run.record.finishedAt)) === key)
+}
+
+// The Calendar screen's month: its calendar weeks from Monday, each a row of seven day starts, with null before the 1st
+// and after the last day.
+export function monthGrid(day: number): (number | null)[][] {
+  const date = new Date(day)
+  const first = new Date(date.getFullYear(), date.getMonth(), 1)
+  const length = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+  const cells: (number | null)[] = Array.from({ length: (first.getDay() + 6) % 7 }, () => null)
+  for (let i = 1; i <= length; i++) cells.push(new Date(date.getFullYear(), date.getMonth(), i).getTime())
+  while (cells.length % 7) cells.push(null)
+  return Array.from({ length: cells.length / 7 }, (_, week) => cells.slice(week * 7, week * 7 + 7))
+}
+
+// Adventures by the day they finished (dayKey), newest first within each day.
+export function adventuresByDay(adventures: Adventure[]): Map<string, Adventure[]> {
+  const days = new Map<string, Adventure[]>()
+  for (const run of adventuresIn(adventures, [-Infinity, Infinity])) {
+    const key = dayKey(Date.parse(run.record.finishedAt))
+    days.set(key, [...days.get(key) ?? [], run])
+  }
+  return days
+}
+
+// The months the Calendar offers, as each month's first day, newest first: from this month back to the earliest
+// adventure's, and always at least a year.
+export function calendarMonths(adventures: Adventure[], now: number): number[] {
+  const today = new Date(now)
+  const earliest = Math.min(...adventures.map(run => Date.parse(run.record.finishedAt)).filter(Number.isFinite), now)
+  const from = new Date(earliest)
+  const count = Math.max(12, (today.getFullYear() - from.getFullYear()) * 12 + today.getMonth() - from.getMonth() + 1)
+  return Array.from({ length: count }, (_, i) => new Date(today.getFullYear(), today.getMonth() - i, 1).getTime())
 }
 
 // What a day (or any list of adventures) adds up to.

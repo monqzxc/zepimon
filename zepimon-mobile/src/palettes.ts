@@ -22,15 +22,18 @@ export const typeColors: Record<string, string> = {
 type Colors = {
   bg: string, panel: string, sunken: string, line: string, mint: string, mintLine: string, track: string,
   ink: string, muted: string, edge: string, onEdge: string, alt: string, gold: string, star: string, danger: string, success: string,
-  altTint: string, goldTint: string, dangerTint: string, brandFrom: string, brandTo: string, onBrand: string, glow: string, scrim: string,
+  altTint: string, goldTint: string, dangerTint: string, brandFrom: string, brandTo: string, onBrand: string, glow: string, scrim: string, shadow: string,
   tabTop: string, tabBottom: string, tabHalo: string, tabRim: string, tabPill: string, tabShadow: string, tabInk: string, tabActive: string, tabMark: string
 }
 export type Palette = Colors & { brand: string }
 const palette = (colors: Colors): Palette => ({ ...colors, brand: `linear-gradient(135deg, ${colors.brandFrom} 0%, ${colors.brandTo} 100%)` })
 
-// Shared by every theme: notices, stars, errors and success read the same everywhere, tuned once per mode.
-const lightStatus = { gold: '#9A5800', star: '#C27C00', danger: '#B83232', success: '#1B6E33', goldTint: '#FFF1D6', dangerTint: '#FBE4E4' }
-const darkStatus = { gold: '#E9A84A', star: '#F2B630', danger: '#F27878', success: '#5FD07E', goldTint: '#3A2C14', dangerTint: '#3A1E22' }
+// Shared by every theme: notices, stars, errors and success read the same everywhere, tuned once per mode, and the drop
+// shadow under raised cards like the Journal's bento tiles (stronger at night, where a faint one would not show).
+const lightStatus = { gold: '#9A5800', star: '#C27C00', danger: '#B83232', success: '#1B6E33', goldTint: '#FFF1D6', dangerTint: '#FBE4E4',
+  shadow: 'rgba(31, 42, 54, 0.14)' }
+const darkStatus = { gold: '#E9A84A', star: '#F2B630', danger: '#F27878', success: '#5FD07E', goldTint: '#3A2C14', dangerTint: '#3A1E22',
+  shadow: 'rgba(0, 0, 0, 0.5)' }
 const darkTab = { tabHalo: 'rgba(0, 0, 0, 0.35)', tabRim: 'rgba(255, 255, 255, 0.1)', tabShadow: 'rgba(0, 0, 0, 0.45)', glow: 'rgba(0, 0, 0, 0.45)', scrim: 'rgba(0, 0, 0, 0.6)' }
 
 export const themes: Record<ThemeName, Record<Mode, Palette>> = {
@@ -87,4 +90,11 @@ const mix = (from: string, to: string, amount: number) => '#' + [1, 3, 5].map(i 
 export function typeTintsFor(palette: Palette, mode: Mode): Record<string, string> {
   if (mode === 'light') return lightTints
   return Object.fromEntries(Object.entries(typeColors).map(([type, color]) => [type, mix(palette.panel, color, 0.26)]))
+}
+
+// Type colors for bold text and icons on those tints, like a bento tile's date: as they are by day (3.5:1 at least),
+// and lifted halfway to white at night, where the dark type colors would vanish (6.4:1 at least).
+export function typeInksFor(mode: Mode): Record<string, string> {
+  if (mode === 'light') return typeColors
+  return Object.fromEntries(Object.entries(typeColors).map(([type, color]) => [type, mix(color, '#FFFFFF', 0.55)]))
 }

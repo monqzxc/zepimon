@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { Appearance, StyleSheet } from 'react-native'
-import { themes, typeTintsFor } from './palettes'
+import { themes, typeInksFor, typeTintsFor } from './palettes'
 import type { Mode, Palette, ThemeName } from './palettes'
 import { getPreferences, subscribePreferences } from './preferences'
 
@@ -54,6 +54,8 @@ export const typeTints: Record<string, string> = live(() => {
   if (!value) tints.set(active.colors, value = typeTintsFor(active.colors, active.mode))
   return value
 })
+const inks = { light: typeInksFor('light'), dark: typeInksFor('dark') }
+export const typeInks: Record<string, string> = live(() => inks[active.mode])
 // A frosted layer over a tinted card, like a badge on a pastel tile: white at alpha in light, a faint lift in dark.
 export const glass = (alpha: number) => `rgba(255, 255, 255, ${active.dark ? +(alpha * 0.12).toFixed(3) : alpha})`
 

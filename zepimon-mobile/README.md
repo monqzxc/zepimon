@@ -171,6 +171,14 @@ Pokemon's type colour: the Pokemon, a phone or watch badge, the date and what it
 became. Personal bests close the page. Missions and Legendary Expeditions moved
 to the Adventure tab (**Missions & expeditions**).
 
+**Calendar.** The calendar button beside the Journal's title opens the month of
+the day it shows. Days are round cells from Monday; a day with adventures shows
+its latest Pokemon in the circle, with a dot per adventure below. Tap any day up
+to today for its history: each adventure that finished then, with its Pokemon,
+walk or run, distance and time, and its start time on a dark pill (tap it for
+its details). **This month** picks another month, back to your first adventure;
+**Today** comes back, and **+** starts an adventure.
+
 **Adventures from both devices.** The Journal keeps every walk and run from the
 watch as well as from this phone. **View all** (also under **Your routes** in the
 Adventure tab) lists every one by month, with its total distance, and filters by
@@ -206,12 +214,15 @@ is System, Light or Dark; System follows the phone's dark mode and switches with
 it. A theme recolors the whole app in both appearances: pages and cards, the
 accent on chips and links, the gradient on banners and main buttons, the second
 accent (Gengar's red eyes, Deoxys's teal, Pikachu's cheeks) and the tab bar.
-In the Deoxys theme the tab bar's Pokemon is Deoxys in its training gear: it
-peeks over the open tab in place of Gengar, floats out of an orange-red ball
-with a teal stripe and steps on the ball during an adventure, and floats through
-the same six workout poses. With reduced motion the poses change only on a tap.
-Both Pokemon's floating poses, and Deoxys's peeking art, are cut from the
-`*-fitness*.png` sheets in `pokemon_data/` by `scripts/build-nav-poses.py`. Every text color keeps at least 4.5:1 contrast in all six palettes, which
+Each theme brings its own Pokemon to the tab bar, in its training gear: it peeks
+over the open tab, floats out of a ball in its colors (Gengar's violet, an
+orange-red Deoxys ball with a teal stripe, a yellow Pikachu ball with a stripe as
+red as its cheeks) through the same six workout poses, and steps on the ball
+during an adventure. With reduced motion the poses change only on a tap. The
+floating poses, and Deoxys's and Pikachu's peeking art, are cut from the
+`*-fitness*.png` sheets in `pokemon_data/` by `scripts/build-nav-poses.py`;
+Pikachu's sheet has no shut-eyed face, so its blink is drawn. Every text color
+keeps at least 4.5:1 contrast in all six palettes, which
 `tests/palettes.test.js` checks. Share images and the route map keep their own
 colors. The palettes are in `src/palettes.ts` and the active one in
 `src/theme.ts`; styles that use them are made with `themedStyles`, and each

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { themeNames, themes, typeTintsFor } from '../src/palettes.ts'
+import { themeNames, themes, typeInksFor, typeTintsFor } from '../src/palettes.ts'
 
 // WCAG contrast between two #RRGGBB colors.
 function contrast(a, b) {
@@ -49,6 +49,15 @@ test('text on type-tinted cards stays readable in every theme', () => {
   every((label, p, mode) => {
     for (const [type, tint] of Object.entries(typeTintsFor(p, mode)))
       for (const text of ['ink', 'muted', 'edge', 'success']) check(failures, `${label} ${text} on ${type} tint`, p[text], tint)
+  })
+  assert.deepEqual(failures, [])
+})
+
+test('type colors stay readable as bold text on their own card tints', () => {
+  const failures = []
+  every((label, p, mode) => {
+    const tints = typeTintsFor(p, mode), inks = typeInksFor(mode)
+    for (const type of Object.keys(tints)) check(failures, `${label} ${type} ink on its tint`, inks[type], tints[type], 3)
   })
   assert.deepEqual(failures, [])
 })
