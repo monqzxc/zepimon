@@ -119,7 +119,7 @@ export function walk(game: ZoneGame, direction: Direction, random = Math.random,
   const rustled = !!game.rustling && pointKey(game.rustling) === key
   if (rustled) walked = { ...walked, rustling: null }
   if (rustled || (grass && !cooling && random() < GRASS_RATE)) {
-    walked = { ...meetWild(walked, area as Zone, random), cooldown: GRASS_COOLDOWN }
+    walked = { ...walked, ...meetWild(walked, area as Zone, random), cooldown: GRASS_COOLDOWN }
     events.push('encounter')
     messages.encounter = walked.message
   }
