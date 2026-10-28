@@ -26,6 +26,7 @@ It stays offline, runs on Android, iPhone and web, and needs no new native modul
 | 6 | **Real Emerald tiles** from pokeemerald-expansion, built into map images from our own text layout. |
 | 7 | Map images are built ahead of time, and the game is drawn with React Native views and Reanimated. There is no Skia and no per-tile views. |
 | 8 | The base Shiny rate is **1 in 100**. Chains improve it to 1 in 8 after 4 chained catches. |
+| 9 | Brendan and May wear a Zepimon outfit: a **purple and white cap** (Brendan's band and May's bandana turn from green to Gengar-theme purple) and a **black and white shirt**. Everything else keeps Emerald's colours. |
 
 ## How a round plays
 
@@ -125,7 +126,7 @@ ledges make one-way shortcuts.
    - `data/tilesets/primary/general/` (`tiles.png`, `metatiles.bin`, `palettes/*.pal`), plus **one secondary tileset**
      for mountain rock and fences. It is chosen in the first plan task from a metatile reference sheet, and the script
      records which one.
-   - `graphics/object_events/pics/people/{brendan,may}/walking.png`
+   - `graphics/object_events/pics/people/{brendan,may}/walking.png` and `graphics/object_events/palettes/{brendan,may}.pal`
    - `graphics/object_events/pics/misc/ball_poke.png` (item ball) and `pushable_boulder.png`
    - `graphics/field_effects/pics/tall_grass.png`, `ground_impact_dust.png`, `shadow_medium.png`
    - `graphics/battle_environment/{long_grass,pond_water}/` (`tiles.png`, `map.bin`, `palette.pal`)
@@ -141,7 +142,21 @@ ledges make one-way shortcuts.
    - Night Forest tiles are darkened with a cool blue tint in both layers.
 4. **Sprites.**
    - `brendan.png` and `may.png`: 12-frame strips (stand, step A, step B for south, north, west and east), 16 × 32 frames
-     enlarged 4×. The script asserts Emerald's 9-frame layout and mirrors west for east.
+     enlarged 4×. The script asserts Emerald's 9-frame layout (an indexed 144 × 32 sheet: south, north and west
+     standing, then two steps each for south, north and west) and mirrors west for east.
+   - **Outfit recolour**, applied before enlarging. Each rule swaps a palette index for a new colour **only inside a
+     band of rows** of the 16 × 32 frame, so the same index elsewhere (the green backpack, red shoes, skin) keeps its
+     colour:
+
+     | Trainer | Rows | Index → colour |
+     |---|---|---|
+     | Brendan (cap band) | 0–19 | 10 → `#A474EE` light purple · 11 → `#6A3FC8` purple |
+     | Brendan (shirt) | 21–27 | 8 → `#282830` black · 4 → `#484856` dark grey · 13 → `#CECEDE` white shade · 12 → `#F8F8F8` white |
+     | May (bandana) | 0–17 | 10 → `#A474EE` · 11 → `#6A3FC8` |
+     | May (top) | 21–27 | 13 → `#282830` black · 12 → `#484856` dark grey |
+
+     The white of Brendan's cap (9, 14) and of May's bandana and sleeves (9, 14) stays white. The rules live in one
+     table in the script and match the throwaway preview shown during brainstorming on 2026-10-28.
    - `grass.png`, `dust.png`, `shadow.png`, `item.png`, `boulder.png` and `safari-ball.png`, each enlarged 4×.
    - `battle-grass.png` and `battle-pond.png`: rendered from the battle-environment tilemaps and palettes, then enlarged.
 5. **Data.** It writes `zepimon-mobile/src/generated/safari-map.js` containing `cols`, `rows`, `tiles` (one string per
