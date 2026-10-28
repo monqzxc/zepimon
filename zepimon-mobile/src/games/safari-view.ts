@@ -9,6 +9,9 @@ const ACROSS = 9
 const MARGIN = 2
 const FACING: Direction[] = ['south', 'north', 'west', 'east']
 
+// How long until the next step may go: held walking lands each step exactly STEP_MS after the last, like the glide.
+export const stepDelay = (now: number, lastStep: number) => Math.max(0, lastStep + STEP_MS - now)
+
 export function tileSizeFor(width: number): number {
   return Math.min(64, Math.max(40, Math.floor(width / ACROSS)))
 }

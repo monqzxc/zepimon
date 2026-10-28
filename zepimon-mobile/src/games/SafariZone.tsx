@@ -7,7 +7,7 @@ import { ZONES, pauseSafari, resumeSafari, shinyOdds, tickSafari } from './safar
 import type { SafariGame, Zone } from './safari'
 import { confirmLeave, planWalk, startZone, stayInZone, walk, zoneAction, zoneBudget } from './safari-zone'
 import type { Direction, Point, WalkResult, ZoneEvent, ZoneGame } from './safari-zone'
-import { STEP_MS, followPath, noInput, pressDirection, releaseDirection, takeInput } from './safari-view'
+import { STEP_MS, followPath, noInput, pressDirection, releaseDirection, stepDelay, takeInput } from './safari-view'
 import type { Input } from './safari-view'
 import { SafariWorld } from './SafariWorld'
 import { SafariEncounter } from './SafariEncounter'
@@ -66,7 +66,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const pause = () => { input.current = noInput; act(pauseSafari) }
   useGameLoop(() => act(tickSafari), pause)
 
-  // One step from the input queue, at most once per STEP_MS. Polling faster than that lets a fresh press move at once.
+  // One step from the input queue, at most once per STEP_MS. A press calls it straight away, so a fresh press moves at once.
   const step = useCallback(() => {
     const round = current.current
     if (!round || performance.now() - lastStep.current < STEP_MS) return
@@ -86,8 +86,16 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   // unmounts mid-press and a key can be let go while nothing listens, so a release could otherwise be missed.
   useEffect(() => {
     if (!walking) { input.current = noInput; return }
-    const timer = setInterval(step, 50)
-    return () => clearInterval(timer)
+    // While something is held or planned, the next step is timed to land right as the last glide ends, so walking is
+    // even; with nothing to do it looks again every 50 ms.
+    let timer: ReturnType<typeof setTimeout>
+    const loop = () => {
+      step()
+      const { held, queued, path } = input.current
+      timer = setTimeout(loop, held || queued || path.length ? Math.max(4, stepDelay(performance.now(), lastStep.current)) : 50)
+    }
+    timer = setTimeout(loop, 50)
+    return () => clearTimeout(timer)
   }, [walking, step])
   const press = (direction: Direction) => {
     if (!walking) return
@@ -106,7 +114,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
 
   // Walking lays itself out to the screen; the start and results panels scroll like any page.
   const active = !!game && game.status !== 'complete'
-  useKeyboardDirections(press, release, active)
+  useKeyboardDirections(press, release, active, () => { input.current = noInput })
   useEffect(() => {
     if (!active) return
     setFill(true)

@@ -24,15 +24,22 @@ export function DPad({ onPress, onRelease, disabled }: { onPress: (direction: Di
   </View>
 }
 
+// The direction a key walks, or null. With Ctrl, Cmd or Alt held the key belongs to the browser (Ctrl+S, Cmd+W, ...).
+export function keyDirection(event: { key: string, ctrlKey: boolean, metaKey: boolean, altKey: boolean }): Direction | null {
+  return event.ctrlKey || event.metaKey || event.altKey ? null : KEYS[event.key] ?? null
+}
+
 // Arrow keys and WASD on the web, pressed and released like the D-pad. Holding a key repeats through the screen's own
-// step loop, so the browser's key repeat is ignored.
-export function useKeyboardDirections(onPress: (direction: Direction) => void, onRelease: (direction: Direction) => void, enabled: boolean) {
-  const handlers = useRef({ onPress, onRelease })
-  useEffect(() => { handlers.current = { onPress, onRelease } })
+// step loop, so the browser's key repeat is ignored. Leaving the window with a key held never sends its keyup, so
+// losing focus calls onLost to let go of everything.
+export function useKeyboardDirections(onPress: (direction: Direction) => void, onRelease: (direction: Direction) => void, enabled: boolean,
+  onLost: () => void = () => {}) {
+  const handlers = useRef({ onPress, onRelease, onLost })
+  useEffect(() => { handlers.current = { onPress, onRelease, onLost } })
   useEffect(() => {
     if (Platform.OS !== 'web' || !enabled || typeof window === 'undefined') return
     const down = (event: KeyboardEvent) => {
-      const direction = KEYS[event.key]
+      const direction = keyDirection(event)
       if (!direction) return
       event.preventDefault()
       if (!event.repeat) handlers.current.onPress(direction)
@@ -41,9 +48,11 @@ export function useKeyboardDirections(onPress: (direction: Direction) => void, o
       const direction = KEYS[event.key]
       if (direction) handlers.current.onRelease(direction)
     }
+    const lost = () => handlers.current.onLost()
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+    window.addEventListener('blur', lost)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', lost) }
   }, [enabled])
 }
 

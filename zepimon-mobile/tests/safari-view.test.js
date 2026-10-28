@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buddyFrame, cameraOffset, chunksAround, followPath, noInput, pressDirection, releaseDirection, takeInput, tapPoint, tileFromTap,
+import { buddyFrame, cameraOffset, chunksAround, followPath, noInput, pressDirection, releaseDirection, stepDelay, takeInput, tapPoint, tileFromTap,
   tileSizeFor, trainerFrame } from '../src/games/safari-view.ts'
 import { safariMap } from '../src/games/safari-zone.ts'
 
@@ -81,4 +81,10 @@ test('a tap is read from locationX/Y on phones and offsetX/Y on the web', () => 
   assert.deepEqual(tapPoint({ locationX: 12, locationY: 34, offsetX: 99, offsetY: 99 }), { x: 12, y: 34 })
   assert.deepEqual(tapPoint({ offsetX: 93, offsetY: 204 }), { x: 93, y: 204 })
   assert.deepEqual(tapPoint({}), { x: 0, y: 0 })
+})
+
+test('held walking steps exactly every STEP_MS: the next step waits only for what is left of the last one', () => {
+  assert.equal(stepDelay(1000, 900), 120)
+  assert.equal(stepDelay(1000, 780), 0)
+  assert.equal(stepDelay(1000, 0), 0)
 })
