@@ -30,3 +30,11 @@ export async function exportCard(card: RefObject<View | null>, name: string): Pr
   URL.revokeObjectURL(url)
   return `Saved ${name} to your downloads.`
 }
+
+// Browsers have no gallery: saving is the same download.
+export const saveCardToGallery = exportCard
+
+// Matches card-image.ts; a browser never refuses a download this way.
+export class GalleryDenied extends Error {
+  constructor(public blocked: boolean) { super('') }
+}

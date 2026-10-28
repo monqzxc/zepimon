@@ -121,34 +121,46 @@ export function inflate(data: Uint8Array): Uint8Array {
   return out.slice(0, size)
 }
 
-// 8-bit RGBA, not interlaced: the format of every sprite in assets/pokemon. Anything else throws, and the caller
-// falls back to a plain <Image>.
+// Every standard PNG colour type and bit depth, not interlaced. The sprites in assets/ are 8-bit RGBA, but Android
+// release builds re-save bundled PNGs, most often as palette images and some as grey with alpha or at 4 bits per
+// pixel. An interlaced or damaged image throws, and the caller falls back to a plain <Image>.
+const CHANNELS: Record<number, number> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }
+const DEPTHS: Record<number, number[]> = { 0: [1, 2, 4, 8, 16], 2: [8, 16], 3: [1, 2, 4, 8], 4: [8, 16], 6: [8, 16] }
+
 export function decodePng(bytes: Uint8Array): Pixels {
   const signature = [137, 80, 78, 71, 13, 10, 26, 10]
   if (bytes.length < 8 || signature.some((value, i) => bytes[i] !== value)) throw new Error('Not a PNG image')
   const word = (at: number) => (bytes[at] << 24 | bytes[at + 1] << 16 | bytes[at + 2] << 8 | bytes[at + 3]) >>> 0
-  let position = 8, width = 0, height = 0, format = ''
+  let position = 8, width = 0, height = 0, depth = 0, colorType = -1, methods = ''
+  let palette: Uint8Array = new Uint8Array(0), transparency: Uint8Array = new Uint8Array(0)
   const parts: Uint8Array[] = []
   while (position + 8 <= bytes.length) {
     const length = word(position), start = position + 8, end = start + length
     const type = String.fromCharCode(...bytes.subarray(position + 4, start))
     if (end + 4 > bytes.length) throw new Error('PNG image ends early')
-    if (type === 'IHDR') { width = word(start); height = word(start + 4); format = bytes.subarray(start + 8, start + 13).join(',') }
+    if (type === 'IHDR') {
+      width = word(start); height = word(start + 4); depth = bytes[start + 8]; colorType = bytes[start + 9]
+      methods = bytes.subarray(start + 10, start + 13).join(',')
+    } else if (type === 'PLTE') palette = bytes.subarray(start, end)
+    else if (type === 'tRNS') transparency = bytes.subarray(start, end)
     else if (type === 'IDAT') parts.push(bytes.subarray(start, end))
     else if (type === 'IEND') break
     position = end + 4
   }
-  if (format !== '8,6,0,0,0' || !(width > 0 && width <= 1024 && height > 0 && height <= 1024)) throw new Error('Unsupported PNG image')
+  const channels = CHANNELS[colorType]
+  if (!channels || !DEPTHS[colorType].includes(depth) || methods !== '0,0,0' || (colorType === 3 && !palette.length) ||
+    !(width > 0 && width <= 1024 && height > 0 && height <= 1024)) throw new Error('Unsupported PNG image')
   const joined = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0))
   parts.reduce((at, part) => { joined.set(part, at); return at + part.length }, 0)
   const filtered = inflate(joined)
-  const stride = width * 4
+  // Filters work on bytes, comparing each with the one a whole pixel (at least a byte) to its left.
+  const stride = Math.ceil(width * channels * depth / 8), step = Math.max(1, channels * depth >> 3)
   if (filtered.length < height * (stride + 1)) throw new Error('PNG image ends early')
-  const rgba = new Uint8Array(height * stride)
+  const lines = new Uint8Array(height * stride)
   for (let y = 0; y < height; y++) {
     const filter = filtered[y * (stride + 1)], from = y * (stride + 1) + 1, row = y * stride, above = row - stride
     for (let x = 0; x < stride; x++) {
-      const left = x >= 4 ? rgba[row + x - 4] : 0, up = y ? rgba[above + x] : 0, corner = x >= 4 && y ? rgba[above + x - 4] : 0
+      const left = x >= step ? lines[row + x - step] : 0, up = y ? lines[above + x] : 0, corner = x >= step && y ? lines[above + x - step] : 0
       let predictor = 0
       if (filter === 1) predictor = left
       else if (filter === 2) predictor = up
@@ -158,7 +170,38 @@ export function decodePng(bytes: Uint8Array): Pixels {
         const [a, b, c] = [Math.abs(estimate - left), Math.abs(estimate - up), Math.abs(estimate - corner)]
         predictor = a <= b && a <= c ? left : b <= c ? up : corner
       } else if (filter !== 0) throw new Error('Unsupported PNG image')
-      rgba[row + x] = (filtered[from + x] + predictor) & 0xff
+      lines[row + x] = (filtered[from + x] + predictor) & 0xff
+    }
+  }
+  // The i-th sample of a row at full precision, and as 0-255.
+  const sample = (row: number, i: number) => depth === 16 ? lines[row + 2 * i] << 8 | lines[row + 2 * i + 1]
+    : depth === 8 ? lines[row + i] : lines[row + (i * depth >> 3)] >> (8 - depth - (i * depth & 7)) & ((1 << depth) - 1)
+  const byte = (value: number) => depth === 16 ? value >> 8 : depth === 8 ? value : value * 255 / ((1 << depth) - 1)
+  // Grey and RGB images may name one colour as transparent; palettes give each entry an alpha.
+  const clear = transparency.length >= 2 && colorType !== 3 ? [0, 2, 4].map(at => transparency[at] << 8 | transparency[at + 1]) : null
+  const rgba = new Uint8Array(width * height * 4)
+  for (let y = 0; y < height; y++) {
+    const row = y * stride
+    for (let x = 0; x < width; x++) {
+      const out = (y * width + x) * 4
+      let r: number, g: number, b: number, a = 255
+      if (colorType === 3) {
+        const index = sample(row, x)
+        if (index * 3 + 2 >= palette.length) throw new Error('Damaged PNG image')
+        r = palette[index * 3]; g = palette[index * 3 + 1]; b = palette[index * 3 + 2]
+        if (index < transparency.length) a = transparency[index]
+      } else if (colorType === 0 || colorType === 4) {
+        const grey = sample(row, x * channels)
+        r = g = b = byte(grey)
+        if (colorType === 4) a = byte(sample(row, x * 2 + 1))
+        else if (clear && grey === clear[0]) a = 0
+      } else {
+        const [red, green, blue] = [0, 1, 2].map(c => sample(row, x * channels + c))
+        r = byte(red); g = byte(green); b = byte(blue)
+        if (colorType === 6) a = byte(sample(row, x * 4 + 3))
+        else if (clear && transparency.length >= 6 && red === clear[0] && green === clear[1] && blue === clear[2]) a = 0
+      }
+      rgba[out] = r; rgba[out + 1] = g; rgba[out + 2] = b; rgba[out + 3] = a
     }
   }
   return { width, height, rgba }

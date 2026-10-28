@@ -7,8 +7,8 @@ import { lastCrash } from '../modules/zepimon-diagnostics'
 import { cloudClient } from './cloud-client'
 import { addFix, newAdventure, restoreActive, saveActive } from './phone-adventure'
 import type { ActiveAdventure, Activity } from './phone-adventure'
-import { fromShared, restoreShared, sharedFrom, takenOver } from './shared-adventure'
-import type { SharedAdventure } from './shared-adventure'
+import { followShared, fromShared, restoreShared, sharedFrom, takenOver } from './shared-adventure'
+import type { SharedAdventure, SharedTrail } from './shared-adventure'
 
 // Records the adventure in progress from GPS. On phones the updates come through a location task backed by Android's
 // foreground service (with its notification) or iOS background location, so recording goes on with the screen off.
@@ -23,18 +23,19 @@ const KEY = 'zepimon-active-adventure-v1'
 const SCREEN_ONLY_KEY = 'zepimon-screen-only-v1'
 const background = Platform.OS !== 'web'
 // The adventure is shared with the watch about this often while it records (see src/shared-adventure.ts).
-const SHARE_MS = 60000
+const SHARE_MS = 30000
 
 // off: location services are off. denied: permission refused, but the app may ask again. blocked: only Settings can
 // allow it now. approximate: only approximate location was allowed, too coarse to draw a route.
 export type LocationIssue = 'off' | 'denied' | 'blocked' | 'approximate'
-// shared: the adventure shared with the watch, as the cloud last had it. handedOver: the adventure this phone was
-// recording until the watch took it over, for the Adventure tab to say so. shareError: why the last share did not
-// reach the cloud ('' once one does, null before the first).
+// shared: the adventure shared with the watch, as the cloud last had it. trail: the distances the watch shared while
+// it records, for its current pace. handedOver: the adventure this phone was recording until the watch took it over,
+// for the Adventure tab to say so. shareError: why the last share did not reach the cloud ('' once one does, null
+// before the first).
 export type TrackerState = { ready: boolean, active: ActiveAdventure | null, recording: boolean, screenOnly: boolean,
-  shared: SharedAdventure | null, handedOver: SharedAdventure | null, shareError: string | null }
+  shared: SharedAdventure | null, trail: SharedTrail | null, handedOver: SharedAdventure | null, shareError: string | null }
 
-let state: TrackerState = { ready: false, active: null, recording: false, screenOnly: false, shared: null, handedOver: null, shareError: null }
+let state: TrackerState = { ready: false, active: null, recording: false, screenOnly: false, shared: null, trail: null, handedOver: null, shareError: null }
 const listeners = new Set<() => void>()
 function update(change: Partial<TrackerState>) {
   state = { ...state, ...change }
@@ -78,7 +79,7 @@ async function receive(locations: Location.LocationObject[]) {
   void share()
 }
 
-// Shares the adventure recorded here (as it starts, about once a minute, and when it ends), also from the background
+// Shares the adventure recorded here (as it starts, every half minute, and when it ends), also from the background
 // location task, so the watch and Zepp follow it. The answer says whether the watch took it over. Without a
 // signed-in account the cloud refuses and nothing changes.
 let sharedAt = 0
@@ -108,7 +109,7 @@ async function share(force = false) {
 export async function receiveShared(raw: unknown) {
   await loaded
   const shared = restoreShared(raw)
-  update({ shared })
+  update({ shared, trail: followShared(state.trail, shared) })
   if (!takenOver(state.active, shared)) return
   await stopUpdates()
   update({ active: null, recording: false, handedOver: shared })

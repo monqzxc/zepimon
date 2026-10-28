@@ -34,7 +34,7 @@ const km = (meters) => (meters / 1000).toFixed(2) + ' km'
 // While the numbers change, the walk in progress is saved at most this often (and whenever the screen closes).
 const ACTIVE_SAVE_MS = 20000
 // The adventure is shared with the phone and Zepp about this often while it records.
-const SHARE_MS = 60000
+const SHARE_MS = 30000
 const dayKey = () => {
   const now = new Date()
   return now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate()
@@ -220,7 +220,7 @@ Page({
       meters: Math.floor(session.meters), hatchSeconds: Number.isFinite(session.hatchSeconds) ? session.hatchSeconds : null, at: now, ended }
   },
 
-  // Shares the adventure as it starts and about once a minute while it records, and learns from the reply whether
+  // Shares the adventure as it starts and every half minute while it records, and learns from the reply whether
   // the phone took it over.
   shareProgress(force = false) {
     const session = this.state.active

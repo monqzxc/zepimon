@@ -15,7 +15,7 @@ random one, pick a Mega form where the family has one, choose **Walking** or
 adventure hatches or evolves the egg, with the Mega form at 21 km, and 1 in 50
 eggs is Shiny, as on the watch. While recording you see the walking Pokemon,
 distance, time (including stops), current and average pace, the distance to the
-next hatch or evolution, and the route drawn live. **Finish & save** adds the
+next hatch or evolution, and the route drawn live on a street map. **Finish & save** adds the
 adventure to the Journal, Dex, personal bests, missions and the Walking bonus,
 and it becomes the family's latest record; **Discard** drops it.
 
@@ -30,32 +30,55 @@ Filters match any Pokemon of the family, so the Pichu egg is under Kanto too.
 **Random** picks from the current results, and the sort and filters stay as you
 left them until the app closes.
 
-Routes are drawn as a line on a plain grid, like Strava without the map, with a
-scale bar; the Journal and the Adventure tab show them beside past adventures.
+**Routes on a real map (1.9.17).** While you record, the route is drawn live on
+a street map that follows you: a blue dot marks where you are, with a soft circle
+for the GPS accuracy, and it turns grey when the signal is lost. Drag or pinch
+the map to look around; **Follow me** goes back to following you. A saved phone
+adventure shows its route on the same map right after saving and on its page.
+The map is [Leaflet](https://leafletjs.com) over
+[OpenFreeMap](https://openfreemap.org) streets, which MapLibre draws from vector
+tiles: free, with no account, key or request limit. OpenStreetMap's own tile
+servers are not used because they refuse the app's map, which cannot send the
+Referer they require. On phones the map runs in a web view as an Expo DOM component
+(`src/LeafletMap.tsx`), so it needs no extra native module. Streets need a
+connection; offline, the route still draws on a plain background. Lists and the
+share image still draw small routes as a line on a plain grid.
 GPS fixes less accurate than 35 m, small jitter while standing still and jumps
 faster than running (or walking) speed are ignored. Phones count distance, not
 steps. Phone adventures walk their own Legendary Expedition trail, and they are
 kept apart from the watch journal, so a watch sync never replaces them.
 
-**Share an adventure as an image.** Tap **Share image** on any adventure (in the
-Journal, **All adventures**, **Your routes** or its details), or **Share
+**Share an adventure as an image.** Tap **Share image** on any adventure (in
+**All adventures** or **Your routes**), the round share button on its details, or **Share
 adventure image** right after saving one. It makes a 1080 × 1920 PNG,
 story size, like a Strava share card: the route, a Pokemon as large pixel art,
 and the distance, pace and time. Watch adventures have no route, so their card
 shows the Pokemon and stats. Before saving, choose:
 
+- **Design:** **Classic** puts the stats over the route, like Strava; **Split**
+  puts the route on top and the Pokemon and stats below.
 - **Pokemon:** the one the adventure reached (the default), the egg, or any
   form it passed on the way.
-- **Style:** **Original** (the battle sprite), **Walking** (the overworld
-  sprite stepping to the right) or **Facing front** (the overworld sprite
-  looking at you). The egg and forms without overworld art have only Original.
+- **Style:** **Default** (the battle sprite), **Facing front** (the sprite
+  the Dex shows) or **Running** (that sprite seen from the side, mid-stride to
+  the right, as in Trail Defense). The egg and forms without overworld art have
+  only Default.
+  Android release builds re-save bundled sprites in other PNG formats, which
+  `src/pixel-art.ts` reads too.
 - **Size:** **Small**, **Medium**, **Large** or **Extra large**.
-- **Background:** **Dark**, or **Clear**, which is see-through for laying over
-  your own photo.
+- **Background:** **Dark**; **Clear**, which is see-through for laying over your
+  own photo; or **Habitat**, the Pokemon's home scenery from the Journal (the
+  route turns white to stand out on it).
+- **Show on the card:** tick any of the type, a personal best the adventure
+  holds, the evolutions reached, the hatch time, steps (watch adventures) and
+  the start and finish time. Only the ones the adventure has are offered.
 
-Style, size and background stay as you left them until the app closes. **Share
-or save image** opens the share sheet to save it to Photos or Files, print it
-or post it. The web build downloads the PNG instead. Sprites are enlarged by whole
+These choices, except the Pokemon, stay as you left them until the app closes.
+**Save to gallery** asks once for permission to add photos (photos only; the app
+never reads your gallery) and saves the PNG to a **Zepimon** album. If access was
+turned off for good, **Open settings** goes straight to the switch. **Share**
+opens the share sheet to post it, print it or save it to Files. The web build
+downloads the PNG instead. Sprites are enlarged by whole
 numbers from their own pixels (`src/pixel-art.ts`), so they stay sharp.
 
 Recording keeps going with the screen off. Android runs it as a foreground
@@ -82,9 +105,10 @@ screen off again** is tapped. The location task is defined in the app entry,
 `index.js`, so it is ready when Android starts the app in the background to
 deliver locations.
 
-Missions now open from the Journal (**View missions**) instead of the tab bar.
+Missions open from the Adventure tab (**Missions & expeditions**), with this
+week's progress toward 10 km on the tile.
 
-**One egg, phone and watch.** With your watch linked in **Sync**, the egg you
+**One egg, phone and watch.** With your watch linked in **Settings**, the egg you
 choose in the Adventure tab (or with **Hatch this next** on a Pokemon's Dex page)
 is also the next egg on the watch's title screen, ready for one tap on Walk or
 Run. Starting it on either one uses it up. While the phone records, the watch
@@ -95,16 +119,34 @@ when you are signed in; see [zepimon-sync](../zepimon-sync/README.md).
 
 **One shared adventure (1.9.9).** Whichever device starts an adventure, the
 phone, the watch and the Zepimon page in Zepp show the same one: its Pokemon,
-Walk or Run, and distance, updated about once a minute (also with the phone's
-screen off). The other device does not start a second one; it offers
+Walk or Run, and distance, shared every half minute (also with the phone's
+screen off); the open app checks for the watch's every 15 seconds. The other device does not start a second one; it offers
 **Continue here** instead. Continuing takes the adventure over with its egg,
 Shiny roll, start time and distance so far; the device that had it stops
 without saving, and the Adventure tab says **Continued on your watch** when the
 watch takes over. Only the device recording at the end saves it, so steps are
 never counted twice; if both ever save it (each offline when the other took
 over), the Journal counts it once with the longer distance. Starting with the
-egg chosen here uses it up on both devices. Needs the watch linked in **Sync**
+egg chosen here uses it up on both devices. Needs the watch linked in **Settings**
 and `zepimon-sync/schema.sql` re-run in Supabase.
+
+**Following the watch (1.9.17).** While the watch records, the Adventure tab
+shows its adventure live: the Pokemon stepping along, the distance to its next
+hatch or evolution, the distance, the time since it started, the average pace,
+the pace now (from the shares heard over the last two minutes), and when it last
+synced. There is no map or route, because the watch counts distance without GPS.
+**Continue here** moves recording to the phone, which maps the rest of the route.
+If the watch goes quiet for 3 minutes, the tab says when it was last heard and
+the pace shows as unknown.
+
+**When an adventure is on.** When the watch starts an adventure, **A new
+adventure started** slides down over whatever screen is open, with its Pokemon
+and Walk or Run, as soon as the app hears of it (when it comes to the front,
+then about once a minute). It closes after 3 seconds or with its close button;
+tapping it opens the Adventure tab. Each adventure is announced once, also after
+a restart. While any adventure is on, here or on the watch, Gengar leaves his
+perch on the tab bar and steps along on top of the rolling Poke Ball, twice as
+fast on a run, and pops back up on his perch when it ends.
 
 **Phone adventures on the watch (1.9.7).** Adventures saved here also go to the
 watch, through the cloud and without their routes. You can pick the Pokemon on the
@@ -114,23 +156,47 @@ connected, it adds their Pokemon to its Dex, makes each the family's latest
 record unless the watch has a newer one, and updates its personal bests. Phone
 distance keeps walking the phone's own Expedition trail. When the watch's
 journal syncs back, the phone recognizes its own adventures, so missions and
-runs never count one twice. Needs the watch linked in **Sync** and
+runs never count one twice. Needs the watch linked in **Settings** and
 `zepimon-sync/schema.sql` re-run in Supabase.
 
-**Recent adventures from both devices.** The Journal keeps every walk and run
-from the watch as well as from this phone, each marked **Watch** or **This
-phone** with Walk or Run. **Recent adventures** shows the latest 5; **View all
-adventures** (also under **Your routes** in the Adventure tab) lists every one
-by month, with its total distance, and filters by device. Tap any adventure for
-its details: the Pokemon it reached (each opens its Dex record), date and start
-and finish times, distance, time, average pace, hatch time and steps where
-known, the route for phone adventures, and **Share image**. The watch sends its
+**The Journal is a calendar.** A strip of the last two weeks runs across the top,
+**Today** first; a dot marks days with an adventure. The open day joins a card
+with its date, the distance walked that day in large type, how many adventures
+and how long. Your buddy stands on the card's edge (tap it for its record) and
+says how far it walked with you. Below, **Week**, **Month** and **Year** show that
+period's adventures, from the chosen day, as pastel bento tiles in each
+Pokemon's type colour: the Pokemon, a phone or watch badge, the date and what it
+became. Personal bests close the page. Missions and Legendary Expeditions moved
+to the Adventure tab (**Missions & expeditions**).
+
+**Adventures from both devices.** The Journal keeps every walk and run from the
+watch as well as from this phone. **View all** (also under **Your routes** in the
+Adventure tab) lists every one by month, with its total distance, and filters by
+device. Tap any adventure for its details, laid out like a calendar event: a
+header in its type colour with the date, weekday and Pokemon, then a sheet with
+a short description of the adventure, rows for its type, start → finish time and
+duration, distance and pace, walk or run and steps, the device, the hatch and any
+personal best it holds, the Pokemon it reached (each opens its Dex record), the
+route for phone adventures, and a round share button for the image. The watch sends its
 last 30 adventures with each sync, so two walks with the same egg between syncs
 both appear; older watch versions still send only each family's latest.
 
+### Settings
+
+The last tab, **Settings** (it was **Sync**), is grouped the way people look for
+things: **Account** (sign in with an email code, sign out), **Watch** (link it
+through Zepp, Sync now, a replacement code, disconnect), **App settings**,
+**Your data** (backups, and importing a watch's JSON export, folded away until
+needed) and **About** (phone and watch versions, credits). App settings are kept
+on this phone: **Start adventures as** Walking or Running (the Adventure tab's
+first choice), **Record with the screen off** (the foreground-service recording,
+which a crash during an adventure turns off), and **Motion**, which follows the
+phone's reduce-motion setting or always reduces animations in this app. The
+open tab's icon sits on a soft violet pill.
+
 ### Legendary Expeditions (1.5.0)
 
-Open **Explore expeditions** on the Journal screen. With watch v1.11.0, saved
+Open **Expeditions** under **Missions & expeditions** on the Adventure tab. With watch v1.11.0, saved
 walks/runs accumulate toward clues at 5, 15 and 25 km. At 25 km, meet and
 befriend a Legendary or Mythical Pokemon in a short, untimed interaction.
 Mystery habitats and silhouettes become visible as clues are discovered.
@@ -216,7 +282,7 @@ To add a watch:
 
 ### Account sync
 
-Open **Sync**, sign in using an email code, and create a one-time linking code. In the Zepp app, open Zepimon's settings → **Sync to Zepimon mobile**, paste the code and link your account. Sync from your connected watch, then return to the phone app and tap **Sync now**. The phone also checks for updates on opening and every minute while visible.
+Open **Settings**, sign in under **Account** using an email code, and create a one-time linking code under **Watch**. In the Zepp app, open Zepimon's settings → **Sync to Zepimon mobile**, paste the code and link your account. Sync from your connected watch, then return to the phone app and tap **Sync now**. The phone also checks for updates on opening and every minute while visible.
 
 Both apps must have the same Supabase project configured and the database must be installed. See [cloud setup and linking instructions](../zepimon-sync/README.md). Native sign-in sessions are stored in SecureStore. Your normal/shiny Dex entries remain separate, and failed downloads keep your offline journal.
 
@@ -224,7 +290,7 @@ Both apps must have the same Supabase project configured and the database must b
 
 Anyone with their own Amazfit watch and Zepp app can use Zepimon with their own email. Each person signs in with their own email code and links their own watch through their own Zepp app. Their records stay separate from everyone else's, and nobody shares a Zepp password.
 
-1. Install Zepimon on their phone, open **Sync** and sign in with an email code.
+1. Install Zepimon on their phone, open **Settings** and sign in with an email code.
 2. Tap **Create linking code**, paste it into Zepimon's settings in *their* Zepp app, and tap **Link account**.
 3. Sync from the watch in Zepp, then tap **Sync now** on the phone.
 
@@ -241,7 +307,7 @@ Before someone else can do this, check the following:
 
 1. Save your adventure on the watch, then sync Zepimon in the Zepp app.
 2. Open Zepimon’s settings in Zepp and choose **Export JSON**.
-3. Copy the generated text. Save it as a `.json` file, or paste it into the manual import section of this app’s **Sync** tab.
+3. Copy the generated text. Save it as a `.json` file, or paste it into **Settings → Your data → Import a watch export** in this app.
 4. Import again after future adventures to update your collection and missions.
 
 Importing the same file again does not double-count runs or mission progress. The watch export contains the latest completed run per family and retained personal bests. Older runs already overwritten on the watch cannot be recovered; regular imports let the phone keep runs it has seen. The Journal shows the latest 20 retained runs. Active adventures do not count toward completed-run missions.
@@ -250,7 +316,7 @@ Cloud sync uses Zepp as the watch connection. Manual imports also remain availab
 
 ## Back up your data
 
-Open **Sync** and scroll to **Back up your data**. **Save a backup file** creates `zepimon-backup-YYYY-MM-DD-HHmm.json` and opens the share sheet so you can keep it in Files, Drive, email or another app (on the web it downloads). **Show backup as text** shows the same JSON to copy by hand.
+Open **Settings** and scroll to **Your data**. **Save a backup file** creates `zepimon-backup-YYYY-MM-DD-HHmm.json` and opens the share sheet so you can keep it in Files, Drive, email or another app (on the web it downloads). **Show backup as text** shows the same JSON to copy by hand.
 
 The backup is an ordinary Zepimon export (your watch journal exactly as synced) plus a `phoneBackup` section with everything stored only on this phone: missions and saved runs, phone adventures with their routes, best scores, Adventure Map stars, Expedition friends, Safari catches and your buddy. Account links and sign-in details are never included. **Choose JSON file** accepts a backup to bring the watch journal back; restoring the `phoneBackup` section is not built yet.
 
@@ -381,7 +447,7 @@ to the mobile project. See [artwork credits](SPRITE-CREDITS.md).
 
 ## Pokemon habitats (1.4.0)
 
-The journal buddy, Dex cards and Pokemon records have pixel-style landscapes
+Dex cards and Pokemon records have pixel-style landscapes
 matched to the catalog's primary type: forest glades, coasts, ember trails,
 snowy peaks, moonlit woods and more. All 18 types have a theme; Normal and Shiny
 variants share their habitat, and eggs use a hatching meadow. Unknown types

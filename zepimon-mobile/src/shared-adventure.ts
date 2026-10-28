@@ -22,6 +22,14 @@ export function onWatch(shared: SharedAdventure | null, now = Date.now()): Share
   return shared && !shared.ended && shared.device === 'watch' && now - shared.at < SHARED_FRESH_MS && shared.at <= now + 300000 ? shared : null
 }
 
+// A watch adventure to announce on this phone (src/AdventureBanner.tsx): one the watch is recording that was not
+// announced yet (last is the id announced last), and not one it took over from this phone, which the Adventure tab
+// tells about instead.
+export function newOnWatch(shared: SharedAdventure | null, handedOver: SharedAdventure | null, last: string | null, now = Date.now()): SharedAdventure | null {
+  const live = onWatch(shared, now)
+  return live && live.id !== last && live.id !== handedOver?.id ? live : null
+}
+
 // This phone's adventure as the watch and Zepp see it.
 export function sharedFrom(active: ActiveAdventure, now: number, ended = false): SharedAdventure {
   return { id: active.shareId, family: [...active.family], mega: active.mega, shiny: active.shiny, activity: active.activity,
@@ -43,3 +51,30 @@ export function takenOver(active: ActiveAdventure | null, shared: SharedAdventur
 
 // The Pokemon so far, as the watch names it: the egg, a form every 5 km, then the chosen Mega at 21 km.
 export const sharedPokemon = (shared: SharedAdventure): string => sharedName(shared)
+
+// The watch's adventure as this phone heard it, for its current pace: [at, meters] of each share, oldest first, over
+// the last few minutes. The watch shares about every half minute and the open app checks every 15 seconds, so a
+// pace needs a couple of shares; the phone does not keep them.
+export type SharedTrail = { id: string, samples: [number, number][] }
+const TRAIL_MS = 180000
+const PACE_MS = 120000
+
+export function followShared(trail: SharedTrail | null, shared: SharedAdventure | null): SharedTrail | null {
+  if (!shared || shared.ended || shared.device !== 'watch') return null
+  const samples = trail?.id === shared.id ? trail.samples : []
+  const last = samples.at(-1)
+  if (last && shared.at <= last[0]) return trail
+  const kept = last && shared.meters < last[1] ? [] : samples.filter(([at]) => shared.at - at <= TRAIL_MS)
+  return { id: shared.id, samples: [...kept, [shared.at, shared.meters]] }
+}
+
+// Seconds per km between the shares heard over the last two minutes, like the phone's own pace over the last minute.
+// null until two shares far enough apart arrive, and once the watch has gone quiet.
+export function sharedPace(trail: SharedTrail | null, now: number): number | null {
+  const samples = trail?.samples ?? []
+  const last = samples.at(-1)
+  if (!last || now - last[0] > TRAIL_MS) return null
+  const first = samples.find(([at]) => last[0] - at <= PACE_MS) ?? last
+  const meters = last[1] - first[1], elapsed = last[0] - first[0]
+  return meters >= 15 && elapsed >= 20000 ? elapsed / meters : null
+}

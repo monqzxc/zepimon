@@ -9,29 +9,34 @@ import { useCloud } from '../../cloud'
 import type { Plan } from '../../plan'
 import { pokemonType, spriteSource, typeTints } from '../../catalog'
 import { walkingFrames } from '../../generated/walking.js'
-import { currentForm, currentPace, decodePath, earnedForms, eggs, expeditionNews, finishAdventure, megaChoices, nextMilestone, phoneTrail } from '../../phone-adventure'
+import { currentForm, currentPace, earnedForms, eggs, encodePath, expeditionNews, finishAdventure, megaChoices, nextMilestone, phoneTrail } from '../../phone-adventure'
 import type { ActiveAdventure, Activity, PhoneRun } from '../../phone-adventure'
 import { clearAdventure, checkLocation, continueAdventure, currentAdventure, dismissHandOver, openLocationSettings, resumeAdventure, setScreenOnly, startAdventure, stopAdventure, useTracker } from '../../tracker'
-import { onWatch, sharedPokemon } from '../../shared-adventure'
-import type { SharedAdventure } from '../../shared-adventure'
+import { onWatch, sharedPace, sharedPokemon } from '../../shared-adventure'
+import type { SharedAdventure, SharedTrail } from '../../shared-adventure'
+import { usePreferences } from '../../preferences'
 import type { LocationIssue } from '../../tracker'
-import { RouteView } from '../../RouteView'
+import { RouteMap } from '../../RouteMap'
 import { AdventureCard } from '../../AdventureCard'
+import { QuestTiles } from '../../QuestTiles'
 import { PixelSprite } from '../../games/TeamPicker'
 import { useReducedMotion } from '../../games/hooks'
 import { Button, Chip, Copy, Eyebrow, Heading, Hero, Icon, IconBubble, Panel, PokeballLoader, Screen, Title, colors, fonts, styles } from '../../ui'
 
 // The phone version of the watch adventure: pick an egg, walk or run, and the phone measures the distance by GPS and
-// draws the route. Saving adds it to the Journal, Dex, missions and Expeditions just like a watch adventure.
+// draws the route on a map. Saving adds it to the Journal, Dex, missions and Expeditions just like a watch adventure.
+// An adventure the watch is recording shows here as it shares it, all but the map, and can be continued here.
 type Summary = { run: PhoneRun, news: ReturnType<typeof expeditionNews> }
 
 export default function AdventureScreen() {
   const tracker = useTracker()
   const [summary, setSummary] = useState<Summary | null>(null)
   if (!tracker.ready) return <Screen><View style={{ alignItems: 'center', paddingTop: 96 }}><PokeballLoader /></View></Screen>
+  const following = onWatch(tracker.shared)
   return <Screen>
     {tracker.active ? <Recording active={tracker.active} recording={tracker.recording} screenOnly={tracker.screenOnly} shareError={tracker.shareError} onSaved={setSummary} />
       : summary ? <Saved summary={summary} onDone={() => setSummary(null)} />
+      : following ? <Following shared={following} trail={tracker.trail} handedOver={tracker.handedOver} />
       : <Setup shared={tracker.shared} handedOver={tracker.handedOver} />}
   </Screen>
 }
@@ -61,9 +66,15 @@ function LocationPanel({ issue }: { issue: LocationIssue | null }) {
 // The egg family the shared plan names, if this phone knows it.
 const plannedFamily = (plan: Plan | null) => plan?.egg ? eggs.find(item => item.join('>') === plan.egg!.family.join('>')) ?? null : null
 
-// The adventure shared with the watch, in a line: its activity, distance and when the cloud last heard of it.
-const sharedLine = (shared: SharedAdventure) => `${shared.activity === 'running' ? 'Run' : 'Walk'} · ${km(shared.meters)} · as of ${
-  new Date(shared.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+// The watch took over the adventure this phone was recording.
+function HandedOver({ shared }: { shared: SharedAdventure }) {
+  return <Panel style={{ borderColor: colors.star, borderWidth: 1.5 }}>
+    <Eyebrow>CONTINUED ON YOUR WATCH</Eyebrow>
+    <Title>{sharedPokemon(shared)}</Title>
+    <Copy small>Your watch took over this adventure at {km(shared.meters)}. Finish it there: it reaches this phone when saved.</Copy>
+    <Button title="OK" secondary onPress={dismissHandOver} />
+  </Panel>
+}
 
 function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedOver: SharedAdventure | null }) {
   const { journal, phoneRuns, plan, chooseEgg, setPhoneAdventure } = useJournal()
@@ -72,7 +83,10 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
   const [family, setFamily] = useState(() => plannedFamily(plan) ?? eggs[Math.floor(Math.random() * eggs.length)])
   const [mega, setMega] = useState<string | null>(() => plannedFamily(plan) ? plan!.egg!.mega : null)
   const [seenPlan, setSeenPlan] = useState(plan?.eggAt ?? 0)
-  const [activity, setActivity] = useState<Activity>('walking')
+  // Walking or Running as chosen in Settings, until you pick here.
+  const { activity: preferred } = usePreferences()
+  const [picked, setActivity] = useState<Activity | null>(null)
+  const activity = picked ?? preferred
   const [issue, setIssue] = useState<LocationIssue | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -87,8 +101,6 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
   const megas = megaChoices(family)
   const last = lastRecord(journal, family)
   const sentToWatch = plannedFamily(plan) === family
-  // The adventure the watch shares while it records it: continue it here instead of starting a second one.
-  const elsewhere = onWatch(shared)
   // An older watch only shows its adventure in progress through its last sync.
   const watch = shared ? null : journal?.snapshot.active ?? null
   const watchFamily = watch ? journal!.routes[watch.route] : null
@@ -118,38 +130,11 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
       setBusy(false)
     }
   }
-  // Continue here: the phone takes over the watch's adventure, and the watch stops when it next hears from the cloud.
-  async function continueHere(from: SharedAdventure) {
-    setBusy(true); setError('')
-    try {
-      const problem = await continueAdventure(from)
-      setIssue(problem)
-      if (problem && problem !== 'approximate') setError(`${issueText[problem][0]}. ${settingsHint}, then continue again.`)
-    } catch (caught) {
-      setError(`Could not continue recording${caught instanceof Error && caught.message ? `: ${caught.message}` : '.'}`)
-    } finally {
-      setBusy(false)
-    }
-  }
   return <>
     <Hero eyebrow="ZEPIMON · ADVENTURE" title={'Walk or run\nwith an egg.'}>
-      <Copy color={colors.onBrand}>Your phone measures the distance and draws your route. Every 5 km your egg hatches or evolves, and a Mega form waits at 21 km.</Copy>
+      <Copy color={colors.onBrand}>Your phone measures the distance and draws your route on a map. Every 5 km your egg hatches or evolves, and a Mega form waits at 21 km.</Copy>
     </Hero>
-    {handedOver && <Panel style={{ borderColor: colors.star, borderWidth: 1.5 }}>
-      <Eyebrow>CONTINUED ON YOUR WATCH</Eyebrow>
-      <Title>{sharedPokemon(handedOver)}</Title>
-      <Copy small>Your watch took over this adventure at {km(handedOver.meters)}. Finish it there: it reaches this phone when saved.</Copy>
-      <Button title="OK" secondary onPress={dismissHandOver} />
-    </Panel>}
-    {elsewhere && <Panel style={{ borderColor: colors.edge, borderWidth: 1.5 }}>
-      <View style={[styles.row, { flexWrap: 'nowrap' }]}>
-        <IconBubble name={elsewhere.activity === 'running' ? 'run' : 'walk'} />
-        <View style={{ flex: 1 }}><Eyebrow>ON YOUR WATCH</Eyebrow><Title>{sharedPokemon(elsewhere)}</Title></View>
-      </View>
-      <Copy color={colors.ink}>{sharedLine(elsewhere)}</Copy>
-      <Copy small>Your watch is recording this adventure. Continue it here to record with the phone instead: the distance so far comes along and the watch stops.</Copy>
-      <Button title="Continue here" loading={busy} onPress={() => { void continueHere(elsewhere) }} />
-    </Panel>}
+    {handedOver && <HandedOver shared={handedOver} />}
     <LocationPanel issue={issue} />
     <Panel>
       <Eyebrow>YOUR EGG</Eyebrow>
@@ -165,7 +150,7 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
         <Copy small>Mega form at 21 km:</Copy>
         <View style={styles.row}>{megas.map(name => <Chip key={name} label={name} selected={(mega ?? megas[0]) === name} onPress={() => pickMega(name)} />)}</View>
       </>}
-      <Copy small>{!session || !linked ? 'Link your watch in Sync, and the egg you choose here waits on its title screen too. Adventures saved here reach its Dex as well.'
+      <Copy small>{!session || !linked ? 'Link your watch in Settings, and the egg you choose here waits on its title screen too. Adventures saved here reach its Dex as well.'
         : sentToWatch ? 'Your watch offers this egg next: open Zepimon there and tap Walk or Run.' : 'Choose an egg to send it to your watch as well.'}</Copy>
       <View style={styles.row}>
         <View style={{ flex: 1 }}><Button title="Choose an egg" secondary
@@ -173,7 +158,7 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
         <View style={{ flex: 1 }}><Button title="Random egg" secondary onPress={() => choose(eggs[Math.floor(Math.random() * eggs.length)])} /></View>
       </View>
     </Panel>
-    {!elsewhere && <Panel>
+    <Panel>
       <Eyebrow>ACTIVITY</Eyebrow>
       <View style={[styles.row, { flexWrap: 'nowrap' }]}>
         {(['walking', 'running'] as const).map(kind => <Pressable key={kind} accessibilityRole="radio" accessibilityState={{ checked: activity === kind }}
@@ -183,7 +168,7 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
           <Text style={[adventure.choiceText, activity === kind && { color: colors.edge }]}>{kind === 'walking' ? 'Walking' : 'Running'}</Text>
         </Pressable>)}
       </View>
-    </Panel>}
+    </Panel>
     {watch && <Panel style={{ borderColor: colors.star, borderWidth: 1.5 }}>
       <View style={[styles.row, { flexWrap: 'nowrap' }]}>
         <IconBubble name="walk" />
@@ -194,8 +179,10 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
     </Panel>}
     {!!error && <Copy color={colors.danger}>{error}</Copy>}
     {watchConfirmed && <Copy color={colors.gold}>Your watch is recording too. Tap again to record on the phone anyway.</Copy>}
-    {!elsewhere && <Button title={watchConfirmed ? `Start ${activity} on the phone too` : `Start ${activity}`} loading={busy} onPress={() => { void start() }} />}
-    <Copy small>Recording keeps going with the screen off; Android shows a notification while Zepimon uses your location. Elapsed time includes stops, like on the watch.{session && linked ? ' Your watch and Zepp show the same adventure, and either device can continue it.' : ''}</Copy>
+    <Button title={watchConfirmed ? `Start ${activity} on the phone too` : `Start ${activity}`} loading={busy} onPress={() => { void start() }} />
+    <Copy small>Recording keeps going with the screen off; Android shows a notification while Zepimon uses your location. Elapsed time includes stops, like on the watch.{session && linked ? ' Your watch and Zepp show the same adventure, and either device can continue it. One started on your watch shows here live, without the map.' : ''}</Copy>
+    <Heading>Missions & expeditions</Heading>
+    <QuestTiles />
     {phoneRuns.length > 0 && <>
       <Heading>Your routes</Heading>
       {[...phoneRuns].sort((a, b) => Date.parse(b.record.finishedAt) - Date.parse(a.record.finishedAt)).slice(0, 10)
@@ -240,6 +227,95 @@ function Walker({ name, shiny, activity, size }: { name: string, shiny: boolean,
   </Animated.View>
 }
 
+// The adventure's Pokemon stepping along, with the distance to its next hatch, evolution or Mega form. status is the
+// pill in the corner, with a red dot while live.
+function Stage({ family, meters, mega, shiny, activity, status, live }: {
+  family: string[], meters: number, mega: string | null, shiny: boolean, activity: Activity, status: string, live: boolean
+}) {
+  const form = currentForm(family, meters, mega)
+  const next = nextMilestone(family, meters)
+  const previous = next === null ? 0 : next === 21000 ? family.length * 5000 : next - 5000
+  const progress = next === null ? 1 : Math.max(0, Math.min(1, (meters - previous) / (next - previous)))
+  return <View style={[adventure.stage, { backgroundColor: typeTints[pokemonType(form === 'Egg' ? family[0] : form)] }]}>
+    <View style={[styles.row, { justifyContent: 'space-between' }]}>
+      <Eyebrow>{activity === 'running' ? 'RUNNING' : 'WALKING'}</Eyebrow>
+      <View style={adventure.live}><View style={[adventure.dot, !live && { backgroundColor: colors.muted }]} />
+        <Text style={adventure.liveText}>{status}</Text></View>
+    </View>
+    <View style={{ alignItems: 'center' }}><Walker name={form} shiny={shiny} activity={activity} size={132} /></View>
+    <Heading>{(shiny ? 'Shiny ' : '') + (form === 'Egg' ? `${family[0]} egg` : form)}</Heading>
+    <Copy small color={colors.ink}>{next === null ? 'Final form reached!' : `${km(next - meters)} to ${next === 21000 ? 'Mega' : form === 'Egg' ? 'hatch' : 'evolve'}`}</Copy>
+    <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+      style={[styles.track, { backgroundColor: 'rgba(255, 255, 255, 0.7)' }]}>
+      <View style={[styles.fill, { width: `${progress * 100}%`, backgroundColor: colors.edge }]} />
+    </View>
+  </View>
+}
+
+// How long ago the watch last shared its adventure, as of now.
+function heardAgo(at: number, now: number) {
+  const ms = Math.max(0, now - at)
+  return ms < 10000 ? 'just now' : ms < 60000 ? `${Math.round(ms / 1000)} s ago` : `${Math.round(ms / 60000)} min ago`
+}
+// After this long without a share, the watch adventure shows as quiet and its current pace is unknown.
+const QUIET_MS = 180000
+
+// The adventure your watch is recording, as it shares it about every half minute: the Pokemon, distance, time and
+// pace. Watches measure distance without GPS, so there is no map or route; Continue here moves recording to the
+// phone, which maps the rest of the route.
+function Following({ shared, trail, handedOver }: { shared: SharedAdventure, trail: SharedTrail | null, handedOver: SharedAdventure | null }) {
+  const [now, setNow] = useState(Date.now)
+  const [issue, setIssue] = useState<LocationIssue | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useFocusEffect(useCallback(() => {
+    setNow(Date.now())
+    void checkLocation().then(setIssue)
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, []))
+  const quiet = now - shared.at > QUIET_MS
+  const pace = sharedPace(trail?.id === shared.id ? trail : null, now)
+  // The phone takes over the watch's adventure, and the watch stops when it next hears from the cloud.
+  async function continueHere() {
+    setBusy(true); setError('')
+    try {
+      const problem = await continueAdventure(shared)
+      setIssue(problem)
+      if (problem && problem !== 'approximate') setError(`${issueText[problem][0]}. ${settingsHint}, then continue again.`)
+    } catch (caught) {
+      setError(`Could not continue recording${caught instanceof Error && caught.message ? `: ${caught.message}` : '.'}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return <>
+    {handedOver && <HandedOver shared={handedOver} />}
+    <Stage family={shared.family} meters={shared.meters} mega={shared.mega} shiny={shared.shiny} activity={shared.activity}
+      status="ON YOUR WATCH" live={!quiet} />
+    <View style={adventure.stats}>
+      <Stat label="DISTANCE" value={km(shared.meters).replace(' km', '')} unit="km" />
+      <Stat label="TIME" value={duration(Math.max(0, (now - shared.startedAt) / 1000))} />
+      <Stat label="PACE NOW" value={(pace === null ? '--:-- /km' : averagePace(pace, 1000)).replace(' /km', '')} unit="/km" />
+      <Stat label="AVERAGE PACE" value={averagePace((shared.at - shared.startedAt) / 1000, shared.meters).replace(' /km', '')} unit="/km" />
+    </View>
+    <Text style={[adventure.gps, quiet && { color: colors.gold }]}>{quiet
+      ? `Last heard from your watch ${heardAgo(shared.at, now)}. Keep Zepp connected to follow it here.`
+      : `Synced from your watch ${heardAgo(shared.at, now)}`}</Text>
+    <Panel>
+      <View style={[styles.row, { flexWrap: 'nowrap' }]}>
+        <IconBubble name="map" />
+        <View style={{ flex: 1 }}><Eyebrow>MAP</Eyebrow><Title>No map on the watch</Title></View>
+      </View>
+      <Copy small>Your watch counts your steps and distance without GPS, so the map and route are drawn only while this phone records. Everything else here follows your watch.</Copy>
+    </Panel>
+    {issue && <LocationPanel issue={issue} />}
+    {!!error && <Copy color={colors.danger}>{error}</Copy>}
+    <Button title="Continue here" loading={busy} onPress={() => { void continueHere() }} />
+    <Copy small>Record the rest on the phone instead: the distance so far comes along, the map draws your route from here, and the watch stops.</Copy>
+  </>
+}
+
 function Recording({ active, recording, screenOnly, shareError, onSaved }: {
   active: ActiveAdventure, recording: boolean, screenOnly: boolean, shareError: string | null, onSaved: (summary: Summary) => void
 }) {
@@ -255,14 +331,12 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
     return () => clearInterval(timer)
   }, []))
   const form = currentForm(active.family, active.meters, active.mega)
-  const name = (active.shiny ? 'Shiny ' : '') + (form === 'Egg' ? `${active.family[0]} egg` : form)
-  const next = nextMilestone(active.family, active.meters)
-  const previous = next === null ? 0 : next === 21000 ? active.family.length * 5000 : next - 5000
   const elapsed = Math.max(0, (now - active.startedAt) / 1000)
   const pace = currentPace(active, now)
-  const gps = !active.last ? 'Searching for GPS…' : now - active.last.at > 30000 ? 'GPS signal lost' :
+  const lost = !active.last || now - active.last.at > 30000
+  const gps = !active.last ? 'Searching for GPS…' : lost ? 'GPS signal lost' :
     active.last.accuracy !== null && active.last.accuracy > 35 ? `Weak GPS (±${Math.round(active.last.accuracy)} m)` : `GPS ±${Math.round(active.last.accuracy ?? 0)} m`
-  const nextLabel = next === null ? 'Final form reached!' : `${km(next - active.meters)} to ${next === 21000 ? 'Mega' : form === 'Egg' ? 'hatch' : 'evolve'}`
+  const path = useMemo(() => encodePath(active.points), [active.points])
 
   async function save() {
     setBusy(true); setError('')
@@ -293,20 +367,8 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
     setBusy(false)
   }
   return <>
-    <View style={[adventure.stage, { backgroundColor: typeTints[pokemonType(form === 'Egg' ? active.family[0] : form)] }]}>
-      <View style={[styles.row, { justifyContent: 'space-between' }]}>
-        <Eyebrow>{active.activity === 'running' ? 'RUNNING' : 'WALKING'}</Eyebrow>
-        <View style={adventure.live}><View style={[adventure.dot, !recording && { backgroundColor: colors.muted }]} />
-          <Text style={adventure.liveText}>{recording ? 'RECORDING' : 'PAUSED'}</Text></View>
-      </View>
-      <View style={{ alignItems: 'center' }}><Walker name={form} shiny={active.shiny} activity={active.activity} size={132} /></View>
-      <Heading>{name}</Heading>
-      <Copy small color={colors.ink}>{nextLabel}</Copy>
-      <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(next === null ? 100 : (active.meters - previous) / (next - previous) * 100) }}
-        style={[styles.track, { backgroundColor: 'rgba(255, 255, 255, 0.7)' }]}>
-        <View style={[styles.fill, { width: `${next === null ? 100 : Math.max(0, Math.min(1, (active.meters - previous) / (next - previous))) * 100}%`, backgroundColor: colors.edge }]} />
-      </View>
-    </View>
+    <Stage family={active.family} meters={active.meters} mega={active.mega} shiny={active.shiny} activity={active.activity}
+      status={recording ? 'RECORDING' : 'PAUSED'} live={recording} />
     <View style={adventure.stats}>
       <Stat label="DISTANCE" value={km(active.meters).replace(' km', '')} unit="km" />
       <Stat label="TIME" value={duration(elapsed)} />
@@ -314,7 +376,7 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
       <Stat label="AVERAGE PACE" value={averagePace(elapsed, active.meters).replace(' /km', '')} unit="/km" />
     </View>
     <View style={{ gap: 6 }}>
-      <RouteView points={active.points} height={240} live label={`Route so far, ${km(active.meters)}`} />
+      <RouteMap path={path} here={active.last} stale={lost} live height={300} label={`Map of your route so far, ${km(active.meters)}`} />
       <Text style={adventure.gps}>{gps}</Text>
       {/* Whether your watch and Zepp can see this adventure: they follow it through your account. */}
       {session && linked && shareError !== null && <Text style={[adventure.gps, shareError ? { color: colors.gold } : null]}>
@@ -359,7 +421,6 @@ function Stat({ label, value, unit }: { label: string, value: string, unit?: str
 
 function Saved({ summary: { run, news }, onDone }: { summary: Summary, onDone: () => void }) {
   const { session, linked } = useCloud()
-  const points = useMemo(() => decodePath(run.path), [run.path])
   const form = run.record.form || 'Egg'
   const earned = earnedForms(run.family, run.record.meters, run.record.mega ?? null)
   return <>
@@ -369,7 +430,7 @@ function Saved({ summary: { run, news }, onDone }: { summary: Summary, onDone: (
       <Heading>{run.record.shiny ? 'Shiny ' : ''}{form === 'Egg' ? `${run.family[0]} egg` : form}</Heading>
       <Copy color={colors.ink}>{km(run.record.meters)} · {duration(run.record.elapsedSeconds)} · {averagePace(run.record.elapsedSeconds, run.record.meters)}</Copy>
     </Panel>
-    <RouteView points={points} height={260} label={`Route of ${km(run.record.meters)}`} />
+    <RouteMap path={run.path} height={260} label={`Map of the route, ${km(run.record.meters)}`} />
     <Panel>
       {earned.length ? <>
         <Eyebrow>IN YOUR DEX</Eyebrow>

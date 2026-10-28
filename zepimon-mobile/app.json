@@ -2,7 +2,7 @@
   "expo": {
     "name": "Zepimon",
     "slug": "zepimon-mobile",
-    "version": "1.9.14",
+    "version": "1.9.20",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,7 +18,7 @@
         "backgroundColor": "#1C0D3F"
       },
       "package": "com.zepimon.companion",
-      "versionCode": 28,
+      "versionCode": 32,
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED"
       ]
@@ -41,7 +41,18 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Zepimon saves the adventure images you create to your photos.",
+          "savePhotosPermission": "Zepimon saves the adventure images you create to your photos.",
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ]
     ],
     "extra": {
       "router": {},

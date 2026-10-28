@@ -1,15 +1,16 @@
 import { useMemo, useRef, useState } from 'react'
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import Svg, { Defs, Pattern, Rect } from 'react-native-svg'
 import { useJournal } from '../store'
 import { averagePace, km, recordForm } from '../journal'
-import { decodePath, earnedForms } from '../phone-adventure'
+import { decodePath } from '../phone-adventure'
 import type { SavedRun } from '../progress'
-import { findAdventure } from '../adventures'
-import { exportCard } from '../card-image'
-import { CARD_PIXELS, ShareCard, cardFileName, cardTitle, cardWidth, spriteStyles, usePixelArt } from '../ShareCard'
-import type { CardBackground, SpriteSize, SpriteStyle } from '../ShareCard'
+import { adventureFacts, findAdventure } from '../adventures'
+import { GalleryDenied, exportCard, saveCardToGallery } from '../card-image'
+import { CARD_PIXELS, ShareCard, cardDetails, cardFileName, cardTitle, cardWidth, spriteStyles, usePixelArt } from '../ShareCard'
+import type { CardBackground, CardDesign, CardDetail, CardOptions, SpriteSize, SpriteStyle } from '../ShareCard'
+import { habitatTheme } from '../HabitatScene'
 import { FilterSection } from '../PokedexFilters'
 import { PixelSprite } from '../games/TeamPicker'
 import { Button, Chip, Copy, Panel, Screen, Title, colors, fonts } from '../ui'
@@ -18,13 +19,17 @@ import { Button, Chip, Copy, Panel, Screen, Title, colors, fonts } from '../ui'
 // adventure's own (see src/adventures.ts); only phone adventures have a route to draw.
 // Narrow enough that the preview and the first choices fit on a phone screen together.
 const PREVIEW_WIDTH = 280
-const STYLES: [SpriteStyle, string][] = [['original', 'Original'], ['walking', 'Walking'], ['front', 'Facing front']]
+const DESIGNS: [CardDesign, string, string][] = [['classic', 'Classic', 'Your stats over the route, like Strava.'],
+  ['split', 'Split', 'The route on top, your Pokemon and stats below.']]
+const STYLES: [SpriteStyle, string][] = [['default', 'Default'], ['front', 'Facing front'], ['running', 'Running']]
 const SIZES: [SpriteSize, string][] = [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['huge', 'Extra large']]
-type Look = { style: SpriteStyle, size: SpriteSize, background: CardBackground }
-// The look stays as you left it until the app closes, like the egg list's filters. The Pokemon starts as the one
-// each adventure reached.
-let remembered: Look = { style: 'original', size: 'medium', background: 'dark' }
-const remember = (look: Look) => { remembered = look }
+const BACKGROUNDS: [CardBackground, string][] = [['dark', 'Dark'], ['clear', 'Clear'], ['habitat', 'Habitat']]
+const DETAILS: [CardDetail, string][] = [['type', 'Type'], ['best', 'Personal best'], ['evolution', 'Evolutions'], ['hatch', 'Hatch time'],
+  ['steps', 'Steps'], ['clock', 'Start and finish time']]
+// The choices stay as you left them until the app closes, like the egg list's filters. The Pokemon starts as the one
+// each adventure reached, and a detail an adventure lacks is simply left off its card.
+let remembered: CardOptions = { design: 'classic', style: 'default', size: 'medium', background: 'dark', details: [] }
+const remember = (options: CardOptions) => { remembered = options }
 
 export default function ShareScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>()
@@ -38,50 +43,65 @@ export default function ShareScreen() {
   return <ShareRun key={adventure.id} run={adventure} path={adventure.path} />
 }
 
-function ShareRun({ run: { family, record }, path }: { run: SavedRun, path?: string }) {
+function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
+  const { family, record } = run
+  const { journal } = useJournal()
   const points = useMemo(() => path ? decodePath(path) : [], [path])
+  const facts = useMemo(() => adventureFacts(run, journal), [run, journal])
   const reached = recordForm(family, record)
   // The egg and every form this adventure reached, in order.
-  const choices = useMemo(() => [...new Set(['Egg', ...earnedForms(family, record.meters, record.mega ?? null), reached])], [family, record, reached])
+  const choices = useMemo(() => [...new Set(['Egg', ...facts.evolution, reached])], [facts, reached])
   const [pokemon, setPokemon] = useState(reached)
-  const [look, setLook] = useState(remembered)
+  const [chosen, setChosen] = useState(remembered)
   const [frame, setFrame] = useState(0)
-  const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState<{ text: string, error: boolean } | null>(null)
+  // Which button is working, so only it shows the loader.
+  const [busy, setBusy] = useState<'' | 'gallery' | 'share'>('')
+  // settings: photo access is blocked, so offer the phone's settings.
+  const [note, setNote] = useState<{ text: string, error: boolean, settings?: boolean } | null>(null)
   const card = useRef<View>(null)
   const width = cardWidth()
-  function change(next: Partial<Look>) {
-    const value = { ...look, ...next }
-    setLook(value)
+  function change(next: Partial<CardOptions>) {
+    const value = { ...chosen, ...next }
+    setChosen(value)
     remember(value)
   }
-  // A Pokemon without overworld art (the egg, some forms) shows its original sprite whatever style is chosen.
+  function toggle(detail: CardDetail) {
+    change({ details: chosen.details.includes(detail) ? chosen.details.filter(item => item !== detail) : [...chosen.details, detail] })
+  }
+  // A Pokemon without overworld art (the egg, some forms) shows its default sprite whatever style is chosen.
   const available = spriteStyles(pokemon, record.shiny)
-  const style = available.includes(look.style) ? look.style : 'original'
-  const art = usePixelArt(pokemon, record.shiny, style)
-  async function save() {
-    setBusy(true); setNote(null)
+  const options = { ...chosen, style: available.includes(chosen.style) ? chosen.style : 'default' }
+  const art = usePixelArt(pokemon, record.shiny, options.style)
+  const details = cardDetails(facts, record, pokemon)
+  // Saves the PNG to the gallery (asking for photo access once) or opens the share sheet.
+  async function save(to: 'gallery' | 'share') {
+    setBusy(to); setNote(null)
     try {
-      const text = await exportCard(card, cardFileName(family, record, pokemon))
+      const name = cardFileName(family, record, pokemon)
+      const text = to === 'gallery' ? await saveCardToGallery(card, name) : await exportCard(card, name)
       setNote(text ? { text, error: false } : null)
     } catch (error) {
-      setNote({ text: `Could not make the image${error instanceof Error && error.message ? `: ${error.message}` : '.'}`, error: true })
-    } finally { setBusy(false) }
+      if (error instanceof GalleryDenied) setNote({ text: error.message, error: true, settings: error.blocked })
+      else setNote({ text: `Could not make the image${error instanceof Error && error.message ? `: ${error.message}` : '.'}`, error: true })
+    } finally { setBusy('') }
   }
   return <Screen>
     <View onLayout={event => setFrame(Math.min(PREVIEW_WIDTH, event.nativeEvent.layout.width))} style={{ alignItems: 'center' }}>
       {frame > 0 && <View accessible accessibilityRole="image"
         accessibilityLabel={`Share image: ${cardTitle(family, record, pokemon)}, ${km(record.meters)}, pace ${averagePace(record.elapsedSeconds, record.meters)}`}
         style={[share.frame, { width: frame, height: frame * CARD_PIXELS[1] / CARD_PIXELS[0] }]}>
-        {look.background === 'clear' && <Checkerboard />}
+        {options.background === 'clear' && <Checkerboard />}
         {/* The card keeps its full size and is shrunk to fit; captures draw it unscaled (see src/card-image.ts). */}
         <View style={{ position: 'absolute', left: 0, top: 0, transform: [{ scale: frame / width }], transformOrigin: 'top left' }}>
-          <ShareCard ref={card} family={family} record={record} pokemon={pokemon} points={points} art={art} size={look.size}
-            background={look.background} width={width} />
+          <ShareCard ref={card} family={family} record={record} pokemon={pokemon} points={points} art={art} facts={facts}
+            options={options} width={width} />
         </View>
       </View>}
     </View>
     <Panel style={{ gap: 16 }}>
+      <FilterSection label="DESIGN">{DESIGNS.map(([value, label]) =>
+        <Chip key={value} label={label} selected={options.design === value} onPress={() => change({ design: value })} />)}</FilterSection>
+      <Copy small>{DESIGNS.find(([value]) => value === options.design)![2]}</Copy>
       {choices.length > 1 && <FilterSection label="POKEMON">{choices.map(name => <Pressable key={name} accessibilityRole="radio"
         accessibilityState={{ checked: pokemon === name }} accessibilityLabel={cardTitle(family, record, name)} onPress={() => setPokemon(name)}
         style={({ pressed }) => [share.tile, pokemon === name && share.chosen, { opacity: pressed ? 0.75 : 1 }]}>
@@ -89,23 +109,44 @@ function ShareRun({ run: { family, record }, path }: { run: SavedRun, path?: str
         <Text numberOfLines={1} style={[share.tileText, pokemon === name && { color: colors.edge }]}>{name}</Text>
       </Pressable>)}</FilterSection>}
       <FilterSection label="STYLE">{STYLES.filter(([value]) => available.includes(value)).map(([value, label]) =>
-        <Chip key={value} label={label} selected={style === value} onPress={() => change({ style: value })} />)}</FilterSection>
-      {available.length === 1 && <Copy small>{pokemon === 'Egg' ? 'The egg' : pokemon} has no walking or front-facing art yet, so it shows its original sprite.</Copy>}
+        <Chip key={value} label={label} selected={options.style === value} onPress={() => change({ style: value })} />)}</FilterSection>
+      {available.length === 1 && <Copy small>{pokemon === 'Egg' ? 'The egg' : pokemon} has no overworld art yet, so it shows its default sprite.</Copy>}
       <FilterSection label="SIZE">{SIZES.map(([value, label]) =>
-        <Chip key={value} label={label} selected={look.size === value} onPress={() => change({ size: value })} />)}</FilterSection>
-      <FilterSection label="BACKGROUND">
-        <Chip label="Dark" selected={look.background === 'dark'} onPress={() => change({ background: 'dark' })} />
-        <Chip label="Clear" selected={look.background === 'clear'} onPress={() => change({ background: 'clear' })} />
-      </FilterSection>
-      <Copy small>{look.background === 'clear' ? 'See-through, to lay over your own photo in a story.' : 'A dark card, ready to post as it is.'}</Copy>
+        <Chip key={value} label={label} selected={options.size === value} onPress={() => change({ size: value })} />)}</FilterSection>
+      <FilterSection label="BACKGROUND">{BACKGROUNDS.map(([value, label]) =>
+        <Chip key={value} label={label} selected={options.background === value} onPress={() => change({ background: value })} />)}</FilterSection>
+      <Copy small>{options.background === 'clear' ? 'See-through, to lay over your own photo in a story.'
+        : options.background === 'habitat' ? `${habitatTheme(pokemon).label}, where ${pokemon === 'Egg' ? 'eggs hatch' : `${pokemon} lives`}.`
+        : 'A dark card, ready to post as it is.'}</Copy>
+      <View style={{ gap: 4 }}>
+        <Text style={share.label}>SHOW ON THE CARD</Text>
+        {DETAILS.filter(([detail]) => details[detail]).map(([detail, label]) => <Check key={detail} label={label} hint={details[detail]!}
+          checked={options.details.includes(detail)} onPress={() => toggle(detail)} />)}
+      </View>
     </Panel>
-    <Button title={Platform.OS === 'web' ? 'Download PNG' : 'Share or save image'} loading={busy} disabled={art === undefined}
-      onPress={() => { void save() }} />
+    {Platform.OS === 'web' ? <Button title="Download PNG" loading={busy === 'share'} disabled={art === undefined || !!busy}
+      onPress={() => { void save('share') }} /> : <>
+      <Button title="Save to gallery" loading={busy === 'gallery'} disabled={art === undefined || !!busy} onPress={() => { void save('gallery') }} />
+      <Button title="Share" secondary loading={busy === 'share'} disabled={art === undefined || !!busy} onPress={() => { void save('share') }} />
+    </>}
     {note && <Copy color={note.error ? colors.danger : colors.edge}>{note.text}</Copy>}
+    {note?.settings && <Button title="Open settings" secondary onPress={() => { void Linking.openSettings() }} />}
     <Copy small>{Platform.OS === 'web' ? 'A 1080 × 1920 PNG, the size of a story.'
-      : 'A 1080 × 1920 PNG, the size of a story. In the share sheet, save it to Photos or Files, print it, or post it.'}
+      : 'A 1080 × 1920 PNG, the size of a story. Save to gallery puts it in your photos, in a Zepimon album; Share opens the share sheet to post it, print it or save it to Files.'}
       {path ? '' : ' Watch adventures have no route, so the card shows your Pokemon and stats.'}</Copy>
   </Screen>
+}
+
+// A detail to add to the card, with how it will read.
+function Check({ label, hint, checked, onPress }: { label: string, hint: string, checked: boolean, onPress: () => void }) {
+  return <Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} accessibilityLabel={`${label}: ${hint}`} onPress={onPress}
+    style={({ pressed }) => [share.check, { opacity: pressed ? 0.75 : 1 }]}>
+    <View style={[share.box, checked && share.boxOn]}>{checked && <Text style={share.tick}>✓</Text>}</View>
+    <View style={{ flex: 1 }}>
+      <Text style={share.checkLabel}>{label}</Text>
+      <Text numberOfLines={1} style={share.checkHint}>{hint}</Text>
+    </View>
+  </Pressable>
 }
 
 // Shows where a clear card is see-through.
@@ -127,5 +168,14 @@ const share = StyleSheet.create({
   tile: { alignItems: 'center', minWidth: 76, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1.5,
     borderColor: colors.line, backgroundColor: colors.panel },
   chosen: { borderColor: colors.edge, borderWidth: 2.5, backgroundColor: colors.mint },
-  tileText: { fontFamily: fonts.bold, fontSize: 12, lineHeight: 16, color: colors.ink }
+  tileText: { fontFamily: fonts.bold, fontSize: 12, lineHeight: 16, color: colors.ink },
+  // Matches FilterSection's label.
+  label: { fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16, letterSpacing: 1.1, color: colors.muted, marginBottom: 4 },
+  check: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
+  box: { width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: colors.line, backgroundColor: colors.panel,
+    alignItems: 'center', justifyContent: 'center' },
+  boxOn: { backgroundColor: colors.edge, borderColor: colors.edge },
+  tick: { fontFamily: fonts.black, fontSize: 15, lineHeight: 18, color: colors.onBrand },
+  checkLabel: { fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20, color: colors.ink },
+  checkHint: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.muted }
 })

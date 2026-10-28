@@ -1,0 +1,23 @@
+/* The map of src/LeafletMap.tsx. On the web it renders in the page, so its own classes start with zepimon-. */
+.zepimon-map-frame, .zepimon-map { position: absolute; inset: 0; }
+.zepimon-map.leaflet-container { background: #F4F7FA; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+.zepimon-map .leaflet-control-attribution { font-size: 10px; line-height: 1.5; background: rgba(255, 255, 255, 0.8); }
+.zepimon-map .leaflet-control-attribution a { color: #0B7C73; }
+
+/* Your position: a dot with a soft pulse, grey while GPS is lost. */
+.zepimon-here { box-sizing: border-box; }
+.zepimon-here::before, .zepimon-here::after { content: ''; position: absolute; box-sizing: border-box; border-radius: 50%; }
+.zepimon-here::before { inset: 0; background: rgba(19, 116, 184, 0.35); animation: zepimon-pulse 1.8s ease-out infinite; }
+.zepimon-here::after { inset: 4px; background: #1374B8; border: 3px solid #FFFFFF; box-shadow: 0 1px 4px rgba(31, 42, 54, 0.4); }
+.zepimon-here.stale::before { animation: none; opacity: 0; }
+.zepimon-here.stale::after { background: #566472; }
+@keyframes zepimon-pulse { from { transform: scale(0.6); opacity: 1; } to { transform: scale(1.7); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .zepimon-here::before { animation: none; opacity: 0.5; } }
+
+.zepimon-follow {
+  position: absolute; right: 10px; bottom: 28px; z-index: 1000; display: flex; align-items: center; gap: 6px;
+  min-height: 40px; padding: 0 16px 0 12px; border: 1.5px solid #0B7C73; border-radius: 999px; background: #FFFFFF; color: #0B7C73;
+  font: 800 14px/1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; box-shadow: 0 2px 8px rgba(31, 61, 89, 0.25); cursor: pointer;
+}
+.zepimon-follow:active { background: #DDF4EF; }
+.zepimon-follow:focus-visible { outline: 3px solid #1374B8; outline-offset: 2px; }

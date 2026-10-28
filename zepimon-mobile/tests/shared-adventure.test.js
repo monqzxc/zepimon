@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { fromShared, onWatch, restoreShared, sharedFrom, sharedPokemon, takenOver } from '../src/shared-adventure.ts'
+import { followShared, fromShared, onWatch, restoreShared, sharedFrom, sharedPace, sharedPokemon, takenOver } from '../src/shared-adventure.ts'
 import { newAdventure, restoreActive, saveActive } from '../src/phone-adventure.ts'
 import { completedRuns } from '../src/progress.ts'
 
@@ -65,4 +65,27 @@ test('one shared adventure saved by both devices counts once, with the longer di
     run('other', 3000, '2026-10-26T08:00:00.000Z', 500), run('old', 2000, '2026-10-25T08:00:00.000Z', null)], unlocked: {} }
   const runs = completedRuns(progress, now)
   assert.deepEqual(runs.map(item => item.id), ['watch', 'other', 'old'])
+})
+
+test('the watch adventure keeps a pace from the shares the phone hears', () => {
+  // The watch shares about every 30 s: here at 10:00 /km, then 5:00 /km.
+  const share = (seconds, meters, extra = {}) => ({ ...onTheWatch, at: now + seconds * 1000, meters, ...extra })
+  let trail = followShared(null, share(0, 5000))
+  assert.equal(sharedPace(trail, now), null, 'One share is not enough for a pace')
+  trail = followShared(trail, share(30, 5050))
+  trail = followShared(trail, share(60, 5100))
+  assert.equal(sharedPace(trail, now + 60000), 600, '10:00 /km over the shares heard')
+  assert.equal(followShared(trail, share(60, 5100)), trail, 'The same share heard twice (sync and check) changes nothing')
+  assert.equal(followShared(trail, share(30, 5050)), trail, 'An older share is ignored')
+  for (let i = 3; i <= 8; i++) trail = followShared(trail, share(i * 30, 5000 + i * 100))
+  assert.equal(trail.samples.length, 7, 'Only the last three minutes are kept')
+  assert.equal(sharedPace(trail, now + 240000), 300, 'The pace covers the last two minutes: 5:00 /km now')
+  assert.equal(sharedPace(trail, now + 240000 + 181000), null, 'Once the watch goes quiet the pace is unknown')
+  assert.ok(sharedPace(followShared(trail, share(270, 5810)), now + 270000) > 300, 'Slowing down shows in the pace')
+  assert.equal(followShared(trail, share(300, 900, { id: 'adv-2' })).samples.length, 1, 'A new adventure starts a new trail')
+  assert.equal(followShared(trail, share(300, 100)).samples.length, 1, 'A shorter distance starts over')
+  assert.equal(followShared(trail, share(300, 6000, { ended: true })), null)
+  assert.equal(followShared(trail, share(300, 6000, { device: 'phone' })), null, 'The phone does not follow its own adventure')
+  assert.equal(followShared(trail, null), null)
+  assert.equal(sharedPace(followShared(followShared(null, share(0, 5000)), share(5, 5030)), now + 5000), null, 'Shares seconds apart give no pace yet')
 })

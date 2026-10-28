@@ -329,6 +329,18 @@ begin
 end;
 $$;
 
+-- The shared adventure and plan alone, which Zepimon mobile checks often while it is open; zepimon_pull also carries
+-- the whole journal.
+create or replace function public.zepimon_get_shared()
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare uid uuid := auth.uid();
+begin
+  if uid is null then raise exception 'Sign in first'; end if;
+  return jsonb_build_object('plan', (select payload from zepimon_private.plans where user_id = uid),
+    'adventure', (select payload from zepimon_private.adventures where user_id = uid));
+end;
+$$;
+
 -- The same for the watch, through its Zepp service and upload token.
 create or replace function public.zepimon_watch_share_adventure(upload_token text, adventure jsonb)
 returns jsonb language plpgsql security definer set search_path = '' as $$
@@ -418,10 +430,10 @@ $$;
 revoke all on all functions in schema zepimon_private from public, anon, authenticated;
 revoke all on function public.zepimon_create_link(), public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb), public.zepimon_pull(), public.zepimon_unlink(),
   public.zepimon_set_plan(jsonb), public.zepimon_get_plan(text), public.zepimon_add_phone_runs(jsonb), public.zepimon_get_phone_runs(text,bigint),
-  public.zepimon_share_adventure(jsonb), public.zepimon_watch_share_adventure(text,jsonb)
+  public.zepimon_share_adventure(jsonb), public.zepimon_watch_share_adventure(text,jsonb), public.zepimon_get_shared()
   from public, anon, authenticated;
 grant execute on function public.zepimon_create_link(), public.zepimon_pull(), public.zepimon_unlink(), public.zepimon_set_plan(jsonb),
-  public.zepimon_add_phone_runs(jsonb), public.zepimon_share_adventure(jsonb) to authenticated;
+  public.zepimon_add_phone_runs(jsonb), public.zepimon_share_adventure(jsonb), public.zepimon_get_shared() to authenticated;
 grant execute on function public.zepimon_claim_link(text), public.zepimon_upload(text,jsonb), public.zepimon_get_plan(text),
   public.zepimon_get_phone_runs(text,bigint), public.zepimon_watch_share_adventure(text,jsonb) to anon;
 commit;

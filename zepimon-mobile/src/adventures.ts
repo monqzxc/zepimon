@@ -1,6 +1,9 @@
 import { completedRuns } from './progress.ts'
 import type { Progress, SavedRun } from './progress.ts'
+import { earnedForms } from './phone-adventure.ts'
 import type { PhoneRun } from './phone-adventure.ts'
+import { personalBests } from './journal.ts'
+import type { Journal, Metric } from './journal.ts'
 
 // Every saved adventure in one list, from the watch and this phone, for the Journal, All adventures and the
 // details and share screens. Only phone adventures have a route (path); watches count steps instead.
@@ -20,6 +23,28 @@ export function allAdventures(progress: Progress, phoneRuns: PhoneRun[], now = D
     const phone = phones.get(key(run))
     return phone ? { ...run, device: 'phone', path: phone.path } : { ...run, device: 'watch' }
   })
+}
+
+// The Journal's names for the personal bests.
+export const bestLabels: Record<Metric, string> = { distance: 'Furthest adventure', elapsed: 'Longest adventure', hatch: 'Fastest 5 km hatch' }
+
+// What an adventure has beyond distance and time, for its details and share image; null where it was not recorded.
+// started is a time in milliseconds; evolution lists the forms reached in order; bests are the personal bests it holds.
+export type AdventureFacts = { hatchSeconds: number | null, steps: number | null, started: number | null, evolution: string[], bests: Metric[] }
+
+export function adventureFacts({ family, record }: SavedRun, journal: Journal | null): AdventureFacts {
+  const finished = Date.parse(record.finishedAt)
+  const bests = journal ? personalBests(journal) : {}
+  return {
+    hatchSeconds: record.meters >= 5000 && typeof record.hatchSeconds === 'number' && record.hatchSeconds > 0 ? record.hatchSeconds : null,
+    steps: Number.isFinite(record.steps) && record.steps > 0 ? record.steps : null,
+    started: typeof record.startedAt === 'number' && record.startedAt <= finished ? record.startedAt : null,
+    evolution: earnedForms(family, record.meters, record.mega ?? null),
+    bests: (['distance', 'elapsed', 'hatch'] as const).filter(metric => {
+      const best = bests[metric]
+      return !!best && best.finishedAt === record.finishedAt && journal!.routes[best.route]?.join('>') === family.join('>')
+    })
+  }
 }
 
 // The adventure a link names: a phone adventure's own id (the Adventure tab links those) or a Journal run's id.

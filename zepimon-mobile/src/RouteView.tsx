@@ -4,7 +4,8 @@ import Svg, { Circle, Line, Path } from 'react-native-svg'
 import { colors, fonts } from './ui'
 
 // A recorded route drawn as a line on a plain grid, like Strava without the map: north is up and both directions
-// share one scale. Small routes are drawn as if they spanned at least MIN_SPAN metres, so GPS wobble at the start
+// share one scale. Used where a web view per route would be too heavy (adventure lists); full-size routes go on a
+// real map (src/RouteMap.tsx). Small routes are drawn as if they spanned at least MIN_SPAN metres, so GPS wobble at the start
 // does not fill the box. live marks the current position; otherwise the end gets a finish dot.
 const MIN_SPAN = 60
 const METRES_PER_DEGREE = 111195

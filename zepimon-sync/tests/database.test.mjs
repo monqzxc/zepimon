@@ -96,6 +96,8 @@ test('private cloud journals, one-time links, replay protection, validation and 
     assert.equal(told.device, 'watch', 'The phone learns the watch took over, and its later progress is ignored')
     assert.equal(told.meters, 900)
     assert.equal((await rpc('zepimon_pull')).adventure.device, 'watch', 'The phone sync carries the shared adventure')
+    assert.equal((await rpc('zepimon_get_shared')).adventure.device, 'watch', 'So does the quick check, without the journal')
+    assert.equal((await rpc('zepimon_get_shared')).journal, undefined)
     // The phone takes it back, then finishes it; an ended adventure stays ended.
     assert.equal((await phone(adventure('phone', 90000, 90000, { meters: 1500 }))).adventure.device, 'phone')
     assert.equal((await phone(adventure('phone', 90000, 95000, { meters: 1600, ended: true }))).adventure.ended, true)
@@ -109,6 +111,9 @@ test('private cloud journals, one-time links, replay protection, validation and 
     await assert.rejects(db.query('select * from zepimon_private.adventures'), /permission denied/)
     await role('authenticated', bob)
     assert.equal((await rpc('zepimon_pull')).adventure, null, 'Adventures are private to their account')
+    assert.equal((await rpc('zepimon_get_shared')).adventure, null)
+    await role('anon')
+    await assert.rejects(rpc('zepimon_get_shared'), /permission denied/)
     await role('anon')
     await assert.rejects(rpc('zepimon_watch_share_adventure', ['0'.repeat(64), JSON.stringify(next)]), /Watch link expired/)
   })

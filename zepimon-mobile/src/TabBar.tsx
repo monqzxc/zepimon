@@ -1,9 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, Image, Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import type { ImageSourcePropType, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg'
 import type { BottomTabBarProps } from 'expo-router/tabs'
 import { useReducedMotion } from './games/hooks'
+import { useTracker } from './tracker'
+import { onWatch } from './shared-adventure'
+import type { Activity } from './phone-adventure'
+import { walkingFrames } from './generated/walking.js'
 import { colors, fonts, gradient } from './ui'
 
 // A floating glass tab bar. The middle tab (Adventure) is a violet Poke Ball sitting in a notch cut into the bar.
@@ -14,7 +18,9 @@ import { colors, fonts, gradient } from './ui'
 // it, floating with a wicked grin inside a pulsing shadow aura until you leave the tab, when it goes back in. Tapping
 // an open tab makes Gengar peek, or on the ball's tab, taunt (tongue out, pulling an eye) while the aura flares. The
 // floating art (float-grin, float-taunt) is cut from an illustration onto one 256 x 256 canvas with the feet on the
-// same line, so the two poses swap in place. With reduced motion everything holds still and jumps.
+// same line, so the two poses swap in place. While an adventure goes on, here or on the watch, Gengar leaves its perch
+// and steps on top of the ball as its pixel sprite while the ball rolls (twice as fast when running); on the ball's
+// tab it steps in place of the floating art. With reduced motion everything holds still and jumps.
 const art: Record<'grin' | 'blink' | 'boo' | 'paws' | 'float' | 'taunt', ImageSourcePropType> = {
   grin: require('../assets/nav/body-grin.png'), blink: require('../assets/nav/body-blink.png'),
   boo: require('../assets/nav/body-boo.png'), paws: require('../assets/nav/paws.png'),
@@ -38,9 +44,23 @@ const CENTER_SLOT = Math.ceil(2 * (MEET + SHOULDER))  // the middle tab's share 
 const TOP_ROOM = BUTTON / 2 - BUTTON_Y + 2            // space above the bar, so the whole ball is tappable
 const FLOAT = 74         // the floating Gengar, drawn a little above the ball's center
 const FLOAT_Y = -10
-const AURA = 120         // the shadow aura around it
-const WISPS = [{ x: -24, size: 18, delay: 0 }, { x: 20, size: 15, delay: 900 }, { x: -2, size: 13, delay: 1700 }]
+const AURA = 98          // the shadow aura around it
+const WISPS = [{ x: -20, size: 14, delay: 0 }, { x: 17, size: 12, delay: 900 }, { x: -2, size: 10, delay: 1700 }]
+const STRIDER = 46       // the stepping Gengar on the ball during an adventure
 const useNativeDriver = Platform.OS !== 'web'
+const strides = walkingFrames as Record<string, ImageSourcePropType[]>
+
+// Gengar's overworld sprite stepping in place, like Pokemon on the Adventure tab while recording.
+function Strider({ activity, size, reduced }: { activity: Activity, size: number, reduced: boolean }) {
+  const [frame, setFrame] = useState(0)
+  useEffect(() => {
+    if (reduced) return
+    const timer = setInterval(() => setFrame(value => 1 - value), activity === 'running' ? 200 : 400)
+    return () => clearInterval(timer)
+  }, [activity, reduced])
+  return <Image source={strides.Gengar[reduced ? 0 : frame]} fadeDuration={0} resizeMode="contain"
+    style={{ width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }} />
+}
 
 // Ducks behind the bar, waits, then springs back up with a surprised face and two alert marks.
 function peek(duck: Animated.Value, boo: Animated.Value, wait: number) {
@@ -80,7 +100,7 @@ function edgeDrop(x: number, width: number) {
 
 // A violet take on the Cherish Ball: a dark band with a bright stripe and a ringed button. The band and button turn
 // with the ball; the shading and shine stay put, as if lit from the top left.
-function PokeBall({ size, roll }: { size: number, roll: Animated.Value }) {
+function PokeBall({ size, roll }: { size: number, roll: Animated.Value | Animated.AnimatedAddition<number> }) {
   const ink = '#2E1A4A'
   return <View style={{ width: size, height: size }}>
     <Animated.View style={{ position: 'absolute', width: size, height: size,
@@ -124,17 +144,17 @@ function ShadowAura({ bob, taunt, reduced }: { bob: Animated.Value, taunt: Anima
     loops.forEach(loop => loop.start())
     return () => loops.forEach(loop => loop.stop())
   }, [reduced, wisps])
-  const breathe = Animated.add(bob.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.06] }),
-    taunt.interpolate({ inputRange: [0, 1], outputRange: [0, 0.22] }))
+  const breathe = Animated.add(bob.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1.03] }),
+    taunt.interpolate({ inputRange: [0, 1], outputRange: [0, 0.12] }))
   return <View pointerEvents="none" style={{ position: 'absolute', left: (FLOAT - AURA) / 2, top: (FLOAT - AURA) / 2 + 6, width: AURA, height: AURA }}>
     <Animated.View style={{ position: 'absolute', width: AURA, height: AURA, transform: [{ scale: breathe }],
-      opacity: Animated.add(bob.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }), taunt.interpolate({ inputRange: [0, 1], outputRange: [0, 0.2] })) }}>
+      opacity: Animated.add(bob.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.7] }), taunt.interpolate({ inputRange: [0, 1], outputRange: [0, 0.2] })) }}>
       <Svg width={AURA} height={AURA} viewBox="0 0 100 100">
         <Defs><RadialGradient id="zepimon-aura" cx="0.5" cy="0.5" r="0.5">
-          <Stop offset="0" stopColor="#1B0833" stopOpacity="0.8" />
-          <Stop offset="0.5" stopColor="#3D1872" stopOpacity="0.6" />
-          <Stop offset="0.75" stopColor="#5A2DA3" stopOpacity="0.32" />
-          <Stop offset="0.92" stopColor="#7B4CCB" stopOpacity="0.1" />
+          <Stop offset="0" stopColor="#1B0833" stopOpacity="0.55" />
+          <Stop offset="0.5" stopColor="#3D1872" stopOpacity="0.35" />
+          <Stop offset="0.75" stopColor="#5A2DA3" stopOpacity="0.15" />
+          <Stop offset="0.92" stopColor="#7B4CCB" stopOpacity="0.04" />
           <Stop offset="1" stopColor="#8A5CDB" stopOpacity="0" />
         </RadialGradient></Defs>
         <Ellipse cx="50" cy="52" rx="50" ry="46" fill="url(#zepimon-aura)" />
@@ -142,7 +162,7 @@ function ShadowAura({ bob, taunt, reduced }: { bob: Animated.Value, taunt: Anima
     </Animated.View>
     {wisps.map((wisp, i) => <Animated.View key={i} style={{ position: 'absolute', left: AURA / 2 + WISPS[i].x - WISPS[i].size / 2, top: AURA * 0.32,
       width: WISPS[i].size, height: WISPS[i].size,
-      opacity: wisp.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 0.9, 0.5, 0] }),
+      opacity: wisp.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 0.6, 0.3, 0] }),
       transform: [{ translateY: wisp.interpolate({ inputRange: [0, 1], outputRange: [0, -AURA * 0.36] }) },
         { scale: wisp.interpolate({ inputRange: [0, 1], outputRange: [1, 0.55] }) }] }}>
       <Svg width={WISPS[i].size} height={WISPS[i].size} viewBox="0 0 10 10">
@@ -171,7 +191,7 @@ function useKeyboardShown(enabled: boolean) {
 
 function TabFace({ icon, label, active, width }: { icon: React.ReactNode, label: string, active: boolean, width: number }) {
   return <View style={[styles.face, { width }]}>
-    <View style={active && { transform: [{ scale: 1.12 }] }}>{icon}</View>
+    <View style={[styles.iconSlot, active && styles.pill]}>{icon}</View>
     <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} maxFontSizeMultiplier={1.2}
       style={[styles.label, active && styles.activeLabel, { maxWidth: width - 8 }]}>{label}</Text>
   </View>
@@ -188,8 +208,26 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   const [taunt] = useState(() => new Animated.Value(0))   // 1 while the floating Gengar taunts
   const [shake] = useState(() => new Animated.Value(0))
   const [roll] = useState(() => new Animated.Value(0))     // the ball's spin, two turns from 0 to 1
+  const [spin] = useState(() => new Animated.Value(0))     // its roll under Gengar's feet during an adventure
+  const rolling = useMemo(() => Animated.add(roll, spin), [roll, spin])
   const placed = useRef<{ index: number, width: number } | null>(null)
   const reduced = useReducedMotion()
+  // Walking or running while an adventure goes on here, or on the watch as the cloud last had it.
+  const tracker = useTracker()
+  const moving = tracker.active?.activity ?? onWatch(tracker.shared)?.activity ?? null
+
+  useEffect(() => {
+    if (!moving || reduced) { spin.setValue(0); return }
+    const loop = Animated.loop(Animated.timing(spin, { toValue: 1, duration: moving === 'running' ? 1400 : 2800, easing: Easing.linear, useNativeDriver }))
+    loop.start()
+    return () => loop.stop()
+  }, [moving, reduced, spin])
+  // Meanwhile Gengar has left its perch; when the adventure ends it pops back up there, surprised.
+  const wasMoving = useRef(moving)
+  useEffect(() => {
+    if (wasMoving.current && !moving && !reduced) peek(duck, boo, 200)
+    wasMoving.current = moving
+  }, [moving, reduced, duck, boo])
   const focusedOptions = descriptors[state.routes[state.index].key].options
   const keyboard = useKeyboardShown(!!focusedOptions.tabBarHideOnKeyboard)
   // A screen hides the bar the usual React Navigation way, with tabBarStyle: { display: 'none' } (full-screen battles).
@@ -322,7 +360,8 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
         else if (!reduced) peek(duck, boo, 260)
       } else if (!event.defaultPrevented) navigation.navigate(route.name, route.params)
     }
-    const press = { accessibilityRole: 'tab', accessibilityState: { selected: focused }, accessibilityLabel: options.tabBarAccessibilityLabel ?? label,
+    const press = { accessibilityRole: 'tab', accessibilityState: { selected: focused },
+      accessibilityLabel: (options.tabBarAccessibilityLabel ?? label) + (index === middle && moving ? ', adventure in progress' : ''),
       testID: options.tabBarButtonTestID, onPress, onLongPress: () => navigation.emit({ type: 'tabLongPress', target: route.key }) } as const
     return { route, index, label, icon, focused, press }
   })
@@ -332,7 +371,7 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
     paddingHorizontal: 14 + Math.max(insets.left, insets.right) }, barHidden && { display: 'none' }]}>
     <View pointerEvents="none" style={[styles.fade, gradient(FADE_GRADIENT, 'transparent')]} />
     <View style={styles.bar} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
-      {width > 0 && sides.length > 0 && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+      {width > 0 && sides.length > 0 && !moving && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
         style={[styles.perch, { width: side, transform: perch }]}>
         <View style={{ position: 'absolute', left: artLeft - 8, top: artTop - HEADROOM, width: size + 16,
           height: HEADROOM - artTop + CLIP_BELOW, overflow: 'hidden' }}>
@@ -365,7 +404,7 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
           </Pressable>
         })}
       </View>
-      {width > 0 && sides.length > 0 && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+      {width > 0 && sides.length > 0 && !moving && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
         style={[styles.perch, { width: side, transform: perch }]}>
         <Animated.Image source={art.paws} fadeDuration={0}
           style={[artBox, { left: artLeft, top: artTop, opacity: pawFade, transform: [{ translateY: pawDrop }] }]} />
@@ -381,9 +420,14 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
             transform: [{ scaleX: bob.interpolate({ inputRange: [0, 1], outputRange: [1, 0.72] }) }] }]} />
           <Animated.View style={[styles.ball, { opacity: center.interpolate({ inputRange: [0, 0.6], outputRange: [1, 0], extrapolate: 'clamp' }),
             transform: [{ scale: center.interpolate({ inputRange: [0, 1], outputRange: [1, 0.45], extrapolate: 'clamp' }) }] }]}>
-            <PokeBall size={BUTTON} roll={roll} />
+            <PokeBall size={BUTTON} roll={moving ? rolling : roll} />
           </Animated.View>
         </Pressable>
+        {moving && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+          style={{ position: 'absolute', left: width / 2 - STRIDER / 2, top: BUTTON_Y - BUTTON / 2 - STRIDER + 8,
+            opacity: center.interpolate({ inputRange: [0, 0.4], outputRange: [1, 0], extrapolate: 'clamp' }) }}>
+          <Strider activity={moving} size={STRIDER} reduced={reduced} />
+        </Animated.View>}
         <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
           style={{ position: 'absolute', left: width / 2 - FLOAT / 2, top: BUTTON_Y - FLOAT / 2 + FLOAT_Y, width: FLOAT, height: FLOAT,
             opacity: center.interpolate({ inputRange: [0, 0.3], outputRange: [0, 1], extrapolate: 'clamp' }),
@@ -391,8 +435,10 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
           <ShadowAura bob={bob} taunt={taunt} reduced={reduced} />
           <Animated.View style={[floatBox, { transform: [{ rotate: shake.interpolate({ inputRange: [-1, 1], outputRange: ['-7deg', '7deg'] }) },
             { scale: taunt.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) }] }]}>
-            <Animated.Image source={art.float} fadeDuration={0} style={[floatBox, { opacity: Animated.subtract(1, taunt) }]} />
-            <Animated.Image source={art.taunt} fadeDuration={0} style={[floatBox, { opacity: taunt }]} />
+            {moving ? <Strider activity={moving} size={FLOAT} reduced={reduced} /> : <>
+              <Animated.Image source={art.float} fadeDuration={0} style={[floatBox, { opacity: Animated.subtract(1, taunt) }]} />
+              <Animated.Image source={art.taunt} fadeDuration={0} style={[floatBox, { opacity: taunt }]} />
+            </>}
           </Animated.View>
         </Animated.View>
       </>}
@@ -407,7 +453,10 @@ const styles = StyleSheet.create({
     boxShadow: '0px 10px 20px rgba(94, 66, 180, 0.16)' },
   row: { position: 'absolute', left: INSET, top: INSET, height: ROW, flexDirection: 'row' },
   face: { height: ROW, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  label: { fontFamily: fonts.body, fontSize: 11, lineHeight: 14, color: tint.inactive },
+  // The open tab's icon sits on a soft violet pill; every icon keeps the same box, so nothing shifts as it moves.
+  iconSlot: { height: 28, paddingHorizontal: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  pill: { backgroundColor: 'rgba(98, 66, 200, 0.16)' },
+  label: { fontFamily: fonts.body, fontSize: 11, lineHeight: 14, color: tint.inactive, textAlign: 'center' },
   activeLabel: { fontFamily: fonts.black, color: tint.active },
   // Gengar's seat: a thin strip along the bar's top edge over one tab. It turns about the middle of that edge.
   perch: { position: 'absolute', left: INSET, top: 0, height: 1 },

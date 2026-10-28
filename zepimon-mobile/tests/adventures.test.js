@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { allAdventures, findAdventure } from '../src/adventures.ts'
+import { adventureFacts, allAdventures, findAdventure } from '../src/adventures.ts'
 import { addFix, finishAdventure, newAdventure, withPhoneRuns } from '../src/phone-adventure.ts'
 import { emptyProgress, importProgress } from '../src/progress.ts'
 
@@ -47,4 +47,20 @@ test('an adventure is found by its phone id or its Journal id, with its route', 
   assert.deepEqual([findAdventure(watch.id, progress, [walk]).device, findAdventure(watch.id, progress, [walk]).path], ['watch', undefined])
   assert.equal(findAdventure('missing', progress, [walk]), undefined)
   assert.equal(findAdventure(undefined, progress, [walk]), undefined)
+})
+
+test('facts list the hatch time, steps, start, forms reached and personal bests an adventure has', () => {
+  const long = phoneRun(['Charmander', 'Charmeleon', 'Charizard'], start, 1100)
+  const short = phoneRun(['Togepi', 'Togetic', 'Togekiss'], start + 864e5, 100)
+  const journal = withPhoneRuns(null, [long, short])
+  const facts = adventureFacts(long, journal)
+  assert.equal(facts.hatchSeconds, long.record.hatchSeconds)
+  assert.ok(facts.hatchSeconds > 0)
+  assert.equal(facts.steps, null, 'phones count distance, not steps')
+  assert.equal(facts.started, long.record.startedAt)
+  assert.deepEqual(facts.evolution, ['Charmander', 'Charmeleon'])
+  assert.deepEqual(facts.bests, ['distance', 'elapsed', 'hatch'])
+  assert.deepEqual(adventureFacts(short, journal), { hatchSeconds: null, steps: null, started: short.record.startedAt, evolution: [], bests: [] })
+  const watch = watchRun(['Pichu', 'Pikachu', 'Raichu'], start, 7000)
+  assert.deepEqual([adventureFacts(watch, null).steps, adventureFacts(watch, null).started, adventureFacts(watch, null).bests], [9100, null, []])
 })

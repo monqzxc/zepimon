@@ -11,6 +11,8 @@ import { receiveShared } from './tracker'
 type Cloud = { session: Session | null; ready: boolean; syncing: boolean; message: string;
   linked: boolean; updatedAt: string | null; sync: () => Promise<void> }
 const Context = createContext<Cloud | null>(null)
+// How often the open app checks the adventure shared with the watch.
+const SHARED_CHECK_MS = 15000
 
 export function CloudProvider({ children }: PropsWithChildren) {
   const journal = useJournal()
@@ -135,6 +137,27 @@ export function CloudProvider({ children }: PropsWithChildren) {
     const timer = setInterval(() => { if (AppState.currentState === 'active') void sync() }, 60000)
     return () => { subscription.remove(); clearInterval(timer); cloudClient!.auth.stopAutoRefresh() }
   }, [sync])
+
+  // Between syncs, a quick look at just the shared adventure and plan, so an adventure started (or taken over) on the
+  // watch shows here within seconds. Before zepimon_get_shared is installed the cloud refuses it and the minute's
+  // sync still catches up.
+  const signedIn = !!session?.user.id
+  useEffect(() => {
+    if (!cloudClient || !signedIn) return
+    let busy = false
+    const check = async () => {
+      if (busy || AppState.currentState !== 'active' || !store.current.ready) return
+      busy = true
+      try {
+        const { data, error } = await cloudClient!.rpc('zepimon_get_shared')
+        if (error || !data) return
+        await receiveShared((data as { adventure?: unknown }).adventure ?? null)
+        if ((data as { plan?: unknown }).plan) await store.current.receivePlan((data as { plan: unknown }).plan)
+      } catch { /* offline: the next check tries again */ } finally { busy = false }
+    }
+    const timer = setInterval(() => { void check() }, SHARED_CHECK_MS)
+    return () => clearInterval(timer)
+  }, [signedIn])
 
   return <Context.Provider value={{ session, ready, syncing, message, linked, updatedAt, sync }}>{children}</Context.Provider>
 }

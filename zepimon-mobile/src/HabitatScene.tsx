@@ -43,7 +43,7 @@ export function typeTheme(type: string): HabitatTheme {
 
 // Small native rectangles keep the pixel scenery offline without image packs or animation timers.
 type Tile = [x: number, y: number, width: number, height: number, color: string]
-function landscape(t: HabitatTheme): Tile[] {
+function landscape(t: HabitatTheme, platform: boolean): Tile[] {
   const tiles: Tile[] = [[0, 34, 100, 40, t.haze]]
   const block = (x: number, y: number, w: number, h: number, color: string) => tiles.push([x, y, w, h, color])
   function peak(x: number, y: number, w: number, h: number, color: string) {
@@ -111,17 +111,20 @@ function landscape(t: HabitatTheme): Tile[] {
       block(x + 2, y - 3, 6, 3, t.edge)
     }
   }
-  block(25, 87, 50, 8, t.platform)
-  block(30, 84, 40, 3, t.platform)
-  block(30, 95, 40, 2, t.near)
+  if (platform) {
+    block(25, 87, 50, 8, t.platform)
+    block(30, 84, 40, 3, t.platform)
+    block(30, 95, 40, 2, t.near)
+  }
   return tiles
 }
 
-const Backdrop = memo(function Backdrop({ theme }: { theme: HabitatTheme }) {
+// The landscape filling its parent. The share image (src/ShareCard.tsx) leaves out the stand the Pokemon sits on.
+export const Backdrop = memo(function Backdrop({ theme, platform = true }: { theme: HabitatTheme, platform?: boolean }) {
   return <View pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
-    {landscape(theme).map(([x, y, w, h, color], i) => <View key={i} style={{ position: 'absolute',
+    {landscape(theme, platform).map(([x, y, w, h, color], i) => <View key={i} style={{ position: 'absolute',
       left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%`, backgroundColor: color }} />)}
-    <View style={sceneStyles.shadow} />
+    {platform && <View style={sceneStyles.shadow} />}
   </View>
 })
 

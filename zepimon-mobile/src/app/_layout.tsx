@@ -10,6 +10,7 @@ import { JournalProvider, useJournal } from '../store'
 import { Copy, PokeballLoader, Screen, colors, fonts } from '../ui'
 import { CloudProvider } from '../cloud'
 import { CrashReport, CrashScreen } from '../CrashReport'
+import { AdventureBanner } from '../AdventureBanner'
 
 // An error on any screen shows what happened, with Share, instead of closing the app.
 export const ErrorBoundary = CrashScreen
@@ -36,8 +37,10 @@ function Navigator() {
       <Stack.Screen name="eggs" options={{ title: 'Choose an egg' }} />
       <Stack.Screen name="share" options={{ title: 'Share adventure' }} />
       <Stack.Screen name="adventures" options={{ title: 'All adventures' }} />
-      <Stack.Screen name="adventure-details" options={{ title: 'Adventure' }} />
+      {/* Its pastel header has its own Back button. */}
+      <Stack.Screen name="adventure-details" options={{ title: 'Adventure', headerShown: false }} />
     </Stack>
     <CrashReport />
+    <AdventureBanner />
   </>
 }

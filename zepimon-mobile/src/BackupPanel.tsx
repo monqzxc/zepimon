@@ -4,7 +4,7 @@ import { File, Paths } from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import { useJournal } from './store'
 import { backupFileName, hasBackupData } from './backup'
-import { Button, Copy, Eyebrow, Heading, Panel, colors, styles } from './ui'
+import { Button, Copy, Heading, Panel, colors, styles } from './ui'
 
 // Browsers get a direct download; phones write the file to the cache and open the share sheet to save it anywhere.
 function download(text: string, name: string) {
@@ -54,8 +54,8 @@ export function BackupPanel() {
   }
 
   const { watchRecords, runs, friends, safari, stars, scores } = backupInfo
+  // Shown under Your data in Settings, which gives the heading.
   return <>
-    <Eyebrow>BACK UP YOUR DATA</Eyebrow>
     <Panel>
       <Heading>Keep a copy of your adventure</Heading>
       <Copy>Save one JSON file with your watch journal and everything kept only on this phone: Safari catches, Expedition friends, missions, Adventure Map stars and best scores.</Copy>
@@ -71,7 +71,7 @@ export function BackupPanel() {
         <TextInput accessibilityLabel="Zepimon backup JSON" multiline value={text} onChangeText={() => {}} selectTextOnFocus
           autoCorrect={false} autoCapitalize="none" style={[styles.input, { minHeight: 148, maxHeight: 280, textAlignVertical: 'top', fontSize: 12 }]} />
       </>}
-      <Copy small>Account links and sign-in details are never included. To bring a watch journal back, choose a backup file with Choose JSON file above.</Copy>
+      <Copy small>Account links and sign-in details are never included. To bring a watch journal back, open Import a watch export below and choose the backup file.</Copy>
     </Panel>
   </>
 }

@@ -4,9 +4,10 @@ import { Icon, PokeballIcon } from '../../ui'
 import type { IconName } from '../../ui'
 import { TabBar } from '../../TabBar'
 
-// Adventure (record a walk or run on this phone) sits in the middle. Missions opens from the Journal.
+// Adventure (record a walk or run on this phone) sits in the middle. Missions opens from the Journal. Settings keeps
+// the route name import, which older links use.
 const tabs: [name: string, title: string, icon: IconName | 'dex'][] = [
-  ['index', 'Journal', 'journal'], ['dex', 'Dex', 'dex'], ['adventure', 'Adventure', 'run'], ['play', 'Play', 'play'], ['import', 'Sync', 'sync']
+  ['index', 'Journal', 'journal'], ['dex', 'Dex', 'dex'], ['adventure', 'Adventure', 'run'], ['play', 'Play', 'play'], ['import', 'Settings', 'settings']
 ]
 
 export default function TabLayout() {

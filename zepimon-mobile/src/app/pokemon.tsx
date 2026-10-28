@@ -20,7 +20,7 @@ export default function PokemonScreen() {
     if (!egg) return
     chooseEgg(egg.family, egg.mega)
       .then(() => setMessage(`Next egg: ${egg.family[0]}${egg.mega ? `, with ${egg.mega} at 21 km` : ''}. It waits in the Adventure tab` +
-        (session && linked ? ' and on your watch.' : '. Link your watch in Sync to see it there too.')))
+        (session && linked ? ' and on your watch.' : '. Link your watch in Settings to see it there too.')))
       .catch(() => setMessage('Could not choose this egg. Please try again.'))
   }
   return <Screen>

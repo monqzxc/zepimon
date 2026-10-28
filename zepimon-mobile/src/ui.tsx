@@ -97,13 +97,17 @@ const icons = {
   pause: ['pause.fill', 'pause'], resume: ['play.fill', 'play_arrow'], fullscreen: ['arrow.up.left.and.arrow.down.right', 'fullscreen'],
   fullscreenExit: ['arrow.down.right.and.arrow.up.left', 'fullscreen_exit'], run: ['figure.run', 'directions_run'],
   location: ['location', 'location_on'], egg: ['oval.portrait', 'egg'], share: ['square.and.arrow.up', 'share'],
-  chevron: ['chevron.right', 'chevron_right']
+  chevron: ['chevron.right', 'chevron_right'], close: ['xmark', 'close'], settings: ['gearshape', 'settings'],
+  phone: ['iphone', 'smartphone'], watch: ['applewatch', 'watch'], clock: ['clock', 'schedule'], steps: ['shoeprints.fill', 'footprint'],
+  back: ['chevron.left', 'arrow_back']
 } satisfies Record<string, [SFSymbol, AndroidSymbol]>
 export type IconName = keyof typeof icons
+const symbolBox = { alignItems: 'center', justifyContent: 'center' } as const
 export function Icon({ name, size = 22, color = colors.ink }: { name: IconName, size?: number, color?: ColorValue }) {
   const [ios, material] = icons[name]
   return <View accessible={false} importantForAccessibility="no-hide-descendants" style={{ width: size, height: size }}>
-    <SymbolView name={{ ios, android: material, web: material }} size={size} tintColor={color} />
+    {/* On Android and the web the symbol is a font glyph in its box; centering keeps it in the middle. */}
+    <SymbolView name={{ ios, android: material, web: material }} size={size} tintColor={color} style={symbolBox} />
   </View>
 }
 // An icon on a soft circle, like the menu tiles in Pokemon HOME. 'pokeball' draws the Poke Ball.
