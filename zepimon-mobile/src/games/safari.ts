@@ -1,10 +1,7 @@
 import { familyOf, isLegendary, pickWeighted, stageOf, wildPool } from './roster.ts'
 import type { DexRecord, Journal } from '../journal.ts'
 
-export const SAFARI_DURATION = 120000
 export const SAFARI_BALLS = 12
-export const PATCHES = 9
-export const RUSTLE_MS = 2400
 export const RING_MS = 1400
 export const BAIT_FLEE = 0.45
 export const ROCK_CATCH = 1.5
@@ -16,7 +13,7 @@ export type Encounter = { name: string, shiny: boolean, mood: Mood, since: numbe
 export type SafariCatch = { name: string, shiny: boolean }
 export type SafariGame = {
   status: 'ready' | 'playing' | 'paused' | 'complete', zone: Zone, elapsed: number, lastTick: number, balls: number,
-  rustle: number, nextRustle: number, encounter: Encounter | null, catches: SafariCatch[],
+  encounter: Encounter | null, catches: SafariCatch[],
   chain: { name: string, count: number }, message: string, lastThrow: ThrowQuality | null
 }
 
@@ -32,13 +29,12 @@ const MOOD_CATCH = { calm: 1, eating: 0.85, angry: ROCK_CATCH }
 const MOOD_FLEE = { calm: 1, eating: BAIT_FLEE, angry: 1.8 }
 
 export function readySafari(zone: Zone = 'meadow', bonusBalls = 0): SafariGame {
-  return { status: 'ready', zone, elapsed: 0, lastTick: 0, balls: SAFARI_BALLS + bonusBalls, rustle: -1, nextRustle: 0,
+  return { status: 'ready', zone, elapsed: 0, lastTick: 0, balls: SAFARI_BALLS + bonusBalls,
     encounter: null, catches: [], chain: { name: '', count: 0 }, message: '', lastThrow: null }
 }
 
-export function startSafari(zone: Zone, bonusBalls: number, now: number, random = Math.random): SafariGame {
-  return { ...readySafari(zone, bonusBalls), status: 'playing', lastTick: now, rustle: Math.floor(random() * PATCHES), nextRustle: RUSTLE_MS,
-    message: 'Watch for rustling grass.' }
+export function startSafari(zone: Zone, bonusBalls: number, now: number): SafariGame {
+  return { ...readySafari(zone, bonusBalls), status: 'playing', lastTick: now }
 }
 
 // The ring shrinks from full size to 30% every RING_MS, then starts over. Smaller rings make better throws.
@@ -69,20 +65,10 @@ export function fleeChance(name: string, mood: Mood): number {
   return Math.min(0.9, (single ? 0.25 : [0.15, 0.25, 0.35][stageOf(name) - 1]) * MOOD_FLEE[mood])
 }
 
-export function tickSafari(game: SafariGame, now: number, random = Math.random): SafariGame {
+// The game clock only times the ring; the Safari Zone's limit is its steps (safari-zone.ts), so time never runs out.
+export function tickSafari(game: SafariGame, now: number): SafariGame {
   if (game.status !== 'playing' || now <= game.lastTick) return game
-  const elapsed = Math.min(SAFARI_DURATION, game.elapsed + now - game.lastTick)
-  if (elapsed >= SAFARI_DURATION) return { ...game, status: 'complete', elapsed, lastTick: now, encounter: null, rustle: -1, message: 'Time is up!' }
-  if (game.encounter || elapsed < game.nextRustle) return { ...game, elapsed, lastTick: now }
-  const choice = Math.floor(random() * (PATCHES - 1))
-  const rustle = game.rustle >= 0 && choice >= game.rustle ? choice + 1 : choice
-  return { ...game, elapsed, lastTick: now, rustle, nextRustle: elapsed + RUSTLE_MS }
-}
-
-export function approachPatch(game: SafariGame, patch: number, now: number, random = Math.random): SafariGame {
-  const next = tickSafari(game, now, random)
-  if (next.status !== 'playing' || next.encounter || patch !== next.rustle) return next
-  return meetWild(next, next.zone, random)
+  return { ...game, elapsed: game.elapsed + now - game.lastTick, lastTick: now }
 }
 
 // A wild Pokemon from the zone's pool. A chained species comes back 35% of the time when it lives in that zone.
@@ -97,8 +83,7 @@ export function meetWild(game: SafariGame, zone: Zone, random = Math.random): Sa
 }
 
 function leave(game: SafariGame, message: string, chain = game.chain): SafariGame {
-  return { ...game, encounter: null, rustle: -1, nextRustle: game.elapsed + 700, message, chain,
-    status: game.balls > 0 ? game.status : 'complete' }
+  return { ...game, encounter: null, message, chain, status: game.balls > 0 ? game.status : 'complete' }
 }
 
 // A failed throw, bait or rock gives the Pokemon a chance to run. Fleeing breaks a Shiny chain on that species.
@@ -111,7 +96,7 @@ function fleeCheck(game: SafariGame, random: () => number, stayed: string): Safa
 }
 
 export function throwBall(game: SafariGame, now: number, random = Math.random): SafariGame {
-  const next = tickSafari(game, now, random)
+  const next = tickSafari(game, now)
   const encounter = next.encounter
   if (next.status !== 'playing' || !encounter || next.balls <= 0) return next
   const quality = throwQuality(ringScale(next))
@@ -125,14 +110,14 @@ export function throwBall(game: SafariGame, now: number, random = Math.random): 
 }
 
 export function throwBait(game: SafariGame, now: number, random = Math.random): SafariGame {
-  const next = tickSafari(game, now, random)
+  const next = tickSafari(game, now)
   if (next.status !== 'playing' || !next.encounter) return next
   return fleeCheck({ ...next, encounter: { ...next.encounter, mood: 'eating' }, lastThrow: null }, random,
     `${next.encounter.name} is eating. It is less likely to run, but harder to catch.`)
 }
 
 export function throwRock(game: SafariGame, now: number, random = Math.random): SafariGame {
-  const next = tickSafari(game, now, random)
+  const next = tickSafari(game, now)
   if (next.status !== 'playing' || !next.encounter) return next
   return fleeCheck({ ...next, encounter: { ...next.encounter, mood: 'angry' }, lastThrow: null }, random,
     `${next.encounter.name} is angry! It is easier to catch, but more likely to run.`)

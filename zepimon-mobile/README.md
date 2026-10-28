@@ -259,10 +259,20 @@ Open **Play** for three new games and an **Adventure Map** that strings them tog
 
 - **Route Guard** (lane defense): Shadow Pokemon walk down five lanes. Place up to six Pokemon from your Dex (or the six loaners): Grass types grow berries to tap and collect, Rock/Ground/Steel types block, and every other type attacks foes above it in its lane. Each lane's Snorlax wakes once to roll a breach away; a second breach in that lane ends the battle.
 - **Trail Defense** (tower defense): place Pokemon beside a winding trail. Defeated foes pay berries. Every family starts at its first stage and can evolve mid-battle with berries, all the way to its final stage. Foes that reach the end cost lives (a boss costs three). Twenty levels in four stages (Viridian Meadows, Cerulean Coast, Ember Peaks, Shadow Summit) on maps that grow from 6 × 8 to 9 × 16 squares, with longer waves and tougher foes; each stage ends on a spiral with a Shadow Legendary boss (Celebi, Lugia, Moltres, Giratina). Levels earn up to three stars, one star opens the next level, and the start screen previews the map. Free play (twelve waves on a classic trail) is still there.
-- **Safari Hunt** (hunting): two minutes, 12 Safari Balls. Tap rustling grass, then throw when the shrinking ring is small. Bait makes a Pokemon less likely to run but harder to catch; rocks do the opposite. Catching the same species in a row raises its Shiny chance from 1 in 60 to as good as 1 in 8.
+- **Safari Zone** (hunting): walk Emerald's Safari Zone with your buddy and catch what hides in the tall grass. See **Safari Zone** below.
 - **Adventure Map**: nine stops from Route 1 to Victory Road, alternating the three games. Each stop gives up to three stars, and one star opens the next stop. The final stop ends with a Shadow Mewtwo.
 
 Foes walk with two-step overworld animations: down the lanes in Route Guard, and facing whichever way the trail runs in Trail Defense. Your own Pokemon (Normal or Shiny) turn to face the foe they attack, step in place - faster when a foe is in range - and lunge toward it right after attacking; growers hop when they harvest, and idle Pokemon face you. Forms without walking art stay still, and reduced motion keeps everyone still. Trail Defense draws its habitat as textured ground with an edged dirt trail, direction chevrons, a cave where foes enter and a Poke Ball goal; tapping a placed Pokemon shows its attack range.
+
+**Safari Zone.** Walk Emerald's Safari Zone as Brendan or May, in a Zepimon outfit (a purple-and-white cap and a black-and-white shirt), with your buddy one tile behind. You start outside the gate house, and the map has four areas, each with its own Pokemon: the **Sunny meadow** (Grass, Bug, Normal, Electric and Fairy), **Lakeside** (Water and Ice), the sandy **Rocky mountain** (Rock, Ground, Fighting, Steel, Fire and Dragon) and the darker **Night forest** (Ghost, Dark, Poison and Psychic). Adventure Map stops start in their own area.
+
+- **Steps and balls.** A round has 400 steps and 12 Safari Balls. It ends when either runs out (*Ding-dong! Time's up!*), or when you walk back into the gate house door, which asks first. Bumping into a tree costs no step.
+- **Finding Pokemon.** Each step in tall grass has a 1 in 10 chance of a wild Pokemon, with none for the 3 steps after one. Every 25 steps a nearby patch rustles, and stepping into it always finds one.
+- **On the map.** Ledges are one-way: hop down, never climb back. Six item balls are worth 3 Safari Balls each, every round. Signs name each area and its types.
+- **Catching.** An encounter opens on Emerald's battle background after a GBA flash. Throw when the shrinking ring is small. Bait makes a Pokemon less likely to run but harder to catch, and rocks do the opposite. Shinies are 1 in 100, and catching the same species in a row improves that to 1 in 77, 54, 31 and then 8.
+- **Controls.** Walk with the on-screen **D-pad** (hold to keep walking), or switch to **Tap to walk** and tap a spot (a ✕ marks one you can't reach). Both choices, and your trainer, are remembered. On the web, the arrow keys and WASD walk too. Reduced motion stops the map from gliding and skips the flash.
+
+The map is Emerald's own tiles (the General and Lilycove tilesets its Safari Zone uses) in our own layout. `python scripts/build-safari-map.py` (Pillow) reads `scripts/safari/layout.txt`, one character per tile, and `areas.txt`, one area letter per tile. It writes `assets/safari/`, `src/generated/safari-map.js` and `src/generated/safari-assets.js`, and stops before writing anything if the layout breaks a rule, such as a missing start or the wrong number of items. The tests also check that every grass patch and item can be reached and that no ledge cuts off the way back to the gate. See SPRITE-CREDITS.md.
 
 **Move animations.** Every attack plays its move with the Gen III battle animation sprites (see SPRITE-CREDITS.md): Ember fireballs burst into flame, Water Gun splashes, Thunder Shock strikes from above and arcs to a second foe, Shadow Ball, Sludge, Ice Shard, Mach Punch, Pin Missile, Air Cutter, Swift, Fairy Wind and Dragon Breath fly at their target, Bite snaps shut on it, and Confusion, Magnitude, Rock Throw and Metal Claw send a wave out across their whole range. Each type has one move (tap a placed Pokemon to see it); a hatched Pokemon with egg-move coverage plays its egg move's type whenever that hits harder, and growers sparkle as they harvest. Hits follow the foe they land on, and reduced motion shows a still frame instead. `src/generated/move-sprites.js` and `assets/moves/` are built by `python scripts/build-move-sprites.py`.
 
@@ -277,9 +287,9 @@ Both defense games use type matchups (super-effective hits do double damage) and
 
 `src/generated/egg-moves.js` is built by `node scripts/build-egg-moves.mjs`, which follows `pokemon_data/generate_pokemon_egg_moves.py`: it reads Pokemon #1–493 from PokéAPI, keeps moves learned by egg in the Gen II–IV version groups, adds each move's type and power, and merges moves per evolution chain (`hatdog-app/data/pokemon_species.csv`), so a family shares what its baby or first stage can inherit.
 
-**Walking bonus.** Each km of completed adventures this Monday–Sunday adds 25 starting berries and 3 Safari Balls to every game, up to 3 km. It is only a bonus; every game is fully playable without walking.
+**Walking bonus.** Each km of completed adventures this Monday–Sunday adds 25 starting berries, 3 Safari Balls and 50 Safari Zone steps to every game, up to 3 km. It is only a bonus; every game is fully playable without walking.
 
-**Safari catches in the Dex.** Gen 1–4 non-Legendary Pokemon caught in Safari Hunt join your Dex on this phone with a ◎ Safari mark and a **Safari** filter. They have no distance, steps or time, and they never count toward missions or badges. If the watch later hatches the same Normal/Shiny variant, the watch record replaces the Safari mark. Safari catches can be used as buddies, in Memory Match and in battle teams, even before any watch import.
+**Safari catches in the Dex.** Gen 1–4 non-Legendary Pokemon caught in the Safari Zone join your Dex on this phone with a ◎ Safari mark and a **Safari** filter. They have no distance, steps or time, and they never count toward missions or badges. If the watch later hatches the same Normal/Shiny variant, the watch record replaces the Safari mark. Safari catches can be used as buddies, in Memory Match and in battle teams, even before any watch import.
 
 ### Collection and games
 
@@ -291,7 +301,7 @@ Both defense games use type matchups (super-effective hits do double damage) and
   name, a type or a Dex number, and the count shows how many of your Pokemon
   match. Both screens share `src/pokedex.ts` and `src/PokedexFilters.tsx`.
 - A Journal with personal bests and completed runs retained across imports.
-- A Pocket Arcade with the Adventure Map, Route Guard, Trail Defense, Safari Hunt, Memory Match, Who’s That Pokémon?, and Berry Catch. Everything works offline and saves best scores and stars on the phone.
+- A Pocket Arcade with the Adventure Map, Route Guard, Trail Defense, Safari Zone, Memory Match, Who’s That Pokémon?, and Berry Catch. Everything works offline and saves best scores and stars on the phone.
 - Weekly goals for 10 km and three active days, career missions, and hidden badges. Weeks run Monday–Sunday in the phone’s local time; completed runs count on their finish date.
 - A bright, Pokémon HOME-inspired look: white rounded cards on a light page, a teal-to-blue gradient for headers and main buttons, the rounded Nunito font (bundled, so it works offline), type-colored badges and a Dex grid with National Dex numbers. Icons use SF Symbols on iOS and Material Symbols on Android and the web. Text colors keep at least 4.5:1 contrast.
 
@@ -358,13 +368,13 @@ The backup is an ordinary Zepimon export (your watch journal exactly as synced) 
 
 Open **Play**, then choose a game:
 
-- **Memory Match:** match up to six pairs from your acquired Normal/Shiny variants. Requires at least two variants in your Dex (imported or caught in Safari Hunt); fewer moves is better.
+- **Memory Match:** match up to six pairs from your acquired Normal/Shiny variants. Requires at least two variants in your Dex (imported or caught in the Safari Zone); fewer moves is better.
 - **Who’s That Pokémon?:** identify ten Gen 1–4 silhouettes, with four choices for each. Answers reveal the Pokemon; there is no timer. Best score is out of ten.
 - **Berry Catch:** tap a berry in the nine garden plots before it moves. Twenty berries appear over 30 seconds, with at most one catch per appearance. The game pauses when you switch tabs, leave the app, or press Pause; tap Resume to continue. Best score is out of twenty.
 
-- **Route Guard / Trail Defense / Safari Hunt:** see [Adventure games](#adventure-games). Free play saves the most waves cleared (out of 10 and 12) and the most Pokemon caught in one hunt.
+- **Route Guard / Trail Defense / Safari Zone:** see [Adventure games](#adventure-games). Free play saves the most waves cleared (out of 10 and 12) and the most Pokemon caught in one Safari Zone round.
 
-Every game except Memory Match works without an import. Only completed games save scores; returning to the arcade discards an unfinished round, and switching tabs or leaving the app pauses it. Scores and stars survive app restarts and journal imports. No game changes watch distance, evolution or Shiny odds; Safari Hunt is the only one that adds Dex entries, marked ◎ Safari and kept out of missions.
+Every game except Memory Match works without an import. Only completed games save scores; returning to the arcade discards an unfinished round, and switching tabs or leaving the app pauses it. Scores and stars survive app restarts and journal imports. No game changes watch distance, evolution or Shiny odds; the Safari Zone is the only one that adds Dex entries, marked ◎ Safari and kept out of missions.
 
 ## Run locally
 

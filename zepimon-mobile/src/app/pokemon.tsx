@@ -41,9 +41,9 @@ export default function PokemonScreen() {
       const valid = !!journal && hasAcquisitionDistance(name, record, journal.routes)
       return <Habitat key={key} name={name} shiny={shiny}>
         <Eyebrow>{shiny ? '✦ SHINY' : 'NORMAL'} / {caught ? '◎ SAFARI CATCH' : 'ACQUIRED'}</Eyebrow>
-        <Heading>{caught ? 'Caught in Safari Hunt' : valid ? km(record.meters) : 'Distance unavailable'}</Heading>
+        <Heading>{caught ? 'Caught in the Safari Zone' : valid ? km(record.meters) : 'Distance unavailable'}</Heading>
         {caught ? <>
-          <Copy color={colors.ink}>Caught in the Safari Hunt mini-game on this phone.</Copy>
+          <Copy color={colors.ink}>Caught in the Safari Zone on this phone.</Copy>
           <Copy>No walking or running record. Hatch this Pokemon on a watch adventure to add distance, steps and time.</Copy>
         </> : record.source === 'expedition' ? <>
           <Copy color={colors.ink}>Befriended on a Legendary Expedition.</Copy>

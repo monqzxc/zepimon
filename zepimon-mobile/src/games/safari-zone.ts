@@ -13,7 +13,6 @@ export type SafariMap = { cols: number, rows: number, chunk: number, tiles: read
 export const safariMap = generatedMap as SafariMap
 
 export const ZONE_STEPS = 400, STEPS_PER_KM = 50, ITEM_COUNT = 6, ITEM_BALLS = 3, GRASS_RATE = 0.1, GRASS_COOLDOWN = 3, RUSTLE_EVERY = 25
-// `rustling`, not `rustle`: SafariGame still has a numeric `rustle` for Safari Hunt, and the intersection must not clash.
 export type ZoneGame = SafariGame & { at: Point, facing: Direction, buddy: Point, buddyFacing: Direction, steps: number,
   taken: number, items: string[], rustling: Point | null, nextRustleAt: number, cooldown: number, area: AreaId, prompt: 'gate' | null }
 export type ZoneEvent = 'item' | 'sign' | 'area' | 'rustle' | 'encounter' | 'gate' | 'out-of-steps'

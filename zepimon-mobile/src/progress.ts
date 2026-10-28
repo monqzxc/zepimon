@@ -55,7 +55,7 @@ export function completedRuns(progress: Progress, now = Date.now()): SavedRun[] 
 export function missions(journal: Journal | null, progress: Progress, now = Date.now()): Mission[] {
   const runs = completedRuns(progress, now)
   const weekly = runs.filter(({ record }) => Date.parse(record.finishedAt) >= weekStart(now))
-  // Safari Hunt catches are arcade finds: they appear in the Dex but never count toward walking badges.
+  // Safari Zone catches are arcade finds: they appear in the Dex but never count toward walking badges.
   const walked = journal && { ...journal, snapshot: { ...journal.snapshot,
     dex: Object.fromEntries(Object.entries(journal.snapshot.dex).filter(([, record]) => record.source !== 'safari')) } }
   const entries = walked ? dexEntries(walked) : []

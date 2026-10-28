@@ -53,3 +53,9 @@ test('free play covers every type and new arcade scores stay within their limits
   assert.throws(() => saveBestScore({}, 'guard', 11), /Invalid/)
   assert.deepEqual(restoreScores({ guard: 10, trail: 13, safari: 4, quiz: 3 }), { guard: 10, safari: 4, quiz: 3 })
 })
+
+test('Safari Zone scores allow every ball a round can hold: 12, the walking bonus and 6 items', () => {
+  assert.equal(SCORE_LIMITS.safari, 39)
+  assert.deepEqual(restoreScores({ safari: 39 }), { safari: 39 })
+  assert.deepEqual(restoreScores({ safari: 40 }), {})
+})

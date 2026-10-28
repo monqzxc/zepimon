@@ -11,7 +11,7 @@ import { dexNumber, pokemonType } from '../../catalog'
 import { Chip, Copy, Hero, Sprite, TypeBadge, colors, fonts, shadows, styles, themedStyles, typeTints, useTheme } from '../../ui'
 
 // Your collection as a Pokedex: sort by number or name, filter by generation, type and variant, or search a name,
-// type or number. A variant caught in Safari Hunt keeps its ◎ mark until the watch hatches the same variant.
+// type or number. A variant caught in the Safari Zone keeps its ◎ mark until the watch hatches the same variant.
 const GAP = 5
 const variants: [DexVariant, string][] = [['all', 'All'], ['normal', 'Normal'], ['shiny', 'Shiny'], ['safari', 'Safari']]
 
@@ -33,7 +33,7 @@ export default function DexScreen() {
         <Hero eyebrow="YOUR COLLECTION" title="The field Dex">
           <Copy color={colors.onBrand}>{entries.length} Pokemon · Normal and Shiny records kept separately</Copy>
         </Hero>
-        {safariCount > 0 && <Copy small color={colors.gold}>◎ {safariCount} caught in Safari Hunt · no walking record</Copy>}
+        {safariCount > 0 && <Copy small color={colors.gold}>◎ {safariCount} caught in the Safari Zone · no walking record</Copy>}
         {entries.length > 0 && <>
           <SearchBox label="Search Pokemon by name, type or number" placeholder="Search a name, type or No.…"
             value={filter.query} onChange={query => change({ query })} />
@@ -47,7 +47,7 @@ export default function DexScreen() {
           <Copy small>Tap a Pokemon to say hello. Tap its name to view records.</Copy>
         </>}
       </View>}
-      ListEmptyComponent={<View style={{ paddingHorizontal: GAP }}><Copy>{journal || entries.length ? 'No Pokemon match these filters. Try another name, number, generation or type.' : 'Import your Zepp journal, or catch Pokemon in Safari Hunt, to meet your team.'}</Copy></View>}
+      ListEmptyComponent={<View style={{ paddingHorizontal: GAP }}><Copy>{journal || entries.length ? 'No Pokemon match these filters. Try another name, number, generation or type.' : 'Import your Zepp journal, or catch Pokemon in the Safari Zone, to meet your team.'}</Copy></View>}
       renderItem={({ item }) => {
         const type = pokemonType(item.name)
         return <View style={{ width: '33.333%', padding: GAP }}>

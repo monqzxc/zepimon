@@ -88,7 +88,7 @@ export function filterEggs(eggs: string[][], filter: EggFilter, caught: (name: s
   }).sort((a, b) => compare(a[0], b[0]) || tie * a.join(' ').localeCompare(b.join(' ')))
 }
 
-// The Dex. safari: caught in Safari Hunt, with no walking record yet.
+// The Dex. safari: caught in the Safari Zone, with no walking record yet.
 export type DexVariant = 'all' | 'normal' | 'shiny' | 'safari'
 export type DexFilter = Filter & { variant: DexVariant }
 export const defaultDexFilter: DexFilter = { query: '', sort: 'number', generation: 0, type: null, variant: 'all' }
