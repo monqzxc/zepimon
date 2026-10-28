@@ -37,6 +37,11 @@ test('budget: 400 steps and 12 balls, plus 50 steps and 3 balls per km up to 3 k
   assert.equal(start.message, 'Welcome to the Safari Zone! You have 500 steps and 18 Safari Balls.')
 })
 
+test('the gate start faces away from the gate house door, as if just stepped out; area starts face north', () => {
+  assert.equal(startZone('gate', 0, 0, ROOM).facing, 'south')
+  assert.equal(startZone('meadow', 0, 0, ROOM).facing, 'north')
+})
+
 test('a step moves one tile and costs one step; the buddy takes the old tile', () => {
   const { game, move, events } = go(g, 'north')
   assert.equal(move, 'step')

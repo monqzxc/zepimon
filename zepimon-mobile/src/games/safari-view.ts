@@ -23,6 +23,13 @@ export function tileFromTap(tap: Point, at: Point, tile: number, width: number, 
   return { x: Math.floor((tap.x - offset.x) / tile), y: Math.floor((tap.y - offset.y) / tile) }
 }
 
+// Where a press landed inside the map. Phones report locationX/Y; on the web the press event is a DOM mouse event, which
+// has offsetX/Y instead (relative to the map, since its layers let presses through).
+export function tapPoint(event: { locationX?: number, locationY?: number, offsetX?: number, offsetY?: number }): Point {
+  const pick = (location?: number, offset?: number) => Number.isFinite(location) ? location! : Number.isFinite(offset) ? offset! : 0
+  return { x: pick(event.locationX, event.offsetX), y: pick(event.locationY, event.offsetY) }
+}
+
 export function chunksAround(at: Point, tile: number, width: number, height: number, map: SafariMap = safariMap): string[] {
   const offset = cameraOffset(at, tile, width, height)
   const span = (from: number, size: number, count: number) => [

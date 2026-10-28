@@ -7,7 +7,7 @@ import { trailWalkers } from '../generated/trail-walkers.js'
 import { PixelSprite } from './TeamPicker'
 import { pointKey, safariMap, tileAt } from './safari-zone'
 import type { Point, WalkResult, ZoneGame } from './safari-zone'
-import { STEP_MS, buddyFrame, cameraOffset, chunksAround, tileFromTap, tileSizeFor, trainerFrame } from './safari-view'
+import { STEP_MS, buddyFrame, cameraOffset, chunksAround, tapPoint, tileFromTap, tileSizeFor, trainerFrame } from './safari-view'
 
 type Strip = { source: ImageSourcePropType, frames: number, width: number, height: number }
 const sprites = safariSprites as Record<'brendan' | 'may' | 'grass' | 'dust' | 'shadow' | 'item', Strip>
@@ -55,7 +55,7 @@ export function SafariWorld({ game, move, trainer, buddy, width, height, reduced
   </View>
   if (!tapToWalk) return map
   return <Pressable accessibilityRole="button" accessibilityLabel="Map. Tap a spot to walk there."
-    onPress={event => onTapTile(tileFromTap({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, game.at, tile, width, height))}>
+    onPress={event => onTapTile(tileFromTap(tapPoint(event.nativeEvent), game.at, tile, width, height))}>
     {map}
   </Pressable>
 }

@@ -13,7 +13,8 @@ import { Button, Copy, Eyebrow, Hero, IconBubble, IconButton, Panel, Screen, Spr
 import { GameScreenContext } from '../../games/fullscreen'
 import { DefenseGame, starText } from '../../games/DefenseGame'
 import type { BattleResult } from '../../games/DefenseGame'
-import { SafariHunt } from '../../games/SafariHunt'
+import { SafariZone } from '../../games/SafariZone'
+import { STEPS_PER_KM } from '../../games/safari-zone'
 import { AdventureMap, MODE_NAMES, STAR_GOALS } from '../../games/AdventureMap'
 import { BALLS_PER_KM, BERRIES_PER_KM, BONUS_KM_CAP, STOPS, freePlaySpec, safariStars, stopUnlocked, walkingBonus } from '../../games/adventure'
 import type { Stop } from '../../games/adventure'
@@ -29,7 +30,7 @@ type Selected = 'memory' | 'quiz' | 'berries' | 'map' | 'levels' | Launch | null
 
 export default function PlayScreen() {
   useTheme()
-  const { dex, progress, adventure, trailLevels, bestMoves, recordWin, arcadeScores, recordArcadeScore, recordStars, recordLevelStars, recordSafariCatch } = useJournal()
+  const { dex, buddy, progress, adventure, trailLevels, bestMoves, recordWin, arcadeScores, recordArcadeScore, recordStars, recordLevelStars, recordSafariCatch } = useJournal()
   const [message, setMessage] = useState('')
   const [selected, setSelected] = useState<Selected>(null)
   // The team last used in Trail Defense, so moving from level to level keeps it.
@@ -49,8 +50,8 @@ export default function PlayScreen() {
   const nextLevel = LEVELS.find((level, index) => levelUnlocked(trailLevels, index) && !trailLevels[level.id])
   const berriesNote = bonus.km ? `Walking bonus: ${bonus.km} km this week adds ◉ ${bonus.berries} starting berries.`
     : `Walk 1 km this week for ◉ ${BERRIES_PER_KM} extra starting berries (up to ◉ ${BERRIES_PER_KM * BONUS_KM_CAP}).`
-  const ballsNote = bonus.km ? `Walking bonus: ${bonus.km} km this week adds ${bonus.balls} Safari Balls.`
-    : `Walk 1 km this week for ${BALLS_PER_KM} extra Safari Balls (up to ${BALLS_PER_KM * BONUS_KM_CAP}).`
+  const ballsNote = bonus.km ? `Walking bonus: ${bonus.km} km this week adds ${bonus.balls} Safari Balls and ${bonus.km * STEPS_PER_KM} steps.`
+    : `Walk 1 km this week for ${BALLS_PER_KM} extra Safari Balls and ${STEPS_PER_KM} extra steps (up to ${BALLS_PER_KM * BONUS_KM_CAP} balls and ${STEPS_PER_KM * BONUS_KM_CAP} steps).`
   // Full screen is for games, not the menus: it hides the tab bar, the back button and the status bar, and Android's
   // back button leaves full screen first. It stays on from one level to the next until you leave or turn it off.
   const [full, setFull] = useState(false)
@@ -111,7 +112,7 @@ export default function PlayScreen() {
           <IconBubble name="walk" background={colors.panel} />
           <View style={{ flex: 1 }}><Eyebrow>WALKING BONUS · THIS WEEK</Eyebrow><Text style={styles.stat}>{bonus.km} / {BONUS_KM_CAP} km</Text></View>
         </View>
-        <Copy color={colors.ink}>{bonus.km ? `+◉ ${bonus.berries} starting berries and +${bonus.balls} Safari Balls in every game this week.` : 'Every km you walk this week (Monday–Sunday) adds starting berries and Safari Balls.'}</Copy>
+        <Copy color={colors.ink}>{bonus.km ? `+◉ ${bonus.berries} starting berries, +${bonus.balls} Safari Balls and +${bonus.km * STEPS_PER_KM} Safari Zone steps this week.` : 'Every km you walk this week (Monday–Sunday) adds starting berries, Safari Balls and Safari Zone steps.'}</Copy>
         <Copy small>A bonus, never a requirement: every game is fully playable without walking.</Copy>
       </Panel>
       <GameCard tint={typeTints.flying} eyebrow="01 · ADVENTURE MAP" title="From Route 1 to Victory Road"
@@ -128,10 +129,10 @@ export default function PlayScreen() {
         text={`${LEVELS.length} levels in ${STAGES.length} stages, on maps that keep getting bigger. Build a team beside a winding trail and evolve them mid-battle with berries. Pokemon hatched on your watch bring their egg moves.`}
         record={`★ ${levelStars} / ${LEVELS.length * 3} · ${levelsCleared} / ${LEVELS.length} levels cleared${nextLevel ? ` · Next: Level ${nextLevel.number}` : ''}`}
         action="Play Trail Defense" onPress={() => select('levels')} />
-      <GameCard tint={typeTints.grass} eyebrow="04 · HUNTING" title="Safari Hunt"
+      <GameCard tint={typeTints.grass} eyebrow="04 · HUNTING" title="Safari Zone"
         art={['Pidgey', 'Pikachu', 'Oddish'].map(name => <PixelSprite key={name} name={name} size={64} />)}
-        text="Tap rustling grass, time your throw on the shrinking ring, and chain catches for a better Shiny chance. Catches join your Dex."
-        record={safariBest} action="Play Safari Hunt" onPress={() => select({ game: 'safari' })} />
+        text="Walk Emerald’s Safari Zone with your buddy. Step into tall grass, time your throw on the shrinking ring, and chain catches for a better Shiny chance. Catches join your Dex."
+        record={safariBest} action="Enter the Safari Zone" onPress={() => select({ game: 'safari' })} />
       <GameCard tint={typeTints.fairy} eyebrow="05 · PAIRS & PATIENCE" title="Memory Match"
         art={<><Sprite name="Bulbasaur" size={80} /><Sprite name="Bulbasaur" shiny size={80} /></>}
         text="Find matching Normal and Shiny pairs from your collection. Import or catch at least two variants to play."
@@ -165,8 +166,9 @@ export default function PlayScreen() {
       initialTeam={launch.game === 'trail' ? trailTeam : undefined} onStart={launch.game === 'trail' ? setTrailTeam : undefined}
       record={launch.stop ? stopRecord(launch.stop) : best(launch.game, 'waves', launch.game === 'guard' ? 10 : 12)}
       onFinish={result => launch.stop ? saveStars(launch.stop, result.stars) : saveScore(launch.game, result.score)} />}
-    {launch?.game === 'safari' && <SafariHunt key={launch.stop?.id ?? 'safari'} zone={launch.stop?.mode === 'safari' ? launch.stop.zone : undefined}
-      bonusBalls={bonus.balls} bonusNote={ballsNote} dex={dex} goal={launch.stop ? STAR_GOALS.safari : undefined}
+    {launch?.game === 'safari' && <SafariZone key={launch.stop?.id ?? 'safari'} zone={launch.stop?.mode === 'safari' ? launch.stop.zone : undefined}
+      bonusKm={bonus.km} bonusNote={ballsNote} dex={dex} goal={launch.stop ? STAR_GOALS.safari : undefined}
+      buddy={buddy ? { name: buddy.replace(/^Shiny /, ''), shiny: buddy.startsWith('Shiny ') } : null}
       record={launch.stop ? stopRecord(launch.stop) : safariBest}
       onCatch={recordSafariCatch}
       onComplete={catches => launch.stop ? saveStars(launch.stop, safariStars(catches)) : saveScore('safari', catches)} />}

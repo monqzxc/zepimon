@@ -17,7 +17,7 @@ const backgrounds = safariSprites as Record<'battleGrass' | 'battlePond', Strip>
 const sparkle = (moveSprites as Record<string, Strip>)['fairy-sparkle']
 // Where the wild Pokemon's feet go on Emerald's battle background (240 x 112): the middle of the far platform.
 const ENEMY_X = 176 / 240
-const ENEMY_FEET_Y = 76 / 112
+const ENEMY_FEET_Y = 82 / 112
 const SPARKLES = [[-0.32, -0.28], [0.34, -0.16], [-0.05, 0.3]]
 const qualityColor = (quality: 'excellent' | 'great' | 'nice') => ({ excellent: colors.success, great: colors.gold, nice: colors.ink })[quality]
 const qualityText = { excellent: 'Excellent!', great: 'Great!', nice: 'Nice' }

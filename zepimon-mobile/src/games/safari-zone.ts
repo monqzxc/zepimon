@@ -44,8 +44,10 @@ export function zoneBudget(bonusKm: number): { steps: number, balls: number } {
 export function startZone(start: AreaId, bonusKm: number, now: number, map = safariMap): ZoneGame {
   const { steps, balls } = zoneBudget(bonusKm)
   const at = map.starts[start]
-  return { ...startSafari(start === 'gate' ? 'meadow' : start, balls - SAFARI_BALLS, now), at, facing: 'north', buddy: at,
-    buddyFacing: 'north', steps, taken: 0, items: [], rustling: null, nextRustleAt: RUSTLE_EVERY, cooldown: 0,
+  // At the gate you have just stepped out of the gate house, so you face away from its door.
+  const facing: Direction = start === 'gate' ? 'south' : 'north'
+  return { ...startSafari(start === 'gate' ? 'meadow' : start, balls - SAFARI_BALLS, now), at, facing, buddy: at,
+    buddyFacing: facing, steps, taken: 0, items: [], rustling: null, nextRustleAt: RUSTLE_EVERY, cooldown: 0,
     area: areaAt(at, map), prompt: null, message: `Welcome to the Safari Zone! You have ${steps} steps and ${balls} Safari Balls.` }
 }
 

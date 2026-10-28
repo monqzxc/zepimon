@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buddyFrame, cameraOffset, chunksAround, followPath, noInput, pressDirection, releaseDirection, takeInput, tileFromTap,
+import { buddyFrame, cameraOffset, chunksAround, followPath, noInput, pressDirection, releaseDirection, takeInput, tapPoint, tileFromTap,
   tileSizeFor, trainerFrame } from '../src/games/safari-view.ts'
 import { safariMap } from '../src/games/safari-zone.ts'
 
@@ -75,4 +75,10 @@ test('a D-pad press replaces a tap path, and a new path replaces holding', () =>
   const following = followPath(pressDirection(noInput, 'west'), ['south'])
   assert.deepEqual([following.held, following.queued], [null, null])
   assert.deepEqual(noInput, { held: null, queued: null, path: [] })
+})
+
+test('a tap is read from locationX/Y on phones and offsetX/Y on the web', () => {
+  assert.deepEqual(tapPoint({ locationX: 12, locationY: 34, offsetX: 99, offsetY: 99 }), { x: 12, y: 34 })
+  assert.deepEqual(tapPoint({ offsetX: 93, offsetY: 204 }), { x: 93, y: 204 })
+  assert.deepEqual(tapPoint({}), { x: 0, y: 0 })
 })

@@ -9,7 +9,7 @@ const BUTTONS: { direction: Direction, glyph: string, label: string, row: number
   { direction: 'east', glyph: '▶', label: 'Walk east', row: 1, column: 2 },
   { direction: 'south', glyph: '▼', label: 'Walk south', row: 2, column: 1 }
 ]
-const SIZE = 56
+const SIZE = 52
 const KEYS: Record<string, Direction> = { ArrowUp: 'north', ArrowDown: 'south', ArrowLeft: 'west', ArrowRight: 'east',
   w: 'north', s: 'south', a: 'west', d: 'east', W: 'north', S: 'south', A: 'west', D: 'east' }
 

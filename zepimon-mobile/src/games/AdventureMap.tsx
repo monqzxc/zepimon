@@ -5,7 +5,7 @@ import { STOPS, stopUnlocked } from './adventure'
 import type { Stop } from './adventure'
 import { starText } from './DefenseGame'
 
-export const MODE_NAMES = { guard: 'Route Guard', trail: 'Trail Defense', safari: 'Safari Hunt' }
+export const MODE_NAMES = { guard: 'Route Guard', trail: 'Trail Defense', safari: 'Safari Zone' }
 export const STAR_GOALS = {
   guard: '★ Win · ★★ Keep 3 Snorlax asleep · ★★★ Keep all 5',
   trail: '★ Win · ★★ Keep 6 lives · ★★★ Lose no lives',
