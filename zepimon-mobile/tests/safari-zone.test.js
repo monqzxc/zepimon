@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { GRASS_COOLDOWN, confirmLeave, startZone, stayInZone, tileAt, walk, zoneAction, zoneBudget } from '../src/games/safari-zone.ts'
+import { GRASS_COOLDOWN, confirmLeave, isWalkable, planWalk, pointKey, reachableFrom, safariMap, startZone, stayInZone, tileAt, walk, zoneAction,
+  zoneBudget } from '../src/games/safari-zone.ts'
 import { ZONES, pauseSafari, runAway, throwBall } from '../src/games/safari.ts'
 import { wildPool } from '../src/games/roster.ts'
 
@@ -193,4 +194,55 @@ test('zoneAction keeps the walking state and does not end a round with steps lef
   const caught = zoneAction({ ...encounterGame, steps: 40 }, s => throwBall(s, 10, always(0)))
   assert.deepEqual([caught.at, caught.steps, caught.items, caught.status], [encounterGame.at, 40, encounterGame.items, 'playing'])
   assert.equal(caught.encounter, null)
+})
+
+// Walks a planned route with the real rules: every step must go through, never bump.
+function replay(game, directions, map = ROOM) {
+  return directions.reduce((current, direction) => {
+    const result = walk(current, direction, always(0.99), map)
+    assert.notEqual(result.move, 'bump', `bumped going ${direction} from ${pointKey(current.at)}`)
+    return result.game
+  }, game)
+}
+
+test('planWalk finds the shortest route', () => {
+  assert.deepEqual(planWalk({ x: 1, y: 1 }, { x: 6, y: 1 }, ROOM), ['east', 'east', 'east', 'east', 'east'])
+})
+
+test('planWalk never climbs a ledge', () => {
+  const route = planWalk({ x: 3, y: 4 }, { x: 3, y: 2 }, ROOM)
+  assert.ok(route && route[0] !== 'north')
+  assert.deepEqual(replay(place(g, 3, 4), route).at, { x: 3, y: 2 })
+})
+
+test('tapping a wall walks next to it, tapping the gate ends at the prompt', () => {
+  const end = replay(place(g, 6, 1), planWalk({ x: 6, y: 1 }, { x: 2, y: 2 }, ROOM)).at
+  assert.equal(Math.abs(end.x - 2) + Math.abs(end.y - 2), 1)
+  const out = planWalk({ x: 1, y: 1 }, { x: 3, y: 7 }, ROOM)
+  assert.equal(out.at(-1), 'south')
+  assert.equal(replay(place(g, 1, 1), out).prompt, 'gate')
+  assert.deepEqual(planWalk({ x: 3, y: 5 }, { x: 3, y: 5 }, ROOM), [])
+})
+
+test('unreachable targets give null', () => {
+  const walled = fixture(['TTTTTTT', 'T@T.T.T', 'TGTTTTT'])
+  assert.equal(planWalk(walled.starts.gate, { x: 3, y: 1 }, walled), null)
+})
+
+const everywhere = char => safariMap.tiles.flatMap((row, y) => [...row].flatMap((c, x) => c === char ? [{ x, y }] : []))
+
+test('on the real map, every grass tile, item and start can be reached from the gate', () => {
+  const reachable = reachableFrom(safariMap.starts.gate)
+  for (const point of [...everywhere('g'), ...everywhere('o'), ...Object.values(safariMap.starts)]) {
+    assert.ok(reachable.has(pointKey(point)), `${pointKey(point)} (${tileAt(point)}) is unreachable`)
+  }
+  for (const start of Object.values(safariMap.starts)) assert.ok(isWalkable(tileAt(start)))
+})
+
+test('on the real map, no ledge traps you: the gate is reachable from everywhere you can go', () => {
+  const gate = everywhere('G')[0]
+  for (const key of reachableFrom(safariMap.starts.gate)) {
+    const [x, y] = key.split(',').map(Number)
+    assert.ok(planWalk({ x, y }, gate), `no way back to the gate from ${key}`)
+  }
 })
