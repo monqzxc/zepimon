@@ -1,9 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { confirmLeave, startZone, stayInZone, walk, zoneBudget } from '../src/games/safari-zone.ts'
-import { pauseSafari } from '../src/games/safari.ts'
+import { GRASS_COOLDOWN, confirmLeave, startZone, stayInZone, tileAt, walk, zoneAction, zoneBudget } from '../src/games/safari-zone.ts'
+import { ZONES, pauseSafari, runAway, throwBall } from '../src/games/safari.ts'
+import { wildPool } from '../src/games/roster.ts'
 
 const always = value => () => value
+const rolls = (...values) => () => values.shift() ?? 0.5
 // A test map: every start sits on '@', and areas default to meadow ('m') with the gate area ('g') on '@' and 'G' rows.
 function fixture(tiles, areas = tiles.map(row => [...row].map(c => '@G#'.includes(c) ? 'g' : 'm').join(''))) {
   const y = tiles.findIndex(row => row.includes('@')), at = { x: tiles[y].indexOf('@'), y }
@@ -101,4 +103,94 @@ test('nothing moves during an encounter, a prompt, a pause or after the round', 
     assert.equal(result.move, 'none')
     assert.strictEqual(result.game, frozen)
   }
+})
+
+const FIELD = fixture(['TTTTTTTTT', 'T.ggggggT', 'T.ggggggT', 'T...@...T', 'TTTTGTTTT'])
+const f = startZone('gate', 0, 0, FIELD)
+const east = (game, random = always(0.99), map = FIELD) => walk(game, 'east', random, map)
+let encounterGame
+
+test('each step into tall grass has a 1 in 10 chance of an encounter', () => {
+  const met = east(place(f, 2, 2), rolls(0.0999))
+  assert.ok(met.events.includes('encounter'))
+  assert.ok(wildPool(ZONES.meadow.types).some(wild => wild.name === met.game.encounter.name))
+  assert.deepEqual([met.game.zone, met.game.cooldown], ['meadow', GRASS_COOLDOWN])
+  assert.equal(east(place(f, 2, 2), always(0.1)).game.encounter, null)
+  encounterGame = met.game
+})
+
+test('stepping into grass is announced', () => {
+  const into = walk({ ...place(f, 2, 3), area: 'meadow' }, 'north', always(0.99), FIELD)
+  assert.equal(into.game.message, 'You stepped into tall grass.')
+  assert.equal(east(into.game).game.message, 'You stepped into tall grass.')
+})
+
+test('after an encounter the next 3 steps cannot roll', () => {
+  let game = { ...place(f, 2, 2), cooldown: 3 }
+  for (const left of [2, 1, 0]) {
+    const result = east(game, always(0))
+    assert.ok(!result.events.includes('encounter'))
+    assert.equal(result.game.cooldown, left)
+    game = result.game
+  }
+  const fourth = east(game, always(0))
+  assert.deepEqual(fourth.game.at, { x: 6, y: 2 })
+  assert.ok(fourth.events.includes('encounter'))
+})
+
+test('ground never rolls', () => {
+  let game = place(f, 1, 3)
+  for (let i = 0; i < 6; i++) {
+    const result = east(game, always(0))
+    assert.ok(!result.events.includes('encounter'))
+    game = result.game
+  }
+})
+
+test('a rustle appears every 25 steps on grass 2-6 tiles away in the same area', () => {
+  const result = east({ ...place(f, 4, 3), taken: 24, nextRustleAt: 25 }, always(0))
+  assert.ok(result.events.includes('rustle'))
+  assert.equal(result.game.message, 'The grass is rustling nearby!')
+  assert.equal(result.game.nextRustleAt, 50)
+  const { rustling, at } = result.game
+  assert.equal(tileAt(rustling, FIELD), 'g')
+  const distance = Math.max(Math.abs(rustling.x - at.x), Math.abs(rustling.y - at.y))
+  assert.ok(distance >= 2 && distance <= 6, `distance ${distance}`)
+})
+
+test('with no grass in range nothing rustles', () => {
+  const bare = fixture(['TTTTTTTTTT', 'T@.......T', 'TGTTTTTTTT'])
+  const result = walk({ ...place(startZone('gate', 0, 0, bare), 2, 1), taken: 24, nextRustleAt: 25 }, 'east', always(0), bare)
+  assert.equal(result.game.rustling, null)
+  assert.ok(!result.events.includes('rustle'))
+  assert.equal(result.game.nextRustleAt, 50)
+})
+
+test('stepping onto rustling grass always starts an encounter, even while cooling down', () => {
+  const result = east({ ...place(f, 2, 1), rustling: { x: 3, y: 1 }, cooldown: 3 }, always(0.99))
+  assert.ok(result.events.includes('encounter'))
+  assert.equal(result.game.rustling, null)
+})
+
+test('the round ends when the steps run out', () => {
+  const result = east({ ...place(f, 4, 3), steps: 1 })
+  assert.equal(result.game.status, 'complete')
+  assert.ok(result.events.includes('out-of-steps'))
+  assert.equal(result.game.message, "Ding-dong! Time's up!")
+})
+
+test('a last step into grass plays the encounter out, then ends the round once', () => {
+  const result = east({ ...place(f, 2, 2), steps: 1 }, always(0))
+  assert.ok(result.events.includes('encounter'))
+  assert.deepEqual([result.game.status, result.game.steps], ['playing', 0])
+  const over = zoneAction(result.game, s => runAway(s, 10))
+  assert.deepEqual([over.status, over.message], ['complete', "Ding-dong! Time's up!"])
+  const again = zoneAction(over, s => runAway(s, 20))
+  assert.deepEqual([again.status, again.message], ['complete', "Ding-dong! Time's up!"])
+})
+
+test('zoneAction keeps the walking state and does not end a round with steps left', () => {
+  const caught = zoneAction({ ...encounterGame, steps: 40 }, s => throwBall(s, 10, always(0)))
+  assert.deepEqual([caught.at, caught.steps, caught.items, caught.status], [encounterGame.at, 40, encounterGame.items, 'playing'])
+  assert.equal(caught.encounter, null)
 })

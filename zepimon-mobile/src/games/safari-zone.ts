@@ -1,4 +1,4 @@
-import { SAFARI_BALLS, ZONES, startSafari } from './safari.ts'
+import { SAFARI_BALLS, ZONES, meetWild, startSafari } from './safari.ts'
 import type { SafariGame, Zone } from './safari.ts'
 import { BALLS_PER_KM, BONUS_KM_CAP } from './adventure.ts'
 import { safariMap as generatedMap } from '../generated/safari-map.js'
@@ -93,7 +93,7 @@ export function walk(game: ZoneGame, direction: Direction, random = Math.random,
   let walked: ZoneGame = { ...turned, at: landing, buddy: hop ? next : game.at, buddyFacing: direction,
     steps: game.steps - 1, taken: game.taken + 1 }
   const events: ZoneEvent[] = []
-  const messages: Partial<Record<ZoneEvent, string>> = {}
+  const messages: Partial<Record<ZoneEvent | 'grass', string>> = {}
   const area = areaAt(landing, map)
   if (area !== game.area) {
     walked = { ...walked, area }
@@ -111,8 +111,58 @@ export function walk(game: ZoneGame, direction: Direction, random = Math.random,
     events.push('item')
     messages.item = `You found ${ITEM_BALLS} Safari Balls!`
   }
-  const shown = (['item', 'sign', 'area'] as const).find(event => messages[event])
+  const grass = tileAt(landing, map) === 'g'
+  if (grass && tileAt(game.at, map) !== 'g') messages.grass = 'You stepped into tall grass.'
+  // Rustling grass always holds a Pokemon; other tall grass rolls, except for a few steps after an encounter.
+  const cooling = game.cooldown > 0
+  walked = { ...walked, cooldown: Math.max(0, game.cooldown - 1) }
+  const rustled = !!game.rustling && pointKey(game.rustling) === key
+  if (rustled) walked = { ...walked, rustling: null }
+  if (rustled || (grass && !cooling && random() < GRASS_RATE)) {
+    walked = { ...meetWild(walked, area as Zone, random), cooldown: GRASS_COOLDOWN }
+    events.push('encounter')
+    messages.encounter = walked.message
+  }
+  if (walked.taken >= walked.nextRustleAt) {
+    const rustling = placeRustle(walked, random, map)
+    walked = { ...walked, rustling, nextRustleAt: walked.nextRustleAt + RUSTLE_EVERY }
+    if (rustling) {
+      events.push('rustle')
+      messages.rustle = 'The grass is rustling nearby!'
+    }
+  }
+  if (walked.steps <= 0 && !walked.encounter) {
+    walked = { ...walked, status: 'complete' }
+    events.push('out-of-steps')
+    messages['out-of-steps'] = TIME_UP
+  }
+  const shown = (['encounter', 'out-of-steps', 'item', 'rustle', 'sign', 'area', 'grass'] as const).find(event => messages[event])
   return { game: shown ? { ...walked, message: messages[shown]! } : walked, move: hop ? 'hop' : 'step', events }
+}
+
+const TIME_UP = "Ding-dong! Time's up!"
+
+// A tall-grass tile in the trainer's area, 2-6 tiles away (and not under the trainer or buddy), or null if none.
+function placeRustle(game: ZoneGame, random: () => number, map: SafariMap): Point | null {
+  const area = map.areas[game.at.y]?.[game.at.x]
+  const candidates: Point[] = []
+  for (let y = Math.max(0, game.at.y - 6); y <= Math.min(map.rows - 1, game.at.y + 6); y++) {
+    for (let x = Math.max(0, game.at.x - 6); x <= Math.min(map.cols - 1, game.at.x + 6); x++) {
+      const distance = Math.max(Math.abs(x - game.at.x), Math.abs(y - game.at.y))
+      if (distance < 2 || map.tiles[y][x] !== 'g' || map.areas[y][x] !== area || (x === game.buddy.x && y === game.buddy.y)) continue
+      candidates.push({ x, y })
+    }
+  }
+  return candidates.length ? candidates[Math.floor(random() * candidates.length)] : null
+}
+
+// Runs a catch action (throw, bait, rock, run, tick, pause) on a zone game. A round whose steps ran out during an
+// encounter ends once that encounter is over.
+export function zoneAction(game: ZoneGame, change: (game: SafariGame) => SafariGame): ZoneGame {
+  const next = change(game)
+  if (next === game) return game
+  const merged: ZoneGame = { ...game, ...next }
+  return merged.status === 'playing' && !merged.encounter && merged.steps <= 0 ? { ...merged, status: 'complete', message: TIME_UP } : merged
 }
 
 export function confirmLeave(game: ZoneGame): ZoneGame {
