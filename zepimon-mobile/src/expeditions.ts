@@ -7,6 +7,10 @@ export type ExpeditionProgress = { trails: Record<string, Trail>, dex: Record<st
 export const emptyExpeditions = (): ExpeditionProgress => ({ trails: {}, dex: {} })
 export { expeditionEncounter, expeditionGoal, expeditionKey }
 
+// Encounters a trail has opened: one per 25 km of saved distance, plus any opened early with an Expedition Permit
+// (src/expedition-quest.ts). Permits are counted beside the trail, so the watch/phone trail shape never changes.
+export const unlockedEncounters = (trail: Expedition, permits = 0) => Math.min(4000, Math.floor(trail.meters / expeditionGoal) + permits)
+
 export function importExpeditions(previous: ExpeditionProgress, journal: Journal): ExpeditionProgress {
   if (!journal.snapshot.expedition) return previous
   const incoming = validateExpedition(journal.snapshot.expedition) as Expedition
@@ -16,12 +20,16 @@ export function importExpeditions(previous: ExpeditionProgress, journal: Journal
     meters: Math.max(old?.meters || 0, incoming.meters), claimed: old?.claimed || 0 } } }
 }
 
-export function claimExpedition(previous: ExpeditionProgress, key: string, index: number, now = Date.now()): ExpeditionProgress {
+// shiny is the encounter's own roll (src/expedition-encounter.ts); without one, the canonical seeded draw decides.
+// permits are the encounters this trail opened with Expedition Permits.
+export function claimExpedition(previous: ExpeditionProgress, key: string, index: number, now = Date.now(),
+  { shiny: rolled, permits = 0 }: { shiny?: boolean, permits?: number } = {}): ExpeditionProgress {
   const trail = previous.trails[key]
-  if (!trail || index !== trail.claimed || (index + 1) * expeditionGoal > trail.meters) {
+  if (!trail || index !== trail.claimed || index >= unlockedEncounters(trail, permits)) {
     throw new Error('This encounter is already befriended or is not ready yet.')
   }
-  const { name, shiny } = expeditionEncounter(trail, index)
+  const { name, shiny: drawn } = expeditionEncounter(trail, index)
+  const shiny = rolled ?? drawn
   const record: DexRecord = { meters: expeditionGoal, steps: 0, shiny, form: name,
     source: 'expedition', finishedAt: new Date(now).toISOString() }
   return { trails: { ...previous.trails, [key]: { ...trail, claimed: index + 1 } },
@@ -34,7 +42,8 @@ export function expeditionJournal(journal: Journal | null, progress: ExpeditionP
   return { ...journal, snapshot: { ...journal.snapshot, dex: { ...journal.snapshot.dex, ...progress.dex } } }
 }
 
-export function restoreExpeditions(raw: unknown): ExpeditionProgress {
+// permits: encounters each trail opened with an Expedition Permit, which may be claimed before their 25 km.
+export function restoreExpeditions(raw: unknown, permits: Record<string, number> = {}): ExpeditionProgress {
   if (raw === undefined) return emptyExpeditions()
   const value = raw as ExpeditionProgress
   if (!value || typeof value !== 'object' || !value.trails || !value.dex ||
@@ -44,7 +53,7 @@ export function restoreExpeditions(raw: unknown): ExpeditionProgress {
   const restored = emptyExpeditions()
   for (const [key, trail] of Object.entries(value.trails)) {
     const checked = validateExpedition(trail) as Expedition
-    if (key !== expeditionKey(checked) || !Number.isSafeInteger(trail.claimed) || trail.claimed < 0 || trail.claimed > Math.floor(checked.meters / expeditionGoal)) {
+    if (key !== expeditionKey(checked) || !Number.isSafeInteger(trail.claimed) || trail.claimed < 0 || trail.claimed > unlockedEncounters(checked, permits[key] || 0)) {
       throw new Error('Invalid saved expedition claims')
     }
     restored.trails[key] = { ...checked, claimed: trail.claimed }

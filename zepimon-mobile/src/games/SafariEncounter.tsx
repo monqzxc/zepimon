@@ -91,7 +91,7 @@ function Transition({ width, height, onDone }: { width: number, height: number, 
 }
 
 // Emerald's sparkle around a Shiny as it appears: three times through the strip, or one still frame with reduced motion.
-function Sparkles({ centre, size, reduced }: { centre: { x: number, y: number }, size: number, reduced: boolean }) {
+export function Sparkles({ centre, size, reduced }: { centre: { x: number, y: number }, size: number, reduced: boolean }) {
   const [tick, setTick] = useState(0)
   useEffect(() => {
     if (reduced) return

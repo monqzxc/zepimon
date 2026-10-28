@@ -5,6 +5,7 @@ import { BACKUP_VERSION, backupFileName, backupSummary, createBackup, hasBackupD
 import { parseJournal } from '../src/journal.ts'
 import { emptyProgress } from '../src/progress.ts'
 import { emptyExpeditions } from '../src/expeditions.ts'
+import { emptyQuest } from '../src/expedition-quest.ts'
 import { addSafariCatch } from '../src/games/safari.ts'
 
 const journal = parseJournal(readFileSync(new URL('../examples/demo-export.json', import.meta.url), 'utf8'))
@@ -12,7 +13,7 @@ const now = Date.UTC(2026, 9, 26, 1, 30)
 const phoneRun = { id: 'phone-1', family: ['Pidgey', 'Pidgeotto', 'Pidgeot'], path: '_p~iF~ps|U_ulLnnqC',
   record: { meters: 5200, steps: 0, shiny: false, activity: 'walking', finishedAt: new Date(now).toISOString(), startedAt: now - 3600000, elapsedSeconds: 3600, form: 'Pidgey' } }
 const data = (extra = {}) => ({ journal, buddy: 'Shiny Bulbasaur', bestMoves: { 4: 9 }, progress: emptyProgress(), arcadeScores: { quiz: 7, safari: 5 },
-  expeditions: emptyExpeditions(), safari: addSafariCatch({}, 'Pidgey', false, now), adventure: { 'route-1': 3, 'viridian-forest': 2 },
+  expeditions: emptyExpeditions(), quest: { ...emptyQuest(), permits: 1 }, encounters: {}, safari: addSafariCatch({}, 'Pidgey', false, now), adventure: { 'route-1': 3, 'viridian-forest': 2 },
   trailLevels: { 'level-1': 3, 'level-2': 1 }, phoneRuns: [phoneRun], ...extra })
 
 test('a backup is a normal export that the importer accepts, plus this phone’s own data', () => {
@@ -24,7 +25,8 @@ test('a backup is a normal export that the importer accepts, plus this phone’s
   assert.equal(imported.receivedAt, journal.receivedAt)
   assert.equal(backup.exportedAt, new Date(now).toISOString())
   assert.deepEqual(Object.keys(backup.phoneBackup).sort(), ['adventure', 'appVersion', 'arcadeScores', 'backupVersion', 'bestMoves', 'buddy',
-    'createdAt', 'expeditions', 'phoneRuns', 'progress', 'safari', 'trailLevels'].sort())
+    'createdAt', 'encounters', 'expeditions', 'phoneRuns', 'progress', 'quest', 'safari', 'trailLevels'].sort())
+  assert.equal(backup.phoneBackup.quest.permits, 1, 'Unused Expedition Permits are kept')
   assert.deepEqual(backup.phoneBackup.phoneRuns, [phoneRun], 'Phone adventures keep their routes')
   assert.equal(backup.phoneBackup.backupVersion, BACKUP_VERSION)
   assert.equal(backup.phoneBackup.appVersion, '1.6.0')

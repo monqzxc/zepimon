@@ -3,6 +3,7 @@ import { router } from 'expo-router'
 import type { Href } from 'expo-router'
 import { useJournal } from './store'
 import { missions } from './progress'
+import { trailUnlocked } from './expedition-quest'
 import { Icon, colors, fonts, themedStyles, glass } from './ui'
 import type { IconName } from './ui'
 
@@ -10,12 +11,12 @@ import type { IconName } from './ui'
 // toward its 10 km mission and the badges earned, and the expedition encounters waiting.
 
 export function QuestTiles() {
-  const { journal, progress, expeditions } = useJournal()
+  const { journal, progress, expeditions, quest } = useJournal()
   const all = missions(journal, progress)
   const week = all.find(mission => mission.id === 'week-distance')
   const badges = all.filter(mission => !mission.weekly)
   const earned = badges.filter(mission => progress.unlocked[mission.id]).length
-  const waiting = Object.values(expeditions.trails).reduce((sum, trail) => sum + Math.floor(trail.meters / 25000) - trail.claimed, 0)
+  const waiting = Object.entries(expeditions.trails).reduce((sum, [key, trail]) => sum + trailUnlocked(quest, key, trail) - trail.claimed, 0)
   return <View style={tiles.row}>
     <Tile href="/missions" icon="missions" tint={colors.mint} ink={colors.edge} title="Missions"
       line={`${earned} of ${badges.length} badges`}
@@ -23,7 +24,7 @@ export function QuestTiles() {
       fill={week ? Math.min(1, week.value / week.goal) : 0} />
     <Tile href="/expeditions" icon="explore" tint={colors.altTint} ink={colors.alt} title="Expeditions"
       line={waiting ? `${waiting} encounter${waiting === 1 ? '' : 's'} waiting` : 'A Legendary awaits'}
-      detail="Three clues across 25 km" />
+      detail={quest.permits ? `${quest.permits} Expedition Permit${quest.permits === 1 ? '' : 's'} ready` : 'Three clues across 25 km'} />
   </View>
 }
 

@@ -48,6 +48,8 @@ const looks: Record<string, Look> = {
   fairy: { shot: { sprite: 'fairy-sparkle' }, hit: [{ sprite: 'heart', motion: 'rise' }] }
 }
 const lookOf = (move: string) => looks[move] ?? looks.normal
+// The strip a move of this type lands with, for battles that draw their own hits (the Legendary battle).
+export const hitSheet = (type: string) => sheets[lookOf(type).hit[0].sprite]
 const smaller = (layers: Layer[]) => layers.map(layer => ({ ...layer, scale: (layer.scale ?? 1) * 0.75 }))
 
 // A projectile in flight: its strip loops, and aimed sprites point at the foe they chase.

@@ -231,16 +231,53 @@ screen calls `useTheme()` so it redraws when the theme changes.
 ### Legendary Expeditions (1.5.0)
 
 Open **Expeditions** under **Missions & expeditions** on the Adventure tab. With watch v1.11.0, saved
-walks/runs accumulate toward clues at 5, 15 and 25 km. At 25 km, meet and
-befriend a Legendary or Mythical Pokemon in a short, untimed interaction.
-Mystery habitats and silhouettes become visible as clues are discovered.
-The existing sprites and habitats are reused, with themed encounters for
-Articuno, Suicune, Rayquaza and Mewtwo and a habitat trail for the other species.
-The 39 available species cycle from a random starting point. Extra distance
-carries into subsequent expeditions; multiple unlocked encounters wait for you.
+walks/runs accumulate toward clues at 5, 15 and 25 km. Mystery habitats and silhouettes become visible as
+clues are discovered. The 39 available species cycle from a random starting point. Extra distance carries
+into subsequent expeditions; multiple unlocked encounters wait for you.
 
-Each encounter has a stable seeded 1-in-50 shiny draw. Reopening, duplicate
-imports, delayed syncs or restoring the same watch snapshot cannot reroll it.
+**Three ways to open the next encounter.** Any one is enough, and the screen shows each one's progress separately:
+
+- **Route A, distance:** 25 km of saved walks and runs (never live distance). 24,999 m is not enough; 25,000 m is.
+- **Route B, Expedition Quest:** three saved walks or runs of at least 1 km each, plus the quest's shrine
+  challenge (light nine lanterns; touching one flips it and its neighbours). It earns one **Expedition Permit**.
+  The first quest counts sessions since your expedition trail began; each later quest counts sessions after the
+  last one used, so no session counts twice, however often a journal is imported.
+- **Route C, arcade achievements:** 25 achievements across the Pocket Arcade (Memory Match, Quiz, Berry Catch,
+  Route Guard, Trail Defense, the Adventure Map and the Safari Zone) are worth 10–40 points each, 530 in all.
+  Every 100 points can be traded for an Expedition Permit. Achievements are read from the best scores, stars and
+  Safari catches the games already save, so replaying cannot count one twice. The arcade shows them under
+  **Arcade achievements**.
+
+A permit opens the next encounter on a trail early; it is spent only when nothing there is already open, and it
+never grants a free catch. Permits are kept beside the trails (`quest` in the phone's saved data), so the watch/phone
+trail contract `{ seed, startedAt, meters }` and its merge rules are unchanged. Distance keeps counting toward the
+next 25 km after a permit encounter.
+
+**Each encounter: trial → chamber → battle → catch.**
+
+1. **Trial:** a species-themed shrine maze (for example Sky Pillar Ascent for Rayquaza), played with the D-pad or the
+   arrow keys / WASD. Walls block; reaching the golden exit finishes it, and it stays finished.
+2. **Chamber:** the Legendary slides in and its result is revealed. Each roll has a **1 in 100** Shiny chance, made
+   the first time the chamber opens. Leaving, refreshing, reopening or syncing never rerolls. **Reset encounter**
+   asks for confirmation (two steps for a Shiny), waits **5 seconds**, then rolls once. The wait is saved as a clock
+   time, so a reset left running finishes when you come back. Resetting never changes the species, the trial,
+   distance or claim order, and is only possible before the battle.
+3. **Battle:** an Emerald-style FIGHT / BAG / POKéMON / RUN battle with your buddy (or Pikachu). Moves (your
+   buddy's type move and False Swipe) lower HP but always leave the Legendary at 1 HP or more.
+4. **Catch:** five Poké Balls per battle; lower HP makes a catch likelier. A failed catch, running or running out of
+   balls uses nothing up. Only a successful catch claims the encounter and adds the Legendary to the Dex, once.
+
+Battle animations (entrances, idle bob, lunge, hit flashes with Gen III move strips, ball arc, shakes and capture)
+respect the phone's or the app's reduce-motion setting. They reuse the Emerald battle backgrounds and move sprites
+already credited in `SPRITE-CREDITS.md`; the Poké Ball is the app's own vector icon.
+
+**Shiny odds and older saves.** The canonical seeded draw in `hatdog-app/shared/expedition.js` (species and its
+1-in-50 Shiny) is unchanged and still fixes each encounter's species. Encounter rolls are kept separately (`encounters`
+in the phone's saved data: species, attempt, trial, Shiny, reset-pending and `nextResetAllowedAt`). On the first
+launch after this update, an encounter that was already open and showed a Shiny from the old draw keeps that Shiny
+as its first roll; every other unclaimed encounter rolls 1 in 100 when its chamber opens. Friends already befriended
+are never changed.
+
 Normal and Shiny friends join the Dex separately and can be selected as buddies.
 Expedition records show 25 cumulative km rather than invented workout pace,
 steps or hatch time. They do not create extra workouts or inflate run missions.
@@ -248,10 +285,10 @@ steps or hatch time. They do not create extra workouts or inflate run missions.
 Progress starts with adventures saved after the watch update; overwritten old
 runs cannot be recovered. Existing Legendary acquisitions and active watch
 adventures are retained. The watch counter and seed use the existing Supabase
-snapshot and manual JSON path, with no database migration. Befriending records
-are stored on this phone alongside missions and scores. Reinstalling the app
-requires befriending unlocked encounters again after syncing; outcomes remain
-the same. A watch reset starts a new trail without removing phone discoveries.
+snapshot and manual JSON path, with no database migration. Befriending records,
+quests, permits and encounter rolls are stored on this phone alongside missions and scores. Reinstalling the app
+requires befriending unlocked encounters again after syncing. A watch reset starts a new trail without removing
+phone discoveries.
 
 ### Adventure games
 

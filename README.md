@@ -81,7 +81,7 @@ You can close the app and keep walking; it still counts. On the title screen, **
 
 **History** shows your personal bests: **Highest distance**, **Longest elapsed time** and **Fastest 5 km hatch**.
 
-**Legendary Expeditions.** Every saved adventure adds its distance to your expedition total. Clues appear at 5 and 15 km. At 25 km a Legendary or Mythical Pokémon appears, and you befriend it in the phone app. Extra distance carries over to the next expedition.
+**Legendary Expeditions.** Every saved adventure adds its distance to your expedition total. Clues appear at 5 and 15 km. At 25 km a Legendary or Mythical Pokémon appears, and you meet it in the phone app. Extra distance carries over to the next expedition. The phone app also opens encounters early with Expedition Permits, earned from Expedition Quests or arcade achievement points.
 
 ## Using the Zepp app
 
@@ -113,7 +113,7 @@ The app works the same on Android and iPhone. It has five tabs:
 - **iPhone** keeps recording in the background and shows the blue location indicator.
 - Both only need **While using the app** location permission.
 
-**Legendary Expeditions.** After a sync, open **Explore expeditions** from the Journal to meet and befriend any Legendary or Mythical Pokémon you've unlocked. It joins your Dex.
+**Legendary Expeditions.** Open a Legendary encounter with 25 km of saved walks and runs, an Expedition Quest (three saved sessions plus a shrine challenge) or 100 arcade achievement points. Then clear its shrine maze, see its result in the chamber (1 in 100 Shiny, resettable before the battle), and battle and catch it with a Poké Ball. Only a successful catch adds it to your Dex.
 
 ### Manual JSON import
 

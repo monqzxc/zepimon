@@ -21,6 +21,7 @@ import type { Stop } from '../../games/adventure'
 import { LEVELS, STAGES, levelUnlocked } from '../../games/levels'
 import type { Level } from '../../games/levels'
 import { TrailLevels } from '../../games/TrailLevels'
+import { ArcadeAchievements } from '../../games/ArcadeAchievements'
 import { legendaryAssists, teamChoices } from '../../games/roster'
 import type { TeamCard } from '../../games/roster'
 import { PixelSprite } from '../../games/TeamPicker'
@@ -115,6 +116,7 @@ export default function PlayScreen() {
         <Copy color={colors.ink}>{bonus.km ? `+◉ ${bonus.berries} starting berries, +${bonus.balls} Safari Balls and +${bonus.km * STEPS_PER_KM} Safari Zone steps this week.` : 'Every km you walk this week (Monday–Sunday) adds starting berries, Safari Balls and Safari Zone steps.'}</Copy>
         <Copy small>A bonus, never a requirement: every game is fully playable without walking.</Copy>
       </Panel>
+      <ArcadeAchievements place="arcade" />
       <GameCard tint={typeTints.flying} eyebrow="01 · ADVENTURE MAP" title="From Route 1 to Victory Road"
         art={['Pidgey', 'Geodude', 'Clefairy', 'Gastly', 'Dragonite'].map(name => <PixelSprite key={name} name={name} size={56} />)}
         text="Nine stops that mix all three new games. Earn stars to open the trail ahead."
