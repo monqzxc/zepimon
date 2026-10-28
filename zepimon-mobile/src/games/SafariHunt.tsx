@@ -8,6 +8,7 @@ import { PATCHES, SAFARI_DURATION, ZONES, approachPatch, pauseSafari, readySafar
   startSafari, throwBait, throwBall, throwQuality, throwRock, tickSafari } from './safari'
 import type { SafariGame, Zone } from './safari'
 import { PixelSprite } from './TeamPicker'
+import { Ring } from './SafariEncounter'
 import { useGameLoop, useReducedMotion } from './hooks'
 import { TICK } from './battle'
 
@@ -139,18 +140,6 @@ function Stat({ label, value }: { label: string, value: string }) {
   return <View><Eyebrow>{label}</Eyebrow><Text style={styles.stat}>{value}</Text></View>
 }
 
-// Follows the game clock one step ahead so the ring you see matches the throw you get.
-function Ring({ scale, next, color, reduced }: { scale: number, next: number, color: string, reduced: boolean }) {
-  const [size] = useState(() => new Animated.Value(scale))
-  useEffect(() => {
-    if (reduced || next > scale) { size.setValue(scale); return }
-    const shrink = Animated.timing(size, { toValue: next, duration: TICK, easing: Easing.linear, useNativeDriver: native })
-    shrink.start()
-    return () => shrink.stop()
-  }, [size, scale, next, reduced])
-  return <Animated.View pointerEvents="none" style={[hunt.ring, { borderColor: color, transform: [{ scale: size }] }]} />
-}
-
 function Shake({ active, children }: { active: boolean, children: ReactNode }) {
   const [angle] = useState(() => new Animated.Value(0))
   useEffect(() => {
@@ -185,7 +174,6 @@ const hunt = themedStyles(() => ({
   zoneText: { color: colors.ink, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
   name: { color: colors.ink, fontSize: 22, lineHeight: 28, fontFamily: fonts.heavy },
   stage: { width: 180, height: 180, alignItems: 'center', justifyContent: 'center' },
-  ring: { position: 'absolute', width: 176, height: 176, borderRadius: 88, borderWidth: 4 },
   quality: { fontFamily: fonts.heavy, fontSize: 16 },
   message: { color: colors.ink, fontSize: 15, lineHeight: 22, fontFamily: fonts.bold }
 }))
