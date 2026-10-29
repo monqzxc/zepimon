@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RESET_COOLDOWN, SHINY_ODDS, activeEncounter, catchEncounter, finishReset, finishTrial, legacyEncounters, openChamber, readyToBattle,
-  requestReset, restoreEncounters, rollLegendaryShiny, saveCheckpoint } from '../src/expedition-encounter.ts'
+import { RESET_COOLDOWN, RESONANCE_SEALS, SHINY_ODDS, activateSeal, activeEncounter, catchEncounter, finishReset, finishTrial, legacyEncounters,
+  openChamber, readyToBattle, requestReset, restoreEncounters, rollLegendaryShiny, saveCheckpoint, stabilizeResonance, startResonance } from '../src/expedition-encounter.ts'
 import { emptyQuest } from '../src/expedition-quest.ts'
 import { startRun } from '../src/games/trials.ts'
 import { stepRoom } from '../src/games/trial.ts'
@@ -20,6 +20,9 @@ const NORMAL = () => 0.5
 const chamber = (random = NORMAL) => openChamber(play(finishTrial(play(), key, 0)), key, 0, NOW, random)
 // Writing to storage and reading back, as reopening the app does.
 const reopen = encounters => restoreEncounters(JSON.parse(JSON.stringify(encounters)), play().expeditions, emptyQuest())
+// The Resonance Trial between the chamber and the catch: start it, switch on every seal and stabilize (tests/resonance-encounter.test.js).
+const resonated = encounters => stabilizeResonance(play(RESONANCE_SEALS.reduce((saved, seal) => activateSeal(play(saved), key, 0, seal),
+  startResonance(play(encounters), key, 0))), key, 0)
 
 test('the trial must be finished first, and the first chamber entry makes exactly one 1-in-100 roll', () => {
   assert.throws(() => openChamber(play(), key, 0, NOW, NORMAL), /trial/)
@@ -91,7 +94,8 @@ test('only a successful catch claims, once, with the chamber result; failing or 
   assert.throws(() => catchEncounter(play(requestReset(play(shiny), key, 0, true, NOW)), key, 0, NOW), /chamber/, 'No catch mid-reset')
   // A failed catch or leaving does not call the claim at all: the saved encounter is unchanged and can be caught later.
   assert.deepEqual(reopen(shiny), shiny)
-  const { expeditions, encounters } = catchEncounter(play(shiny), key, 0, NOW)
+  assert.throws(() => catchEncounter(play(shiny), key, 0, NOW), /Resonance/, 'No catch before the Resonance Trial')
+  const { expeditions, encounters } = catchEncounter(play(resonated(shiny)), key, 0, NOW)
   const name = expeditionEncounter(trail, 0).name
   assert.equal(expeditions.trails[key].claimed, 1)
   assert.deepEqual(Object.keys(expeditions.dex), [`Shiny ${name}`])

@@ -298,7 +298,7 @@ never grants a free catch. Permits are kept beside the trails (`quest` in the ph
 trail contract `{ seed, startedAt, meters }` and its merge rules are unchanged. Distance keeps counting toward the
 next 25 km after a permit encounter.
 
-**Each encounter: trial → chamber → battle → catch.**
+**Each encounter: trial → chamber → Resonance Trial → battle → catch.**
 
 1. **Trial:** a species-themed Legendary Trial (for example Sky Pillar Ascent for Rayquaza), one or two rooms walked
    like the Safari Zone. See **Legendary Trials** below. Once finished, it stays finished.
@@ -306,15 +306,43 @@ next 25 km after a permit encounter.
    the first time the chamber opens. Leaving, refreshing, reopening or syncing never rerolls. **Reset encounter**
    asks for confirmation (two steps for a Shiny), waits **5 seconds**, then rolls once. The wait is saved as a clock
    time, so a reset left running finishes when you come back. Resetting never changes the species, the trial,
-   distance or claim order, and is only possible before the battle.
-3. **Battle:** an Emerald-style FIGHT / BAG / POKéMON / RUN battle with your buddy (or Pikachu). Moves (your
+   distance or claim order, and is only possible before the Resonance Trial starts.
+3. **Resonance Trial:** an arena where you switch on four ancient seals to steady the Legendary. See **Legendary
+   Resonance Trials** below. The catch opens once it is stabilized.
+4. **Battle:** an Emerald-style FIGHT / BAG / POKéMON / RUN battle with your buddy (or Pikachu). Moves (your
    buddy's type move and False Swipe) lower HP but always leave the Legendary at 1 HP or more.
-4. **Catch:** five Poké Balls per battle; lower HP makes a catch likelier. A failed catch, running or running out of
+5. **Catch:** five Poké Balls per battle; lower HP makes a catch likelier. A failed catch, running or running out of
    balls uses nothing up. Only a successful catch claims the encounter and adds the Legendary to the Dex, once.
 
 Battle animations (entrances, idle bob, lunge, hit flashes with Gen III move strips, ball arc, shakes and capture)
 respect the phone's or the app's reduce-motion setting. They reuse the Emerald battle backgrounds and move sprites
 already credited in `SPRITE-CREDITS.md`; the Poké Ball is the app's own vector icon.
+
+#### Legendary Resonance Trials
+
+Between the chamber and the battle, the Legendary resonates in an arena: a 9 × 9 clearing of the Safari Zone by the
+lake, drawn, walked and collided exactly as the Safari Zone is (the same map and terrain, D-pad, arrow keys / WASD or
+Tap to walk, trainer and buddy). The Legendary stands in the middle, and four ancient seals ◇ sit around it:
+
+- **Wave:** an energy wave covers the whole clearing but one safe tile ◎; stand on it before it lands (3.2 s).
+- **Rune:** three numbered runes light up; step on 1, 2, then 3. A rune out of turn simply doesn't count.
+- **Pulse:** stand on the seal and press **Resonate** (or Space / Enter) while the shrinking ring is inside the gold band.
+  The Legendary holds still while you focus.
+- **Stone:** three guardian stones ▲ stir; step on each, in any order.
+
+Runes and stones keep their progress while you walk around; the wave and the pulse simply start again if missed.
+Meanwhile the Legendary sends gentle attacks: a ring around you or a line through you, marked ⚠ on the ground for 1.8 s
+before it lands ✸. That's time for about eight steps, and one or two always get you clear. Only the marked tiles count,
+at the moment the attack lands. A hit costs one **resonance** and a short stagger. You start with 3, plus 1 for each km
+of saved walks and runs this week, up to 5 (the arcade's walking bonus: only saved, finished adventures count). At 0
+you catch your breath while the Legendary holds back, then you're back to full. Nothing ever turns a seal off.
+
+With all four seals on, **Steady the Legendary** plays a short stabilization and opens the catch: the battle and
+catch above, unchanged. Leaving, pausing (or the app going to the background), restarting the app or a failed catch
+keeps every seal; each one is saved the moment it switches on. Entering the arena sets the encounter, so the chamber
+can no longer be reset, and only a successful catch claims it. The rules are in `src/games/resonance.ts`, the saved
+progress (`resonance` on the waiting encounter) in `src/expedition-encounter.ts`, and the screen is
+`src/games/ResonanceTrial.tsx`. They're covered by `tests/resonance-arena.test.js` and `tests/resonance-encounter.test.js`.
 
 #### Legendary Trials
 

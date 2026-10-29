@@ -12,8 +12,9 @@ import type { ExpeditionProgress } from './expeditions'
 import { completeChallenge, earnArcadePermit, earnPermit, emptyQuest, questSessions, restoreQuest, spendPermit } from './expedition-quest'
 import { arcadePoints } from './games/achievements'
 import type { Quest } from './expedition-quest'
-import { catchEncounter, finishReset, finishTrial, legacyEncounters, openChamber, requestReset, restoreEncounters, saveCheckpoint } from './expedition-encounter'
-import type { Encounters } from './expedition-encounter'
+import { activateSeal, catchEncounter, finishReset, finishTrial, legacyEncounters, openChamber, requestReset, restoreEncounters, saveCheckpoint,
+  stabilizeResonance, startResonance } from './expedition-encounter'
+import type { Encounters, SealId } from './expedition-encounter'
 import { addSafariCatch, restoreSafariDex, withSafariCatches } from './games/safari'
 import type { SafariDex } from './games/safari'
 import { restoreStars, saveStars } from './games/adventure'
@@ -34,6 +35,8 @@ type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRec
   finishTrial: (key: string, index: number, results: Record<string, number>) => Promise<void>,
   recordPracticeClear: (name: string, shiny: boolean, results: Record<string, number>) => Promise<void>, recordRematchWin: (name: string, shiny: boolean) => Promise<void>, saveTrialCheckpoint: (key: string, index: number, run: TrialRun) => Promise<void>, openChamber: (key: string, index: number) => Promise<void>,
   resetEncounter: (key: string, index: number, discardShiny: boolean) => Promise<void>, finishReset: (key: string, index: number) => Promise<void>,
+  startResonance: (key: string, index: number) => Promise<void>, activateSeal: (key: string, index: number, seal: SealId) => Promise<void>,
+  stabilizeResonance: (key: string, index: number) => Promise<void>,
   completeQuestChallenge: () => Promise<void>, earnPermit: () => Promise<void>, earnArcadePermit: () => Promise<void>, unlockWithPermit: (key: string) => Promise<void>, recordSafariCatch: (name: string, shiny: boolean) => Promise<void>, recordStars: (stop: string, stars: number) => Promise<void>,
   recordLevelStars: (level: string, stars: number) => Promise<void>, savePhoneRun: (run: PhoneRun) => Promise<void>, chooseEgg: (family: string[], mega: string | null) => Promise<void>,
   setPhoneAdventure: (phone: Plan['phone']) => Promise<void>, dropEgg: () => Promise<void>, receivePlan: (plan: unknown) => Promise<void>, makeBackup: () => string, backupInfo: ReturnType<typeof backupSummary> }
@@ -148,6 +151,11 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   const resetEncounter = (key: string, index: number, discardShiny: boolean) =>
     persist(current => ({ ...current, encounters: requestReset(current, key, index, discardShiny) }))
   const finishEncounterReset = (key: string, index: number) => persist(current => ({ ...current, encounters: finishReset(current, key, index) }))
+  // The Legendary Resonance Trial (src/games/resonance.ts) between the chamber and the catch. Each step saves at once and
+  // is safe to repeat: starting again, a seal already on or stabilizing twice changes nothing. Only the catch claims.
+  const beginResonance = (key: string, index: number) => persist(current => ({ ...current, encounters: startResonance(current, key, index) }))
+  const switchOnSeal = (key: string, index: number, seal: SealId) => persist(current => ({ ...current, encounters: activateSeal(current, key, index, seal) }))
+  const steadyResonance = (key: string, index: number) => persist(current => ({ ...current, encounters: stabilizeResonance(current, key, index) }))
   // The Expedition Quest (src/expedition-quest.ts): the shrine challenge, the permit it earns and spending it on a trail.
   const completeQuestChallenge = () => persist(current => ({ ...current, quest: completeChallenge(current.quest) }))
   const earnQuestPermit = () => persist(current => ({ ...current, quest: earnPermit(current.quest, questSessions(current.quest, current.progress, current.expeditions)) }))
@@ -176,6 +184,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   const makeBackup = () => createBackup(latest.current, Date.now(), Constants.expoConfig?.version ?? '')
   return <Context.Provider value={{ ...saved, ...collectionOf(saved), ready, error, importText, importCloud, chooseBuddy, recordWin, recordArcadeScore,
     befriend, finishTrial: finishEncounterTrial, recordPracticeClear, recordRematchWin, saveTrialCheckpoint, openChamber: openEncounterChamber, resetEncounter, finishReset: finishEncounterReset,
+    startResonance: beginResonance, activateSeal: switchOnSeal, stabilizeResonance: steadyResonance,
     completeQuestChallenge, earnPermit: earnQuestPermit, earnArcadePermit: earnPointsPermit, unlockWithPermit, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
     backupInfo: backupSummary(saved) }}>{children}</Context.Provider>
 }

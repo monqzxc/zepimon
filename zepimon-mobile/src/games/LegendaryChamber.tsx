@@ -11,8 +11,9 @@ const native = Platform.OS !== 'web'
 type Confirm = 'none' | 'reset' | 'shiny' | 'shiny-final'
 
 // The shrine chamber between the trial and the battle. The Legendary's current result is revealed as it slides in. From
-// here: BATTLE, RESET ENCOUNTER (a confirmed reset, a five-second wait, then one new roll) or LEAVE CHAMBER. The wait is
-// saved as a clock time, so leaving and coming back resumes it.
+// here: on to the Resonance Trial (or the catch, once the trial is stabilized), RESET ENCOUNTER (a confirmed reset, a
+// five-second wait, then one new roll) or LEAVE CHAMBER. The wait is saved as a clock time, so leaving and coming back
+// resumes it. Once the Resonance Trial has begun the result is set and reset is gone.
 export function LegendaryChamber({ encounter, number, reduced, busy, onBattle, onReset, onSettle, onLeave }: {
   encounter: ActiveEncounter & { shiny: boolean }, number: number, reduced: boolean, busy: boolean,
   onBattle: () => void, onReset: (discardShiny: boolean) => void, onSettle: () => void, onLeave: () => void
@@ -38,6 +39,8 @@ export function LegendaryChamber({ encounter, number, reduced, busy, onBattle, o
     settle.current()
   }, [due, now, encounter])
   const remaining = Math.min(RESET_COOLDOWN, Math.max(0, encounter.nextResetAllowedAt - now)) / 1000
+  const resonance = encounter.resonance
+  const set = !!resonance?.started
   const ink = typeInks[pokemonType(encounter.name)] || colors.edge
   const label = `${encounter.shiny ? 'Shiny ' : ''}${encounter.name}`
   return <Panel style={{ backgroundColor: look.shrine.backgroundColor, borderColor: ink }}>
@@ -48,9 +51,11 @@ export function LegendaryChamber({ encounter, number, reduced, busy, onBattle, o
     </Text>
     <Text style={look.detail}>ATTEMPT #{encounter.attempt} · {pending ? `NEW RESULT IN ${remaining.toFixed(1)} s` : encounter.shiny ? 'SHINY COLOURING' : 'NORMAL COLOURING'}</Text>
     {confirm === 'none' ? <View style={{ gap: 10 }}>
-      <Button title="▶ BATTLE" disabled={pending || busy} onPress={onBattle} />
-      <Button title={pending ? `↻ RESETTING… ${remaining.toFixed(1)} s` : '↻ RESET ENCOUNTER'} secondary disabled={pending || busy}
-        onPress={() => setConfirm(encounter.shiny ? 'shiny' : 'reset')} />
+      <Button title={resonance?.stabilized ? '▶ BEGIN THE CATCH' : set ? `▶ RESONANCE TRIAL · ${resonance!.seals.length} / 4 SEALS` : '▶ RESONANCE TRIAL'}
+        disabled={pending || busy} onPress={onBattle} />
+      {set ? <Text style={look.detail}>THE RESONANCE TRIAL HAS BEGUN · THIS RESULT IS SET</Text>
+        : <Button title={pending ? `↻ RESETTING… ${remaining.toFixed(1)} s` : '↻ RESET ENCOUNTER'} secondary disabled={pending || busy}
+          onPress={() => setConfirm(encounter.shiny ? 'shiny' : 'reset')} />}
       <Button title="◀ LEAVE CHAMBER" secondary disabled={busy} onPress={onLeave} />
     </View> : <View style={look.confirm}>
       {confirm === 'reset' ? <>

@@ -6,7 +6,7 @@ import { useJournal } from '../store'
 import { expeditionEncounter, expeditionKey } from '../expeditions'
 import type { Trail } from '../expeditions'
 import { QUEST_SESSIONS, QUEST_SESSION_METERS, distanceLeg, encounterReady, questSessions, trailUnlocked } from '../expedition-quest'
-import { readyToBattle } from '../expedition-encounter'
+import { readyToBattle, readyToCapture } from '../expedition-encounter'
 import type { ActiveEncounter } from '../expedition-encounter'
 import { clueMilestones, expeditionGoal } from '../generated/expedition.js'
 import { km } from '../journal'
@@ -17,6 +17,8 @@ import { useImmersive } from '../games/useImmersive'
 import { LegendaryTrial } from '../games/LegendaryTrial'
 import { LegendaryChamber } from '../games/LegendaryChamber'
 import { LegendaryBattle } from '../games/LegendaryBattle'
+import { ResonanceTrial } from '../games/ResonanceTrial'
+import { walkingBonus } from '../games/adventure'
 import { ShrineLanterns } from '../games/ShrineLanterns'
 import { ArcadeAchievements } from '../games/ArcadeAchievements'
 import { KIND_NAMES, trialFor } from '../games/trials'
@@ -41,14 +43,16 @@ const storyOf = (name: string) => stories[name] || { title: 'A whisper on the tr
 type Step = { kind: 'overview' } | { kind: 'lanterns' } | { kind: 'chamber', key: string, index: number }
   | { kind: 'trial', key: string, index: number, trial: ReturnType<typeof trialFor> }
   | { kind: 'battle', key: string, index: number, foe: { name: string, shiny: boolean } }
+  | { kind: 'resonance', key: string, index: number }
   | { kind: 'revisit-rooms', name: string, shiny: boolean }
   | { kind: 'revisit-trial', name: string, shiny: boolean, room: string, trial: ReturnType<typeof trialFor> }
   | { kind: 'rematch', name: string, shiny: boolean }
 
 // Legendary Expeditions. Three ways open the next encounter: 25 km of saved walks and runs, the Expedition Quest
 // (three saved sessions and a shrine challenge) or arcade achievement points; the last two give an Expedition Permit.
-// Every encounter then runs trial → chamber (where the Shiny roll is revealed and may be reset) → battle → catch, and
-// only a successful catch adds the Legendary to the Dex. Shrine Revisits replay a caught Legendary's trial rooms or battle
+// Every encounter then runs trial → chamber (where the Shiny roll is revealed and may be reset) → Resonance Trial (four
+// seals in an arena on the Safari Zone's ground; src/games/ResonanceTrial.tsx) → battle → catch, and only a successful
+// catch adds the Legendary to the Dex. Shrine Revisits replay a caught Legendary's trial rooms or battle
 // as practice, with no permit, distance or quest; they save only rooms' best moves and rematch wins.
 export default function ExpeditionsScreen() {
   useTheme()
@@ -125,7 +129,16 @@ export default function ExpeditionsScreen() {
     const encounter = encounters[step.key]
     const number = step.index + 1
     if (!trail || trail.claimed !== step.index) content = null
-    else if (step.kind === 'trial') {
+    else if (step.kind === 'resonance') {
+      const { key, index } = step
+      if (encounter?.index === index && readyToBattle(encounter)) {
+        content = <ResonanceTrial key={`${key}:${index}`} encounter={encounter} number={number} partner={partner} reduced={reduced} busy={busy} error={message}
+          weekKm={walkingBonus(progress).km} onStart={() => { void act(() => store.startResonance(key, index)) }}
+          onSeal={seal => store.activateSeal(key, index, seal)} onStabilize={() => { void act(() => store.stabilizeResonance(key, index)) }}
+          onCapture={() => { if (readyToCapture(encounter)) setStep({ kind: 'battle', key, index, foe: { name: encounter.name, shiny: encounter.shiny } }) }}
+          onLeave={() => { setMessage(''); setStep({ kind: 'chamber', key, index }) }} />
+      }
+    } else if (step.kind === 'trial') {
       const { key, index } = step
       content = <LegendaryTrial name={expeditionEncounter(trail, index).name} partner={partner} reduced={reduced} busy={busy} error={message}
         trial={step.trial} checkpoint={encounter?.index === index ? encounter.checkpoint : undefined}
@@ -138,7 +151,11 @@ export default function ExpeditionsScreen() {
           () => setStep({ kind: 'chamber', key, index })) }} />
     } else if (encounter?.index === step.index && encounter.shiny !== null) {
       content = <LegendaryChamber encounter={encounter as ActiveEncounter & { shiny: boolean }} number={number} reduced={reduced} busy={busy}
-        onBattle={() => { if (readyToBattle(encounter)) setStep({ kind: 'battle', key: step.key, index: step.index, foe: { name: encounter.name, shiny: encounter.shiny } }) }}
+        onBattle={() => {
+          // The catch opens once the Resonance Trial is stabilized; until then the chamber leads into the trial.
+          if (readyToCapture(encounter)) setStep({ kind: 'battle', key: step.key, index: step.index, foe: { name: encounter.name, shiny: encounter.shiny } })
+          else if (readyToBattle(encounter)) { setMessage(''); setStep({ kind: 'resonance', key: step.key, index: step.index }) }
+        }}
         onReset={discardShiny => { void act(() => store.resetEncounter(step.key, step.index, discardShiny)) }}
         onSettle={() => { void act(() => store.finishReset(step.key, step.index)) }}
         onLeave={() => leave('You left the chamber. The same result will be waiting when you return.')} />
@@ -147,7 +164,7 @@ export default function ExpeditionsScreen() {
   }
 
   // The trial fills the screen without scrolling, so the map and the D-pad are on screen together, as in the Safari Zone.
-  return <Screen key={step.kind} fill={playing} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
+  return <Screen key={step.kind} fill={playing || step.kind === 'resonance'} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
     {content ?? <>
       {/* The header is the inside of the Legendary Gate, showing what waits as the gate does on Home. */}
       <LegendaryGate variant="banner" title="Follow a little mystery.">
