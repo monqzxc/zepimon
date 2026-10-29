@@ -79,7 +79,7 @@ export default function ExpeditionsScreen() {
     if (!trail || trail.claimed !== step.index) content = null
     else if (step.kind === 'trial') {
       const { key, index } = step
-      content = <LegendaryTrial name={expeditionEncounter(trail, index).name} number={number} partner={partner} reduced={reduced} busy={busy}
+      content = <LegendaryTrial name={expeditionEncounter(trail, index).name} number={number} partner={partner} reduced={reduced} busy={busy} error={message}
         trial={step.trial} checkpoint={encounter?.index === index ? encounter.checkpoint : undefined}
         onCheckpoint={run => store.saveTrialCheckpoint(key, index, run)}
         onLeave={run => {
@@ -109,8 +109,8 @@ export default function ExpeditionsScreen() {
       {pending > 0 && <Panel><Copy color={colors.gold}>{pending} encounter{pending === 1 ? '' : 's'} ready to meet. Take your time: they will wait.</Copy></Panel>}
       {selected && selected[1].claimed < 4000 ? <Encounter key={`${selected[0]}:${selected[1].claimed}`} trailKey={selected[0]} trail={selected[1]}
         encounter={encounters[selected[0]]?.index === selected[1].claimed ? encounters[selected[0]] : undefined} busy={busy}
-        onBegin={() => setStep({ kind: 'trial', key: selected[0], index: selected[1].claimed,
-          trial: trialFor(expeditionEncounter(selected[1], selected[1].claimed).name, store.trialRecords) })}
+        onBegin={() => { setMessage(''); setStep({ kind: 'trial', key: selected[0], index: selected[1].claimed,
+          trial: trialFor(expeditionEncounter(selected[1], selected[1].claimed).name, store.trialRecords) }) }}
         onChamber={() => { void enterChamber(selected[0], selected[1].claimed) }}
         onPermit={() => { void act(() => store.unlockWithPermit(selected[0]), () => setMessage('Your Expedition Permit opened the next encounter!')) }} /> :
         <Panel><Heading>{selected ? 'Every recorded trail explored' : 'Your first clue awaits'}</Heading>
