@@ -1,0 +1,70 @@
+{
+  "switch-tutorial": {
+    "kind": "switch",
+    "tiles": [
+      "##########",
+      "#@...#...#",
+      "#....A.*.#",
+      "#.a..#...#",
+      "#....#..X#",
+      "##########"
+    ],
+    "par": 12,
+    "hint": "Step on the switch to open the gate."
+  },
+  "crumble-tutorial": {
+    "kind": "crumble",
+    "tiles": [
+      "#########",
+      "#@.::::.#",
+      "######:.#",
+      "#X*::::.#",
+      "#########"
+    ],
+    "crackAll": true,
+    "par": 12,
+    "hint": "Cracked floor gives way once you step off it. Cross every crack, then take the stairs."
+  },
+  "dark-tutorial": {
+    "kind": "dark",
+    "tiles": [
+      "############",
+      "######.#####",
+      "######.#####",
+      "#@.........#",
+      "######.!####",
+      "######.#####",
+      "#X.*...#####",
+      "############"
+    ],
+    "dark": true,
+    "par": 13,
+    "hint": "A wall torch marks the true turn."
+  },
+  "temple-tutorial": {
+    "kind": "temple",
+    "tiles": [
+      "##########",
+      "#@...#...#",
+      "#..O.=.*.#",
+      "#....#...#",
+      "#._..#.X.#",
+      "##########"
+    ],
+    "par": 15,
+    "hint": "Push the boulder onto the plate to open the door."
+  },
+  "warp-tutorial": {
+    "kind": "warp",
+    "tiles": [
+      "###############",
+      "#@..1#2...#...#",
+      "#....#..*.#.4.#",
+      "#....#...3#..X#",
+      "###############"
+    ],
+    "warps": { "1": "2", "2": "1", "3": "4" },
+    "par": 10,
+    "hint": "Pads whisk you across the chamber. Some only go one way."
+  }
+}

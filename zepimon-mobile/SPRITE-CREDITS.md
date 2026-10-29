@@ -24,3 +24,13 @@ The Safari Zone's art comes from the same repository, [rh-hideout/pokeemerald-ex
 - The tall grass, ground dust and shadow field effects (`graphics/field_effects/pics/`), the item ball (`graphics/object_events/pics/misc/`) and the Safari Ball (`graphics/balls/`).
 - The long grass and pond battle backgrounds (`graphics/battle_environment/`), drawn from their tilemaps and palettes.
 - The map tiles: the General and Lilycove tilesets (`data/tilesets/`), the pair Emerald's own Safari Zone uses, arranged into our own layout in `scripts/safari/`. Rocks are Emerald's Safari Zone rock tiles.
+
+# Legendary trials
+
+The trial rooms' art comes from the same repository, [rh-hideout/pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion/tree/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011), at the same pinned revision `0ecb1115129ccb7eb3a7e0dc3718dc263ab84011` and under the same [upstream credits](https://github.com/rh-hideout/pokeemerald-expansion/blob/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011/CREDITS.md). Original Pokémon characters and game artwork belong to their respective owners. `scripts/build-trial-maps.py` downloads what it needs into the shared cache and writes `assets/trials/`:
+
+- The room terrain: each kind takes the tileset pair (`data/tilesets/`) of one Emerald map, arranged into our own rooms in `scripts/trials/stages.json`: Mauville Gym (Building + Mauville Gym) for Switch Mazes, Sky Pillar (General + Pacifidlog) for Crumbling Floors, Granite Cave (General + Cave) for Dark Labyrinths, the Desert Ruins (General + Cave) for Ancient Temples, Mossdeep Gym (Building + Mossdeep Gym) for Warp Chambers and Birth Island's exterior (General + Dewford) for the Shattered Star.
+- Switches and gates: Mauville Gym's floor switch and electric barrier, palette-swapped to red, blue and gold for the three gate groups.
+- Fragile floor and its hole, and the exit's sealed hatch and stairs, from Sky Pillar; the pressure plate, the sealed door and its opening, and the clue stone (a braille stone) from the Desert Ruins; warp pads from Mossdeep Gym's floor buttons, brightened for their glow.
+- The relic (the Ruby) and the boulder (`graphics/object_events/pics/misc/`).
+- The wall torch's flame (the Ember battle sprite), the Shattered Star's crystals (the Ice Crystals battle sprite, dimmed and brightened) and its meteorite (the Rock Throw boulder, with a turning glow for its patterns and split for its shatter frames), from `graphics/battle_anims/sprites/`.
