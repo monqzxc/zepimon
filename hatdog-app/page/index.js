@@ -3,7 +3,7 @@ import { push } from '@zos/router'
 import { Distance } from '@zos/sensor'
 import { LocalStorage } from '@zos/storage'
 import { playLoader } from './loader'
-import { ACTIVE_KEY, JOURNAL_KEY, readNext, nextEgg, phoneAdventure } from './saved'
+import { ACTIVE_KEY, JOURNAL_KEY, companionApp, readNext, nextEgg, phoneAdventure } from './saved'
 import { sharedName } from '../shared/companion'
 
 // The title screen is where an adventure starts: it offers the next egg (the one chosen in Zepimon mobile, else a
@@ -96,7 +96,7 @@ Page({
 
   refresh() {
     try {
-      getApp()._options.fetchPlan((next, problem) => {
+      companionApp().fetchPlan((next, problem) => {
         if (this.closed) return
         this.problem = problem || ''
         if (next) this.next = next
@@ -171,7 +171,8 @@ Page({
       return
     }
     const egg = nextEgg(this.next)
-    this.navigate({ start: { activity, family: egg ? egg.family : null, mega: egg ? egg.mega : null, planAt: egg && egg.planAt || 0 } })
+    this.navigate({ start: { activity, family: egg ? egg.family : null, mega: egg ? egg.mega : null, planAt: egg && egg.planAt || 0,
+      ...(egg && typeof egg.shiny === 'boolean' ? { shiny: egg.shiny } : {}) } })
   },
 
   navigate(params) {

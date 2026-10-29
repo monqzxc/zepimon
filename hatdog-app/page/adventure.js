@@ -4,7 +4,7 @@ import { LocalStorage } from '@zos/storage'
 import { setWakeUpRelaunch } from '@zos/display'
 import { back } from '@zos/router'
 import { createSprite, drawSprite } from './sprite'
-import { JOURNAL_KEY, ACTIVE_KEY, NEXT_KEY, PHONE_RUNS_KEY, readKey, readActive, readNext, readPhoneRuns, phoneAdventure } from './saved'
+import { JOURNAL_KEY, ACTIVE_KEY, NEXT_KEY, PHONE_RUNS_KEY, companionApp, readKey, readActive, readNext, readPhoneRuns, phoneAdventure } from './saved'
 import { legendarySpecies, ensureExpedition, expeditionGoal, clueMilestones } from '../shared/expedition'
 import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords, applyPhoneRun } from './pokemon'
 
@@ -75,7 +75,10 @@ Page({
         stage = 'quick start'
         const start = this.quickStart
         const route = this.routeFor(start.family)
-        this.begin(route, start.activity, megaChoices(route).includes(start.mega) ? start.mega : megaChoices(route)[0], start.planAt)
+        // A discarded egg offered again keeps its Shiny roll; any other egg rolls as it starts.
+        const kept = typeof start.shiny === 'boolean' && Array.isArray(start.family) && routes[route].join('>') === start.family.join('>')
+        this.begin(route, start.activity, megaChoices(route).includes(start.mega) ? start.mega : megaChoices(route)[0], start.planAt,
+          kept ? start.shiny : undefined)
       }
       const shared = this.takeover && !this.state.active ? phoneAdventure(readNext(this.storage)) : null
       if (shared && shared.id) {
@@ -189,7 +192,7 @@ Page({
   },
 
   syncPhone() {
-    try { getApp()._options.syncToPhone() }
+    try { companionApp().syncToPhone() }
     catch (error) { console.log('Zepimon phone sync unavailable:', String(error)) }
   },
 
@@ -228,7 +231,7 @@ Page({
     const now = Date.now()
     if (!force && now >= (this.sharedAt || 0) && now - (this.sharedAt || 0) < SHARE_MS) return
     this.sharedAt = now
-    try { getApp()._options.shareAdventure(this.shared(session), (current) => { if (this.takenOver(current)) this.handOver() }) }
+    try { companionApp().shareAdventure(this.shared(session), (current) => { if (this.takenOver(current)) this.handOver() }) }
     catch (error) { console.log('Zepimon share unavailable:', String(error)) }
   },
 
@@ -287,13 +290,14 @@ Page({
     return item
   },
 
-  button(y, text, action, x = 20, w = 280, selected = false, h = 42) {
-    this.rect(x + 3, y, w - 6, h, edge)
-    this.rect(x, y + 3, w, h - 6, edge)
+  // danger: red, for the one button that throws progress away.
+  button(y, text, action, x = 20, w = 280, selected = false, h = 42, danger = false) {
+    this.rect(x + 3, y, w - 6, h, danger ? 0xE07A6E : edge)
+    this.rect(x, y + 3, w, h - 6, danger ? 0xE07A6E : edge)
     const item = createWidget(widget.BUTTON, {
       x: x + 3, y: y + 3, w: w - 6, h: h - 6, radius: 0, text,
       text_size: text.length > 23 ? 16 : 19, color: ink,
-      normal_color: selected ? selectedFill : 0x095CA5, press_color: 0x073F75, click_func: action
+      normal_color: danger ? 0x9C2F2A : selected ? selectedFill : 0x095CA5, press_color: danger ? 0x6E1F1B : 0x073F75, click_func: action
     })
     this.widgets.push(item)
     return item
@@ -472,7 +476,7 @@ Page({
     } else {
       this.text(160, 'No record yet', 23, ink, 32)
       this.text(206, metric === 'hatch' ? 'Reach 5 km, then save a new adventure.' :
-        metric === 'elapsed' ? 'Finish & save a new timed adventure.' : 'Finish & save an adventure.', 18, muted, 64)
+        metric === 'elapsed' ? 'Finish and save a new timed adventure.' : 'Finish and save an adventure.', 18, muted, 64)
     }
     this.button(332, 'Back', () => this.open('history'))
   },
@@ -530,19 +534,19 @@ Page({
         this.text(320, '', 11, muted, 16, 18, 112), this.text(320, '', 12, muted, 16, 130, 172)]
       this.clockStats = [this.text(298, '', 16, ink, 22, 18, 140), this.text(298, '', 14, ink, 22, 162, 140)]
       this.refreshStats()
-      this.button(338, 'Finish & save', () => this.load(() => { this.sync(); this.show('finish') }), 20, 280, true, 40)
+      this.button(338, 'Finish', () => this.load(() => { this.sync(); this.show('finish') }), 20, 280, true, 40)
       return
     }
     if (this.view === 'finish') {
-      this.text(70, 'Save this adventure?', 22, ink, 28)
-      this.text(142, km(this.state.active.meters), 32, ink, 44)
-      this.text(202, "Replaces this route's last record", 17, muted, 48)
-      this.button(278, 'Save & finish', () => this.load(() => {
+      this.text(70, 'Finish this adventure?', 22, ink, 28)
+      this.text(104, km(this.state.active.meters), 32, ink, 44)
+      this.text(152, "Saving replaces this route's last record", 15, muted, 40)
+      this.button(230, 'Save & finish', () => this.load(() => {
         this.sync()
         // The phone continued this adventure: it saves it, so the watch must not save it too.
         if (this.takenOver(readNext(this.storage).adventure)) { this.handOver(); return }
         if (this.state.active.shareId) {
-          try { getApp()._options.shareAdventure(this.shared(this.state.active, true)) }
+          try { companionApp().shareAdventure(this.shared(this.state.active, true)) }
           catch (error) { console.log('Zepimon share unavailable:', String(error)) }
         }
         const before = this.state.expedition.meters
@@ -562,7 +566,18 @@ Page({
         if (encounters > 0 || crossed) this.show('expedition-saved')
         else back()
       }), 20, 280, true)
+      this.button(281, 'Discard adventure', () => this.open('discard'))
       this.button(332, this.state.active.activity === 'running' ? 'Keep running' : 'Keep walking', () => this.open('session'))
+      return
+    }
+    if (this.view === 'discard') {
+      const session = this.state.active
+      this.text(70, 'Discard this adventure?', 22, ink, 28)
+      this.text(110, km(session.meters), 32, ink, 44)
+      this.text(164, 'Nothing is saved: no Pokemon, record or Expedition distance.' +
+        (session.shiny ? ' The egg comes back Shiny on the title screen.' : ' The egg comes back on the title screen.'), 16, muted, 100)
+      this.button(278, 'Discard', () => this.load(() => this.discard()), 20, 280, false, 42, true)
+      this.button(332, 'Back', () => this.open('finish'))
       return
     }
     const item = this.index
@@ -594,13 +609,34 @@ Page({
     this.show('session')
   },
 
+  // Ends the adventure without saving anything: the journal (Dex, records, Expedition distance) stays as it was. The
+  // phone and Zepp are told it ended, and the title screen offers the same egg again with its Shiny roll. If the phone
+  // took it over meanwhile, the phone keeps it.
+  discard() {
+    this.sync()
+    const session = this.state.active
+    if (!session) { back(); return }
+    if (this.takenOver(readNext(this.storage).adventure)) { this.handOver(); return }
+    if (session.shareId) {
+      try { companionApp().shareAdventure(this.shared(session, true)) }
+      catch (error) { console.log('Zepimon share unavailable:', String(error)) }
+    }
+    this.state.active = null
+    this.saveActive(true)
+    this.updateNext(next => ({ ...next, egg: { family: routes[session.route].slice(), mega: session.mega || null, from: 'watch', shiny: !!session.shiny } }))
+    this.syncPhone()
+    setWakeUpRelaunch({ relaunch: false })
+    back()
+  },
+
   // Starts the adventure without drawing. planAt marks the phone's chosen egg as used, so the title screen moves on.
-  begin(route, activity, mega, planAt) {
+  // shiny is a kept Shiny roll (a discarded egg offered again); otherwise the egg rolls now.
+  begin(route, activity, mega, planAt, shiny) {
     this.pace = {}
     this.paceText = '--:-- /km'
     const now = Date.now()
     this.state.active = {
-      route, activity, startedAt: now, shiny: rollShiny(), mega, meters: 0, steps: 0, day: dayKey(),
+      route, activity, startedAt: now, shiny: typeof shiny === 'boolean' ? shiny : rollShiny(), mega, meters: 0, steps: 0, day: dayKey(),
       lastMeters: this.distance.getCurrent(), lastSteps: this.step.getCurrent(), shareId: 'adv-' + now, deviceAt: now
     }
     this.saveActive(true)

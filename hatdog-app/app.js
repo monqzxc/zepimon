@@ -20,8 +20,12 @@ function appVersion() {
 }
 const companion = BaseApp({
   globalData: {},
-  // The title screen draws first; the journal goes to the phone a moment later.
-  onCreate() { this.syncTimer = setTimeout(() => { this.syncTimer = undefined; this.syncToPhone() }, 1000) },
+  // The title screen draws first; the journal goes to the phone a moment later. Screens reach this companion, which
+  // holds the messaging, through globalData (companionApp in page/saved.js).
+  onCreate() {
+    this.globalData.companion = this
+    this.syncTimer = setTimeout(() => { this.syncTimer = undefined; this.syncToPhone() }, 1000)
+  },
   snapshot() {
     const storage = new LocalStorage()
     const state = storage.getItem(JOURNAL_KEY) || { dex: {}, records: {}, active: null }
@@ -67,7 +71,7 @@ const companion = BaseApp({
       }, (error) => { console.log('Zepimon plan:', String(error)); done(undefined, 'no answer from Zepp') })
     } catch (error) {
       console.log('Zepimon plan:', String(error))
-      done()
+      done(undefined, 'could not reach Zepp')
     }
   },
   // Adventures recorded on the phone since the last one received, a few per request; the next title visit asks again.
@@ -125,6 +129,7 @@ App({
   onDestroy(...args) {
     this.phoneSyncAgain = false
     if (this.syncTimer !== undefined) clearTimeout(this.syncTimer)
+    if (this.globalData && this.globalData.companion === this) this.globalData.companion = null
     try { companion.onDestroy.apply(this, args) }
     catch (error) { console.log('Zepimon companion close:', String(error)) }
   }
