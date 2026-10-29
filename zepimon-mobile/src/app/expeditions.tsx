@@ -24,7 +24,7 @@ import { ArcadeAchievements } from '../games/ArcadeAchievements'
 import { KIND_NAMES, trialFor } from '../games/trials'
 import { questTheme } from '../games/lanterns'
 import { canRevisit, caughtLegendaries, revisitKey, revisitRooms, roomLine } from '../games/revisits'
-import { PixelSprite } from '../games/TeamPicker'
+import { OverworldSprite } from '../games/OverworldSprite'
 import { Button, Copy, Eyebrow, HabitatScene, Heading, Panel, Screen, Title, colors, gradient, styles, useTheme } from '../ui'
 import { LegendaryGate } from '../LegendaryGate'
 
@@ -277,7 +277,7 @@ function ShrineRevisits({ busy, onRevisit, onRematch }: {
       const wins = rematchWins[key] || 0
       return <Panel key={key}>
         <View style={[styles.row, { flexWrap: 'nowrap' }]}>
-          <View accessible={false} importantForAccessibility="no-hide-descendants"><PixelSprite name={name} shiny={shiny} size={56} /></View>
+          <View accessible={false} importantForAccessibility="no-hide-descendants"><OverworldSprite name={name} shiny={shiny} size={66} still /></View>
           <View style={{ flex: 1, gap: 2 }}>
             <Title>{shiny ? `Shiny ${name} ✦` : name}</Title>
             <Copy small>{trial.title} · {KIND_NAMES[trial.kind]}</Copy>

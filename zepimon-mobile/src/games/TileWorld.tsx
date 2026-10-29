@@ -83,10 +83,11 @@ export function Sprite({ strip, frame, at, tile, scale = 1 }: { strip: Strip, fr
   </View>
 }
 
-export function Frame({ strip, frame, width, height }: { strip: Strip, frame: number, width: number, height: number }) {
+// tint paints the frame one solid color, as a silhouette.
+export function Frame({ strip, frame, width, height, tint }: { strip: Strip, frame: number, width: number, height: number, tint?: string }) {
   return <View style={{ width, height, overflow: 'hidden' }}>
     <Image source={strip.source} fadeDuration={0} resizeMode="stretch"
-      style={{ position: 'absolute', top: 0, left: -frame * width, width: width * strip.frames, height, ...pixelated }} />
+      style={{ position: 'absolute', top: 0, left: -frame * width, width: width * strip.frames, height, ...(tint ? { tintColor: tint } : {}), ...pixelated }} />
   </View>
 }
 

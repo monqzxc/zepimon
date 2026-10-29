@@ -104,3 +104,13 @@ test('tap reactions finish, restart safely, pause on blur/background, and respec
   assert.equal(source(render({ name: 'Egg' })), 'Egg.png')
   cleanup()
 })
+
+test('every Legendary has Normal and Shiny four-direction overworld art, so the Legendary Gate, chamber and Resonance Trial show it', async () => {
+  const { legendarySpecies } = await import('../src/generated/expedition.js')
+  const keys = new Set([...fs.readFileSync('src/generated/trail-walkers.js', 'utf8').matchAll(/^  "([^"]+)": require\('\.\.\/\.\.\/assets\/trail\/([^']+)'\)/gm)]
+    .map(([, name, file]) => { assert.ok(fs.existsSync(resolve('assets/trail', file)), file); return name }))
+  for (const name of legendarySpecies) {
+    assert.ok(keys.has(name), `${name} overworld strip`)
+    assert.ok(keys.has(`Shiny ${name}`), `Shiny ${name} overworld strip`)
+  }
+})

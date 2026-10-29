@@ -266,7 +266,9 @@ where you stand:
   encounter".
 - **No trail yet:** save an adventure to find the first clue.
 
-Away from waiting, the gate is dim and the last Legendary you caught stands in it
+The Legendary in the gate, the chamber and the Shrine Revisits rows is drawn as its front-facing overworld sprite
+(`src/games/OverworldSprite.tsx`, from `assets/trail/`). Away from waiting, the gate is dim and the last Legendary you
+caught stands in it
 as a dark silhouette (a ? before your first catch). It never reveals a Shiny; the
 chamber does. With reduced motion the gate holds still, and the glow, the
 silhouette and the words still tell the states apart. `gateStatus` in
@@ -322,7 +324,9 @@ already credited in `SPRITE-CREDITS.md`; the Poké Ball is the app's own vector 
 
 Between the chamber and the battle, the Legendary resonates in an arena: a 9 × 9 clearing of the Safari Zone by the
 lake, drawn, walked and collided exactly as the Safari Zone is (the same map and terrain, D-pad, arrow keys / WASD or
-Tap to walk, trainer and buddy). The Legendary stands in the middle, and four ancient seals ◇ sit around it:
+Tap to walk, trainer and buddy). The Legendary stands in the middle as its Emerald overworld sprite, the same
+pixel art your buddy walks with, stepping in place and turning to face you as you move around it. Four ancient seals
+◇ sit around it:
 
 - **Wave:** an energy wave covers the whole clearing but one safe tile ◎; stand on it before it lands (3.2 s).
 - **Rune:** three numbered runes light up; step on 1, 2, then 3. A rune out of turn simply doesn't count.

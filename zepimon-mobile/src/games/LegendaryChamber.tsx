@@ -5,7 +5,7 @@ import { Button, Copy, Eyebrow, Panel, colors, fonts, themedStyles, typeInks } f
 import { RESET_COOLDOWN, resetDue } from '../expedition-encounter'
 import type { ActiveEncounter } from '../expedition-encounter'
 import { Sparkles } from './SafariEncounter'
-import { PixelSprite } from './TeamPicker'
+import { OverworldSprite } from './OverworldSprite'
 
 const native = Platform.OS !== 'web'
 type Confirm = 'none' | 'reset' | 'shiny' | 'shiny-final'
@@ -104,7 +104,7 @@ function Reveal({ encounter, pending, reduced, glow }: { encounter: ActiveEncoun
         style={{ position: 'absolute', left: width / 2 - size / 2, top: height - size - 18, opacity: pending ? 0.25 : 1,
           transform: [{ translateX: enter.interpolate({ inputRange: [0, 1], outputRange: [width, 0] }) },
             { translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }] }}>
-        <PixelSprite name={encounter.name} shiny={encounter.shiny} size={size} />
+        <OverworldSprite name={encounter.name} shiny={encounter.shiny} size={size} still={pending} />
       </Animated.View>
       {encounter.shiny && !pending && <Sparkles centre={{ x: width / 2, y: height - 18 - size / 2 }} size={size} reduced={reduced} />}
       {!reduced && <Animated.View pointerEvents="none" style={[look.flash, { width, height, opacity: enter.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0.9, 0.3, 0] }) }]} />}

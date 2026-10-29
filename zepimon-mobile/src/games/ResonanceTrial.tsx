@@ -13,7 +13,7 @@ import type { TileChunks } from './TileWorld'
 import { useStepWalker } from './step-walker'
 import { DPad, useKeyboardDirections } from './DPad'
 import { useGameLoop } from './hooks'
-import { PixelSprite } from './TeamPicker'
+import { OverworldSprite } from './OverworldSprite'
 import { ARENA, LEGENDARY_AT, PULSE_WINDOW, RUNES, SEAL_AT, SEAL_NAMES, STONES, arenaMap, arenaTick, arenaWalk, maxResonance, objective,
   pauseArena, pulsePhase, resonate, resumeArena, startArena } from './resonance'
 import type { Arena } from './resonance'
@@ -43,7 +43,7 @@ export function ResonanceTrial(props: Props) {
   if (stage === 'ready') return <Panel>
     <Eyebrow>EXPEDITION {number} · LEGENDARY RESONANCE TRIAL</Eyebrow>
     <Title>{name} is resonating</Title>
-    <View style={{ alignItems: 'center' }}><PixelSprite name={encounter.name} shiny={encounter.shiny} size={112} /></View>
+    <View style={{ alignItems: 'center' }}><OverworldSprite name={encounter.name} shiny={encounter.shiny} size={132} /></View>
     <Copy color={colors.ink}>Switch on the four ancient seals around {encounter.name} to steady it, and the catch opens. It will send slow, clearly marked attacks: step off the marked tiles ⚠ before they land.</Copy>
     <Copy>Your saved walks and runs this week give you {maxResonance(weekKm)} resonance (3, plus 1 for each km, up to 5). A hit costs one; run out and you simply catch your breath. Seals stay on whatever happens.</Copy>
     <Copy color={colors.gold}>Entering sets this encounter: the chamber can no longer be reset afterwards.</Copy>
@@ -54,7 +54,7 @@ export function ResonanceTrial(props: Props) {
   if (stage === 'capture-ready') return <Panel>
     <Eyebrow>EXPEDITION {number} · RESONANCE TRIAL · STABILIZED</Eyebrow>
     <Title>{name} is calm</Title>
-    <View style={{ alignItems: 'center' }}><PixelSprite name={encounter.name} shiny={encounter.shiny} size={112} /></View>
+    <View style={{ alignItems: 'center' }}><OverworldSprite name={encounter.name} shiny={encounter.shiny} size={132} /></View>
     <Copy color={colors.ink}>All four seals hold {encounter.name} steady. The catch is open: weaken it, then throw your Poké Balls. If it breaks free, the seals stay on and you can try again.</Copy>
     <Button title="Begin the catch" onPress={onCapture} />
     <Button title="Back to the chamber" secondary onPress={onLeave} />
@@ -153,7 +153,7 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
           cover={<Outside tile={tile} />}>
           <Marks arena={arena} tile={tile} clock={clock} reduced={reduced} />
           {pulseOn && <PulseRing tile={tile} phase={phase} lit={inWindow} />}
-          <Legendary name={encounter.name} shiny={encounter.shiny} tile={tile} glowing={steadying || arena.seals.length === 4} />
+          <Legendary name={encounter.name} shiny={encounter.shiny} tile={tile} facing={facingToward(arena.at)} glowing={steadying || arena.seals.length === 4} />
         </TileWorld>
       </View>}
       {arena.paused && <View style={look.pause}>
@@ -246,14 +246,22 @@ function PulseRing({ tile, phase, lit }: { tile: number, phase: number, lit: boo
   </>
 }
 
-// The Legendary, two tiles tall, standing on its tile with a shadow; it glows as the seals steady it.
-function Legendary({ name, shiny, tile, glowing }: { name: string, shiny: boolean, tile: number, glowing: boolean }) {
+// The way from the Legendary toward the trainer, along the longer axis, so it turns to watch you walk around it.
+function facingToward(at: Point): Direction {
+  const dx = at.x - LEGENDARY_AT.x, dy = at.y - LEGENDARY_AT.y
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'east' : 'west'
+  return dy < 0 ? 'north' : 'south'
+}
+
+// The Legendary as its Emerald overworld sprite, two tiles tall, standing on its tile with a shadow and stepping in
+// place facing you; it glows as the seals steady it.
+function Legendary({ name, shiny, tile, facing, glowing }: { name: string, shiny: boolean, tile: number, facing: Direction, glowing: boolean }) {
   const size = tile * 2
   return <View pointerEvents="none" style={{ position: 'absolute', left: LEGENDARY_AT.x * tile + tile / 2 - size / 2, top: (LEGENDARY_AT.y + 1) * tile - size }}>
     <View style={{ position: 'absolute', left: size * 0.2, top: size * 0.86, width: size * 0.6, height: size * 0.16, borderRadius: size, backgroundColor: 'rgba(0, 0, 0, 0.3)' }} />
     {glowing && <View style={{ position: 'absolute', left: -tile * 0.2, top: -tile * 0.2, width: size + tile * 0.4, height: size + tile * 0.4, borderRadius: size,
       backgroundColor: 'rgba(242, 194, 48, 0.28)' }} />}
-    <PixelSprite name={name} shiny={shiny} size={size} />
+    <OverworldSprite name={name} shiny={shiny} size={size} facing={facing} />
   </View>
 }
 
