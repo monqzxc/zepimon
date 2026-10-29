@@ -69,6 +69,10 @@ export function deadCells(stage: Stage): ReadonlySet<string> {
   return dead
 }
 
+// Passages of every lit crystal are open, and stay open: this only ever adds letters.
+const openedBy = (star: StarRules, litIds: string[], open: string) =>
+  [...new Set(open + star.nodes.flatMap(n => n.opens && litIds.includes(n.id) ? [n.opens] : []).join(''))].sort().join('')
+
 export function startRoom(stage: Stage): Room {
   let at: Point = { x: 0, y: 0 }
   stage.tiles.forEach((row, y) => { const x = row.indexOf('@'); if (x >= 0) at = { x, y } })
@@ -76,7 +80,7 @@ export function startRoom(stage: Stage): Room {
   stage.tiles.forEach((row, y) => [...row].forEach((tile, x) => { if (tile === 'O') boulders.push(pointKey({ x, y })) }))
   const room: Room = { stage: stage.id, at, facing: 'south', buddy: at, buddyFacing: 'south', moves: 0, relics: [], open: [...stage.open].sort().join(''), boulders, holes: [],
     doorsOpen: false, seen: [], warpsUsed: [], lit: [...(stage.star?.startLit ?? [])].sort(), pattern: 0, attunes: 0, cluesRead: [], status: 'playing', message: '' }
-  return { ...room, seen: around(stage, at, stage.dark ? LIGHT : SIGHT) }
+  return { ...room, open: stage.star ? openedBy(stage.star, room.lit, room.open) : room.open, seen: around(stage, at, stage.dark ? LIGHT : SIGHT) }
 }
 
 const fragileLeft = (room: Room, stage: Stage, leaving?: Point) => stage.tiles.reduce((total, row, y) => total + [...row].filter((tile, x) =>
@@ -119,8 +123,8 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
     }
     const { matching, total } = resonance(room, stage)
     const message = `The meteorite flickers. ${matching} of ${total} lights answer.`
-    const reset = star.resetOnFail ? { lit: [...star.startLit].sort(), pattern: 0 } : {}
-    return { room: { ...turned, ...reset, attunes: room.attunes + 1, message }, move: 'bump', events: ['attune'] }
+    const failed = { ...turned, attunes: room.attunes + 1, message }
+    return { room: star.resetOnFail ? resetAlignment(failed, stage) : failed, move: 'bump', events: ['attune'] }
   }
   if (tile === 'X' && !goalsMet(room, stage, room.at)) {
     const left = relicsIn(stage) - room.relics.length
@@ -177,7 +181,7 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
     const flip = new Set(room.lit)
     for (const id of [node.id, ...node.links]) { if (!flip.delete(id)) flip.add(id) }
     const lit = [...flip].sort()
-    const open = node.opens && lit.includes(node.id) && !room.open.includes(node.opens) ? [...room.open + node.opens].sort().join('') : room.open
+    const open = openedBy(star, lit, room.open)
     walked = { ...walked, lit, open, pattern: (room.pattern + node.turns) % star.patterns }
     events.push('node')
   }

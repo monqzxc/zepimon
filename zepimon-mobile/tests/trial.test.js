@@ -377,9 +377,23 @@ test('resonance counts crystals and the pattern', () => {
   assert.deepEqual(resonance({ ...startRoom(STAR), lit: ['n1'], pattern: 1 }, STAR), { matching: 4, total: 4 })
 })
 
+test('a crystal lit through a link opens its passage', () => {
+  const nodes = [{ id: 'n1', at: [1, 0], links: [], turns: 0, opens: 'A' }, { id: 'n2', at: [2, 1], links: ['n1'], turns: 0 }]
+  const st = stage(['.%A', '@.%'], { kind: 'star', star: { nodes, patterns: 1, startLit: [], target: { lit: [], pattern: 0 }, resetOnFail: false, clues: [], hints: ['a', 'b', 'c'] } })
+  const { room } = press(startRoom(st), st, 'east', 'east')
+  assert.deepEqual(room.lit, ['n1', 'n2'])
+  assert.equal(room.open, 'A')
+})
+
+test('a crystal that starts lit starts with its passage open', () => {
+  const st = stage(['@%A'], { kind: 'star', star: { nodes: [{ id: 'n1', at: [1, 0], links: [], turns: 0, opens: 'A' }], patterns: 1, startLit: ['n1'],
+    target: { lit: ['n1'], pattern: 0 }, resetOnFail: false, clues: [], hints: ['a', 'b', 'c'] } })
+  assert.equal(startRoom(st).open, 'A')
+})
+
 test('tap-to-walk treats crystals as destinations and clues and the meteorite as walls', () => {
   const room = startRoom(STAR)
-  assert.ok(planRoomWalk(room, STAR, { x: 1, y: 0 }))
-  assert.ok(planRoomWalk(room, STAR, { x: 0, y: 2 }))
-  assert.ok(planRoomWalk(room, STAR, { x: 2, y: 2 }))
+  assert.deepEqual(planRoomWalk(room, STAR, { x: 1, y: 0 }), ['east', 'north', 'north', 'north'])
+  assert.deepEqual(planRoomWalk(room, STAR, { x: 2, y: 2 }), ['east', 'east'])
+  assert.deepEqual(planRoomWalk(room, STAR, { x: 0, y: 2 }), [])
 })
