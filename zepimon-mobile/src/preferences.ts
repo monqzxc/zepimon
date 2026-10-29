@@ -8,12 +8,13 @@ import type { ThemeName } from './palettes.ts'
 // the phone's reduce-motion setting, or always reduce animations in this app. theme: Gengar, Deoxys or Pikachu, and
 // appearance: follow the phone's dark mode, or always light or dark (src/theme.ts). name: the trainer name on your
 // Settings profile, blank until you set one. safariControls: walk the Safari Zone with the D-pad or by tapping a tile.
-// safariTrainer: Brendan or May.
+// safariTrainer: Brendan or May. playOrientation: how the walking games open in full screen, so the next immersive session
+// turns the same way (the rest of the app stays portrait).
 export type Appearance = 'system' | 'light' | 'dark'
 export type Preferences = { activity: Activity, motion: 'system' | 'reduced', theme: ThemeName, appearance: Appearance, name: string,
-  safariControls: 'dpad' | 'tap', safariTrainer: 'brendan' | 'may' }
+  safariControls: 'dpad' | 'tap', safariTrainer: 'brendan' | 'may', playOrientation: 'portrait' | 'landscape' }
 export const defaultPreferences: Preferences = { activity: 'walking', motion: 'system', theme: 'gengar', appearance: 'system', name: '',
-  safariControls: 'dpad', safariTrainer: 'brendan' }
+  safariControls: 'dpad', safariTrainer: 'brendan', playOrientation: 'portrait' }
 export const NAME_LIMIT = 24
 const KEY = 'zepimon-preferences-v1'
 
@@ -27,7 +28,8 @@ export function restorePreferences(raw: unknown): Preferences {
     appearance: value.appearance === 'light' || value.appearance === 'dark' ? value.appearance : 'system',
     name: typeof value.name === 'string' ? value.name.replace(/\s+/g, ' ').trim().slice(0, NAME_LIMIT) : '',
     safariControls: value.safariControls === 'tap' ? 'tap' : 'dpad',
-    safariTrainer: value.safariTrainer === 'may' ? 'may' : 'brendan'
+    safariTrainer: value.safariTrainer === 'may' ? 'may' : 'brendan',
+    playOrientation: value.playOrientation === 'landscape' ? 'landscape' : 'portrait'
   }
 }
 

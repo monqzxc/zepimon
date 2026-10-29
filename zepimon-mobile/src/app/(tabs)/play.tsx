@@ -1,16 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type React from 'react'
-import { useNavigation } from 'expo-router'
-import { StatusBar } from 'expo-status-bar'
 import { useJournal } from '../../store'
 import { MemoryMatch } from '../../MemoryMatch'
-import { BackHandler, Image, Text, View } from 'react-native'
+import { Image, Text, View } from 'react-native'
 import { BerryCatch, BerryIcon } from '../../games/BerryCatch'
 import { PokemonQuiz } from '../../games/PokemonQuiz'
 import type { ArcadeGame } from '../../games/scores'
 import { spriteSource } from '../../catalog'
 import { Button, Copy, Eyebrow, Hero, IconBubble, IconButton, Panel, Screen, Sprite, Title, colors, styles, typeTints, useTheme } from '../../ui'
 import { GameScreenContext } from '../../games/fullscreen'
+import { useImmersive } from '../../games/useImmersive'
 import { DefenseGame, starText } from '../../games/DefenseGame'
 import type { BattleResult } from '../../games/DefenseGame'
 import { SafariZone } from '../../games/SafariZone'
@@ -54,19 +53,9 @@ export default function PlayScreen() {
   const ballsNote = bonus.km ? `Walking bonus: ${bonus.km} km this week adds ${bonus.balls} Safari Balls and ${bonus.km * STEPS_PER_KM} steps.`
     : `Walk 1 km this week for ${BALLS_PER_KM} extra Safari Balls and ${STEPS_PER_KM} extra steps (up to ${BALLS_PER_KM * BONUS_KM_CAP} balls and ${STEPS_PER_KM * BONUS_KM_CAP} steps).`
   // Full screen is for games, not the menus: it hides the tab bar, the back button and the status bar, and Android's
-  // back button leaves full screen first. It stays on from one level to the next until you leave or turn it off.
-  const [full, setFull] = useState(false)
-  const [fill, setFill] = useState(false)
-  const screen = useMemo(() => ({ full, setFull, setFill }), [full])
+  // back button leaves full screen first (useImmersive). It stays on from one level to the next until you leave or turn it off.
   const inGame = !!selected && selected !== 'map' && selected !== 'levels'
-  const immersive = full && inGame
-  const navigation = useNavigation()
-  useEffect(() => { navigation.setOptions({ tabBarStyle: immersive ? { display: 'none' } : undefined }) }, [navigation, immersive])
-  useEffect(() => {
-    if (!immersive) return
-    const back = BackHandler.addEventListener('hardwareBackPress', () => { setFull(false); return true })
-    return () => back.remove()
-  }, [immersive])
+  const { screen, full: immersive, fill, overlay, setFull } = useImmersive(inGame, 'tabs')
   function select(game: Selected) {
     setMessage(''); setSelected(game)
     if (!game || game === 'map' || game === 'levels') setFull(false)
@@ -93,9 +82,8 @@ export default function PlayScreen() {
   const stopRecord = (stop: Stop) => `Best here: ${starText(adventure[stop.id] || 0)}`
   const safariBest = `Best: ${arcadeScores.safari === undefined ? 'Not set' : `${arcadeScores.safari} caught in one hunt`}`
 
-  return <Screen fill={fill && inGame} full={immersive}><GameScreenContext.Provider value={screen}>
-    {immersive && <StatusBar hidden />}
-    {/* A running battle has the full-screen toggle in its own top bar. */}
+  return <Screen fill={fill && inGame} full={immersive} edge={overlay}><GameScreenContext.Provider value={screen}>
+    {/* A running battle and the Safari Zone's hunt have the full-screen toggle in their own top bar. */}
     {selected ? immersive ? !fill && <View style={{ alignItems: 'flex-end' }}>
       <IconButton name="fullscreenExit" label="Exit full screen" onPress={() => setFull(false)} />
     </View> : <View style={[styles.row, { flexWrap: 'nowrap' }]}>
@@ -172,7 +160,7 @@ export default function PlayScreen() {
       bonusKm={bonus.km} bonusNote={ballsNote} dex={dex} goal={launch.stop ? STAR_GOALS.safari : undefined}
       buddy={buddy ? { name: buddy.replace(/^Shiny /, ''), shiny: buddy.startsWith('Shiny ') } : null}
       record={launch.stop ? stopRecord(launch.stop) : safariBest}
-      onCatch={recordSafariCatch}
+      onCatch={recordSafariCatch} onLeave={() => select(launch.stop ? 'map' : null)}
       onComplete={catches => launch.stop ? saveStars(launch.stop, safariStars(catches)) : saveScore('safari', catches)} />}
     {selected === 'memory' && <MemoryMatch entries={entries} bestMoves={bestMoves} onComplete={(pairs, moves) => {
       recordWin(pairs, moves).then(() => setMessage('Your score is saved.')).catch(() => setMessage('Could not save this score. Please try again.'))

@@ -2,8 +2,8 @@
   "expo": {
     "name": "Zepimon",
     "slug": "zepimon-mobile",
-    "version": "1.13.0",
-    "orientation": "portrait",
+    "version": "1.14.0",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "scheme": "zepimon",
@@ -18,7 +18,7 @@
         "backgroundColor": "#1C0D3F"
       },
       "package": "com.zepimon.companion",
-      "versionCode": 41,
+      "versionCode": 42,
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED"
       ]
@@ -42,6 +42,12 @@
         }
       ],
       "expo-asset",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
+        }
+      ],
       [
         "expo-media-library",
         {

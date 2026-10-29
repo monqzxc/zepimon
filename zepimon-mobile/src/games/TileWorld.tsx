@@ -21,16 +21,17 @@ type Props = {
   map: TileMap, chunks: TileChunks, at: Point, facing: Direction, buddyAt: Point, buddyFacing: Direction, move: Move,
   trainer: 'brendan' | 'may', buddy: { name: string, shiny: boolean } | null, onGrass: boolean, width: number, height: number,
   reduced: boolean, jump: number, background: string, tapToWalk: boolean, onTapTile: (tile: Point) => void,
-  children?: ReactNode, cover?: ReactNode, falling?: boolean
+  children?: ReactNode, cover?: ReactNode, falling?: boolean, fitHeight?: boolean
 }
 
 // A tile map seen GBA-style. The trainer stays in the middle and the map glides under them one tile per step.
 // Layers, bottom to top: ground chunks, `children` (items, marks), the buddy, the trainer, the top chunks (tree crowns
 // and roofs) so the trainer walks behind them, then `cover`. Only chunks near the view are loaded. A new `jump` value
-// (a warp, a room change) snaps the camera and buddy into place instead of gliding. `falling` drops the trainer out of sight.
+// (a warp, a room change, a rotation) snaps the camera and buddy into place instead of gliding. `falling` drops the trainer out
+// of sight. `fitHeight` (immersive play) sizes tiles by the shorter side, so a landscape view doesn't zoom in too far.
 export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move, trainer, buddy, onGrass, width, height, reduced, jump, background,
-  tapToWalk, onTapTile, children, cover, falling = false }: Props) {
-  const tile = tileSizeFor(width)
+  tapToWalk, onTapTile, children, cover, falling = false, fitHeight = false }: Props) {
+  const tile = tileSizeFor(width, fitHeight ? height : undefined)
   const [camera] = useState(() => new Animated.ValueXY(cameraOffset(at, tile, width, height)))
   const target = cameraOffset(at, tile, width, height)
   const jumped = useRef(jump)

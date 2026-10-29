@@ -24,3 +24,11 @@ test('Safari controls default to the D-pad and Brendan, and keep valid choices',
   assert.deepEqual(pick(prefs.restorePreferences({ safariControls: 'joystick', safariTrainer: 7 })), { safariControls: 'dpad', safariTrainer: 'brendan' })
   assert.equal(prefs.restorePreferences({ theme: 'deoxys', safariControls: 'tap' }).theme, 'deoxys')
 })
+
+test('immersive play opens in portrait until landscape is chosen, and keeps the choice', () => {
+  assert.equal(prefs.defaultPreferences.playOrientation, 'portrait')
+  assert.equal(prefs.restorePreferences({}).playOrientation, 'portrait')
+  assert.equal(prefs.restorePreferences({ playOrientation: 'landscape' }).playOrientation, 'landscape')
+  assert.equal(prefs.restorePreferences({ playOrientation: 'sideways' }).playOrientation, 'portrait')
+  assert.equal(prefs.restorePreferences({ playOrientation: 'landscape', safariControls: 'tap' }).safariControls, 'tap')
+})

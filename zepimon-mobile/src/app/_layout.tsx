@@ -13,9 +13,14 @@ import { usePreferencesLoaded } from '../preferences'
 import { CloudProvider } from '../cloud'
 import { CrashReport, CrashScreen } from '../CrashReport'
 import { AdventureBanner } from '../AdventureBanner'
+import { lockPortrait } from '../games/useImmersive'
 
 // An error on any screen shows what happened, with Share, instead of closing the app.
 export const ErrorBoundary = CrashScreen
+
+// app.json allows rotation so immersive play can turn to landscape; everything else stays portrait. Locked as the app
+// starts, before any screen draws (iOS also starts portrait through the expo-screen-orientation plugin).
+lockPortrait()
 
 export default function Layout() {
   return <JournalProvider><CloudProvider><Navigator /></CloudProvider></JournalProvider>

@@ -99,7 +99,7 @@ const icons = {
   logout: ['rectangle.portrait.and.arrow.right', 'logout'], info: ['info.circle', 'info'], doc: ['doc.text', 'description'],
   download: ['square.and.arrow.down', 'download'], sun: ['sun.max', 'light_mode'], moon: ['moon', 'dark_mode'],
   contrast: ['circle.lefthalf.filled', 'contrast'], edit: ['pencil', 'edit'], calendar: ['calendar', 'calendar_month'], plus: ['plus', 'add'],
-  chevronDown: ['chevron.down', 'expand_more']
+  chevronDown: ['chevron.down', 'expand_more'], rotate: ['rectangle.portrait.rotate', 'screen_rotation']
 } satisfies Record<string, [SFSymbol, AndroidSymbol]>
 export type IconName = keyof typeof icons
 const symbolBox = { alignItems: 'center', justifyContent: 'center' } as const
@@ -141,12 +141,14 @@ export function PokeballIcon({ size = 22, color = colors.ink, stroke = Math.max(
 
 // fill stops the page scrolling so a child with flex: 1 takes the rest of the screen, like a running battle.
 // full is for full-screen games with the tab bar hidden: it keeps clear of the bottom safe area and trims the padding.
-export function Screen({ children, fill = false, full = false }: React.PropsWithChildren<{ fill?: boolean, full?: boolean }>) {
+// fill: lay out to the screen instead of scrolling. full: full-screen play, inside every safe-area edge. edge: full
+// screen with no padding at all, for a map that fills the safe area (PlayOverlay).
+export function Screen({ children, fill = false, full = false, edge = false }: React.PropsWithChildren<{ fill?: boolean, full?: boolean, edge?: boolean }>) {
   const scroll = useRef<ScrollView>(null)
   useEffect(() => { if (fill) scroll.current?.scrollTo({ y: 0, animated: false }) }, [fill])
-  return <SafeAreaView style={styles.screen} edges={full ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
-    <ScrollView ref={scroll} scrollEnabled={!fill} keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.content, fill && styles.contentFill, full && styles.contentFull]}>
+  return <SafeAreaView style={styles.screen} edges={full || edge ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
+    <ScrollView ref={scroll} scrollEnabled={!fill && !edge} keyboardShouldPersistTaps="handled"
+      contentContainerStyle={[styles.content, fill && styles.contentFill, full && styles.contentFull, edge && styles.contentEdge]}>
       {children}
     </ScrollView>
   </SafeAreaView>
@@ -166,6 +168,7 @@ export const styles = themedStyles(() => ({
   // The bottom padding keeps the end of the screen clear of the Gengar peeking over the tab bar (src/TabBar.tsx).
   contentFill: { flexGrow: 1, paddingBottom: 16 },
   contentFull: { paddingHorizontal: 10, paddingTop: 6, paddingBottom: 8 },
+  contentEdge: { flexGrow: 1, maxWidth: '100%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0 },
   heading: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 24, lineHeight: 31 },
   title: { fontFamily: fonts.heavy, fontSize: 19, lineHeight: 25 },
   eyebrow: { fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16, letterSpacing: 1.1 },

@@ -23,15 +23,17 @@ const meteoriteAt = (stage: Stage): Point | null => cells(stage, 'M')[0] ?? null
 
 type Props = {
   run: TrialRun, stage: TrialStage, move: TrialMove, jump: number, trainer: 'brendan' | 'may', buddy: { name: string, shiny: boolean } | null,
-  width: number, height: number, reduced: boolean, tapToWalk: boolean, onTapTile: (tile: Point) => void, falling?: boolean, revealing?: boolean
+  width: number, height: number, reduced: boolean, tapToWalk: boolean, onTapTile: (tile: Point) => void, falling?: boolean, revealing?: boolean,
+  fitHeight?: boolean
 }
 
 // One trial room on the shared tile world: the baked terrain from trialChunks, every object tile drawn in its current state on
 // top, and in dark rooms a cover that hides what was never seen and dims what is out of the light. `revealing` leaves the
 // meteorite to StarReveal.
-export function TrialWorld({ run, stage, move, jump, trainer, buddy, width, height, reduced, tapToWalk, onTapTile, falling = false, revealing = false }: Props) {
+export function TrialWorld({ run, stage, move, jump, trainer, buddy, width, height, reduced, tapToWalk, onTapTile, falling = false, revealing = false,
+  fitHeight = false }: Props) {
   const room = run.room
-  const tile = tileSizeFor(width)
+  const tile = tileSizeFor(width, fitHeight ? height : undefined)
   const tick = useTicker(!reduced && (cells(stage, '!').length > 0 || room.lit.length > 0), 250)
   const exit = useExitFrame(goalsMet(room, stage), reduced)
   const glow = useWarpGlow(room, stage, move, reduced)
@@ -68,7 +70,7 @@ export function TrialWorld({ run, stage, move, jump, trainer, buddy, width, heig
   const rock = meteoriteAt(stage)
   return <TileWorld map={{ cols: stage.tiles[0].length, rows: stage.tiles.length, chunk: stage.chunk }} chunks={chunkImages[stage.id] ?? {}}
     at={room.at} facing={room.facing} buddyAt={room.buddy} buddyFacing={room.buddyFacing} move={move} trainer={trainer} buddy={buddy} onGrass={false}
-    width={width} height={height} reduced={reduced} jump={jump} background={DARK} tapToWalk={tapToWalk} onTapTile={onTapTile} falling={falling}
+    width={width} height={height} reduced={reduced} jump={jump} background={DARK} tapToWalk={tapToWalk} onTapTile={onTapTile} falling={falling} fitHeight={fitHeight}
     cover={stage.dark ? <Cover room={room} stage={stage} tile={tile} /> : undefined}>
     {objects}
     {relics.length > 0 && <Animated.View style={{ position: 'absolute', left: 0, top: 0, opacity: pulse }}>{relics}</Animated.View>}

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Animated, Easing, Platform, Text, View } from 'react-native'
 import { pokemonType } from '../catalog'
 import { setPreference, usePreferences } from '../preferences'
-import { Chip, Copy, Panel, colors, fonts, themedStyles, typeTints } from '../ui'
+import { Chip, Copy, IconButton, Panel, colors, fonts, themedStyles, typeTints } from '../ui'
 import { trialStages } from '../generated/trial-maps.js'
 import { hintTier, planRoomWalk, resetAlignment, stepRoom, walkOutcome } from './trial'
 import { KIND_NAMES, nextRoom, restartRoom, restartRun, startRun, trialFor } from './trials'
@@ -13,6 +13,8 @@ import { DPad, useKeyboardDirections } from './DPad'
 import { useGameLoop } from './hooks'
 import { StarReveal, TrialMap, TrialWorld } from './TrialWorld'
 import type { TrialMove, TrialStage } from './TrialWorld'
+import { useGameScreen } from './fullscreen'
+import { PlayOverlay } from './PlayOverlay'
 
 const stages = trialStages as Record<string, TrialStage>
 const native = Platform.OS !== 'web'
@@ -25,7 +27,8 @@ const resume = (run: TrialRun) => run.room.status === 'fell' ? restartRoom(run)
 
 // The Legendary's trial: one to two rooms walked like the Safari Zone (D-pad, arrow keys / WASD or tap to walk), then the
 // chamber. The rules live in trial.ts and the room order in trials.ts; this screen turns input into steps, times the falls,
-// fades and finish, and saves a checkpoint when a room is cleared, when the game pauses and when the player leaves.
+// fades and finish, and saves a checkpoint when a room is cleared, when the game pauses and when the player leaves. In full
+// screen it draws the same map, status, HUD, D-pad and buttons through PlayOverlay; the finish and the reveal leave it.
 // `practice` (a Shrine Revisit) changes only the words: the screen plays and reports a room the same way, and the parent
 // decides what a clear saves.
 export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial, checkpoint, onCheckpoint, onSolved, onLeave, practice = false }: {
@@ -41,6 +44,7 @@ export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial
   const [area, setArea] = useState({ width: 0, height: 0 })
   const [fade] = useState(() => new Animated.Value(1))
   const { safariControls, safariTrainer } = usePreferences()
+  const { full, setFull } = useGameScreen()
   const current = useRef(run)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   const handlers = useRef({ onCheckpoint, onSolved })
@@ -127,6 +131,40 @@ export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial
   const where = `${KIND_NAMES[stage.kind]} room. You are at row ${room.at.y + 1}, column ${room.at.x + 1}. ${room.moves} moves.`
   const controls = !busy && phase === 'play'
   const { width, height } = area
+  // The finish and the Shattered Star's reveal play out of full screen, on the way to the chamber.
+  const ended = phase === 'finish' || phase === 'reveal'
+  const immersive = full && !ended
+  useEffect(() => { if (ended) setFull(false) }, [ended, setFull])
+  // `extra` is added to the camera's jump (a rotation snaps it); `fit` sizes tiles by the shorter side in full screen.
+  const world = (width: number, height: number, extra: number, fit: boolean) => <>
+    <TrialWorld run={run} stage={stage} move={move} jump={jump + extra} trainer={safariTrainer} buddy={partner} width={width} height={height}
+      reduced={reduced} tapToWalk={safariControls === 'tap' && walking} onTapTile={tapTile} falling={phase === 'fall'} revealing={phase === 'reveal'}
+      fitHeight={fit} />
+    {phase === 'reveal' && <StarReveal stage={stage} at={room.at} width={width} height={height} reduced={reduced}
+      onDone={() => handlers.current.onSolved(nextRoom(current.current).results)} />}
+  </>
+  const leave = <Chip key="leave" label="Leave" selected={false} disabled={busy} onPress={() => { walker.drop(); onLeave(current.current) }} />
+  const actions = [
+    /* The hint goes in the status line, so it needs no room of its own. */
+    star && <Chip key="hint" label="Hint" selected={false} disabled={!controls} onPress={() => {
+      setStatus(tier ? star.hints[tier - 1] : 'Try attuning the meteorite first. The island answers every attempt.')
+    }} />,
+    star && <Chip key="crystals" label="Reset the crystals" selected={false} disabled={!controls} onPress={() => {
+      update({ ...current.current, room: resetAlignment(current.current.room, stage) })
+      setStatus('The crystals settle back to how you found them.')
+    }} />,
+    <Chip key="restart" label="Restart room" selected={false} disabled={!controls} onPress={() => { walker.drop(); enter(restartRoom(current.current)) }} />,
+    run.stages.length > 1 && <Chip key="over" label="Start over" selected={false} disabled={!controls} onPress={() => { walker.drop(); enter(restartRun(current.current)) }} />
+  ]
+
+  if (immersive) return <PlayOverlay
+    map={(width, height, resized) => <Animated.View accessible={safariControls !== 'tap'} accessibilityRole="image" accessibilityLabel={where}
+      style={{ width, height, opacity: fade, backgroundColor: '#0b0b14' }}>{world(width, height, resized, true)}</Animated.View>}
+    hud={`${run.stages.length > 1 ? `Room ${run.index + 1}/${run.stages.length} · ` : ''}${hud}`} status={error || status}
+    dpad={safariControls === 'dpad' ? <DPad overlay reduced={reduced} onPress={press} onRelease={release} disabled={!walking} /> : null}
+    // The chips stack up from the corner: Leave lowest, then the room's own actions.
+    actions={[leave, ...[...actions].reverse()]} />
+
   // The screen doesn't scroll during a trial (expeditions.tsx fills it): the map takes whatever height the title, status,
   // D-pad and buttons leave, like the Safari Zone's, so the map and every control fit on a phone at once.
   return <Panel style={[look.panel, { backgroundColor: typeTints[type] || colors.panel }]}>
@@ -136,18 +174,14 @@ export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial
           : `${name.toUpperCase()}${run.stages.length > 1 ? ` · ROOM ${run.index + 1}/${run.stages.length}` : ' · TRIAL'}`}</Text>
         <Text accessibilityRole="header" numberOfLines={1} style={look.title}>{trial.title}</Text>
       </View>
+      {!ended && <IconButton name="fullscreen" label="Full screen" size={40} onPress={() => setFull(true)} />}
       {/* Open even after the finish: if saving it failed, leaving keeps the cleared run, and coming back finishes it again. */}
-      <Chip label="Leave" selected={false} disabled={busy} onPress={() => { walker.drop(); onLeave(current.current) }} />
+      {leave}
     </View>
     <Animated.View accessible={safariControls !== 'tap'} accessibilityRole="image" accessibilityLabel={where} style={[look.world, { opacity: fade }]}
       onLayout={event => { const layout = event.nativeEvent.layout; setArea({ width: layout.width, height: layout.height }) }}>
       {/* Absolutely placed, so a map measured while there was more room never holds the area open later. */}
-      {width > 0 && <View style={{ position: 'absolute', left: 0, top: 0 }}>
-        <TrialWorld run={run} stage={stage} move={move} jump={jump} trainer={safariTrainer} buddy={partner} width={width} height={height}
-          reduced={reduced} tapToWalk={safariControls === 'tap' && walking} onTapTile={tapTile} falling={phase === 'fall'} revealing={phase === 'reveal'} />
-        {phase === 'reveal' && <StarReveal stage={stage} at={room.at} width={width} height={height} reduced={reduced}
-          onDone={() => handlers.current.onSolved(nextRoom(current.current).results)} />}
-      </View>}
+      {width > 0 && <View style={{ position: 'absolute', left: 0, top: 0 }}>{world(width, height, 0, false)}</View>}
     </Animated.View>
     <Text accessibilityLiveRegion="polite" numberOfLines={3} style={[look.status, phase === 'finish' || phase === 'reveal' ? { color: colors.success } : null]}>
       {phase === 'finish' ? practice ? 'Room cleared!' : 'Trial cleared! The shrine opens… a presence stirs beyond the gate.' : error || status}</Text>
@@ -160,16 +194,7 @@ export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial
     <View style={look.chips}>
       <Chip label="D-pad" selected={safariControls === 'dpad'} onPress={() => setPreference('safariControls', 'dpad')} />
       <Chip label="Tap to walk" selected={safariControls === 'tap'} onPress={() => setPreference('safariControls', 'tap')} />
-      {/* The hint goes in the status line, so it needs no room of its own. */}
-      {star && <Chip label="Hint" selected={false} disabled={!controls} onPress={() => {
-        setStatus(tier ? star.hints[tier - 1] : 'Try attuning the meteorite first. The island answers every attempt.')
-      }} />}
-      {star && <Chip label="Reset the crystals" selected={false} disabled={!controls} onPress={() => {
-        update({ ...current.current, room: resetAlignment(current.current.room, stage) })
-        setStatus('The crystals settle back to how you found them.')
-      }} />}
-      <Chip label="Restart room" selected={false} disabled={!controls} onPress={() => { walker.drop(); enter(restartRoom(current.current)) }} />
-      {run.stages.length > 1 && <Chip label="Start over" selected={false} disabled={!controls} onPress={() => { walker.drop(); enter(restartRun(current.current)) }} />}
+      {actions}
     </View>
   </Panel>
 }
