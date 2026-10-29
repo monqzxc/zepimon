@@ -372,6 +372,24 @@ quests, permits and encounter rolls are stored on this phone alongside missions 
 requires befriending unlocked encounters again after syncing. A watch reset starts a new trail without removing
 phone discoveries.
 
+#### Shrine Revisits (1.13.0)
+
+Every Legendary you've caught on an expedition gets a row under **Shrine Revisits** on the Expeditions screen, in
+species order. A Shiny catch gets its own row, marked ✦. You can come back any time, with no permit, distance or quest needed:
+
+- **Revisit the trial** opens a room picker for that Legendary's kind: Tutorial and Rooms 1–3, each with your best
+  moves and par. Deoxys goes straight to the Shattered Star island, reveal included. Practice is never saved mid-room,
+  so leaving drops the run. A clear saves the room's moves to your trial records only if they're lower ("Room cleared
+  in N moves (best M)"), which also counts toward the trial achievements.
+- **Battle again** is a rematch in the same battle, against the form you caught. If the ball holds, you win the rematch
+  ("You won the rematch! Zapdos returns to your team.") and the row counts your rematch wins. Running away or running out
+  of balls just ends it.
+
+Revisits are practice. They never claim an encounter, add or change a Dex entry, roll a Shiny, use or give a permit,
+or touch an open encounter's trial checkpoint. Only trial records and rematch wins change. The rules are in
+`src/games/revisits.ts` and are checked by `tests/revisits.test.js`. Rematch wins are included in backups beside the
+trial records.
+
 ### Adventure games
 
 Open **Play** for three new games and an **Adventure Map** that strings them together:
@@ -410,9 +428,9 @@ Both defense games use type matchups (super-effective hits do double damage) and
 
 **Safari catches in the Dex.** Gen 1–4 non-Legendary Pokemon caught in the Safari Zone join your Dex on this phone with a ◎ Safari mark and a **Safari** filter. They have no distance, steps or time, and they never count toward missions or badges. If the watch later hatches the same Normal/Shiny variant, the watch record replaces the Safari mark. Safari catches can be used as buddies, in Memory Match and in battle teams, even before any watch import.
 
-#### Full screen and landscape (1.13.0)
+#### Full screen and landscape (1.14.0)
 
-The Safari Zone and the Legendary Trial have a **Full screen** button while you play. In full screen the map fills the screen, and the status bar and the tab bar or header are hidden. The HUD and status line sit in a small translucent strip at the top, and the D-pad floats over the map, faint until you press it (bottom-left in portrait, left-centre in landscape). The game's buttons (Pause, Restart room, Hint, Leave and so on) sit in the opposite corner. Its buttons are as big as ever; only their look is faded. With **Tap to walk** there is no D-pad: tap the map as usual.
+The Safari Zone and the Legendary Trial (including Shrine Revisit practice rooms) have a **Full screen** button while you play. In full screen the map fills the screen, and the status bar and the tab bar or header are hidden. The HUD and status line sit in a small translucent strip at the top, and the D-pad floats over the map, faint until you press it (bottom-left in portrait, left-centre in landscape). The game's buttons (Pause, Restart room, Hint, Leave and so on) sit in the opposite corner. Its buttons are as big as ever; only their look is faded. With **Tap to walk** there is no D-pad: tap the map as usual.
 
 - **Rotate** (top right) turns the game to landscape and back. The choice is remembered for next time. The rest of the app always stays portrait.
 - **Exit full screen** (top right), Android's back button, leaving the screen or putting the app in the background all leave full screen, and so do the end of a Safari round, a trial reaching the chamber, and a Safari encounter in landscape (encounters only fit in portrait).

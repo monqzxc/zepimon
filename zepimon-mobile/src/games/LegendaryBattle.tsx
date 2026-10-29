@@ -23,10 +23,12 @@ const STEP_MS = { intro: 1100, attack: 900, ball: 650, shake: 450 }
 
 // The Legendary battle (src/games/legendary-battle.ts holds its rules): Emerald's background and boxes, an entrance from
 // both sides, an idle bob, a lunge and a type-coloured hit, and a thrown Poké Ball that shakes before it holds or opens.
-// onCaught saves the catch; it runs once, only after a ball holds.
-export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLeave, onDone }: {
+// onCaught saves the catch; it runs once, only after a ball holds. A `rematch` (a Shrine Revisit against a Legendary
+// already caught) plays the same battle with its own words: a held ball wins the rematch instead of catching anything,
+// the parent's onCaught must not claim an encounter, and running or running out of balls just ends it.
+export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLeave, onDone, rematch = false }: {
   foe: { name: string, shiny: boolean }, partner: { name: string, shiny: boolean }, number: number, reduced: boolean,
-  onCaught: () => Promise<void>, onLeave: () => void, onDone: () => void
+  onCaught: () => Promise<void>, onLeave: () => void, onDone: () => void, rematch?: boolean
 }) {
   const [battle, setBattle] = useState(() => startBattle(foe, partner))
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
@@ -47,7 +49,7 @@ export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLea
   function save() {
     setSaving('saving'); setError('')
     caught.current().then(() => setSaving('saved'))
-      .catch(reason => { setSaving('failed'); setError(reason instanceof Error ? reason.message : 'Could not save your catch. Try again.') })
+      .catch(reason => { setSaving('failed'); setError(reason instanceof Error ? reason.message : '') })
   }
   const saveOnce = useRef(false)
   useEffect(() => {
@@ -63,6 +65,9 @@ export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLea
   const water = ['water', 'ice'].includes(pokemonType(foe.name))
   const sheet = battle.hit ? hitSheet(battle.hit.move.type) as Strip : null
   const done = battle.phase === 'caught' || battle.phase === 'out' || battle.phase === 'fled'
+  const foeName = `${foe.shiny ? 'Shiny ' : ''}${foe.name}`
+  // A won rematch never reads as a new catch.
+  const message = rematch && battle.phase === 'caught' ? `You won the rematch! ${foeName} returns to your team.` : battle.message
   return <View style={gba.frame}>
     <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{ alignSelf: 'stretch', height: height || 160, overflow: 'hidden' }}>
       {width > 0 && <>
@@ -88,22 +93,22 @@ export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLea
       </>}
     </View>
     <View style={gba.textbox}>
-      <View style={gba.message}><Text accessibilityLiveRegion="polite" style={gba.messageText}>{battle.message}</Text></View>
+      <View style={gba.message}><Text accessibilityLiveRegion="polite" style={gba.messageText}>{message}</Text></View>
       {battle.phase === 'choose' && <Menu battle={battle} onChange={setBattle} />}
     </View>
     {battle.phase === 'caught' && <View style={gba.after}>
       {saving === 'saved' ? <>
-        <Text style={gba.afterText}>{foe.shiny ? 'Shiny ' : ''}{foe.name}’s data was added to your Dex.</Text>
-        <Button title="Continue" onPress={onDone} />
+        {!rematch && <Text style={gba.afterText}>{foeName}’s data was added to your Dex.</Text>}
+        <Button title={rematch ? 'Back to Shrine Revisits' : 'Continue'} onPress={onDone} />
       </> : saving === 'failed' ? <>
-        <Copy color={GBA.low}>{error}</Copy>
+        <Copy color={GBA.low}>{error || (rematch ? 'Could not save this win. Try again.' : 'Could not save your catch. Try again.')}</Copy>
         <Button title="Try saving again" onPress={save} />
-      </> : <Button title="Saving your new friend…" loading onPress={() => {}} />}
+      </> : <Button title={rematch ? 'Saving your win…' : 'Saving your new friend…'} loading onPress={() => {}} />}
     </View>}
     {(battle.phase === 'out' || battle.phase === 'fled') && <View style={gba.after}>
-      <Button title="Back to the chamber" onPress={onLeave} />
+      <Button title={rematch ? 'Back to Shrine Revisits' : 'Back to the chamber'} onPress={onLeave} />
     </View>}
-    {!done && <Text style={gba.footer}>EXPEDITION {number} · Poké Balls ×{battle.balls} · Moves never knock the Legendary out.</Text>}
+    {!done && <Text style={gba.footer}>{rematch ? 'REMATCH' : `EXPEDITION ${number}`} · Poké Balls ×{battle.balls} · Moves never knock the Legendary out.</Text>}
   </View>
 }
 
