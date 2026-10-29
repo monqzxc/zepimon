@@ -26,8 +26,10 @@ const resume = (run: TrialRun) => run.room.status === 'fell' ? restartRoom(run)
 // The Legendary's trial: one to two rooms walked like the Safari Zone (D-pad, arrow keys / WASD or tap to walk), then the
 // chamber. The rules live in trial.ts and the room order in trials.ts; this screen turns input into steps, times the falls,
 // fades and finish, and saves a checkpoint when a room is cleared, when the game pauses and when the player leaves.
-export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial, checkpoint, onCheckpoint, onSolved, onLeave }: {
-  name: string, partner: { name: string, shiny: boolean }, reduced: boolean, busy: boolean, error?: string,
+// `practice` (a Shrine Revisit) changes only the words: the screen plays and reports a room the same way, and the parent
+// decides what a clear saves.
+export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial, checkpoint, onCheckpoint, onSolved, onLeave, practice = false }: {
+  name: string, partner: { name: string, shiny: boolean }, reduced: boolean, busy: boolean, error?: string, practice?: boolean,
   trial: ReturnType<typeof trialFor>, checkpoint: TrialRun | undefined, onCheckpoint: (run: TrialRun) => Promise<void>,
   onSolved: (results: Record<string, number>) => void, onLeave: (run: TrialRun) => void
 }) {
@@ -130,7 +132,8 @@ export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial
   return <Panel style={[look.panel, { backgroundColor: typeTints[type] || colors.panel }]}>
     <View style={look.top}>
       <View style={{ flex: 1 }}>
-        <Text numberOfLines={1} style={look.eyebrow}>{name.toUpperCase()}{run.stages.length > 1 ? ` · ROOM ${run.index + 1}/${run.stages.length}` : ' · TRIAL'}</Text>
+        <Text numberOfLines={1} style={look.eyebrow}>{practice ? 'SHRINE REVISIT'
+          : `${name.toUpperCase()}${run.stages.length > 1 ? ` · ROOM ${run.index + 1}/${run.stages.length}` : ' · TRIAL'}`}</Text>
         <Text accessibilityRole="header" numberOfLines={1} style={look.title}>{trial.title}</Text>
       </View>
       {/* Open even after the finish: if saving it failed, leaving keeps the cleared run, and coming back finishes it again. */}
@@ -147,7 +150,7 @@ export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial
       </View>}
     </Animated.View>
     <Text accessibilityLiveRegion="polite" numberOfLines={3} style={[look.status, phase === 'finish' || phase === 'reveal' ? { color: colors.success } : null]}>
-      {phase === 'finish' ? 'Trial cleared! The shrine opens… a presence stirs beyond the gate.' : error || status}</Text>
+      {phase === 'finish' ? practice ? 'Room cleared!' : 'Trial cleared! The shrine opens… a presence stirs beyond the gate.' : error || status}</Text>
     <Text numberOfLines={1} adjustsFontSizeToFit style={look.hud}>{hud}</Text>
     <View style={look.controls}>
       {safariControls === 'dpad' ? <DPad onPress={press} onRelease={release} disabled={!walking} />

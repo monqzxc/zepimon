@@ -19,7 +19,9 @@ import { ShrineLanterns } from '../games/ShrineLanterns'
 import { ArcadeAchievements } from '../games/ArcadeAchievements'
 import { KIND_NAMES, trialFor } from '../games/trials'
 import { questTheme } from '../games/lanterns'
-import { Button, Copy, Eyebrow, HabitatScene, Heading, Hero, Panel, Screen, colors, gradient, styles, useTheme } from '../ui'
+import { canRevisit, caughtLegendaries, revisitKey, revisitRooms, roomLine } from '../games/revisits'
+import { PixelSprite } from '../games/TeamPicker'
+import { Button, Copy, Eyebrow, HabitatScene, Heading, Hero, Panel, Screen, Title, colors, gradient, styles, useTheme } from '../ui'
 
 const stories: Record<string, { title: string, clues: string[] }> = {
   Articuno: { title: 'The shimmering feather', clues: ['A frosted feather rests beside the trail.', 'Wing-shaped shadows sweep across the snow.', 'Articuno lands in a quiet snowy clearing.'] },
@@ -31,15 +33,20 @@ const storyOf = (name: string) => stories[name] || { title: 'A whisper on the tr
   clues: [`A curious trace leads toward a ${pokemonType(name)} habitat.`, 'A shy silhouette watches from a quiet hiding place.', `${name} waits at the end of the trail.`] }
 
 // A battle keeps its own copy of the Legendary, so the screen stays on it after the catch claims the encounter. A trial keeps
-// the rooms picked when it opened, so a record saved mid-trial never changes them.
+// the rooms picked when it opened, so a record saved mid-trial never changes them. The revisit steps are Shrine Revisits:
+// practice for a Legendary already caught, outside the expedition (src/games/revisits.ts).
 type Step = { kind: 'overview' } | { kind: 'lanterns' } | { kind: 'chamber', key: string, index: number }
   | { kind: 'trial', key: string, index: number, trial: ReturnType<typeof trialFor> }
   | { kind: 'battle', key: string, index: number, foe: { name: string, shiny: boolean } }
+  | { kind: 'revisit-rooms', name: string, shiny: boolean }
+  | { kind: 'revisit-trial', name: string, shiny: boolean, room: string, trial: ReturnType<typeof trialFor> }
+  | { kind: 'rematch', name: string, shiny: boolean }
 
 // Legendary Expeditions. Three ways open the next encounter: 25 km of saved walks and runs, the Expedition Quest
 // (three saved sessions and a shrine challenge) or arcade achievement points; the last two give an Expedition Permit.
 // Every encounter then runs trial → chamber (where the Shiny roll is revealed and may be reset) → battle → catch, and
-// only a successful catch adds the Legendary to the Dex.
+// only a successful catch adds the Legendary to the Dex. Shrine Revisits replay a caught Legendary's trial rooms or battle
+// as practice, with no permit, distance or quest; they save only rooms' best moves and rematch wins.
 export default function ExpeditionsScreen() {
   useTheme()
   const store = useJournal()
@@ -63,9 +70,43 @@ export default function ExpeditionsScreen() {
   }
   const leave = (note: string) => { setStep({ kind: 'overview' }); setMessage(note) }
   const enterChamber = (key: string, index: number) => act(() => store.openChamber(key, index), () => setStep({ kind: 'chamber', key, index }))
+  // A one-room shrine (the Shattered Star's island) skips the room picker.
+  const playRoom = (name: string, shiny: boolean, room: string) => {
+    setMessage('')
+    setStep({ kind: 'revisit-trial', name, shiny, room, trial: { ...trialFor(name, store.trialRecords), stages: [room] } })
+  }
+  const revisit = (name: string, shiny: boolean) => {
+    const rooms = revisitRooms(name)
+    if (rooms.length === 1) playRoom(name, shiny, rooms[0])
+    else { setMessage(''); setStep({ kind: 'revisit-rooms', name, shiny }) }
+  }
 
   let content: ReactNode = null
-  if (step.kind === 'lanterns') {
+  if ((step.kind === 'revisit-rooms' || step.kind === 'revisit-trial' || step.kind === 'rematch') && !canRevisit(expeditions.dex, step.name, step.shiny)) {
+    content = <Panel><Copy>Catch this Legendary on an expedition to revisit its shrine.</Copy><Button title="Back to Expeditions" onPress={() => leave('')} /></Panel>
+  } else if (step.kind === 'revisit-rooms') {
+    content = <RevisitRooms name={step.name} shiny={step.shiny} message={message} onRoom={room => playRoom(step.name, step.shiny, room)} onBack={() => leave('')} />
+  } else if (step.kind === 'revisit-trial') {
+    const { name, shiny, room } = step
+    const single = revisitRooms(name).length === 1
+    // Practice is never saved mid-room: leaving drops the run, and only a clear writes its moves (the lower count is kept).
+    content = <LegendaryTrial key={room} practice name={name} partner={partner} reduced={reduced} busy={busy} error={message}
+      trial={step.trial} checkpoint={undefined} onCheckpoint={() => Promise.resolve()} onLeave={() => leave('')}
+      onSolved={results => {
+        const moves = results[room]
+        const best = Math.min(store.trialRecords[room] ?? moves, moves)
+        void act(() => store.recordPracticeClear(name, shiny, results), () => {
+          const note = `Room cleared in ${moves} moves (best ${best}).`
+          if (single) leave(note)
+          else { setStep({ kind: 'revisit-rooms', name, shiny }); setMessage(note) }
+        })
+      }} />
+  } else if (step.kind === 'rematch') {
+    const { name, shiny } = step
+    // A rematch never calls befriend: a held ball only counts a rematch win.
+    content = <LegendaryBattle key={revisitKey(name, shiny)} rematch foe={{ name, shiny }} partner={partner} number={0} reduced={reduced}
+      onCaught={() => store.recordRematchWin(name, shiny)} onLeave={() => leave('')} onDone={() => leave('')} />
+  } else if (step.kind === 'lanterns') {
     content = <ShrineLanterns number={quest.number} busy={busy} onLeave={() => leave('')}
       onSolved={() => { void act(store.completeQuestChallenge, () => leave('Shrine challenge complete! It counts toward this Expedition Quest.')) }} />
   } else if (step.kind === 'battle') {
@@ -99,7 +140,7 @@ export default function ExpeditionsScreen() {
   }
 
   // The trial fills the screen without scrolling, so the map and the D-pad are on screen together, as in the Safari Zone.
-  return <Screen key={step.kind} fill={step.kind === 'trial'}>
+  return <Screen key={step.kind} fill={step.kind === 'trial' || step.kind === 'revisit-trial'}>
     {content ?? <>
       <Hero eyebrow="LEGENDARY EXPEDITIONS" title="Follow a little mystery.">
         <Copy color={colors.onBrand}>Walk 25 km, finish an Expedition Quest or earn arcade points. Then clear the shrine trial and catch the Legendary waiting inside.</Copy>
@@ -120,6 +161,7 @@ export default function ExpeditionsScreen() {
       <Routes busy={busy} onLanterns={() => setStep({ kind: 'lanterns' })}
         onPermit={() => { void act(store.earnPermit, () => setMessage('Quest complete! You received an Expedition Permit.')) }}
         sessions={questSessions(quest, progress, expeditions)} leg={selected ? distanceLeg(quest, selected[0], selected[1]) : 0} />
+      <ShrineRevisits busy={busy} onRevisit={revisit} onRematch={(name, shiny) => { setMessage(''); setStep({ kind: 'rematch', name, shiny }) }} />
       <ArcadeAchievements place="expeditions" />
       <Panel><Eyebrow>YOUR EXPEDITION FRIENDS</Eyebrow>
         <Copy>{Object.keys(expeditions.dex).length} Normal / Shiny discoveries kept on this phone.</Copy>
@@ -193,4 +235,49 @@ function Routes({ sessions, leg, busy, onLanterns, onPermit }: {
       {complete && <Button title="Receive your Expedition Permit" loading={busy} onPress={onPermit} />}
     </Panel>
   </>
+}
+
+// Every Legendary caught on an expedition, in species order (a Shiny catch is its own row): replay its trial or battle it
+// again, any time.
+function ShrineRevisits({ busy, onRevisit, onRematch }: {
+  busy: boolean, onRevisit: (name: string, shiny: boolean) => void, onRematch: (name: string, shiny: boolean) => void
+}) {
+  const { expeditions, trialRecords, rematchWins } = useJournal()
+  const caught = caughtLegendaries(expeditions.dex)
+  return <>
+    <Heading>Shrine Revisits</Heading>
+    <Copy>Come back to any Legendary you’ve caught: replay its trial rooms or battle it again. Revisits are practice. They need no permit and never change your Dex; a cleared room can only improve your best moves.</Copy>
+    {caught.length ? caught.map(({ name, shiny, key }) => {
+      const trial = trialFor(name, trialRecords)
+      const wins = rematchWins[key] || 0
+      return <Panel key={key}>
+        <View style={[styles.row, { flexWrap: 'nowrap' }]}>
+          <View accessible={false} importantForAccessibility="no-hide-descendants"><PixelSprite name={name} shiny={shiny} size={56} /></View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Title>{shiny ? `Shiny ${name} ✦` : name}</Title>
+            <Copy small>{trial.title} · {KIND_NAMES[trial.kind]}</Copy>
+            {wins > 0 && <Copy small color={colors.gold}>Rematch wins: {wins}</Copy>}
+          </View>
+        </View>
+        <Button title="Revisit the trial" disabled={busy} onPress={() => onRevisit(name, shiny)} />
+        <Button title="Battle again" secondary disabled={busy} onPress={() => onRematch(name, shiny)} />
+      </Panel>
+    }) : <Panel><Copy>Catch a Legendary on an expedition to revisit its shrine here.</Copy></Panel>}
+  </>
+}
+
+// A maze shrine's rooms with their best moves and par. A clear comes back here with how it went.
+function RevisitRooms({ name, shiny, message, onRoom, onBack }: {
+  name: string, shiny: boolean, message: string, onRoom: (room: string) => void, onBack: () => void
+}) {
+  const { trialRecords } = useJournal()
+  const trial = trialFor(name, trialRecords)
+  return <Panel>
+    <Eyebrow>SHRINE REVISIT · {KIND_NAMES[trial.kind].toUpperCase()}</Eyebrow>
+    <Heading>{trial.title}</Heading>
+    <Copy>Pick a room of {shiny ? 'Shiny ' : ''}{name}’s shrine to practice. A clear saves your best moves; nothing else changes.</Copy>
+    {!!message && <Text accessibilityLiveRegion="polite" style={{ color: colors.gold, fontSize: 15, lineHeight: 22 }}>{message}</Text>}
+    {revisitRooms(name).map(room => <Button key={room} title={roomLine(room, trialRecords)} secondary onPress={() => onRoom(room)} />)}
+    <Button title="Back to Expeditions" onPress={onBack} />
+  </Panel>
 }

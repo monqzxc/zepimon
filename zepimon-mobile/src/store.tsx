@@ -20,6 +20,8 @@ import { restoreStars, saveStars } from './games/adventure'
 import { restoreLevelStars, saveLevelStars } from './games/levels'
 import { restoreTrialRecords, saveTrialRecords } from './games/trials'
 import type { TrialRecords, TrialRun } from './games/trials'
+import { practiceClear, rematchWin, restoreRematchWins } from './games/revisits'
+import type { RematchWins } from './games/revisits'
 import { backupSummary, createBackup } from './backup'
 import { restorePhoneRuns, withPhoneRuns, withPhoneTrail } from './phone-adventure'
 import type { PhoneRun } from './phone-adventure'
@@ -27,14 +29,15 @@ import { restorePlan, withEgg, withoutEgg, withPhone } from './plan'
 import type { Plan } from './plan'
 
 const KEY = 'zepimon-mobile-v1'
-type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null, expeditions: ExpeditionProgress, quest: Quest, encounters: Encounters, safari: SafariDex, adventure: Record<string, number>, trailLevels: Record<string, number>, trialRecords: TrialRecords, phoneRuns: PhoneRun[], plan: Plan | null }
+type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null, expeditions: ExpeditionProgress, quest: Quest, encounters: Encounters, safari: SafariDex, adventure: Record<string, number>, trailLevels: Record<string, number>, trialRecords: TrialRecords, rematchWins: RematchWins, phoneRuns: PhoneRun[], plan: Plan | null }
 type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRecord>, importText: (text: string) => Promise<void>, importCloud: (text: string, owner: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void>, befriend: (key: string, index: number) => Promise<void>,
-  finishTrial: (key: string, index: number, results: Record<string, number>) => Promise<void>, saveTrialCheckpoint: (key: string, index: number, run: TrialRun) => Promise<void>, openChamber: (key: string, index: number) => Promise<void>,
+  finishTrial: (key: string, index: number, results: Record<string, number>) => Promise<void>,
+  recordPracticeClear: (name: string, shiny: boolean, results: Record<string, number>) => Promise<void>, recordRematchWin: (name: string, shiny: boolean) => Promise<void>, saveTrialCheckpoint: (key: string, index: number, run: TrialRun) => Promise<void>, openChamber: (key: string, index: number) => Promise<void>,
   resetEncounter: (key: string, index: number, discardShiny: boolean) => Promise<void>, finishReset: (key: string, index: number) => Promise<void>,
   completeQuestChallenge: () => Promise<void>, earnPermit: () => Promise<void>, earnArcadePermit: () => Promise<void>, unlockWithPermit: (key: string) => Promise<void>, recordSafariCatch: (name: string, shiny: boolean) => Promise<void>, recordStars: (stop: string, stars: number) => Promise<void>,
   recordLevelStars: (level: string, stars: number) => Promise<void>, savePhoneRun: (run: PhoneRun) => Promise<void>, chooseEgg: (family: string[], mega: string | null) => Promise<void>,
   setPhoneAdventure: (phone: Plan['phone']) => Promise<void>, dropEgg: () => Promise<void>, receivePlan: (plan: unknown) => Promise<void>, makeBackup: () => string, backupInfo: ReturnType<typeof backupSummary> }
-const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), quest: emptyQuest(), encounters: {}, safari: {}, adventure: {}, trailLevels: {}, trialRecords: {}, phoneRuns: [], plan: null }
+const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), quest: emptyQuest(), encounters: {}, safari: {}, adventure: {}, trailLevels: {}, trialRecords: {}, rematchWins: {}, phoneRuns: [], plan: null }
 const Context = createContext<Store | null>(null)
 
 // Watch records with this phone's own adventures layered on top; missions and Expeditions count both.
@@ -76,7 +79,8 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
       const progress = collection ? importProgress(restored, collection) : restored
       latest.current = { journal, buddy, bestMoves, progress, arcadeScores: restoreScores(value.arcadeScores),
         cloudOwner: typeof value.cloudOwner === 'string' ? value.cloudOwner : null, expeditions, quest, encounters, safari, adventure: restoreStars(value.adventure),
-        trailLevels: restoreLevelStars(value.trailLevels), trialRecords: restoreTrialRecords(value.trialRecords), phoneRuns, plan: restorePlan(value.plan) }
+        trailLevels: restoreLevelStars(value.trailLevels), trialRecords: restoreTrialRecords(value.trialRecords),
+        rematchWins: restoreRematchWins(value.rematchWins), phoneRuns, plan: restorePlan(value.plan) }
       setSaved(latest.current)
       if (JSON.stringify(value.progress) !== JSON.stringify(progress) || JSON.stringify(value.expeditions) !== JSON.stringify(expeditions) ||
           JSON.stringify(value.quest) !== JSON.stringify(quest) || JSON.stringify(value.encounters) !== JSON.stringify(encounters)) {
@@ -134,6 +138,11 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   // Finishing saves the rooms' best moves and the encounter together, in one write.
   const finishEncounterTrial = (key: string, index: number, results: Record<string, number>) => persist(current => ({ ...current,
     encounters: finishTrial(current, key, index), trialRecords: saveTrialRecords(current.trialRecords, results) }))
+  // Shrine Revisits (src/games/revisits.ts): practice for a caught Legendary. A cleared room may lower its best moves and a
+  // won rematch counts a win; nothing else (trails, Dex, permits, encounters) changes, and an uncaught Legendary is refused.
+  const recordPracticeClear = (name: string, shiny: boolean, results: Record<string, number>) =>
+    persist(current => practiceClear(current, name, shiny, results))
+  const recordRematchWin = (name: string, shiny: boolean) => persist(current => rematchWin(current, name, shiny))
   const saveTrialCheckpoint = (key: string, index: number, run: TrialRun) => persist(current => ({ ...current, encounters: saveCheckpoint(current, key, index, run) }))
   const openEncounterChamber = (key: string, index: number) => persist(current => ({ ...current, encounters: openChamber(current, key, index) }))
   const resetEncounter = (key: string, index: number, discardShiny: boolean) =>
@@ -166,7 +175,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   // Backups use the raw saved data, so the watch journal stays exactly as the watch sent it.
   const makeBackup = () => createBackup(latest.current, Date.now(), Constants.expoConfig?.version ?? '')
   return <Context.Provider value={{ ...saved, ...collectionOf(saved), ready, error, importText, importCloud, chooseBuddy, recordWin, recordArcadeScore,
-    befriend, finishTrial: finishEncounterTrial, saveTrialCheckpoint, openChamber: openEncounterChamber, resetEncounter, finishReset: finishEncounterReset,
+    befriend, finishTrial: finishEncounterTrial, recordPracticeClear, recordRematchWin, saveTrialCheckpoint, openChamber: openEncounterChamber, resetEncounter, finishReset: finishEncounterReset,
     completeQuestChallenge, earnPermit: earnQuestPermit, earnArcadePermit: earnPointsPermit, unlockWithPermit, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
     backupInfo: backupSummary(saved) }}>{children}</Context.Provider>
 }

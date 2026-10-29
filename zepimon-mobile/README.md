@@ -372,6 +372,24 @@ quests, permits and encounter rolls are stored on this phone alongside missions 
 requires befriending unlocked encounters again after syncing. A watch reset starts a new trail without removing
 phone discoveries.
 
+#### Shrine Revisits (1.13.0)
+
+Every Legendary you've caught on an expedition gets a row under **Shrine Revisits** on the Expeditions screen, in
+species order. A Shiny catch gets its own row, marked ✦. You can come back any time, with no permit, distance or quest needed:
+
+- **Revisit the trial** opens a room picker for that Legendary's kind: Tutorial and Rooms 1–3, each with your best
+  moves and par. Deoxys goes straight to the Shattered Star island, reveal included. Practice is never saved mid-room,
+  so leaving drops the run. A clear saves the room's moves to your trial records only if they're lower ("Room cleared
+  in N moves (best M)"), which also counts toward the trial achievements.
+- **Battle again** is a rematch in the same battle, against the form you caught. If the ball holds, you win the rematch
+  ("You won the rematch! Zapdos returns to your team.") and the row counts your rematch wins. Running away or running out
+  of balls just ends it.
+
+Revisits are practice. They never claim an encounter, add or change a Dex entry, roll a Shiny, use or give a permit,
+or touch an open encounter's trial checkpoint. Only trial records and rematch wins change. The rules are in
+`src/games/revisits.ts` and are checked by `tests/revisits.test.js`. Rematch wins are included in backups beside the
+trial records.
+
 ### Adventure games
 
 Open **Play** for three new games and an **Adventure Map** that strings them together:
