@@ -304,8 +304,10 @@ test('crystals follow their rules', () => {
   assert.deepEqual(a.events, ['node'])
   assert.deepEqual(a.room.lit, ['n1', 'n2'])
   assert.equal(a.room.pattern, 0)
+  assert.equal(a.room.message, 'The crystal lights up, and its neighbours answer.')
   const b = press(a.room, STAR, 'east', 'east')
   assert.deepEqual(b.room.lit, ['n1'])
+  assert.equal(b.room.message, 'The crystal goes dark.')
   assert.equal(b.room.pattern, 1)
   const c = press(b.room, STAR, 'west', 'east')
   assert.deepEqual(c.room.lit, ['n1', 'n2'])
@@ -364,8 +366,10 @@ test('a crystal opens its passage for good', () => {
     target: { lit: ['n1'], pattern: 0 }, resetOnFail: false, clues: [], hints: ['a', 'b', 'c'] } })
   const on = press(startRoom(st), st, 'east').room
   assert.equal(on.open, 'A')
+  assert.equal(on.message, 'The crystal lights up. A passage opens.')
   const off = press(on, st, 'west', 'east').room
   assert.deepEqual(off.lit, [])
+  assert.equal(off.message, 'The crystal goes dark.')
   assert.equal(off.open, 'A')
   assert.equal(resetAlignment(off, st).open, 'A')
 })

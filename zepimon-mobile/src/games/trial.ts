@@ -184,6 +184,9 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
     const open = openedBy(star, lit, room.open)
     walked = { ...walked, lit, open, pattern: (room.pattern + node.turns) % star.patterns }
     events.push('node')
+    // Says what the crystal itself did and whether a passage opened; never whether the star turned (a hint tells that).
+    message = `${lit.includes(node.id) ? 'The crystal lights up' : 'The crystal goes dark'}${node.links.length ? ', and its neighbours answer' : ''}.` +
+      (open !== room.open ? ' A passage opens.' : '')
   }
   if (tile === 'X') {
     walked = { ...walked, status: 'cleared' }
