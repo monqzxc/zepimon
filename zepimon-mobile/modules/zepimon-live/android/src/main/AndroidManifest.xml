@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Android 13+ hides the adventure notification without it. -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <application>
+    <!-- expo-location's recording notification uses the same small icon before the live one replaces it. -->
+    <meta-data android:name="expo.modules.location.foreground_service_icon" android:resource="@drawable/zepimon_notification" />
+  </application>
+</manifest>

@@ -49,6 +49,16 @@ export function nextMilestone(family: string[], meters: number): number | null {
   return megaChoices(family).length && meters < 21000 ? 21000 : null
 }
 
+// What the live notification shows while an adventure records (modules/zepimon-live): the kind of workout, the
+// distance and the Pokemon being raised, named as on the Adventure tab ("Shiny Bulbasaur egg", "Ivysaur"). sprite is
+// the form whose sprite goes beside it. The time ticks in the notification itself.
+export function liveText(active: ActiveAdventure): { activity: string, distance: string, pokemon: string, sprite: string } {
+  const form = currentForm(active.family, active.meters, active.mega)
+  const name = form === 'Egg' ? `${active.family[0]} egg` : form
+  return { activity: active.activity === 'running' ? 'Run' : 'Walk', distance: `${(Math.max(0, active.meters) / 1000).toFixed(2)} km`,
+    pokemon: (active.shiny ? 'Shiny ' : '') + name, sprite: form }
+}
+
 export function newAdventure(family: string[], activity: Activity, mega: string | null, now: number, random = Math.random): ActiveAdventure {
   const choices = megaChoices(family)
   return { family: [...family], activity, startedAt: now, shiny: rollShiny(random), mega: mega && choices.includes(mega) ? mega : choices[0] ?? null,
