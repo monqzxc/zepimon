@@ -86,8 +86,11 @@ export function LegendaryTrial({ name, number, partner, reduced, busy, error = '
     const result = stepRoom(before.room, stages[before.stages[before.index]], direction)
     if (result.move === 'none') return { moved: false, stop: false }
     setMove(previous => ({ kind: result.move === 'bump' ? 'bump' : 'step', id: previous.id + 1, warp: result.move === 'warp' }))
-    // Arriving on a pad stops you there: a held key or button is let go, as a tap route stops on the warp event.
-    if (result.move === 'warp') { setJump(value => value + 1); dropInput.current() }
+    // Arriving on a pad stops you there: a held key or button is let go, as a tap route stops on the warp event. A bump that
+    // does something (attuning the meteorite, reading a stone, a sealed exit) lets go too: a bump takes no step time, so a
+    // held key would otherwise repeat it every few milliseconds and count dozens of attempts.
+    if (result.move === 'warp') setJump(value => value + 1)
+    if (result.move === 'warp' || (result.move === 'bump' && result.events.length)) dropInput.current()
     const next = { ...before, room: result.room }
     update(next)
     if (result.room.message) setStatus(result.room.message)
