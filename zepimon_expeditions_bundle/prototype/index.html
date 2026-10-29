@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zepimon — Legendary Expeditions Prototype</title>
+<style>
+:root{color-scheme:dark;--bg:#100f1b;--panel:#1e1b30;--panel2:#292440;--text:#f8f5ff;--muted:#b8b1ce;--accent:#bd91ff;--gold:#f3cf78;--line:#45405f;--good:#9be4bf}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 20% 0%,#30234d 0%,var(--bg) 50%);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text)}
+main{max-width:980px;margin:auto;padding:24px 16px 48px}.top{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}.eyebrow{color:var(--accent);font-size:.75rem;letter-spacing:.16em;font-weight:800}.title{font-size:clamp(2rem,6vw,3.5rem);line-height:1.05;margin:.35rem 0}.muted{color:var(--muted)}.pill{border:1px solid var(--line);border-radius:999px;padding:7px 12px;color:var(--muted);font-size:.8rem}
+.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-top:24px}.card{background:linear-gradient(145deg,#27223d,#191727);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 16px 48px #0002}.card h2{font-size:1.1rem;margin:0 0 10px}.hero{min-height:230px;display:flex;flex-direction:column;justify-content:space-between;background:radial-gradient(circle at 80% 25%,#65518b 0%,transparent 35%),linear-gradient(140deg,#32274b,#1a182b)}.hero-top{display:flex;justify-content:space-between;gap:10px}.orb{width:112px;height:112px;border:3px solid #e5d9ff;border-radius:50%;margin:10px auto 14px;display:grid;place-items:center;background:linear-gradient(#d8c9ff 0 47%,#2b2540 47% 53%,#8e70b9 53%);box-shadow:0 0 34px #bd91ff4d}.orb span{border:5px solid #eee5ff;background:#5c477c;border-radius:50%;width:34px;height:34px;display:block}.big{font-size:2.2rem;font-weight:850;letter-spacing:-.04em}.bar{height:10px;background:#49435f;border-radius:99px;overflow:hidden;margin:12px 0}.bar>div{height:100%;width:0;background:linear-gradient(90deg,#9b73db,#e0c4ff);transition:width .2s}.milestones{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}.milestone{border:1px solid var(--line);border-radius:13px;padding:10px;font-size:.82rem;color:var(--muted)}.milestone strong{display:block;color:var(--text);font-size:.95rem}.milestone.done{border-color:#8c76b5;background:#302849}.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.btn{border:1px solid #8d6fbd;background:#8c66c3;color:white;border-radius:12px;padding:11px 15px;font-weight:800;cursor:pointer}.btn.secondary{background:#2b2640;border-color:var(--line);color:var(--text)}.btn:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}.custom{display:flex;gap:8px;margin-top:12px}.custom input{min-width:0;width:100%;background:#151322;border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--text)}.notice{padding:12px 14px;background:#332d48;border:1px solid #655381;border-radius:12px;margin-top:14px}.queue-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.queue-item:last-child{border:0}.tag{font-size:.75rem;color:var(--gold);font-weight:800}.dex{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.dex-item{padding:10px 7px;text-align:center;border:1px solid var(--line);border-radius:12px;background:#171524;font-size:.82rem}.dex-item .emoji{font-size:1.6rem;display:block}.empty{color:var(--muted);font-size:.9rem;padding:10px 0}.foot{margin-top:18px;font-size:.78rem;color:var(--muted)}
+/* Generation-3-inspired battle UI: chunky borders, flat colors, pixel-like text */
+.battle-overlay{position:fixed;inset:0;z-index:10;background:#111827eF;display:none;align-items:center;justify-content:center;padding:12px}
+.battle-overlay.open{display:flex}.battle-dialog{width:min(100%,700px);background:#d9e2c2;border:4px solid #263c36;box-shadow:0 0 0 4px #9aa88b,0 20px 0 #172721;padding:8px;color:#172721;font-family:ui-monospace,Consolas,monospace;image-rendering:pixelated}
+.battle-screen{position:relative;min-height:360px;overflow:hidden;background:#d7e6bc;border:3px solid #526b56}
+.battle-sky{position:absolute;inset:0 0 35%;background:linear-gradient(#b8d7c0 0 55%,#d7e6bc 55%);}
+.battle-ground{position:absolute;left:-5%;right:-5%;height:44%;bottom:25%;border-radius:50%;background:#a8c28b;border-top:4px solid #6c976f;transform:rotate(-3deg)}
+.battle-platform{position:absolute;border-radius:50%;background:#86ad75;border:3px solid #60875e;box-shadow:inset 0 -8px #729b69}
+.battle-platform.enemy{width:42%;height:19%;top:25%;right:5%}.battle-platform.player{width:48%;height:21%;bottom:9%;left:3%;background:#b5ca8b}
+.monster-sprite{position:absolute;display:grid;place-items:center;font-size:clamp(3.5rem,12vw,6.5rem);filter:drop-shadow(3px 4px 0 #526b56);line-height:1;user-select:none;will-change:transform,opacity}
+/* GBA-inspired entrance, idle, hit, attack, and capture effects. */
+.monster-sprite.enemy{transform:translateX(0);opacity:1}
+.monster-sprite.enemy.entering{animation:enemyEnter .85s steps(8,end) both, enemyIdle 1.25s steps(2,end) .85s infinite}
+.monster-sprite.player.entering{animation:playerEnter .55s steps(6,end) both}
+.monster-sprite.enemy.attacking{animation:enemyAttack .42s steps(5,end)}
+.monster-sprite.player.attacking{animation:playerAttack .42s steps(5,end)}
+.monster-sprite.hit{animation:hitFlash .5s steps(2,end)}
+.monster-sprite.captured{animation:shrinkToBall .5s steps(6,end) forwards}
+.battle-screen.intro-flash{animation:introFlash .42s steps(2,end)}
+.capture-ball{position:absolute;z-index:5;left:50%;top:48%;width:25px;height:25px;border:3px solid #263c36;border-radius:50%;background:linear-gradient(#e65d51 0 44%,#263c36 44% 57%,#f6f6d9 57%);box-shadow:2px 3px 0 #526b56;opacity:0;pointer-events:none}
+.capture-ball.throwing{animation:ballThrow .65s cubic-bezier(.2,.7,.35,1) forwards}
+.capture-ball.shaking{opacity:1;animation:ballShake .95s steps(6,end) both}
+.capture-ball.opened{animation:ballPop .35s steps(4,end) forwards}
+@keyframes enemyEnter{0%{transform:translateX(125%) translateY(-8px);opacity:0}70%{transform:translateX(-8%) translateY(0);opacity:1}100%{transform:translateX(0);opacity:1}}
+@keyframes playerEnter{0%{transform:translateX(-120%);opacity:0}100%{transform:translateX(0);opacity:1}}
+@keyframes enemyIdle{0%,100%{translate:0 0}50%{translate:0 -5px}}
+@keyframes enemyAttack{0%{translate:0 0}45%{translate:-28px 7px}100%{translate:0 0}}
+@keyframes playerAttack{0%{translate:0 0}45%{translate:28px -7px}100%{translate:0 0}}
+@keyframes hitFlash{0%,100%{opacity:1;filter:brightness(1) drop-shadow(3px 4px 0 #526b56)}25%,75%{opacity:.3;filter:brightness(2) drop-shadow(3px 4px 0 #526b56)}}
+@keyframes shrinkToBall{0%{transform:scale(1);opacity:1}55%{transform:scale(.5);opacity:.8}100%{transform:scale(.08);opacity:0}}
+@keyframes ballThrow{0%{opacity:0;transform:translate(-130px,110px) scale(.55)}75%{opacity:1;transform:translate(0,-10px) scale(1)}100%{opacity:1;transform:translate(0,0) scale(1)}}
+@keyframes ballShake{0%,100%{transform:translateX(0) rotate(0)}20%{transform:translateX(-7px) rotate(-18deg)}40%{transform:translateX(7px) rotate(18deg)}60%{transform:translateX(-5px) rotate(-12deg)}80%{transform:translateX(5px) rotate(12deg)}}
+@keyframes ballPop{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.7)}}
+@keyframes introFlash{0%,100%{filter:none}50%{filter:brightness(1.45)}}
+@media(prefers-reduced-motion:reduce){.monster-sprite,.capture-ball,.battle-screen{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
+.monster-sprite.enemy{right:12%;top:12%;width:31%;height:42%;}.monster-sprite.player{left:8%;bottom:8%;width:30%;height:42%;font-size:clamp(3rem,10vw,5.5rem)}
+.battle-info{position:absolute;background:#f6f6d9;border:3px solid #344a43;padding:8px 10px;min-width:43%;box-shadow:3px 3px 0 #6b8067;font-size:clamp(.68rem,2.3vw,.9rem);font-weight:800}
+.battle-info.enemy{top:10px;left:10px}.battle-info.player{right:10px;bottom:10px;min-width:42%}.info-top{display:flex;justify-content:space-between;gap:8px}.hp-track{height:8px;background:#657363;border:1px solid #344a43;margin-top:5px;padding:1px}.hp-fill{height:100%;width:100%;background:#66ae4e;transition:width .35s}.hp-fill.mid{background:#d8b747}.hp-fill.low{background:#cc654d}.hp-caption{text-align:right;font-size:.65rem;margin-top:2px}
+.battle-bottom{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.battle-message{min-height:72px;background:#f5f5d9;border:3px solid #344a43;padding:10px;display:flex;align-items:center;font-size:clamp(.72rem,2.5vw,.92rem);font-weight:800;line-height:1.4}.battle-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#f5f5d9;border:3px solid #344a43;padding:7px}.battle-btn{background:#e9edcf;border:2px solid #8a9b7b;color:#243a32;padding:10px 7px;text-align:left;font:800 clamp(.7rem,2.4vw,.9rem) ui-monospace,Consolas,monospace;cursor:pointer;box-shadow:inset 2px 2px #fff}.battle-btn:active{transform:translate(1px,1px);box-shadow:none}.battle-btn:disabled{opacity:.45;cursor:not-allowed}.battle-btn:focus-visible{outline:3px solid #cf7e38;outline-offset:2px}.battle-topline{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:0 0 8px;font-size:.75rem;font-weight:900;letter-spacing:.04em}.ball-count{font-size:.72rem;font-weight:800}.pixel-label{background:#344a43;color:#f5f5d9;padding:3px 6px}
+@media(max-width:520px){.battle-screen{min-height:310px}.battle-info{padding:6px;min-width:48%}.battle-info.player{min-width:47%}.battle-bottom{grid-template-columns:1fr}.battle-message{min-height:54px}.battle-actions{gap:5px}.battle-btn{padding:9px 5px}}
+
+/* Pre-battle reveal and explicit 5-second shiny-reset cooldown. */
+.encounter-overlay{position:fixed;inset:0;z-index:30;background:#10101bef;display:none;align-items:center;justify-content:center;padding:12px;overflow:auto}
+.encounter-overlay.open{display:flex}.encounter-dialog{width:min(100%,560px);background:#d9e2c2;border:4px solid #263c36;box-shadow:0 0 0 4px #9aa88b,0 20px 0 #172721;padding:18px;color:#172721;font-family:ui-monospace,Consolas,monospace;text-align:center}
+.encounter-stage{min-height:190px;display:grid;place-items:center;position:relative;overflow:hidden;background:linear-gradient(#b8d7c0 0 55%,#d7e6bc 55%);border:3px solid #526b56;margin:14px 0}
+.encounter-monster{font-size:clamp(4rem,18vw,7rem);filter:drop-shadow(3px 4px 0 #526b56);animation:encounterArrive .8s steps(7,end) both,enemyIdle 1.25s steps(2,end) .8s infinite}
+.encounter-monster.shiny{filter:drop-shadow(0 0 10px #f0c85e) drop-shadow(3px 4px 0 #526b56)}
+.encounter-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}.encounter-status{min-height:44px;background:#f5f5d9;border:3px solid #344a43;padding:10px;margin-top:10px;font-weight:800}
+.encounter-btn{background:#e9edcf;border:2px solid #8a9b7b;color:#243a32;padding:10px 12px;text-align:center;font:800 .85rem ui-monospace,Consolas,monospace;cursor:pointer}.encounter-btn:disabled{opacity:.45;cursor:not-allowed}
+@keyframes encounterArrive{0%{transform:translateX(120%);opacity:0}75%{transform:translateX(-7%);opacity:1}100%{transform:translateX(0);opacity:1}}
+/* The puzzle/trial must be completed before the battle opens. */
+.trial-overlay{position:fixed;inset:0;z-index:20;background:#100f1bf2;display:none;align-items:center;justify-content:center;padding:12px;overflow:auto}
+.trial-overlay.open{display:flex}.trial-dialog{width:min(100%,620px);background:#25213a;border:3px solid #9e83d0;border-radius:18px;padding:18px;box-shadow:0 18px 60px #0009}.trial-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.trial-head h2{margin:3px 0 8px}.trial-board{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;max-width:390px;margin:16px auto}.maze-cell{aspect-ratio:1;border:1px solid #51486e;border-radius:5px;background:#b9c99a;display:grid;place-items:center;color:#17251d;font-size:clamp(1rem,5vw,1.6rem);font-weight:900}.maze-cell.wall{background:#51465f;border-color:#76648f;box-shadow:inset 0 -4px #3a304a}.maze-cell.start{background:#b9c99a}.maze-cell.exit{background:#e8cb79}.maze-controls{display:grid;grid-template-columns:repeat(3,58px);justify-content:center;gap:6px;margin:12px auto}.maze-controls button{padding:12px 6px}.maze-controls .blank{visibility:hidden}.trial-message{background:#171524;border:1px solid #51486e;border-radius:10px;padding:11px;min-height:48px}.trial-actions{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;margin-top:12px}.trial-small{font-size:.83rem;color:#c7c0dc}.trial-puzzle-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.riddle-choice{background:#302a47;border:1px solid #736091;color:white;border-radius:10px;padding:10px 12px;cursor:pointer}.riddle-choice:hover{background:#43365f}
+@media(max-width:420px){.trial-dialog{padding:12px}.maze-board{gap:3px}.maze-cell{border-radius:3px}.maze-controls{grid-template-columns:repeat(3,52px)}}
+@media(max-width:720px){.grid{grid-template-columns:1fr}.hero{min-height:200px}.dex{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div><div class="eyebrow">ZEPIMON · ADVENTURE SYSTEM</div><h1 class="title">Legendary<br>Expeditions</h1><div class="muted">Three clues. 25 km across saved walks and runs.</div></div>
+    <div class="pill">PLAYABLE DEMO · LOCAL SAVE</div>
+  </div>
+
+  <div class="grid">
+    <section class="card hero">
+      <div class="hero-top"><div><div class="eyebrow">CURRENT TRAIL</div><h2 style="font-size:1.35rem;margin:.3rem 0">The unknown path</h2><div class="muted">Saved distance only</div></div><div class="pill" id="legLabel">LEG 1</div></div>
+      <div><div class="orb" aria-hidden="true"><span></span></div><div style="text-align:center"><div class="big" id="progress">0.0 <span style="font-size:1rem;font-weight:600">/ 25 km</span></div><div class="muted" id="remaining">25.0 km until encounter</div></div></div>
+      <div><div class="bar" aria-label="Current expedition progress"><div id="barFill"></div></div><div class="milestones"><div class="milestone" id="m5"><strong>5 km</strong>First clue</div><div class="milestone" id="m15"><strong>15 km</strong>Deeper clue</div><div class="milestone" id="m25"><strong>25 km</strong>Encounter</div></div></div>
+    </section>
+
+    <section class="card">
+      <div class="eyebrow">YOUR ADVENTURE</div><h2 style="margin-top:5px">Add a saved walk</h2>
+      <p class="muted" style="margin-top:0">Simulate a finished walk or run. Unsaved distance is not counted.</p>
+      <div class="controls"><button class="btn" data-km="1">+1 km</button><button class="btn" data-km="5">+5 km</button><button class="btn secondary" data-km="10">+10 km</button></div>
+      <div class="custom"><input id="customKm" type="number" min=".01" max="100" step=".1" placeholder="Custom distance (km)" aria-label="Custom distance in kilometers"><button class="btn secondary" id="addCustom">Save</button></div>
+      <div class="notice" id="notice" role="status" aria-live="polite">Your first clue awaits. Save a walk to begin.</div>
+      <div class="controls"><button class="btn secondary" id="reset">Reset demo</button><button class="btn secondary" id="export">Export save JSON</button></div>
+    </section>
+
+    <section class="card">
+      <div class="eyebrow">ENCOUNTER QUEUE</div><h2>Waiting to battle</h2><p class="muted">Encounters never expire and are caught in order.</p>
+      <div id="queue"><div class="empty">Reach 25 km to unlock your first encounter.</div></div>
+    </section>
+
+    <section class="card">
+      <div class="eyebrow">FRIENDS</div><h2>Expedition Dex</h2><p class="muted">Caught Pokémon stay here in this browser demo.</p>
+      <div id="dex" class="dex"><div class="empty">No friends yet.</div></div>
+    </section>
+  </div>
+  <div class="foot">Prototype only. This page uses browser local storage and simulated distance. It does not access GPS, your watch, Supabase, or the production Dex. Reward generation here is demo-only and must not replace your canonical shared contract.</div>
+
+</main>
+<div class="trial-overlay" id="trialOverlay" role="dialog" aria-modal="true" aria-labelledby="trialTitle">
+  <div class="trial-dialog">
+    <div class="trial-head"><div><div class="eyebrow">LEGENDARY TRIAL · BEFORE BATTLE</div><h2 id="trialTitle">Ancient Guardian's Maze</h2><div class="trial-small" id="trialSubtitle">Find the exit to prove you're ready.</div></div><button class="btn secondary" id="closeTrial">Leave</button></div>
+    <p class="muted" id="trialLore">The path is sealed. Navigate the ruins and reach the golden exit.</p>
+    <div class="trial-board" id="mazeBoard" role="grid" aria-label="Maze puzzle"></div>
+    <div class="maze-controls" aria-label="Maze movement controls"><span class="blank"></span><button class="btn secondary" data-move="up" aria-label="Move up">▲</button><span class="blank"></span><button class="btn secondary" data-move="left" aria-label="Move left">◀</button><button class="btn secondary" data-move="down" aria-label="Move down">▼</button><button class="btn secondary" data-move="right" aria-label="Move right">▶</button></div>
+    <div class="trial-message" id="trialMessage" role="status" aria-live="polite">Use the arrow buttons or your keyboard arrows/WASD. Reach the golden exit.</div>
+    <div class="trial-actions"><span class="trial-small">Walls block movement · Leaving won't consume this encounter.</span><button class="btn secondary" id="restartMaze">Restart maze</button></div>
+  </div>
+</div>
+<div class="encounter-overlay" id="encounterOverlay" role="dialog" aria-modal="true" aria-labelledby="encounterTitle">
+  <div class="encounter-dialog">
+    <div class="eyebrow" style="color:#486d50">LEGENDARY CHAMBER · BEFORE BATTLE</div>
+    <h2 id="encounterTitle" style="margin:6px 0">A presence stirs…</h2>
+    <div class="encounter-stage"><div id="encounterMonster" class="encounter-monster" aria-hidden="true">🐉</div></div>
+    <div id="encounterSpecies" style="font-weight:900;font-size:1.2rem">RAYQUAZA</div>
+    <div id="encounterAttempt" style="font-size:.8rem;margin-top:4px">ATTEMPT #1</div>
+    <div id="encounterStatus" class="encounter-status" role="status" aria-live="polite">A wild Legendary appeared!</div>
+    <div class="encounter-actions">
+      <button class="encounter-btn" id="startBattle">▶ BATTLE</button>
+      <button class="encounter-btn" id="resetEncounter">↻ RESET ENCOUNTER</button>
+      <button class="encounter-btn" id="leaveChamber">◀ LEAVE CHAMBER</button>
+    </div>
+    <p style="font-size:.75rem;margin:12px 0 0">Shiny chance: 1 in 100 per roll. Reset cooldown: 5 seconds. Leaving or refreshing preserves this result.</p>
+  </div>
+</div>
+<div class="battle-overlay" id="battleOverlay" role="dialog" aria-modal="true" aria-labelledby="battleTitle">
+  <div class="battle-dialog">
+    <div class="battle-topline"><span class="pixel-label" id="battleTitle">WILD ENCOUNTER</span><span id="battleLeg">EXPEDITION 01</span><button class="battle-btn" id="closeBattle" aria-label="Close battle" style="padding:3px 8px">X</button></div>
+    <div class="battle-screen">
+      <div class="battle-sky"></div><div class="battle-ground"></div>
+      <div class="battle-platform enemy"></div><div class="battle-platform player"></div>
+      <div class="battle-info enemy"><div class="info-top"><span id="enemyName">RAYQUAZA</span><span id="enemyLevel">Lv. 70</span></div><div class="hp-track"><div class="hp-fill" id="enemyHpBar"></div></div><div class="hp-caption" id="enemyHpText">HP 100 / 100</div></div>
+      <div class="monster-sprite enemy" id="enemySprite" aria-hidden="true">🐉</div>
+      <div class="monster-sprite player" id="playerSprite" aria-hidden="true">🧢</div><div class="capture-ball" id="captureBall" aria-hidden="true"></div>
+      <div class="battle-info player"><div class="info-top"><span>YOUR TRAINER</span><span>Lv. 15</span></div><div style="margin-top:5px">POKÉ BALLS <span id="ballCount" class="ball-count">× 5</span></div></div>
+    </div>
+    <div class="battle-bottom"><div class="battle-message" id="battleMessage" role="status" aria-live="polite">A powerful Legendary Pokémon appeared!</div><div class="battle-actions" id="battleActions"><button class="battle-btn" data-action="fight">▶ FIGHT</button><button class="battle-btn" data-action="bag">▣ BAG</button><button class="battle-btn" data-action="pokemon">▣ POKÉMON</button><button class="battle-btn" data-action="run">▶ RUN</button></div></div>
+  </div>
+</div>
+<script>
+(() => {
+  const species = ["Articuno","Zapdos","Moltres","Mewtwo","Mew","Raikou","Entei","Suicune","Lugia","Ho-Oh","Celebi","Regirock","Regice","Registeel","Latias","Latios","Kyogre","Groudon","Rayquaza","Jirachi","Deoxys","Uxie","Mesprit","Azelf","Dialga","Palkia","Heatran","Regigigas","Giratina","Cresselia","Phione","Manaphy","Darkrai","Shaymin","Arceus","Zygarde","Diancie","Magearna","Zeraora"];
+  const GOAL = 25000, KEY = "zepimon-expedition-prototype-v1";
+  const initial = () => ({seed: Math.floor(Math.random()*0xffffffff)>>>0, startedAt: Date.now(), meters: 0, claimed: 0, dex: [], notices: [], trialsCompleted: [], encounters: {}});
+  let state;
+  try { state = JSON.parse(localStorage.getItem(KEY)) || initial(); } catch { state = initial(); }
+  // Backward-compatible fields for saves from earlier prototype versions.
+  if (!Array.isArray(state.dex)) state.dex = [];
+  if (!Array.isArray(state.notices)) state.notices = [];
+  if (!Array.isArray(state.trialsCompleted)) state.trialsCompleted = [];
+  if (!state.encounters || typeof state.encounters !== "object") state.encounters = {};
+  const $ = id => document.getElementById(id);
+  const km = n => (n/1000).toFixed(1);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  function currentLeg() { return Math.min(GOAL, Math.max(0, state.meters - state.claimed*GOAL)); }
+  function speciesFor(index) {
+    return species[(state.seed + index) % species.length];
+  }
+  function rollShiny() {
+    // Prototype-only roll: 1% chance on each first encounter or confirmed reset.
+    return Math.floor(Math.random() * 100) === 0;
+  }
+  function getEncounter(index) {
+    let encounter = state.encounters[index];
+    if (!encounter) {
+      encounter = {name: speciesFor(index), shiny: rollShiny(), attempt: 1, nextResetAllowedAt: 0, resetPending: false};
+      state.encounters[index] = encounter;
+      save();
+    }
+    return encounter;
+  }
+  function save() { localStorage.setItem(KEY, JSON.stringify(state)); render(); }
+  function addDistance(kmValue) {
+    const amount = Math.round(kmValue*1000);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) { say("Enter a distance greater than 0 and no more than 100 km."); return; }
+    const before = state.meters; state.meters = Math.min(100000000, state.meters + amount);
+    const messages = [];
+    if (Math.floor(before/5000) < Math.floor(state.meters/5000)) messages.push("A mysterious clue appeared!");
+    if (Math.floor(before/15000) < Math.floor(state.meters/15000)) messages.push("A deeper clue has been uncovered!");
+    if (Math.floor(before/GOAL) < Math.floor(state.meters/GOAL)) messages.push("Legendary encounter ready!");
+    state.notices = messages.length ? messages : [`Saved ${km(amount)} km to your trail.`];
+    save();
+  }
+  function say(message) { $("notice").textContent = message; }
+  let pendingEncounter = null;
+  let battle = null;
+  const ballInventory = 5;
+  const battleProfiles = {
+    Articuno:{emoji:"🦅",level:50}, Zapdos:{emoji:"⚡",level:50}, Moltres:{emoji:"🔥",level:50}, Mewtwo:{emoji:"🟣",level:70}, Mew:{emoji:"🩷",level:30},
+    Raikou:{emoji:"🐯",level:50}, Entei:{emoji:"🦁",level:50}, Suicune:{emoji:"🐺",level:50}, Lugia:{emoji:"🪽",level:70}, "Ho-Oh":{emoji:"🦚",level:70}, Celebi:{emoji:"🌿",level:30},
+    Regirock:{emoji:"🪨",level:40}, Regice:{emoji:"🧊",level:40}, Registeel:{emoji:"🤖",level:40}, Latias:{emoji:"🐉",level:50}, Latios:{emoji:"🐉",level:50}, Kyogre:{emoji:"🐳",level:70}, Groudon:{emoji:"🦖",level:70}, Rayquaza:{emoji:"🐲",level:70}, Jirachi:{emoji:"⭐",level:30}, Deoxys:{emoji:"👾",level:70}
+  };
+  // A small, fully playable trial is required before every Legendary battle.
+  const MAZE = [
+    "S#.....",
+    ".#.###.",
+    ".#...#.",
+    ".###.#.",
+    "...#.#.",
+    "##.#...",
+    ".....#E"
+  ];
+  let trialIndex = null, mazePlayer = {r:0,c:0}, mazeSolved = false;
+  const trialThemes = {
+    Rayquaza:{title:"Sky Pillar Ascent",lore:"Ancient winds twist the path to the sky guardian. Find the golden exit to approach Rayquaza."},
+    Kyogre:{title:"Tidal Shrine",lore:"The tide channels form a winding path. Navigate the flooded shrine to reach Kyogre."},
+    Groudon:{title:"Terra Chamber",lore:"Stone corridors protect the sleeping land guardian. Find the way through to Groudon."},
+    Regirock:{title:"Ancient Rock Chamber",lore:"The stone chamber is full of blocked passages. Prove your patience to reach Regirock."},
+    Regice:{title:"Frozen Seal Maze",lore:"The frozen corridors hide a safe path. Reach the exit to face Regice."},
+    Registeel:{title:"Iron Ruin Trial",lore:"Metal walls seal the ruin. Navigate the ancient grid to reach Registeel."},
+    Mewtwo:{title:"Psychic Labyrinth",lore:"A maze of false turns guards the psychic legend. Find the exit to face Mewtwo."}
+  };
+  function beginTrial(index) {
+    if (index !== state.claimed || state.meters < (index+1)*GOAL) return;
+    if (state.trialsCompleted.includes(index)) { openEncounter(index); return; }
+    trialIndex = index; mazePlayer = {r:0,c:0}; mazeSolved = false;
+    const name = speciesFor(index), theme = trialThemes[name] || {title:`${name} Guardian Trial`,lore:`A mysterious maze protects ${name}. Find the golden exit to prove you're ready for the encounter.`};
+    $("trialTitle").textContent = theme.title;
+    $("trialSubtitle").textContent = `ENCOUNTER ${String(index+1).padStart(2,"0")} · ${name.toUpperCase()}`;
+    $("trialLore").textContent = theme.lore;
+    $("trialMessage").textContent = "Use the arrow buttons or keyboard arrows/WASD. Reach the golden exit.";
+    $("trialOverlay").classList.add("open");
+    renderMaze();
+  }
+  function renderMaze() {
+    const board = $("mazeBoard"); board.innerHTML = "";
+    for (let r=0;r<MAZE.length;r++) for (let c=0;c<MAZE[r].length;c++) {
+      const cell = document.createElement("div"); cell.className="maze-cell"; cell.setAttribute("role","gridcell");
+      const tile = MAZE[r][c];
+      if (tile === "#") { cell.classList.add("wall"); cell.textContent=""; }
+      else if (r===mazePlayer.r && c===mazePlayer.c) { cell.classList.add("start"); cell.textContent="🧢"; cell.setAttribute("aria-label","Your position"); }
+      else if (tile === "E") { cell.classList.add("exit"); cell.textContent="★"; cell.setAttribute("aria-label","Exit"); }
+      else cell.textContent="";
+      board.appendChild(cell);
+    }
+  }
+  function moveMaze(direction) {
+    if (trialIndex === null || mazeSolved) return;
+    const delta = {up:[-1,0],down:[1,0],left:[0,-1],right:[0,1]}[direction]; if (!delta) return;
+    const r=mazePlayer.r+delta[0], c=mazePlayer.c+delta[1];
+    if (r<0 || c<0 || r>=MAZE.length || c>=MAZE[r].length || MAZE[r][c]==="#") {
+      $("trialMessage").textContent="A stone wall blocks the way. Try another route."; return;
+    }
+    mazePlayer={r,c}; renderMaze();
+    if (MAZE[r][c] === "E") {
+      mazeSolved=true; const index=trialIndex; if (!state.trialsCompleted.includes(index)) state.trialsCompleted.push(index); save(); $("trialMessage").textContent="Trial cleared! The shrine opens… a presence stirs beyond the gate.";
+      window.setTimeout(() => { if (trialIndex !== index || !mazeSolved) return; $("trialOverlay").classList.remove("open"); trialIndex=null; openEncounter(index); }, 700);
+    } else $("trialMessage").textContent="Keep going. Find the golden exit (★).";
+  }
+  function leaveTrial() { $("trialOverlay").classList.remove("open"); trialIndex=null; mazeSolved=false; say("You left the trial. The encounter remains available; a completed trial will stay completed."); }
+  let cooldownTicker = null;
+  function openEncounter(index) {
+    if (index !== state.claimed || state.meters < (index+1)*GOAL || !state.trialsCompleted.includes(index)) return;
+    pendingEncounter = index;
+    const encounter = getEncounter(index);
+    const profile = battleProfiles[encounter.name] || {emoji:"✨",level:50};
+    $("encounterSpecies").textContent = `${encounter.shiny ? "✨ SHINY " : ""}${encounter.name.toUpperCase()}`;
+    $("encounterAttempt").textContent = `ATTEMPT #${encounter.attempt}`;
+    $("encounterMonster").textContent = profile.emoji;
+    $("encounterMonster").classList.toggle("shiny", encounter.shiny);
+    $("encounterTitle").textContent = encounter.shiny ? "A Shiny Legendary appeared!" : "A wild Legendary appeared!";
+    $("encounterStatus").textContent = encounter.shiny ? "✨ A rare shiny aura surrounds it! Battle now to try to catch it." : "The guardian awaits. Battle now, or reset for another shiny roll.";
+    $("encounterOverlay").classList.add("open");
+    updateResetButton();
+  }
+  function updateResetButton() {
+    if (pendingEncounter === null) return;
+    const encounter = getEncounter(pendingEncounter), btn = $("resetEncounter");
+    const remaining = Math.max(0, encounter.nextResetAllowedAt - Date.now());
+    btn.disabled = encounter.resetPending || remaining > 0;
+    btn.textContent = encounter.resetPending ? "⏳ RESETTING…" : remaining > 0 ? `↻ WAIT ${(remaining/1000).toFixed(1)}s` : "↻ RESET ENCOUNTER";
+    if (remaining > 0 && !cooldownTicker) cooldownTicker = window.setInterval(() => {
+      if (pendingEncounter === null || !$("encounterOverlay").classList.contains("open")) { clearInterval(cooldownTicker); cooldownTicker=null; return; }
+      updateResetButton();
+      if (Date.now() >= getEncounter(pendingEncounter).nextResetAllowedAt) { clearInterval(cooldownTicker); cooldownTicker=null; }
+    }, 100);
+  }
+  function resetEncounter() {
+    if (pendingEncounter === null) return;
+    const index = pendingEncounter, encounter = getEncounter(index);
+    if (encounter.resetPending || Date.now() < encounter.nextResetAllowedAt) { updateResetButton(); return; }
+    const resetMessage = encounter.shiny ? "This Legendary is SHINY! Resetting will discard this shiny result. Are you absolutely sure? The maze stays completed and a new roll appears after 5 seconds." : "Reset this encounter? The maze stays completed, and a new shiny roll appears after 5 seconds.";
+    if (!confirm(resetMessage)) return;
+    encounter.resetPending = true;
+    encounter.nextResetAllowedAt = Date.now() + 5000;
+    save();
+    $("encounterStatus").textContent = "The shrine's energy is gathering… the next encounter will be revealed in 5 seconds.";
+    updateResetButton();
+    scheduleResetCompletion(index);
+  }
+  function scheduleResetCompletion(index) {
+    const current = state.encounters[index];
+    if (!current || !current.resetPending) return;
+    const wait = Math.max(0, current.nextResetAllowedAt - Date.now());
+    window.setTimeout(() => {
+      const latest = state.encounters[index];
+      if (!latest || !latest.resetPending) return;
+      latest.shiny = rollShiny();
+      latest.attempt += 1;
+      latest.resetPending = false;
+      latest.nextResetAllowedAt = Date.now();
+      save();
+      if (pendingEncounter === index && index === state.claimed) {
+        $("encounterOverlay").classList.remove("open");
+        window.setTimeout(() => { if (pendingEncounter === index && index === state.claimed) openEncounter(index); }, 350);
+      }
+    }, wait);
+  }
+  function leaveChamber() {
+    if (pendingEncounter !== null) {
+      const encounter = getEncounter(pendingEncounter);
+      if (encounter.resetPending) { say("The shrine is still gathering energy. Return in a moment to see the new result."); return; }
+    }
+    $("encounterOverlay").classList.remove("open");
+    pendingEncounter = null;
+    say("You left the chamber. The same encounter result is saved for when you return.");
+  }
+  function openBattle(index) {
+    if (index !== state.claimed || state.meters < (index+1)*GOAL || !state.trialsCompleted.includes(index)) return;
+    pendingEncounter = index;
+    const result = getEncounter(index);
+    const profile = battleProfiles[result.name] || {emoji:"✨",level:50};
+    battle = {index, name:result.name, display:result.shiny ? `Shiny ${result.name}` : result.name, shiny:result.shiny, hp:100, maxHp:100, balls:ballInventory, caught:false, profile};
+    $("encounterOverlay").classList.remove("open");
+    resetBattleAnimations();
+    $("enemyName").textContent = result.name.toUpperCase();
+    $("enemyLevel").textContent = `Lv. ${profile.level}`;
+    $("enemySprite").textContent = profile.emoji;
+    $("battleLeg").textContent = `EXPEDITION ${String(index+1).padStart(2,"0")}`;
+    $("ballCount").textContent = `× ${battle.balls}`;
+    $("battleMessage").textContent = `A wild ${result.shiny ? "shiny " : ""}${result.name} appeared! What will you do?`;
+    updateBattleHp();
+    showBattleActions("main");
+    $("battleOverlay").classList.add("open");
+    const screen = document.querySelector(".battle-screen");
+    screen.classList.remove("intro-flash"); void screen.offsetWidth; screen.classList.add("intro-flash");
+    $("enemySprite").classList.add("entering");
+    $("playerSprite").classList.add("entering");
+  }
+  function resetBattleAnimations() {
+    [$("enemySprite"), $("playerSprite")].forEach(el => el.classList.remove("entering", "attacking", "hit", "captured"));
+    const ball = $("captureBall"); ball.className = "capture-ball";
+  }
+  function animateOnce(element, className) {
+    element.classList.remove(className); void element.offsetWidth; element.classList.add(className);
+    element.addEventListener("animationend", () => element.classList.remove(className), {once:true});
+  }
+  function closeBattle() {
+    $("battleOverlay").classList.remove("open");
+    const index = battle ? battle.index : pendingEncounter;
+    battle = null;
+    if (index !== null && index === state.claimed && state.trialsCompleted.includes(index)) openEncounter(index);
+    else pendingEncounter = null;
+  }
+  function updateBattleHp() {
+    if (!battle) return;
+    const percent = Math.max(0, battle.hp / battle.maxHp * 100);
+    const bar = $("enemyHpBar");
+    bar.style.width = `${percent}%`;
+    bar.className = "hp-fill" + (percent <= 20 ? " low" : percent <= 50 ? " mid" : "");
+    $("enemyHpText").textContent = `HP ${battle.hp} / ${battle.maxHp}`;
+    $("ballCount").textContent = `× ${battle.balls}`;
+  }
+  function showBattleActions(mode) {
+    const actions = $("battleActions");
+    if (mode === "bag") {
+      actions.innerHTML = `<button class="battle-btn" data-action="throw">▶ POKÉ BALL</button><button class="battle-btn" data-action="back">◀ BACK</button>`;
+    } else if (mode === "pokemon") {
+      actions.innerHTML = `<button class="battle-btn" data-action="back">◀ BACK</button><button class="battle-btn" data-action="message">No other Pokémon yet</button>`;
+    } else if (mode === "caught") {
+      actions.innerHTML = `<button class="battle-btn" data-action="finish">▶ CONTINUE</button>`;
+    } else if (mode === "failed") {
+      actions.innerHTML = `<button class="battle-btn" data-action="retry">▶ TRY AGAIN</button><button class="battle-btn" data-action="leave">◀ LEAVE</button>`;
+    } else {
+      actions.innerHTML = `<button class="battle-btn" data-action="fight">▶ FIGHT</button><button class="battle-btn" data-action="bag">▣ BAG</button><button class="battle-btn" data-action="pokemon">▣ POKÉMON</button><button class="battle-btn" data-action="run">▶ RUN</button>`;
+    }
+  }
+  function battleAction(action) {
+    if (!battle) return;
+    if (action === "fight") {
+      const damage = 18 + Math.floor(Math.random()*16);
+      battle.hp = Math.max(1, battle.hp - damage);
+      animateOnce($("enemySprite"), "hit");
+      animateOnce($("playerSprite"), "attacking");
+      updateBattleHp();
+      $("battleMessage").textContent = `${battle.name} took ${damage} damage! Its HP is lower. Throwing a Poké Ball is easier now.`;
+    } else if (action === "bag") {
+      $("battleMessage").textContent = "Choose a Poké Ball from your Bag.";
+      showBattleActions("bag");
+    } else if (action === "pokemon") {
+      $("battleMessage").textContent = "Your expedition is just beginning. You have no other Pokémon to switch in.";
+      showBattleActions("pokemon");
+    } else if (action === "back") {
+      $("battleMessage").textContent = `The wild ${battle.name} is waiting. Choose your next move!`;
+      showBattleActions("main");
+    } else if (action === "message") {
+      $("battleMessage").textContent = "No Pokémon available. Try FIGHT or open your BAG.";
+    } else if (action === "throw") {
+      if (battle.balls <= 0) { $("battleMessage").textContent = "You're out of Poké Balls! Leave and try this encounter later."; showBattleActions("failed"); return; }
+      battle.balls--;
+      updateBattleHp();
+      const ball = $("captureBall"); ball.className = "capture-ball"; void ball.offsetWidth; ball.classList.add("throwing");
+      $("battleMessage").textContent = `You threw a Poké Ball at ${battle.name}…`;
+      showBattleActions("main");
+      const hpFactor = 1 - battle.hp / battle.maxHp;
+      const catchChance = 0.16 + hpFactor * 0.72 + (battle.shiny ? 0.04 : 0);
+      window.setTimeout(() => {
+        if (!battle) return;
+        if (Math.random() < catchChance) {
+          battle.caught = true;
+          $("enemySprite").classList.remove("entering"); animateOnce($("enemySprite"), "captured");
+          ball.className = "capture-ball shaking";
+          $("battleMessage").textContent = `Click… click… Gotcha! ${battle.display} was caught!`;
+          showBattleActions("caught");
+        } else if (battle.balls <= 0) {
+          ball.className = "capture-ball opened"; animateOnce($("enemySprite"), "hit");
+          $("battleMessage").textContent = `${battle.name} broke free! You're out of Poké Balls. This encounter will stay ready.`;
+          showBattleActions("failed");
+        } else {
+          ball.className = "capture-ball opened"; animateOnce($("enemySprite"), "hit");
+          $("battleMessage").textContent = `${battle.name} broke free! Weaken it more with FIGHT, then try another Poké Ball.`;
+          showBattleActions("main");
+        }
+      }, 700);
+    } else if (action === "finish") {
+      const index = battle.index;
+      const result = {name:battle.name, display:battle.display, shiny:battle.shiny};
+      $("battleOverlay").classList.remove("open"); battle = null; pendingEncounter = null;
+      completeClaim(index, result);
+    } else if (action === "retry") {
+      if (battle.balls <= 0) { $("battleMessage").textContent = "No Poké Balls left. Leave the encounter for now; it won't be consumed."; return; }
+      $("battleMessage").textContent = `The wild ${battle.name} is still here. Weaken it, then throw a Poké Ball.`;
+      showBattleActions("main");
+    } else if (action === "leave" || action === "run") {
+      closeBattle();
+      say("You left the encounter. It remains available in your queue.");
+    }
+  }
+  function completeClaim(index, result) {
+    if (index !== state.claimed || state.meters < (index+1)*GOAL) return;
+    state.dex.push({name: result.name, display: result.display, shiny: result.shiny, finishedAt: Date.now()});
+    state.claimed++;
+    delete state.encounters[index]; state.trialsCompleted = state.trialsCompleted.filter(i => i !== index); pendingEncounter = null;
+    state.notices = [`Gotcha! You caught ${result.display}!`, "Your new Pokémon joined the Expedition Dex."];
+    save();
+  }
+  function render() {
+    const leg = currentLeg(), ready = Math.max(0, Math.floor(state.meters/GOAL)-state.claimed);
+    $("progress").innerHTML = `${km(leg)} <span style="font-size:1rem;font-weight:600">/ 25 km</span>`;
+    $("remaining").textContent = ready ? `${ready} encounter${ready===1?"":"s"} ready in your queue` : `${km(GOAL-leg)} km until encounter`;
+    $("barFill").style.width = `${Math.min(100, leg/GOAL*100)}%`;
+    $("legLabel").textContent = `LEG ${state.claimed+1}`;
+    [["m5",5000],["m15",15000],["m25",GOAL]].forEach(([id,mark]) => $(id).classList.toggle("done", leg>=mark));
+    $("notice").textContent = (state.notices||[]).join(" ");
+    const queue = [];
+    for (let i=state.claimed; i<Math.floor(state.meters/GOAL); i++) {
+      const name = speciesFor(i), completed = state.trialsCompleted.includes(i), encounter = state.encounters[i];
+      const label = completed ? (encounter && encounter.shiny ? `✨ Shiny ${name}` : name) : "Unknown Legendary";
+      queue.push(`<div class="queue-item"><div><div class="tag">ENCOUNTER ${i+1}</div><strong>${esc(label)}</strong><div class="muted" style="font-size:.8rem">${completed ? "Trial completed · encounter saved" : "Solve the themed trial to reveal it"}</div></div><button class="btn" data-claim="${i}">${completed ? "Enter Chamber" : "Begin Trial"}</button></div>`);
+    }
+    $("queue").innerHTML = queue.join("") || '<div class="empty">Reach 25 km to unlock your first encounter.</div>';
+    $("dex").innerHTML = state.dex.length ? state.dex.map(p=>`<div class="dex-item"><span class="emoji">${p.shiny?"✨":"🔮"}</span><strong>${esc(p.display)}</strong><div class="muted" style="font-size:.72rem">Expedition friend</div></div>`).join("") : '<div class="empty">No friends yet.</div>';
+  }
+  document.querySelectorAll("[data-km]").forEach(btn => btn.addEventListener("click", () => addDistance(Number(btn.dataset.km))));
+  $("addCustom").addEventListener("click", () => { const value=Number($("customKm").value); addDistance(value); $("customKm").value=""; });
+  $("customKm").addEventListener("keydown", e => { if(e.key==="Enter") $("addCustom").click(); });
+  $("queue").addEventListener("click", e => { const btn=e.target.closest("[data-claim]"); if(btn) beginTrial(Number(btn.dataset.claim)); });
+  $("mazeBoard").addEventListener("click", () => {});
+  document.querySelectorAll("[data-move]").forEach(btn => btn.addEventListener("click", () => moveMaze(btn.dataset.move)));
+  $("closeTrial").addEventListener("click", leaveTrial);
+  $("restartMaze").addEventListener("click", () => { if(trialIndex===null) return; mazePlayer={r:0,c:0}; mazeSolved=false; renderMaze(); $("trialMessage").textContent="Maze restarted. Find the golden exit (★)."; });
+  document.addEventListener("keydown", e => { if(!$("trialOverlay").classList.contains("open")) return; const key=e.key.toLowerCase(); const dirs={arrowup:"up",w:"up",arrowdown:"down",s:"down",arrowleft:"left",a:"left",arrowright:"right",d:"right"}; if(dirs[key]) {e.preventDefault(); moveMaze(dirs[key]);} if(key==="escape") leaveTrial(); });
+  $("reset").addEventListener("click", () => { if(confirm("Reset this local demo save?")) { if (cooldownTicker) { clearInterval(cooldownTicker); cooldownTicker=null; } $("encounterOverlay").classList.remove("open"); $("trialOverlay").classList.remove("open"); $("battleOverlay").classList.remove("open"); pendingEncounter=null; battle=null; trialIndex=null; state=initial(); save(); say("Demo reset. Your first clue awaits."); }});
+  $("export").addEventListener("click", () => { const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="zepimon-expedition-demo-save.json"; a.click(); URL.revokeObjectURL(url); });
+  $("battleActions").addEventListener("click", e => { const btn=e.target.closest("[data-action]"); if(btn) battleAction(btn.dataset.action); });
+  $("closeBattle").addEventListener("click", closeBattle);
+  $("startBattle").addEventListener("click", () => { if (pendingEncounter !== null) openBattle(pendingEncounter); });
+  $("resetEncounter").addEventListener("click", resetEncounter);
+  $("leaveChamber").addEventListener("click", leaveChamber);
+  // Resume an explicitly requested reset after refresh; never reroll merely because the page reopened.
+  Object.keys(state.encounters).forEach(key => { if (state.encounters[key] && state.encounters[key].resetPending) scheduleResetCompletion(Number(key)); });
+  render();
+})();
+</script>
+</body>
+</html>
