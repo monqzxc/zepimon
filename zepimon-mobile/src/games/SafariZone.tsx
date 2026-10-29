@@ -7,8 +7,7 @@ import { ZONES, pauseSafari, resumeSafari, shinyOdds, tickSafari } from './safar
 import type { SafariGame, Zone } from './safari'
 import { confirmLeave, planWalk, startZone, stayInZone, walk, zoneAction, zoneBudget } from './safari-zone'
 import type { Direction, Point, WalkResult, ZoneEvent, ZoneGame } from './safari-zone'
-import { STEP_MS, followPath, noInput, pressDirection, releaseDirection, stepDelay, takeInput } from './safari-view'
-import type { Input } from './safari-view'
+import { useStepWalker } from './step-walker'
 import { SafariWorld } from './SafariWorld'
 import { SafariEncounter } from './SafariEncounter'
 import { DPad, useKeyboardDirections } from './DPad'
@@ -38,8 +37,6 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const { safariControls, safariTrainer } = usePreferences()
   const { setFill } = useGameScreen()
   const current = useRef<ZoneGame | null>(null)
-  const input = useRef<Input>(noInput)
-  const lastStep = useRef(0)
   const known = useRef(dex)
   const handlers = useRef({ onCatch, onComplete })
   useEffect(() => { known.current = dex; handlers.current = { onCatch, onComplete } })
@@ -63,58 +60,31 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const act = (change: (game: SafariGame, now: number) => SafariGame) => {
     if (current.current) update(zoneAction(current.current, round => change(round, performance.now())))
   }
-  const pause = () => { input.current = noInput; act(pauseSafari) }
-  useGameLoop(() => act(tickSafari), pause)
-
-  // One step from the input queue, at most once per STEP_MS. A press calls it straight away, so a fresh press moves at once.
-  const step = useCallback(() => {
+  // One step in the game; the step walker times it. A tap route stops at a bump or anything in STOPS.
+  const walkOnce = (direction: Direction) => {
     const round = current.current
-    if (!round || performance.now() - lastStep.current < STEP_MS) return
-    const taken = takeInput(input.current)
-    input.current = taken.input
-    if (!taken.direction) return
-    const result = walk(round, taken.direction)
-    if (result.move === 'bump' || result.events.some(event => STOPS.includes(event))) input.current = { ...input.current, path: [] }
-    if (result.move !== 'none') {
-      lastStep.current = performance.now()
-      setMove(previous => ({ kind: result.move, id: previous.id + 1 }))
-    }
+    if (!round) return { moved: false, stop: false }
+    const result = walk(round, direction)
+    if (result.move !== 'none') setMove(previous => ({ kind: result.move, id: previous.id + 1 }))
     update(result.game)
-  }, [update])
-  const walking = game?.status === 'playing' && !game.encounter && !game.prompt
-  // Whatever was held or planned when walking stopped (an encounter, the gate prompt, a pause) is dropped: the D-pad
-  // unmounts mid-press and a key can be let go while nothing listens, so a release could otherwise be missed.
-  useEffect(() => {
-    if (!walking) { input.current = noInput; return }
-    // While something is held or planned, the next step is timed to land right as the last glide ends, so walking is
-    // even; with nothing to do it looks again every 50 ms.
-    let timer: ReturnType<typeof setTimeout>
-    const loop = () => {
-      step()
-      const { held, queued, path } = input.current
-      timer = setTimeout(loop, held || queued || path.length ? Math.max(4, stepDelay(performance.now(), lastStep.current)) : 50)
-    }
-    timer = setTimeout(loop, 50)
-    return () => clearTimeout(timer)
-  }, [walking, step])
-  const press = (direction: Direction) => {
-    if (!walking) return
-    input.current = pressDirection(input.current, direction)
-    step()
+    return { moved: result.move !== 'none', stop: result.move === 'bump' || result.events.some(event => STOPS.includes(event)) }
   }
-  const release = (direction: Direction) => { input.current = releaseDirection(input.current, direction) }
+  const walking = game?.status === 'playing' && !game.encounter && !game.prompt
+  const walker = useStepWalker(walkOnce, walking)
+  const { press, release } = walker
+  const pause = () => { walker.drop(); act(pauseSafari) }
+  useGameLoop(() => act(tickSafari), pause)
   function tapTile(tile: Point) {
     const round = current.current
     if (!round || !walking) return
     const route = planWalk(round.at, tile)
     if (!route) { setMiss({ tile, id: Date.now() }); return }
-    input.current = followPath(input.current, route)
-    step()
+    walker.follow(route)
   }
 
   // Walking lays itself out to the screen; the start and results panels scroll like any page.
   const active = !!game && game.status !== 'complete'
-  useKeyboardDirections(press, release, active, () => { input.current = noInput })
+  useKeyboardDirections(press, release, active, walker.drop)
   useEffect(() => {
     if (!active) return
     setFill(true)
@@ -123,8 +93,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
 
   function begin() {
     setNews(''); setMiss(null)
-    input.current = noInput
-    lastStep.current = 0
+    walker.drop()
     if (!reduced) {
       fade.setValue(0)
       Animated.timing(fade, { toValue: 1, duration: 300, easing: Easing.linear, useNativeDriver: native }).start()

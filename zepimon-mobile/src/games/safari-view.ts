@@ -33,7 +33,7 @@ export function tapPoint(event: { locationX?: number, locationY?: number, offset
   return { x: pick(event.locationX, event.offsetX), y: pick(event.locationY, event.offsetY) }
 }
 
-export function chunksAround(at: Point, tile: number, width: number, height: number, map: SafariMap = safariMap): string[] {
+export function chunksAround(at: Point, tile: number, width: number, height: number, map: Pick<SafariMap, 'cols' | 'rows' | 'chunk'> = safariMap): string[] {
   const offset = cameraOffset(at, tile, width, height)
   const span = (from: number, size: number, count: number) => [
     Math.floor(Math.max(0, Math.floor(-from / tile) - MARGIN) / map.chunk),
