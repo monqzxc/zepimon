@@ -14,7 +14,7 @@ const phoneRun = { id: 'phone-1', family: ['Pidgey', 'Pidgeotto', 'Pidgeot'], pa
   record: { meters: 5200, steps: 0, shiny: false, activity: 'walking', finishedAt: new Date(now).toISOString(), startedAt: now - 3600000, elapsedSeconds: 3600, form: 'Pidgey' } }
 const data = (extra = {}) => ({ journal, buddy: 'Shiny Bulbasaur', bestMoves: { 4: 9 }, progress: emptyProgress(), arcadeScores: { quiz: 7, safari: 5 },
   expeditions: emptyExpeditions(), quest: { ...emptyQuest(), permits: 1 }, encounters: {}, safari: addSafariCatch({}, 'Pidgey', false, now), adventure: { 'route-1': 3, 'viridian-forest': 2 },
-  trailLevels: { 'level-1': 3, 'level-2': 1 }, trialRecords: { 'switch-1': 80, star: 120 }, phoneRuns: [phoneRun], ...extra })
+  trailLevels: { 'level-1': 3, 'level-2': 1 }, trialRecords: { 'switch-1': 80, star: 120 }, rematchWins: { Zapdos: 2 }, phoneRuns: [phoneRun], ...extra })
 
 test('a backup is a normal export that the importer accepts, plus this phone’s own data', () => {
   const text = createBackup({ ...data(), cloudOwner: 'someone@example.com' }, now, '1.6.0')
@@ -25,7 +25,7 @@ test('a backup is a normal export that the importer accepts, plus this phone’s
   assert.equal(imported.receivedAt, journal.receivedAt)
   assert.equal(backup.exportedAt, new Date(now).toISOString())
   assert.deepEqual(Object.keys(backup.phoneBackup).sort(), ['adventure', 'appVersion', 'arcadeScores', 'backupVersion', 'bestMoves', 'buddy',
-    'createdAt', 'encounters', 'expeditions', 'phoneRuns', 'progress', 'quest', 'safari', 'trailLevels', 'trialRecords'].sort())
+    'createdAt', 'encounters', 'expeditions', 'phoneRuns', 'progress', 'quest', 'rematchWins', 'safari', 'trailLevels', 'trialRecords'].sort())
   assert.equal(backup.phoneBackup.quest.permits, 1, 'Unused Expedition Permits are kept')
   assert.deepEqual(backup.phoneBackup.phoneRuns, [phoneRun], 'Phone adventures keep their routes')
   assert.equal(backup.phoneBackup.backupVersion, BACKUP_VERSION)
@@ -34,6 +34,7 @@ test('a backup is a normal export that the importer accepts, plus this phone’s
   assert.deepEqual(backup.phoneBackup.adventure, { 'route-1': 3, 'viridian-forest': 2 })
   assert.deepEqual(backup.phoneBackup.trailLevels, { 'level-1': 3, 'level-2': 1 })
   assert.deepEqual(backup.phoneBackup.trialRecords, { 'switch-1': 80, star: 120 })
+  assert.deepEqual(backup.phoneBackup.rematchWins, { Zapdos: 2 }, 'Shrine Revisits rematch wins are kept beside the trial records')
   assert.ok(!text.includes('someone@example.com'), 'Account links are never exported')
   assert.ok(!Object.keys(backup.snapshot.dex).some(key => backup.snapshot.dex[key].source), 'Safari catches stay out of the watch journal')
 })
