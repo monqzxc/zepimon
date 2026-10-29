@@ -265,7 +265,7 @@
       "################"
     ],
     "par": 58,
-    "hint": "Two plates, two boulders. The door opens only while both plates are held."
+    "hint": "Two plates, two boulders. Hold both plates with boulders and the door opens for good."
   },
   "temple-2": {
     "kind": "temple",
@@ -430,7 +430,7 @@
       "hints": [
         "A crystal never changes alone: each one flips itself and its two neighbours along the shore.",
         "Only the southern crystal turns the star.",
-        "When the star wakes, the northern crystal shines."
+        "When the star wakes, the northern crystal shines, and the west, south and islet crystals stay dark."
       ]
     }
   }

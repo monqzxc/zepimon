@@ -270,7 +270,7 @@ export const trialStages = {
       "#.#.......######",
       "################"
     ],
-    warps: {}, open: "", crackAll: false, dark: false, par: 58, hint: "Two plates, two boulders. The door opens only while both plates are held.",
+    warps: {}, open: "", crackAll: false, dark: false, par: 58, hint: "Two plates, two boulders. Hold both plates with boulders and the door opens for good.",
     star: null,
     chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
   },
@@ -416,7 +416,7 @@ export const trialStages = {
       "~~~~~~~~~~~~~~~~"
     ],
     warps: {}, open: "", crackAll: false, dark: false, par: 54, hint: "Read the stones, then wake the crystals the island asks for.",
-    star: {"nodes": [{"id": "north", "at": [7, 1], "links": ["west", "east"], "turns": 0}, {"id": "east", "at": [13, 7], "links": ["north", "islet"], "turns": 0}, {"id": "islet", "at": [11, 14], "links": ["east", "south"], "turns": 0}, {"id": "south", "at": [7, 12], "links": ["islet", "west"], "turns": 1, "opens": "A"}, {"id": "west", "at": [1, 7], "links": ["south", "north"], "turns": 0}], "patterns": 3, "startLit": [], "target": {"lit": ["east", "north"], "pattern": 2}, "resetOnFail": false, "clues": [{"at": [4, 4], "text": "Where the sun sets, the crystal sleeps.", "reveals": ["west"]}, {"at": [10, 8], "text": "Old stars are drawn on the ground in lines running out from the meteorite. Each line ends at a crystal that must shine.", "reveals": ["north", "east"]}, {"at": [7, 10], "text": "The star rests on its first face. Turn it twice before you call it.", "reveals": ["pattern"]}, {"at": [12, 14], "text": "Out here the sea keeps its crystal dark, and the south shore sleeps as well.", "reveals": ["islet", "south"]}], "hints": ["A crystal never changes alone: each one flips itself and its two neighbours along the shore.", "Only the southern crystal turns the star.", "When the star wakes, the northern crystal shines."]},
+    star: {"nodes": [{"id": "north", "at": [7, 1], "links": ["west", "east"], "turns": 0}, {"id": "east", "at": [13, 7], "links": ["north", "islet"], "turns": 0}, {"id": "islet", "at": [11, 14], "links": ["east", "south"], "turns": 0}, {"id": "south", "at": [7, 12], "links": ["islet", "west"], "turns": 1, "opens": "A"}, {"id": "west", "at": [1, 7], "links": ["south", "north"], "turns": 0}], "patterns": 3, "startLit": [], "target": {"lit": ["east", "north"], "pattern": 2}, "resetOnFail": false, "clues": [{"at": [4, 4], "text": "Where the sun sets, the crystal sleeps.", "reveals": ["west"]}, {"at": [10, 8], "text": "Old stars are drawn on the ground in lines running out from the meteorite. Each line ends at a crystal that must shine.", "reveals": ["north", "east"]}, {"at": [7, 10], "text": "The star rests on its first face. Turn it twice before you call it.", "reveals": ["pattern"]}, {"at": [12, 14], "text": "Out here the sea keeps its crystal dark, and the south shore sleeps as well.", "reveals": ["islet", "south"]}], "hints": ["A crystal never changes alone: each one flips itself and its two neighbours along the shore.", "Only the southern crystal turns the star.", "When the star wakes, the northern crystal shines, and the west, south and islet crystals stay dark."]},
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
   }
 }
