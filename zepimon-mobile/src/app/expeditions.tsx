@@ -78,7 +78,7 @@ export default function ExpeditionsScreen() {
     else if (step.kind === 'trial') {
       content = <MazeTrial name={expeditionEncounter(trail, step.index).name} number={number} partner={partner} reduced={reduced} busy={busy}
         onLeave={() => leave('You left the trial. The encounter is still waiting for you.')}
-        onSolved={() => { void act(async () => { await store.finishTrial(step.key, step.index); await store.openChamber(step.key, step.index) },
+        onSolved={() => { void act(async () => { await store.finishTrial(step.key, step.index, {}); await store.openChamber(step.key, step.index) },
           () => setStep({ kind: 'chamber', key: step.key, index: step.index })) }} />
     } else if (encounter?.index === step.index && encounter.shiny !== null) {
       content = <LegendaryChamber encounter={encounter as ActiveEncounter & { shiny: boolean }} number={number} reduced={reduced} busy={busy}

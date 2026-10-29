@@ -514,3 +514,21 @@ test('moving through the rooms of a run', () => {
   const done = nextRoom(last)
   assert.deepEqual([done.index, done.room, done.results], [1, last.room, { 'switch-tutorial': 2, 'switch-1': 33 }])
 })
+
+test('a saved run must use canonical keys and a cleared room must end on its exit', () => {
+  const run = walk(startRun(['switch-tutorial', 'switch-1']), 'east')
+  const edit = (change, base = run) => { const copy = JSON.parse(JSON.stringify(base)); change(copy); return copy }
+  assert.notEqual(restoreRun(edit(r => { r.room.seen = ['1,1'] })), null)
+  assert.equal(restoreRun(edit(r => { r.room.seen = ['01,1'] })), null, 'Leading zeros are not a canonical key')
+  assert.equal(restoreRun(edit(r => { r.room.seen = ['1,01'] })), null)
+  assert.equal(restoreRun(edit(r => { r.room.status = 'cleared' })), null, 'Cleared away from the exit')
+  const tiles = trialStages['switch-tutorial'].tiles
+  const y = tiles.findIndex(row => row.includes('X'))
+  const exit = { x: tiles[y].indexOf('X'), y }
+  assert.notEqual(restoreRun(edit(r => { r.room.status = 'cleared'; r.room.at = exit })), null)
+  const star = walk(startRun(['star']), 'west')
+  assert.equal(restoreRun(edit(r => { r.room.status = 'cleared' }, star)), null, 'The star is not woken from afar')
+  const sy = trialStages.star.tiles.findIndex(row => row.includes('M'))
+  const sx = trialStages.star.tiles[sy].indexOf('M')
+  assert.notEqual(restoreRun(edit(r => { r.room.status = 'cleared'; r.room.at = { x: sx - 1, y: sy } }, star)), null, 'Beside the meteorite')
+})

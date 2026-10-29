@@ -2,6 +2,10 @@ import { STOPS } from './adventure.ts'
 import { LEVELS } from './levels.ts'
 import type { ArcadeScores } from './scores.ts'
 import type { DexRecord } from '../journal.ts'
+import { trialStages as generatedStages } from '../generated/trial-maps.js'
+import type { Stage } from './trial.ts'
+import { KIND_NAMES } from './trials.ts'
+import type { TrialRecords } from './trials.ts'
 
 // Arcade achievements: the third way to a Legendary encounter, beside the 25 km distance route and the Expedition
 // Quest. Each achievement is worth points, and every ARCADE_PERMIT_POINTS of them can be traded for an Expedition Permit
@@ -12,11 +16,11 @@ import type { DexRecord } from '../journal.ts'
 export const ARCADE_PERMIT_POINTS = 100
 
 export type ArcadeRecords = { arcadeScores: ArcadeScores, bestMoves: Record<string, number>, adventure: Record<string, number>,
-  trailLevels: Record<string, number>, safari: Record<string, DexRecord> }
+  trailLevels: Record<string, number>, trialRecords: TrialRecords, safari: Record<string, DexRecord> }
 export type Achievement = { id: string, game: string, title: string, description: string, points: number, value: number, goal: number }
 
 export function arcadeAchievements(records: ArcadeRecords): Achievement[] {
-  const { arcadeScores: scores, bestMoves, adventure, trailLevels, safari } = records
+  const { arcadeScores: scores, bestMoves, adventure, trailLevels, trialRecords, safari } = records
   const sixPairs = bestMoves[6]
   const mapStars = STOPS.reduce((sum, stop) => sum + (adventure[stop.id] || 0), 0)
   const mapCleared = STOPS.filter(stop => (adventure[stop.id] || 0) >= 1).length
@@ -24,6 +28,9 @@ export function arcadeAchievements(records: ArcadeRecords): Achievement[] {
   const levelsCleared = LEVELS.filter(level => (trailLevels[level.id] || 0) >= 1).length
   const safariSpecies = new Set(Object.keys(safari).map(key => key.replace(/^Shiny /, ''))).size
   const safariShiny = Number(Object.keys(safari).some(key => key.startsWith('Shiny ')))
+  const stages = generatedStages as Record<string, Stage>
+  const trialRoom = (kind: string) => Number([1, 2, 3].some(room => Object.hasOwn(trialRecords, `${kind}-${room}`)))
+  const trialPar = Object.entries(trialRecords).filter(([id, moves]) => Object.hasOwn(stages, id) && moves <= stages[id].par).length
   const won = Object.keys(bestMoves).length
   return [
     { id: 'memory-win', game: 'Memory Match', title: 'First match', description: 'Win a game of Memory Match.', points: 10, value: Math.min(1, won), goal: 1 },
@@ -50,7 +57,11 @@ export function arcadeAchievements(records: ArcadeRecords): Achievement[] {
     { id: 'safari-12', game: 'Safari Zone', title: 'Safari ranger', description: 'Catch 12 Pokémon in one Safari Zone round.', points: 20, value: scores.safari ?? 0, goal: 12 },
     { id: 'safari-dex-10', game: 'Safari Zone', title: 'Field notes', description: 'Catch 10 different species in the Safari Zone.', points: 10, value: safariSpecies, goal: 10 },
     { id: 'safari-dex-30', game: 'Safari Zone', title: 'Safari researcher', description: 'Catch 30 different species in the Safari Zone.', points: 20, value: safariSpecies, goal: 30 },
-    { id: 'safari-shiny', game: 'Safari Zone', title: 'Sparkle in the grass', description: 'Catch a Shiny Pokémon in the Safari Zone.', points: 30, value: safariShiny, goal: 1 }
+    { id: 'safari-shiny', game: 'Safari Zone', title: 'Sparkle in the grass', description: 'Catch a Shiny Pokémon in the Safari Zone.', points: 30, value: safariShiny, goal: 1 },
+    ...(['switch', 'crumble', 'dark', 'temple', 'warp'] as const).map(kind => ({ id: `trial-${kind}`, game: 'Legendary Trials', title: `${KIND_NAMES[kind]} clear`,
+      description: `Clear a ${KIND_NAMES[kind]} trial.`, points: 10, value: trialRoom(kind), goal: 1 })),
+    { id: 'trial-star', game: 'Legendary Trials', title: 'Wake the Shattered Star', description: 'Wake the Shattered Star.', points: 10, value: Number(Object.hasOwn(trialRecords, 'star')), goal: 1 },
+    { id: 'trial-par', game: 'Legendary Trials', title: 'Right on par', description: 'Clear 5 trial rooms at or under par.', points: 20, value: trialPar, goal: 5 }
   ]
 }
 

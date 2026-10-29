@@ -2,6 +2,8 @@ import { claimExpedition, expeditionEncounter, unlockedEncounters } from './expe
 import type { ExpeditionProgress } from './expeditions.ts'
 import { encounterReady, trailPermits, trailUnlocked } from './expedition-quest.ts'
 import type { Quest } from './expedition-quest.ts'
+import { restoreRun } from './games/trials.ts'
+import type { TrialRun } from './games/trials.ts'
 
 export const SHINY_ODDS = 100
 export const RESET_COOLDOWN = 5000
@@ -10,9 +12,9 @@ export const RESET_COOLDOWN = 5000
 // the canonical draw (generated/expedition.js) and never changes. Whether it is Shiny is this encounter's own roll,
 // 1 in 100: made the first time the chamber opens after the trial, and again only after a confirmed reset and its
 // five-second wait. shiny is null until that first roll. nextResetAllowedAt is a clock time, so leaving, refreshing or
-// reopening the app cannot skip the wait or reroll.
+// reopening the app cannot skip the wait or reroll. checkpoint is the trial in progress and exists only until the trial is finished.
 export type ActiveEncounter = { index: number, name: string, trial: boolean, shiny: boolean | null, attempt: number,
-  resetPending: boolean, nextResetAllowedAt: number }
+  resetPending: boolean, nextResetAllowedAt: number, checkpoint?: TrialRun }
 export type Encounters = Record<string, ActiveEncounter>
 type Play = { expeditions: ExpeditionProgress, quest: Quest, encounters: Encounters }
 
@@ -38,7 +40,16 @@ const save = (play: Play, key: string, encounter: ActiveEncounter): Encounters =
 // The trial stays finished whatever happens next: leaving, resetting or losing the catch never asks for it again.
 export function finishTrial(play: Play, key: string, index: number): Encounters {
   const encounter = activeEncounter(play, key, index)
-  return encounter.trial ? play.encounters : save(play, key, { ...encounter, trial: true })
+  if (encounter.trial) return play.encounters
+  const { checkpoint: _run, ...rest } = encounter
+  return save(play, key, { ...rest, trial: true })
+}
+
+// The trial in progress, kept so leaving or reopening the app resumes it. Not allowed once the trial is finished.
+export function saveCheckpoint(play: Play, key: string, index: number, run: TrialRun): Encounters {
+  const encounter = activeEncounter(play, key, index)
+  if (encounter.trial) throw new Error('This trial is already finished.')
+  return save(play, key, { ...encounter, checkpoint: run })
 }
 
 function settle(encounter: ActiveEncounter, now: number, random: () => number): ActiveEncounter {
@@ -108,8 +119,9 @@ export function restoreEncounters(raw: unknown, expeditions: ExpeditionProgress,
         !(value.shiny === null || typeof value.shiny === 'boolean') || !Number.isSafeInteger(value.attempt) || value.attempt < 0 || value.attempt > 1000000 ||
         (value.shiny === null) !== (value.attempt === 0) || (value.shiny === null && value.resetPending) ||
         !Number.isFinite(value.nextResetAllowedAt) || value.nextResetAllowedAt < 0 || value.nextResetAllowedAt > 8.64e15) continue
+    const checkpoint = value.trial ? null : restoreRun(value.checkpoint)
     encounters[key] = { index: value.index, name: value.name, trial: value.trial, shiny: value.shiny, attempt: value.attempt,
-      resetPending: value.resetPending, nextResetAllowedAt: value.nextResetAllowedAt }
+      resetPending: value.resetPending, nextResetAllowedAt: value.nextResetAllowedAt, ...(checkpoint && { checkpoint }) }
   }
   return encounters
 }

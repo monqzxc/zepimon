@@ -1,8 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { RESET_COOLDOWN, SHINY_ODDS, activeEncounter, catchEncounter, finishReset, finishTrial, legacyEncounters, openChamber, readyToBattle,
-  requestReset, restoreEncounters, rollLegendaryShiny } from '../src/expedition-encounter.ts'
+  requestReset, restoreEncounters, rollLegendaryShiny, saveCheckpoint } from '../src/expedition-encounter.ts'
 import { emptyQuest } from '../src/expedition-quest.ts'
+import { startRun } from '../src/games/trials.ts'
+import { stepRoom } from '../src/games/trial.ts'
+import { trialStages } from '../src/generated/trial-maps.js'
 import { expeditionEncounter, expeditionKey, legendarySpecies } from '../src/generated/expedition.js'
 import { LANTERN_SIDE, lanternBoard, lanternsLit, pressLantern, questTheme } from '../src/games/lanterns.ts'
 import { BATTLE_BALLS, FOE_HP, attackWith, catchChance, chooseMenu, finishAttack, finishIntro, finishThrow, runFromBattle, startBattle,
@@ -190,4 +193,43 @@ test('the battle never knocks the Legendary out and reaches a catch only through
   const fled = runFromBattle(missed)
   assert.equal(fled.phase, 'fled')
   assert.equal(throwBall(chooseMenu(fled, 'bag'), () => 0), fled, 'Running ends the battle without a catch')
+})
+
+const stepRun = (run, ...directions) => directions.reduce((current, direction) => ({ ...current, room: stepRoom(current.room, trialStages[current.stages[current.index]], direction).room }), run)
+const TRIAL_RUN = () => stepRun(startRun(['switch-tutorial', 'switch-1']), 'east', 'east')
+
+test('a checkpoint is kept until the trial is done', () => {
+  const run = TRIAL_RUN()
+  const saved = saveCheckpoint(play(), key, 0, run)
+  assert.deepEqual(saved[key].checkpoint, run)
+  assert.equal(saved[key].trial, false)
+  assert.deepEqual(activeEncounter(play(saved), key, 0).checkpoint, run)
+  const done = finishTrial(play(saved), key, 0)
+  assert.equal(Object.hasOwn(done[key], 'checkpoint'), false)
+  assert.equal(done[key].trial, true)
+  assert.deepEqual(done[key], { index: 0, name: expeditionEncounter(trail, 0).name, trial: true, shiny: null, attempt: 0, resetPending: false, nextResetAllowedAt: 0 })
+})
+
+test('reopening keeps a good checkpoint and drops a broken one', () => {
+  const run = TRIAL_RUN()
+  const saved = saveCheckpoint(play(), key, 0, run)
+  assert.deepEqual(reopen(saved)[key].checkpoint, run)
+  const broken = JSON.parse(JSON.stringify(saved))
+  broken[key].checkpoint.room.at = { x: -1, y: 0 }
+  const restored = restoreEncounters(broken, play().expeditions, emptyQuest())
+  assert.ok(restored[key], 'The encounter itself is kept')
+  assert.equal(restored[key].checkpoint, undefined)
+  assert.equal(Object.hasOwn(restored[key], 'checkpoint'), false)
+  assert.equal(restored[key].index, 0)
+  const finished = JSON.parse(JSON.stringify(finishTrial(play(saved), key, 0)))
+  finished[key].checkpoint = JSON.parse(JSON.stringify(run))
+  assert.equal(restoreEncounters(finished, play().expeditions, emptyQuest())[key].checkpoint, undefined, 'No checkpoint survives a finished trial')
+  const garbage = JSON.parse(JSON.stringify(saved))
+  garbage[key].checkpoint = 'nope'
+  assert.equal(restoreEncounters(garbage, play().expeditions, emptyQuest())[key].checkpoint, undefined)
+})
+
+test('no checkpoint after the trial', () => {
+  const finished = finishTrial(play(), key, 0)
+  assert.throws(() => saveCheckpoint(play(finished), key, 0, TRIAL_RUN()), /finished/)
 })

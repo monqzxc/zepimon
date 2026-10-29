@@ -120,7 +120,7 @@ function restoreRoom(raw: Record<string, unknown>, stage: Stage): Room | null {
     for (const key of value) {
       const match = typeof key === 'string' ? /^(\d+),(\d+)$/.exec(key) : null
       const tile = match ? tileOf(Number(match[1]), Number(match[2])) : undefined
-      if (!match || tile === undefined || !fits(tile, Number(match[1]), Number(match[2])) || found.includes(key as string)) return null
+      if (!match || key !== `${Number(match[1])},${Number(match[2])}` || tile === undefined || !fits(tile, Number(match[1]), Number(match[2])) || found.includes(key as string)) return null
       found.push(key as string)
     }
     return found
@@ -148,6 +148,9 @@ function restoreRoom(raw: Record<string, unknown>, stage: Stage): Room | null {
   const tile = tileOf(at.x, at.y)
   const gateShut = 'ABC'.includes(tile) && !open.includes(tile)
   const key = `${at.x},${at.y}`
+  // A cleared room ends on its exit, or beside the meteorite for the Shattered Star.
+  const beside = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => tileOf(at.x + dx, at.y + dy) === 'M')
+  if (status === 'cleared' && (star ? !beside : tile !== 'X')) return null
   if (SOLID.includes(tile) || gateShut || (tile === '=' && !raw.doorsOpen) || boulders.includes(key) || (status !== 'fell' && holes.includes(key))) return null
   return { stage: stage.id, at, facing: raw.facing as Room['facing'], buddy, buddyFacing: raw.buddyFacing as Room['buddyFacing'], moves: raw.moves, relics, open,
     boulders, holes, doorsOpen: raw.doorsOpen, seen, warpsUsed: warpsUsed as string[], lit: lit as string[], pattern: raw.pattern, attunes: raw.attunes,

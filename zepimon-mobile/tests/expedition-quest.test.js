@@ -125,7 +125,7 @@ test('permit claims survive saving, reopening and repeated imports, and nothing 
 })
 
 test('arcade achievements add up to points, and every 100 points buys exactly one permit', () => {
-  const blank = { arcadeScores: {}, bestMoves: {}, adventure: {}, trailLevels: {}, safari: {} }
+  const blank = { arcadeScores: {}, bestMoves: {}, adventure: {}, trailLevels: {}, trialRecords: {}, safari: {} }
   assert.equal(arcadePoints(blank), 0)
   const ids = arcadeAchievements(blank).map(item => item.id)
   assert.equal(new Set(ids).size, ids.length)
@@ -149,4 +149,25 @@ test('arcade achievements add up to points, and every 100 points buys exactly on
   assert.equal(ARCADE_PERMIT_POINTS, 100)
   const all = arcadeAchievements(blank).reduce((sum, item) => sum + item.points, 0)
   assert.ok(all >= 5 * ARCADE_PERMIT_POINTS, `Every game together is worth several permits (${all} points)`)
+})
+
+test('trial achievements read the records', () => {
+  const blank = { arcadeScores: {}, bestMoves: {}, adventure: {}, trailLevels: {}, trialRecords: {}, safari: {} }
+  const find = (records, id) => arcadeAchievements(records).find(item => item.id === id)
+  const ids = arcadeAchievements(blank).filter(item => item.game === 'Legendary Trials').map(item => item.id).sort()
+  assert.deepEqual(ids, ['trial-crumble', 'trial-dark', 'trial-par', 'trial-star', 'trial-switch', 'trial-temple', 'trial-warp'])
+  assert.deepEqual(['trial-switch', 'trial-star', 'trial-par'].map(id => find(blank, id).points), [10, 10, 20])
+  const slow = { ...blank, trialRecords: { 'switch-1': 999 } }
+  assert.equal(achieved(find(slow, 'trial-switch')), true)
+  assert.equal(achieved(find(slow, 'trial-crumble')), false)
+  assert.equal(find(slow, 'trial-par').value, 0)
+  assert.equal(find(slow, 'trial-par').goal, 5)
+  assert.equal(achieved(find({ ...blank, trialRecords: { 'switch-tutorial': 5 } }, 'trial-switch')), false, 'A tutorial is not a main room')
+  assert.equal(achieved(find({ ...blank, trialRecords: { star: 500 } }, 'trial-star')), true)
+  const par = { 'switch-tutorial': 12, 'switch-1': 76, 'switch-2': 96, 'switch-3': 101, 'crumble-tutorial': 12 }
+  const before = arcadePoints(blank)
+  const at = { ...blank, trialRecords: par }
+  assert.equal(achieved(find(at, 'trial-par')), true)
+  assert.equal(arcadePoints(at) - before, 30, 'trial-switch 10 + trial-par 20; the crumble tutorial earns no trial-crumble')
+  assert.equal(find({ ...at, trialRecords: { ...par, 'switch-3': 102 } }, 'trial-par').value, 4, 'One move over par does not count')
 })
