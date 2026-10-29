@@ -50,7 +50,9 @@ export function nextEgg(next) {
   if (plan && plan.egg && family(plan.egg.family) && plan.eggAt > (next.usedPlanAt || 0)) {
     return { family: plan.egg.family, mega: plan.egg.mega || null, from: 'phone', planAt: plan.eggAt }
   }
-  if (next && next.egg && family(next.egg.family)) return { family: next.egg.family, mega: next.egg.mega || null, from: next.egg.from || 'watch' }
+  // A discarded adventure's egg comes back with its Shiny roll (shiny), so discarding cannot reroll it.
+  if (next && next.egg && family(next.egg.family)) return { family: next.egg.family, mega: next.egg.mega || null, from: next.egg.from || 'watch',
+    ...(typeof next.egg.shiny === 'boolean' ? { shiny: next.egg.shiny } : {}) }
   return null
 }
 

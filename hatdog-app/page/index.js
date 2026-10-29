@@ -171,7 +171,8 @@ Page({
       return
     }
     const egg = nextEgg(this.next)
-    this.navigate({ start: { activity, family: egg ? egg.family : null, mega: egg ? egg.mega : null, planAt: egg && egg.planAt || 0 } })
+    this.navigate({ start: { activity, family: egg ? egg.family : null, mega: egg ? egg.mega : null, planAt: egg && egg.planAt || 0,
+      ...(egg && typeof egg.shiny === 'boolean' ? { shiny: egg.shiny } : {}) } })
   },
 
   navigate(params) {

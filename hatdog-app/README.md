@@ -265,7 +265,7 @@ Saving only updates forms reached during that adventure. For example, a new
 5.5 km Bulbasaur run updates Bulbasaur but preserves the previous Venusaur
 and Mega Venusaur records. A run below 5 km does not replace any Dex details.
 Normal and shiny records remain separate. The Dex shows completed journeys;
-use **Finish & save** to record the active adventure's distance and timing.
+use **Finish**, then **Save & finish**, to record the active adventure's distance and timing.
 
 Older versions could overwrite acquired forms with an unhatched repeat run's
 0 km or short distance. Opening the watch app or syncing now repairs those
@@ -366,7 +366,13 @@ so source snapshots and original art are excluded from the installer.
 Mega Zygarde uses its base sprite with the Mega name because its sprite is
 missing from the source.
 
-**Finish & save** opens a confirmation. Saving replaces the selected route's
+**Finish** offers **Save & finish**, **Discard adventure** and **Keep walking**
+(or **Keep running**). Discarding asks once more, then ends the adventure
+without saving anything: no Dex entry, record, personal best or Expedition
+distance. The phone and Zepp hear that it ended, and the title screen offers
+the same egg again with its Shiny roll, so discarding never rerolls a Shiny.
+An egg chosen on the phone afterwards, or another egg picked on the watch,
+rolls as usual. Saving replaces the selected route's
 last journey, adds newly earned Pokemon, and updates only the acquired forms
 reached during this run. Earlier evolution/Mega records remain until another
 run reaches those forms, and acquisitions are never removed by a shorter run.
