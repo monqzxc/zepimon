@@ -177,7 +177,8 @@ export function stayInZone(game: ZoneGame): ZoneGame {
 
 const ORDER: Direction[] = ['north', 'south', 'west', 'east']
 const OPPOSITE: Record<Direction, Direction> = { north: 'south', south: 'north', west: 'east', east: 'west' }
-type Trail = Map<string, { from: string, direction: Direction } | null>
+export type Trail = Map<string, { from: string, direction: Direction } | null>
+export type Neighbours = (point: Point) => [Direction, Point][]
 
 // Where one press of each direction takes you: a step onto open ground, a hop down a ledge, or nowhere.
 function moves(point: Point, map: SafariMap): [Direction, Point][] {
@@ -191,12 +192,12 @@ function moves(point: Point, map: SafariMap): [Direction, Point][] {
   return found
 }
 
-// Breadth-first over presses (a hop is one press), exploring north, south, west, east so routes are deterministic.
-function search(start: Point, map: SafariMap): Trail {
+// Breadth-first over presses (a hop is one press), trying neighbours in the order given (safari: north, south, west, east) so routes are deterministic.
+export function routeSearch(start: Point, neighbours: Neighbours): Trail {
   const trail: Trail = new Map([[pointKey(start), null]])
   const queue = [start]
   for (let i = 0; i < queue.length; i++) {
-    for (const [direction, next] of moves(queue[i], map)) {
+    for (const [direction, next] of neighbours(queue[i])) {
       if (trail.has(pointKey(next))) continue
       trail.set(pointKey(next), { from: pointKey(queue[i]), direction })
       queue.push(next)
@@ -205,21 +206,21 @@ function search(start: Point, map: SafariMap): Trail {
   return trail
 }
 
-function routeTo(trail: Trail, key: string): Direction[] {
+export function routeTo(trail: Trail, key: string): Direction[] {
   const route: Direction[] = []
   for (let step = trail.get(key); step; step = trail.get(step.from)) route.unshift(step.direction)
   return route
 }
 
 export function reachableFrom(start: Point, map = safariMap): Set<string> {
-  return new Set(search(start, map).keys())
+  return new Set(routeSearch(start, point => moves(point, map)).keys())
 }
 
 // Tap-to-walk: the presses that reach a tapped tile. A wall, water or ledge walks to its nearest reachable side; the
 // gate walks up to its door and steps into it, which asks before leaving. Null when there is no way there.
 export function planWalk(from: Point, to: Point, map = safariMap): Direction[] | null {
   if (from.x === to.x && from.y === to.y) return []
-  const trail = search(from, map)
+  const trail = routeSearch(from, point => moves(point, map))
   const target = tileAt(to, map)
   if (isWalkable(target)) return trail.has(pointKey(to)) ? routeTo(trail, pointKey(to)) : null
   let best: Direction[] | null = null, into: Direction = 'north'

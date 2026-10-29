@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { GRASS_COOLDOWN, confirmLeave, isWalkable, planWalk, pointKey, reachableFrom, safariMap, startZone, stayInZone, tileAt, walk, zoneAction,
-  zoneBudget } from '../src/games/safari-zone.ts'
+  zoneBudget, routeSearch, routeTo } from '../src/games/safari-zone.ts'
 import { ZONES, pauseSafari, runAway, throwBall } from '../src/games/safari.ts'
 import { wildPool } from '../src/games/roster.ts'
 
@@ -250,4 +250,12 @@ test('on the real map, no ledge traps you: the gate is reachable from everywhere
     const [x, y] = key.split(',').map(Number)
     assert.ok(planWalk({ x, y }, gate), `no way back to the gate from ${key}`)
   }
+})
+
+test('routeSearch walks any grid through its own neighbours', () => {
+  const deltas = [['north', 0, -1], ['south', 0, 1], ['west', -1, 0], ['east', 1, 0]]
+  const neighbours = ({ x, y }) => deltas.map(([d, dx, dy]) => [d, { x: x + dx, y: y + dy }]).filter(([, p]) => p.x >= 0 && p.y >= 0 && p.x < 3 && p.y < 3 && !(p.x === 1 && p.y === 1))
+  const trail = routeSearch({ x: 0, y: 0 }, neighbours)
+  assert.equal(routeTo(trail, '2,2').length, 4)
+  assert.equal(trail.has('1,1'), false)
 })
