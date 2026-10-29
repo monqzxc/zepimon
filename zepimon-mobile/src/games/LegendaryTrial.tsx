@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Animated, Easing, Platform, Text, View } from 'react-native'
 import { pokemonType } from '../catalog'
 import { setPreference, usePreferences } from '../preferences'
-import { Button, Chip, Copy, Eyebrow, Heading, Panel, colors, fonts, styles, themedStyles, typeTints } from '../ui'
+import { Chip, Copy, Panel, colors, fonts, themedStyles, typeTints } from '../ui'
 import { trialStages } from '../generated/trial-maps.js'
 import { hintTier, planRoomWalk, resetAlignment, stepRoom } from './trial'
 import { KIND_NAMES, nextRoom, restartRoom, restartRun, startRun, trialFor } from './trials'
@@ -26,8 +26,8 @@ const resume = (run: TrialRun) => run.room.status === 'fell' ? restartRoom(run)
 // The Legendary's trial: one to two rooms walked like the Safari Zone (D-pad, arrow keys / WASD or tap to walk), then the
 // chamber. The rules live in trial.ts and the room order in trials.ts; this screen turns input into steps, times the falls,
 // fades and finish, and saves a checkpoint when a room is cleared, when the game pauses and when the player leaves.
-export function LegendaryTrial({ name, number, partner, reduced, busy, error = '', trial, checkpoint, onCheckpoint, onSolved, onLeave }: {
-  name: string, number: number, partner: { name: string, shiny: boolean }, reduced: boolean, busy: boolean, error?: string,
+export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial, checkpoint, onCheckpoint, onSolved, onLeave }: {
+  name: string, partner: { name: string, shiny: boolean }, reduced: boolean, busy: boolean, error?: string,
   trial: ReturnType<typeof trialFor>, checkpoint: TrialRun | undefined, onCheckpoint: (run: TrialRun) => Promise<void>,
   onSolved: (results: Record<string, number>) => void, onLeave: (run: TrialRun) => void
 }) {
@@ -36,8 +36,7 @@ export function LegendaryTrial({ name, number, partner, reduced, busy, error = '
   const [jump, setJump] = useState(0)
   const [phase, setPhase] = useState<Phase>('play')
   const [status, setStatus] = useState(() => run.room.message || stages[run.stages[run.index]].hint)
-  const [showHint, setShowHint] = useState(false)
-  const [width, setWidth] = useState(0)
+  const [area, setArea] = useState({ width: 0, height: 0 })
   const [fade] = useState(() => new Animated.Value(1))
   const { safariControls, safariTrainer } = usePreferences()
   const current = useRef(run)
@@ -58,7 +57,6 @@ export function LegendaryTrial({ name, number, partner, reduced, busy, error = '
     update(next)
     setJump(value => value + 1)
     setStatus(stages[next.stages[next.index]].hint)
-    setShowHint(false)
     setPhase('play')
   }
 
@@ -119,63 +117,68 @@ export function LegendaryTrial({ name, number, partner, reduced, busy, error = '
 
   const type = pokemonType(name)
   const relics = relicCount(stage)
-  const height = Math.min(width, 360)
   const tier = hintTier(room)
+  // One line at 360 px: the room number lives in the eyebrow.
   const hud = star ? `Moves ${room.moves} · Attempts ${room.attunes}`
-    : [run.stages.length > 1 ? `Room ${run.index + 1}/${run.stages.length}` : '', `Moves ${room.moves} (par ${stage.par})`, relics ? `Relics ${room.relics.length}/${relics}` : '']
-      .filter(Boolean).join(' · ')
+    : [`Moves ${room.moves} (par ${stage.par})`, relics ? `Relics ${room.relics.length}/${relics}` : ''].filter(Boolean).join(' · ')
   const where = `${KIND_NAMES[stage.kind]} room. You are at row ${room.at.y + 1}, column ${room.at.x + 1}. ${room.moves} moves.`
   const controls = !busy && phase === 'play'
-  return <Panel style={{ backgroundColor: typeTints[type] || colors.panel }}>
-    <Eyebrow>EXPEDITION {number} · {name.toUpperCase()} · TRIAL</Eyebrow>
-    <Heading>{trial.title}</Heading>
-    <Copy color={colors.ink}>{trial.lore}</Copy>
-    <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{ alignSelf: 'stretch' }}>
-      {width > 0 && <Animated.View accessible={safariControls !== 'tap'} accessibilityRole="image" accessibilityLabel={where}
-        style={[look.world, { width, height, opacity: fade }]}>
+  const { width, height } = area
+  // The screen doesn't scroll during a trial (expeditions.tsx fills it): the map takes whatever height the title, status,
+  // D-pad and buttons leave, like the Safari Zone's, so the map and every control fit on a phone at once.
+  return <Panel style={[look.panel, { backgroundColor: typeTints[type] || colors.panel }]}>
+    <View style={look.top}>
+      <View style={{ flex: 1 }}>
+        <Text numberOfLines={1} style={look.eyebrow}>{name.toUpperCase()}{run.stages.length > 1 ? ` · ROOM ${run.index + 1}/${run.stages.length}` : ' · TRIAL'}</Text>
+        <Text accessibilityRole="header" numberOfLines={1} style={look.title}>{trial.title}</Text>
+      </View>
+      {/* Open even after the finish: if saving it failed, leaving keeps the cleared run, and coming back finishes it again. */}
+      <Chip label="Leave" selected={false} disabled={busy} onPress={() => { walker.drop(); onLeave(current.current) }} />
+    </View>
+    <Animated.View accessible={safariControls !== 'tap'} accessibilityRole="image" accessibilityLabel={where} style={[look.world, { opacity: fade }]}
+      onLayout={event => { const layout = event.nativeEvent.layout; setArea({ width: layout.width, height: layout.height }) }}>
+      {/* Absolutely placed, so a map measured while there was more room never holds the area open later. */}
+      {width > 0 && <View style={{ position: 'absolute', left: 0, top: 0 }}>
         <TrialWorld run={run} stage={stage} move={move} jump={jump} trainer={safariTrainer} buddy={partner} width={width} height={height}
           reduced={reduced} tapToWalk={safariControls === 'tap' && walking} onTapTile={tapTile} falling={phase === 'fall'} revealing={phase === 'reveal'} />
         {phase === 'reveal' && <StarReveal stage={stage} at={room.at} width={width} height={height} reduced={reduced}
           onDone={() => handlers.current.onSolved(nextRoom(current.current).results)} />}
-      </Animated.View>}
-    </View>
-    <Text accessibilityLiveRegion="polite" style={[look.status, phase === 'finish' || phase === 'reveal' ? { color: colors.success } : null]}>
-      {phase === 'finish' ? 'Trial cleared! The shrine opens… a presence stirs beyond the gate.' : status}</Text>
-    {!!error && <Text accessibilityLiveRegion="assertive" style={[look.status, { color: colors.danger }]}>{error}</Text>}
-    <Text style={look.hud}>{hud}</Text>
-    <TrialMap run={run} stage={stage} />
+      </View>}
+    </Animated.View>
+    <Text accessibilityLiveRegion="polite" numberOfLines={3} style={[look.status, phase === 'finish' || phase === 'reveal' ? { color: colors.success } : null]}>
+      {phase === 'finish' ? 'Trial cleared! The shrine opens… a presence stirs beyond the gate.' : error || status}</Text>
+    <Text numberOfLines={1} adjustsFontSizeToFit style={look.hud}>{hud}</Text>
     <View style={look.controls}>
       {safariControls === 'dpad' ? <DPad onPress={press} onRelease={release} disabled={!walking} />
-        : <View style={{ flex: 1 }}><Copy small>Tap a spot on the map to walk there.</Copy></View>}
-      <View style={{ gap: 8 }}>
-        <Chip label="D-pad" selected={safariControls === 'dpad'} onPress={() => setPreference('safariControls', 'dpad')} />
-        <Chip label="Tap to walk" selected={safariControls === 'tap'} onPress={() => setPreference('safariControls', 'tap')} />
-      </View>
+        : <View style={{ width: 156 }}><Copy small>Tap a spot on the map to walk there. Arrow keys / WASD also work.</Copy></View>}
+      <View style={{ flex: 1, alignItems: 'center' }}><TrialMap run={run} stage={stage} /></View>
     </View>
-    {safariControls === 'dpad' && <Copy small>Use the D-pad, or the arrow keys / WASD on a keyboard.</Copy>}
-    <View style={{ gap: 10 }}>
-      {star && <View style={styles.row}>
-        <Button title="Hint" secondary disabled={!controls} onPress={() => setShowHint(true)} />
-        <Button title="Reset the crystals" secondary disabled={!controls} onPress={() => {
-          update({ ...current.current, room: resetAlignment(current.current.room, stage) })
-          setStatus('The crystals settle back to how you found them.')
-        }} />
-      </View>}
-      {star && showHint && <Text accessibilityLiveRegion="polite" style={look.hint}>
-        {tier ? star.hints[tier - 1] : 'Try attuning the meteorite first. The island answers every attempt.'}</Text>}
-      <Button title="Restart room" secondary disabled={!controls} onPress={() => { walker.drop(); enter(restartRoom(current.current)) }} />
-      {run.stages.length > 1 && <Button title="Start the trial over" secondary disabled={!controls} onPress={() => { walker.drop(); enter(restartRun(current.current)) }} />}
-      {/* Open even after the finish: if saving it failed, leaving keeps the cleared run, and coming back finishes it again. */}
-      <Button title="Leave the trial" secondary disabled={busy} onPress={() => { walker.drop(); onLeave(current.current) }} />
+    <View style={look.chips}>
+      <Chip label="D-pad" selected={safariControls === 'dpad'} onPress={() => setPreference('safariControls', 'dpad')} />
+      <Chip label="Tap to walk" selected={safariControls === 'tap'} onPress={() => setPreference('safariControls', 'tap')} />
+      {/* The hint goes in the status line, so it needs no room of its own. */}
+      {star && <Chip label="Hint" selected={false} disabled={!controls} onPress={() => {
+        setStatus(tier ? star.hints[tier - 1] : 'Try attuning the meteorite first. The island answers every attempt.')
+      }} />}
+      {star && <Chip label="Reset the crystals" selected={false} disabled={!controls} onPress={() => {
+        update({ ...current.current, room: resetAlignment(current.current.room, stage) })
+        setStatus('The crystals settle back to how you found them.')
+      }} />}
+      <Chip label="Restart room" selected={false} disabled={!controls} onPress={() => { walker.drop(); enter(restartRoom(current.current)) }} />
+      {run.stages.length > 1 && <Chip label="Start over" selected={false} disabled={!controls} onPress={() => { walker.drop(); enter(restartRun(current.current)) }} />}
     </View>
-    <Copy small>Leaving does not use up the encounter, and your progress in the trial is kept. Once you finish the trial, it stays finished.</Copy>
   </Panel>
 }
 
 const look = themedStyles(() => ({
-  status: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 15, lineHeight: 21, minHeight: 21, textAlign: 'center' },
-  world: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#0b0b14' },
-  hint: { color: colors.ink, fontFamily: fonts.bold, fontSize: 15, lineHeight: 21 },
+  panel: { flex: 1, padding: 12, gap: 8 },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  eyebrow: { color: colors.edge, fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16, letterSpacing: 1.1 },
+  title: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 20, lineHeight: 26 },
+  // Three lines held open, so a long clue or hint never moves the map.
+  status: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 14, lineHeight: 19, height: 57, textAlign: 'center', textAlignVertical: 'center' },
+  world: { flex: 1, minHeight: 160, borderRadius: 12, overflow: 'hidden', backgroundColor: '#0b0b14' },
   hud: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20, textAlign: 'center' },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }
 }))

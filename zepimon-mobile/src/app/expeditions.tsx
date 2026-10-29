@@ -79,7 +79,7 @@ export default function ExpeditionsScreen() {
     if (!trail || trail.claimed !== step.index) content = null
     else if (step.kind === 'trial') {
       const { key, index } = step
-      content = <LegendaryTrial name={expeditionEncounter(trail, index).name} number={number} partner={partner} reduced={reduced} busy={busy} error={message}
+      content = <LegendaryTrial name={expeditionEncounter(trail, index).name} partner={partner} reduced={reduced} busy={busy} error={message}
         trial={step.trial} checkpoint={encounter?.index === index ? encounter.checkpoint : undefined}
         onCheckpoint={run => store.saveTrialCheckpoint(key, index, run)}
         onLeave={run => {
@@ -98,7 +98,8 @@ export default function ExpeditionsScreen() {
     if (!content) content = <Panel><Copy>This encounter is no longer waiting.</Copy><Button title="Back to Expeditions" onPress={() => leave('')} /></Panel>
   }
 
-  return <Screen key={step.kind}>
+  // The trial fills the screen without scrolling, so the map and the D-pad are on screen together, as in the Safari Zone.
+  return <Screen key={step.kind} fill={step.kind === 'trial'}>
     {content ?? <>
       <Hero eyebrow="LEGENDARY EXPEDITIONS" title="Follow a little mystery.">
         <Copy color={colors.onBrand}>Walk 25 km, finish an Expedition Quest or earn arcade points. Then clear the shrine trial and catch the Legendary waiting inside.</Copy>
@@ -152,6 +153,7 @@ function Encounter({ trailKey, trail, encounter, busy, onBegin, onChamber, onPer
     </View>)}
     {ready ? <>
       <Copy color={colors.gold}>{encounter?.trial ? `Your trial is done. ${name} waits in the shrine chamber.` : `${trial.title} · ${KIND_NAMES[trial.kind]}: ${encounter?.checkpoint ? 'pick up the trial where you left it' : 'clear the trial'} to reach ${name}.`}</Copy>
+      {!encounter?.trial && <Copy>{trial.lore}</Copy>}
       <Button title={encounter?.trial ? 'Return to the chamber' : 'Begin the trial'} loading={busy} onPress={encounter?.trial ? onChamber : onBegin} />
       {encounter?.resetPending && <Copy small>A reset is in progress. It finishes when you return to the chamber.</Copy>}
     </> : <>
