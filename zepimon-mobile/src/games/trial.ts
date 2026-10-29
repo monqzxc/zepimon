@@ -28,11 +28,12 @@ const around = (stage: Stage, center: Point, radius: number): string[] => {
 const relicsIn = (stage: Stage) => stage.tiles.reduce((total, row) => total + [...row].filter(tile => tile === '*').length, 0)
 const merge = (seen: string[], more: string[]) => [...new Set([...seen, ...more])]
 
-const WALKABLE = '.,g@*w_'
+const WALKABLE = '.,g@*w_abc'
 
 function blockedText(tile: string): string {
   if (tile === '~') return 'The water is too deep to cross.'
   if (tile === 'R') return 'A boulder is in the way.'
+  if ('ABC'.includes(tile)) return 'The gate is shut.'
   return 'A wall is in the way.'
 }
 
@@ -69,7 +70,8 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
     const left = relicsIn(stage) - room.relics.length
     return { room: { ...turned, message: `The seal holds. ${left} ${left === 1 ? 'relic remains' : 'relics remain'}.` }, move: 'bump', events: ['locked'] }
   }
-  if (tile !== 'X' && !WALKABLE.includes(tile)) return { room: { ...turned, message: blockedText(tile) }, move: 'bump', events }
+  const gate = 'ABC'.includes(tile) && room.open.includes(tile)
+  if (tile !== 'X' && !gate && !WALKABLE.includes(tile)) return { room: { ...turned, message: blockedText(tile) }, move: 'bump', events }
   let walked: Room = { ...turned, at: next, buddy: room.at, buddyFacing: direction, moves: room.moves + 1 }
   let message = ''
   const key = pointKey(next)
@@ -78,6 +80,12 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
     events.push('relic')
     const left = relicsIn(stage) - walked.relics.length
     message = left ? `You found a relic! ${left} to go.` : 'You found the last relic! The seal opens.'
+  }
+  if ('abc'.includes(tile)) {
+    const group = tile.toUpperCase()
+    walked = { ...walked, open: [...(room.open.includes(group) ? room.open.replace(group, '') : room.open + group)].sort().join('') }
+    events.push('switch')
+    message = room.open.includes(group) ? 'A gate swings shut.' : 'A gate swings open.'
   }
   if (tile === 'X') {
     walked = { ...walked, status: 'cleared' }

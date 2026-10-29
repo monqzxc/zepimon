@@ -67,3 +67,42 @@ test('torches light their own tiles in the dark', () => {
   assert.ok(tiles.has('7,0'))
   assert.ok(!tiles.has('5,0'))
 })
+
+test('a switch opens its gate group', () => {
+  const st = stage(['@aA.X'])
+  const first = stepRoom(startRoom(st), st, 'east')
+  assert.deepEqual(first.events, ['switch'])
+  assert.equal(first.room.open, 'A')
+  const done = press(first.room, st, 'east', 'east', 'east')
+  assert.equal(done.room.status, 'cleared')
+})
+
+test('stepping onto it again shuts the gate', () => {
+  const st = stage(['@aA'])
+  const shut = press(startRoom(st), st, 'east', 'west', 'east')
+  assert.equal(shut.room.open, '')
+  const bump = stepRoom(shut.room, st, 'east')
+  assert.equal(bump.move, 'bump')
+  assert.equal(bump.room.message, 'The gate is shut.')
+})
+
+test('standing or bumping never toggles', () => {
+  const st = stage(['@a#'])
+  const first = stepRoom(startRoom(st), st, 'east')
+  const second = stepRoom(first.room, st, 'east')
+  assert.equal(second.room.open, 'A')
+  assert.deepEqual(first.events, ['switch'])
+  assert.deepEqual(second.events, [])
+})
+
+test('gates listed in open start open', () => {
+  const st = stage(['@A.'], { open: 'A' })
+  assert.equal(stepRoom(startRoom(st), st, 'east').move, 'step')
+})
+
+test('three groups are independent', () => {
+  const st = stage(['@abcABC'])
+  const all = press(startRoom(st), st, 'east', 'east', 'east')
+  assert.equal(all.room.open, 'ABC')
+  assert.equal(stepRoom(all.room, st, 'west').room.open, 'AC')
+})
