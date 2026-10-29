@@ -45,18 +45,20 @@ const plates = (stage: Stage) => stage.tiles.flatMap((row, y) => [...row].flatMa
 // Cells a boulder can never be pushed to a plate from, found by pulling a boulder backwards from every plate: a pull from c to c+d
 // needs c+2d to stand on. Rooms with no plates have none (boulders are only obstacles there). Cached per stage (id and grid, so edited data never reads a stale answer).
 const deadCache = new Map<string, Set<string>>()
-export function deadCells(stage: Stage): Set<string> {
+export function deadCells(stage: Stage): ReadonlySet<string> {
   const id = `${stage.id}|${stage.tiles.join('/')}`
   const cached = deadCache.get(id)
   if (cached) return cached
   const ground = (point: Point) => GROUND.includes(tileAt(stage, point))
+  // The boulder rests on ground; the player pulling it may stand on anything that is not solid (over-approximating keeps 'dead' safe).
+  const standable = (point: Point) => !'#!~R?M'.includes(tileAt(stage, point))
   const good = new Set(plates(stage))
   const queue = [...good]
   for (let i = 0; i < queue.length; i++) {
     const [x, y] = queue[i].split(',').map(Number)
     for (const step of Object.values(STEPS)) {
       const to = { x: x + step.x, y: y + step.y }, stand = { x: x + 2 * step.x, y: y + 2 * step.y }
-      if (!ground(to) || !ground(stand) || good.has(pointKey(to))) continue
+      if (!ground(to) || !standable(stand) || good.has(pointKey(to))) continue
       good.add(pointKey(to))
       queue.push(pointKey(to))
     }
@@ -169,7 +171,7 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
     move = 'warp'
     message = 'The pad whisks you across the chamber.'
   }
-  walked = { ...walked, seen: merge(walked.seen, around(stage, walked.at, stage.dark ? LIGHT : SIGHT)), message }
+  walked = { ...walked, seen: merge(merge(walked.seen, around(stage, next, stage.dark ? LIGHT : SIGHT)), around(stage, walked.at, stage.dark ? LIGHT : SIGHT)), message }
   return { room: walked, move, events }
 }
 

@@ -265,3 +265,18 @@ test('tap on a wall walks to its nearest side', () => {
   assert.equal(planRoomWalk(startRoom(sealed), sealed, { x: 2, y: 0 }), null)
   assert.equal(planRoomWalk(startRoom(sealed), sealed, { x: 1, y: 0 }) !== null, true)
 })
+
+test('a relic is fine to stand on while pushing', () => {
+  const st = stage(['#.@.#', '#.O.#', '#*._#', '#####'])
+  assert.ok(!deadCells(st).has('2,2'))
+  const pushed = stepRoom(startRoom(st), st, 'south')
+  assert.equal(pushed.move, 'push')
+  assert.deepEqual(pushed.room.boulders, ['2,2'])
+})
+
+test('a warp reveals around both pads', () => {
+  const st = stage(['@1' + '.'.repeat(12) + '2'], { warps: { 1: '2' } })
+  const room = stepRoom(startRoom(st), st, 'east').room
+  assert.ok(room.seen.includes('5,0'))
+  assert.ok(room.seen.includes('14,0'))
+})
