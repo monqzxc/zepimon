@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ARENAS, ARENA_SIZE, PULSE_PERIOD, PULSE_WINDOW, RECOVER_MS, STAGGER_MS, WARN_MS, WAVE_WARN_MS, arenaFor, arenaTick, arenaWalk, dangerTiles,
+import { ARENAS, ARENA_SIZE, LORE_HOMES, PULSE_PERIOD, PULSE_WINDOW, RECOVER_MS, STAGGER_MS, WARN_MS, WAVE_WARN_MS, arenaFor, arenaTick, arenaWalk, dangerTiles,
   insideArena, maxResonance, pauseArena, pulsePhase, resonate, resumeArena, startArena } from '../src/games/resonance.ts'
 import { ZONES } from '../src/games/safari.ts'
 import { STEPS, areaAt, isWalkable, pointKey, planWalk, reachableFrom, safariMap, tileAt } from '../src/games/safari-zone.ts'
@@ -27,17 +27,21 @@ function walkRoute(arena, route, now, random = MID) {
 const walkTo = (arena, to, now, random) => walkRoute(arena, planWalk(arena.at, to, arena.layout.map), now, random)
 const tick = (arena, now, random = MID) => arenaTick(arena, now, random).arena
 
-test('each Legendary meets in the Safari Zone area its type lives in, as the wild Pokemon there do', () => {
+test('each Legendary meets where its story places it, or else in the Safari Zone area its type lives in', () => {
   assert.deepEqual(Object.keys(ARENAS).sort(), Object.keys(ZONES).sort(), 'One arena per area')
   const zoneOf = name => arenaFor(name).zone
-  assert.deepEqual(['Kyogre', 'Suicune', 'Articuno', 'Manaphy'].map(zoneOf), ['lake', 'lake', 'lake', 'lake'])
-  assert.deepEqual(['Groudon', 'Rayquaza', 'Moltres', 'Heatran', 'Regirock'].map(zoneOf), Array(5).fill('mountain'))
-  assert.deepEqual(['Uxie', 'Darkrai', 'Giratina', 'Mewtwo'].map(zoneOf), Array(4).fill('night'))
-  assert.deepEqual(['Shaymin', 'Arceus', 'Zapdos', 'Raikou'].map(zoneOf), Array(4).fill('meadow'))
-  assert.equal(arenaFor('Shiny Kyogre'), arenaFor('Kyogre'), 'A Shiny lives where its kind does')
+  assert.deepEqual(['Kyogre', 'Suicune', 'Lugia', 'Latias', 'Latios', 'Uxie', 'Mesprit', 'Azelf'].map(zoneOf), Array(8).fill('lake'))
+  assert.deepEqual(['Groudon', 'Rayquaza', 'Dialga', 'Palkia', 'Arceus', 'Mewtwo', 'Regigigas'].map(zoneOf), Array(7).fill('mountain'))
+  assert.deepEqual(['Darkrai', 'Giratina', 'Celebi', 'Jirachi', 'Zeraora'].map(zoneOf), Array(5).fill('night'))
+  assert.deepEqual(['Shaymin', 'Mew', 'Zapdos', 'Raikou'].map(zoneOf), Array(4).fill('meadow'))
+  assert.equal(arenaFor('Shiny Lugia'), arenaFor('Lugia'), 'A Shiny lives where its kind does')
+  for (const [name, zone] of Object.entries(LORE_HOMES)) {
+    assert.ok(legendarySpecies.includes(name), `${name} is a Legendary`)
+    assert.ok(!ZONES[zone].types.includes(pokemonTypes[name]), `${name}'s story moves it somewhere its type would not`)
+  }
   for (const name of legendarySpecies) {
     const arena = arenaFor(name)
-    assert.ok(ZONES[arena.zone].types.includes(pokemonTypes[name]), `${name} (${pokemonTypes[name]}) is at home in the ${arena.label}`)
+    assert.ok(LORE_HOMES[name] === arena.zone || ZONES[arena.zone].types.includes(pokemonTypes[name]), `${name} is at home in the ${arena.label}`)
   }
   assert.equal(arenaFor('Missingno').zone, 'meadow', 'An unknown name still gets an arena')
 })

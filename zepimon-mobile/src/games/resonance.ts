@@ -7,8 +7,8 @@ import { LEDGES, STEPS, isWalkable, pointKey, reachableFrom, safariMap, tileAt }
 import type { Direction, Point, SafariMap } from './safari-zone.ts'
 
 // The Legendary Resonance Trial's arena, kept free of React so its rules can be tested. It is a 9 × 9 clearing of the
-// real Safari Zone map in the area where the Legendary's type lives, as the Safari Zone's own wild Pokemon do (ZONES in
-// src/games/safari.ts): the meadow for Grass, Bug, Normal, Electric and Fairy, the lakeside for Water and Ice, the rocky
+// real Safari Zone map in the area where the Legendary lives: where its story places it (LORE_HOMES), or else by its
+// type, as the Safari Zone's own wild Pokemon are placed (ZONES in src/games/safari.ts): the meadow for Grass, Bug, Normal, Electric and Fairy, the lakeside for Water and Ice, the rocky
 // mountain for Rock, Ground, Fighting, Steel, Fire and Dragon, and the night forest for Ghost, Dark, Poison and Psychic.
 // The same terrain, collision, walking and tap-to-walk (src/games/safari-zone.ts), with everything outside the clearing
 // walled off and the Legendary standing in its middle. The player switches on four ancient seals, each a small, gentle
@@ -83,11 +83,26 @@ function buildLayout(zone: Zone): ArenaLayout {
 }
 export const ARENAS: Record<Zone, ArenaLayout> = { meadow: buildLayout('meadow'), lake: buildLayout('lake'), mountain: buildLayout('mountain'), night: buildLayout('night') }
 
-// The arena for a Legendary: the Safari Zone area its type lives in. Any type no area lists (none of today's Legendaries)
-// meets in the meadow.
+// Where a Legendary's story places it, when that isn't the area its type would give it.
+export const LORE_HOMES: Record<string, Zone> = {
+  Mewtwo: 'mountain', // Cerulean Cave
+  Mew: 'meadow', // Faraway Island's tall grass
+  Lugia: 'lake', // the Whirl Islands' deep sea
+  Latias: 'lake', Latios: 'lake', // Southern Island and Alto Mare's canals
+  Jirachi: 'night', // wakes under the Millennium Comet
+  Uxie: 'lake', Mesprit: 'lake', Azelf: 'lake', // the Lake Guardians of Acuity, Verity and Valor
+  Palkia: 'mountain', // Spear Pillar, atop Mt. Coronet
+  Regigigas: 'mountain', // the Snowpoint Temple's stone halls
+  Arceus: 'mountain', // the Hall of Origin, above Spear Pillar
+  Zeraora: 'night' // the forest outside Fula City
+}
+
+// The arena for a Legendary: where its story places it, or else the Safari Zone area its type lives in. Any type no
+// area lists (none of today's Legendaries) meets in the meadow.
 export function arenaFor(name: string): ArenaLayout {
-  const type = (pokemonTypes as Record<string, string>)[name.replace(/^Shiny /, '')]
-  const zone = (Object.keys(ZONES) as Zone[]).find(id => ZONES[id].types.includes(type)) ?? 'meadow'
+  const species = name.replace(/^Shiny /, '')
+  const type = (pokemonTypes as Record<string, string>)[species]
+  const zone = LORE_HOMES[species] ?? (Object.keys(ZONES) as Zone[]).find(id => ZONES[id].types.includes(type)) ?? 'meadow'
   return ARENAS[zone]
 }
 

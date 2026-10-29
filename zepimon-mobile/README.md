@@ -322,11 +322,14 @@ already credited in `SPRITE-CREDITS.md`; the Poké Ball is the app's own vector 
 
 #### Legendary Resonance Trials
 
-Between the chamber and the battle, the Legendary resonates in an arena: a 9 × 9 clearing of the Safari Zone in the
-area its type lives in, by the same rule as the Safari Zone's wild Pokemon. Water and Ice Legendaries (Kyogre,
-Suicune, Articuno…) meet by the lake; Rock, Ground, Fighting, Steel, Fire and Dragon ones (Groudon, Rayquaza, Moltres…)
-on the rocky mountain; Ghost, Dark, Poison and Psychic ones (Darkrai, Giratina, Uxie, Mewtwo…) in the night forest; and
-Grass, Bug, Normal, Electric and Fairy ones (Shaymin, Zapdos, Arceus…) in the sunny meadow. The arena is drawn, walked
+Between the chamber and the battle, the Legendary resonates in an arena: a 9 × 9 clearing of the Safari Zone where it
+lives. Its story decides first: the Lake Guardians Uxie, Mesprit and Azelf, Lugia, and Latias and Latios meet by the
+lake; Mewtwo (Cerulean Cave), Palkia and Arceus (Spear Pillar) and Regigigas on the rocky mountain; Jirachi and
+Zeraora in the night forest; Mew in the sunny meadow (Faraway Island's tall grass). Every other Legendary goes where its
+type lives, by the same rule as the Safari Zone's wild Pokemon: Water and Ice by the lake (Kyogre, Suicune…); Rock,
+Ground, Fighting, Steel, Fire and Dragon on the mountain (Groudon, Rayquaza, Dialga…); Ghost, Dark, Poison and Psychic
+in the night forest (Darkrai, Giratina, Celebi…); and Grass, Bug, Normal, Electric and Fairy in the meadow (Shaymin,
+Zapdos, Raikou…). The list is `LORE_HOMES` in `src/games/resonance.ts`. The arena is drawn, walked
 and collided exactly as the Safari Zone is (the same map and terrain, D-pad, arrow keys / WASD or Tap to walk, trainer
 and buddy). Every clearing has the same plan of seals, runes, stones and safe tiles; a mark that would land on a tree or
 rock moves to the nearest open tile. The Legendary stands in the middle as its Emerald overworld sprite, the same
