@@ -195,7 +195,7 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
       {confirm !== 'none' && <View style={look.pause}>
         {confirm === 'shiny' ? <>
           <Text style={[look.pauseTitle, { color: '#FFE27A' }]}>✦ This {encounter.name} is Shiny ✦</Text>
-          <Copy color="#FFFFFF">Walking out leaves it behind. The next time you come in, the Legendary is met anew: a 1 in 100 chance of a Shiny.</Copy>
+          <Copy color="#FFFFFF">Walking out leaves it behind. The next time you come in, the Legendary is met anew and may not be Shiny.</Copy>
           <Button title="I understand, walk out" secondary onPress={() => setConfirm('shiny-final')} />
         </> : <>
           <Text style={look.pauseTitle}>Leave the Shiny {encounter.name} behind?</Text>
@@ -209,7 +209,7 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
       {error || saveError || (arena.message === objective(arena) ? '' : `${feedbackMark(arena)}${arena.message}`)}</Text>
     {help && <Panel style={{ gap: 6 }}>
       <Copy small color={colors.ink}>Walk with the D-pad, arrow keys or WASD, or tap a spot with Tap to walk (as in the Safari Zone).</Copy>
-      <Copy small>Until a seal is on, {encounter.name} only watches. Walk back out of the entrance {ARROWS[layout.out]} to come in again and meet it anew (1 in 100 Shiny); the entrance seals for a moment. Leave keeps it just as it is. Once a seal is on, it stays as it is.</Copy>
+      <Copy small>Until a seal is on, {encounter.name} only watches. Walk back out of the entrance {ARROWS[layout.out]} to come in again and meet it anew; the entrance seals for a moment. Leave keeps it just as it is. Once a seal is on, it stays as it is.</Copy>
       {RESONANCE_SEALS.map(seal => <Copy key={seal} small>{SEAL_HELP[seal]}</Copy>)}
       <Copy small>⚠ marks where an attack will land, ✸ is it landing. Step off before it lands. Hits only count on the marked tiles.</Copy>
     </Panel>}

@@ -189,7 +189,7 @@ export default function ExpeditionsScreen() {
         <Copy>{Object.keys(expeditions.dex).length} Normal / Shiny discoveries kept on this phone.</Copy>
         <Button title="Open my Dex" secondary onPress={() => router.push('/dex')} />
       </Panel>
-      <Copy small>Each time you meet a Legendary in its lair there is a 1 in 100 Shiny chance. Walking back out of the lair’s entrance before switching on a seal means the next entry meets it anew (the entrance seals for a moment, and a Shiny asks twice first). Leaving any other way, reopening or syncing never changes it, and once a seal is on it stays as it is. Encounters opened before this update keep the Shiny they were already showing.</Copy>
+      <Copy small>Each time you meet a Legendary in its lair, it may be Shiny. Walking back out of the lair’s entrance before switching on a seal means the next entry meets it anew (the entrance seals for a moment, and a Shiny asks twice first). Leaving any other way, reopening or syncing never changes it, and once a seal is on it stays as it is. Encounters opened before this update keep the Shiny they were already showing.</Copy>
       <Copy small>Distance counts only saved adventures, never live distance. A failed catch or leaving uses nothing up. Befriending records, quests and permits are kept on this phone; reinstalling requires befriending unlocked encounters again.</Copy>
     </>}
   </GameScreenContext.Provider></Screen>
@@ -231,7 +231,7 @@ function Encounter({ trailKey, trail, encounter, busy, onBegin, onEnter, onPermi
       <Copy color={colors.gold}>{encounter?.trial ? `Your trial is done. ${name} waits in the ${lair}.` : `${trial.title} · ${KIND_NAMES[trial.kind]}: ${encounter?.checkpoint ? 'pick up the trial where you left it' : 'clear the trial'} to reach ${name}.`}</Copy>
       {!encounter?.trial && <Copy>{trial.lore}</Copy>}
       <Button title={encounter?.trial ? enter : 'Begin the trial'} loading={busy} disabled={sealedFor > 0} onPress={encounter?.trial ? onEnter : onBegin} />
-      {encounter?.trial && !resonance?.started && <Copy small>{encounter.resetPending ? `You walked out. Going back in meets ${name} anew: a 1 in 100 chance of a Shiny.`
+      {encounter?.trial && !resonance?.started && <Copy small>{encounter.resetPending ? `You walked out. Going back in meets ${name} anew.`
         : `Coming in shows whether ${name} is Shiny. Until you switch on a seal, you can walk back out and come in again to meet it anew.`}</Copy>}
     </> : <>
       <Copy>Save another adventure on your watch or this phone to continue, or open this encounter early with an Expedition Permit.</Copy>
