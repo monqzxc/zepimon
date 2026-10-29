@@ -242,8 +242,9 @@ into subsequent expeditions; multiple unlocked encounters wait for you.
   challenge (light nine lanterns; touching one flips it and its neighbours). It earns one **Expedition Permit**.
   The first quest counts sessions since your expedition trail began; each later quest counts sessions after the
   last one used, so no session counts twice, however often a journal is imported.
-- **Route C, arcade achievements:** 25 achievements across the Pocket Arcade (Memory Match, Quiz, Berry Catch,
-  Route Guard, Trail Defense, the Adventure Map and the Safari Zone) are worth 10–40 points each, 530 in all.
+- **Route C, arcade achievements:** 32 achievements across the Pocket Arcade (Memory Match, Quiz, Berry Catch,
+  Route Guard, Trail Defense, the Adventure Map, the Safari Zone and the Legendary Trials) are worth 10–40 points
+  each, 610 in all.
   Every 100 points can be traded for an Expedition Permit. Achievements are read from the best scores, stars and
   Safari catches the games already save, so replaying cannot count one twice. The arcade shows them under
   **Arcade achievements**.
@@ -255,8 +256,8 @@ next 25 km after a permit encounter.
 
 **Each encounter: trial → chamber → battle → catch.**
 
-1. **Trial:** a species-themed shrine maze (for example Sky Pillar Ascent for Rayquaza), played with the D-pad or the
-   arrow keys / WASD. Walls block; reaching the golden exit finishes it, and it stays finished.
+1. **Trial:** a species-themed Legendary Trial (for example Sky Pillar Ascent for Rayquaza), one or two rooms walked
+   like the Safari Zone. See **Legendary Trials** below. Once finished, it stays finished.
 2. **Chamber:** the Legendary slides in and its result is revealed. Each roll has a **1 in 100** Shiny chance, made
    the first time the chamber opens. Leaving, refreshing, reopening or syncing never rerolls. **Reset encounter**
    asks for confirmation (two steps for a Shiny), waits **5 seconds**, then rolls once. The wait is saved as a clock
@@ -270,6 +271,84 @@ next 25 km after a permit encounter.
 Battle animations (entrances, idle bob, lunge, hit flashes with Gen III move strips, ball arc, shakes and capture)
 respect the phone's or the app's reduce-motion setting. They reuse the Emerald battle backgrounds and move sprites
 already credited in `SPRITE-CREDITS.md`; the Poké Ball is the app's own vector icon.
+
+#### Legendary Trials
+
+Every Legendary has a trial of one of six kinds. All six share the Safari Zone's movement: Brendan or May (the Safari
+setting) with your buddy one tile behind, the D-pad or the arrow keys / WASD (hold to keep walking), or **Tap to walk**,
+whose routes never cross a hole, cracked floor, switch, pad or crystal on the way (they can end on one). A bump into
+a wall costs no move.
+Rooms are Emerald tiles, and a minimap shows only the tiles you have seen.
+
+| Kind | Legendaries | What the rooms ask |
+|---|---|---|
+| **Switch Maze** | Zapdos, Raikou, Ho-Oh, Jirachi, Magearna, Zeraora, Arceus | Stepping *onto* a switch (a, b, c) opens or shuts every gate of its letter. Standing still or bumping does nothing. |
+| **Crumbling Floor** | Articuno, Moltres, Suicune, Regice, Latias, Latios, Rayquaza, Heatran | Cracked floor holds once, then becomes a hole. Stepping into a hole drops you and the room starts again. Some rooms ask you to cross every cracked tile. |
+| **Dark Labyrinth** | Entei, Celebi, Kyogre, Groudon, Giratina, Darkrai, Cresselia, Zygarde | You see 2 tiles around you, and wall torches light 1 tile around them. Unseen tiles stay black, and Tap to walk only goes to tiles you have seen. |
+| **Ancient Temple** | Lugia, Regirock, Registeel, Regigigas, Shaymin, Diancie, Phione, Manaphy | Push boulders onto pressure plates. When every plate holds a boulder at once, the stone door opens for good. A push that would leave a boulder where it could never reach a plate is refused ("The boulder would get stuck there."). |
+| **Warp Chamber** | Mewtwo, Mew, Uxie, Mesprit, Azelf, Dialga, Palkia | Stepping onto a numbered pad moves you to its partner pad. You stop there, so a held key never chains warps. |
+| **Shattered Star** | Deoxys | A single island puzzle (below). |
+
+Every maze room also has walls, rocks and deep water that block, relics to collect, and a golden exit (the chamber
+door in the last room) that opens once every relic is found ("The seal holds. 2 relics remain." until then).
+
+**Room order.** The first time you meet a kind, its trial starts with a short tutorial room that teaches its
+mechanic. Then comes one main room: room 1 if you have cleared no main room of that kind yet, room 2 after one, and
+room 3 after two or more. So a trial is one or two rooms, and later Legendaries of a kind you know get harder rooms.
+The Shattered Star is always the one island; its clue stones and hints stand in for a tutorial.
+
+**Moves and par.** There is no timer and no move limit. Each room counts your moves (a step, push or warp) and shows
+its par, the fewest moves that clear it. **Restart room** puts the room back as it was. **Start the
+trial over** goes back to the first room.
+
+**The Shattered Star (Deoxys).** A meteorite sits at the island's heart, with five crystals around the shore and on
+an islet. The goal is to light the right crystals and turn the star to the right face, then wake it.
+
+- **Crystals.** Each time you step *onto* a crystal, it flips: lit goes dark and dark lights up. Its two linked
+  neighbours flip with it. Only the step onto it counts: standing on a crystal, or bumping into something while you
+  stand on it, changes nothing.
+- **Turns.** Some crystals also turn the star one face each time you step onto them. It has three faces, so the
+  third turn brings it back to the first face.
+- **Passages.** A crystal can open a passage (a gate across the water) the first time it lights. The passage stays
+  open for good, whatever you do to the crystals afterwards.
+- **Clue stones.** Walk into a stone to read it. Together, the stones tell you the whole answer. The lines of old
+  stars drawn on the ground also point the way.
+- **Attuning.** Walk into the meteorite to try it. If the lit crystals and the star's face are right, the
+  meteorite wakes and Deoxys appears. If not, the attempt counts and the meteorite says how close you were without
+  saying which part is wrong: "The meteorite flickers. 3 of 6 lights answer." counts each crystal in the right state,
+  plus one if the face is right. A failed attempt changes nothing else, so you can build on what it told you.
+- **Hints.** The **Hint** button gives a new hint after every two attempts, up to three, from vague to specific.
+  None of them gives the whole answer.
+- **Reset the crystals** puts the crystals and the star's face back to how you found them. You keep your place,
+  the map you have explored, the stones you have read, the passages you have opened and your attempts (and so your
+  hints). **Restart room** resets everything, including those.
+
+**Checkpoints.** Leaving never uses up the encounter. Your place in the trial is saved when you clear a room, when
+you leave and when the app goes to the background, and you pick up exactly where you were: the same room, position,
+moves, open gates, holes, boulders and seen tiles. If an app update changes a room you were partway through, that
+checkpoint is dropped and the trial starts fresh; the encounter itself is kept. Finishing the trial is permanent.
+
+**Records and achievements.** Your best moves for every room are kept on this phone (`trialRecords`, included in
+backups). The arcade has seven trial achievements, 80 points in all: **Clear a Switch Maze / Crumbling Floor / Dark
+Labyrinth / Ancient Temple / Warp Chamber trial** (a main room of that kind, 10 points each), **Wake the Shattered
+Star** (10) and **Right on par** (clear 5 different rooms at or under par, 20). The trial itself never claims the
+encounter or changes its species, Shiny roll or order: only a successful catch does.
+
+Trial animations (steps, falls, warps, room fades and the star's reveal) respect reduce motion. The art is Emerald's,
+credited in `SPRITE-CREDITS.md`.
+
+**Adding a room or a new star-style puzzle.** Rooms are data. Each is an entry in `scripts/trials/stages.json`, keyed
+`<kind>-tutorial` or `<kind>-1`…`3` (the ids the room order picks), with `kind`, `tiles` (one character per tile:
+`.` ground, `,` path, `g` grass, `w` shallows, `~` water, `R` rock, `#` wall, `!` torch, `@` start, `X` exit,
+`*` relic, `a`–`c` switches and `A`–`C` their gates, `_` plate, `=` stone door, `O` boulder, `:` cracked floor,
+`1`–`9` warp pads, and for a star `%` crystal, `?` clue stone and `M` the 2 × 2 meteorite), `par` and a `hint`, plus
+`open`, `crackAll`, `dark` or `warps` where they apply. A star-style puzzle adds a `star` block: crystal `nodes` (`id`,
+`at`, `links`, `turns`, optional `opens`), `patterns`, `startLit`, the `target`, `resetOnFail`, `clues` (each with the
+crystals or `pattern` it `reveals`) and three `hints`. A new Legendary's kind and lore go in `TRIALS` in
+`src/games/trials.ts`. Then run `python scripts/build-trial-maps.py` (Pillow), which checks the room against the
+rules, bakes `assets/trials/` and writes `src/generated/trial-maps.js` and `trial-assets.js`, and `npm test`, which
+proves every room can be cleared within par by the real rules, keeps rooms to a 3–5 minute size and checks that a
+star's clues cover its whole target and that it takes at least three crystal presses.
 
 **Shiny odds and older saves.** The canonical seeded draw in `hatdog-app/shared/expedition.js` (species and its
 1-in-50 Shiny) is unchanged and still fixes each encounter's species. Encounter rolls are kept separately (`encounters`

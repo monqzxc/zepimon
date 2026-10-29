@@ -113,7 +113,7 @@ The app works the same on Android and iPhone. It has five tabs:
 - **iPhone** keeps recording in the background and shows the blue location indicator.
 - Both only need **While using the app** location permission.
 
-**Legendary Expeditions.** Open a Legendary encounter with 25 km of saved walks and runs, an Expedition Quest (three saved sessions plus a shrine challenge) or 100 arcade achievement points. Then clear its shrine maze, see its result in the chamber (1 in 100 Shiny, resettable before the battle), and battle and catch it with a Poké Ball. Only a successful catch adds it to your Dex.
+**Legendary Expeditions.** Open a Legendary encounter with 25 km of saved walks and runs, an Expedition Quest (three saved sessions plus a shrine challenge) or 100 arcade achievement points. Then clear its Legendary Trial (a Switch Maze, Crumbling Floor, Dark Labyrinth, Ancient Temple or Warp Chamber, or the Shattered Star island puzzle for Deoxys), see its result in the chamber (1 in 100 Shiny, resettable before the battle), and battle and catch it with a Poké Ball. Only a successful catch adds it to your Dex.
 
 ### Manual JSON import
 
