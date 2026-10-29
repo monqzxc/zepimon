@@ -224,7 +224,7 @@ export const hintTier = (room: Room): 0 | 1 | 2 | 3 => Math.min(3, Math.floor(ro
 const ORDER: Direction[] = ['north', 'south', 'west', 'east']
 
 // 'free' tiles can be crossed without side effects; 'end' tiles (switches, fragile floor, live pads, crystals, the exit) only end a route.
-function crossing(room: Room, stage: Stage, point: Point): 'free' | 'end' | null {
+function crossingTile(room: Room, stage: Stage, point: Point): 'free' | 'end' | null {
   const tile = tileAt(stage, point), key = pointKey(point)
   if (room.boulders.includes(key)) return null
   if ('.,g@w_O*'.includes(tile)) return 'free'
@@ -240,6 +240,8 @@ function crossing(room: Room, stage: Stage, point: Point): 'free' | 'end' | null
 // last step. A wall, boulder or other blocked tile walks to its nearest reachable side. Null when there is no way there.
 export function planRoomWalk(room: Room, stage: Stage, to: Point): Direction[] | null {
   if (room.at.x === to.x && room.at.y === to.y) return []
+  // In the dark a route only runs over tiles already seen, so it can't reveal a shortcut.
+  const crossing = (r: Room, st: Stage, point: Point) => stage.dark && !room.seen.includes(pointKey(point)) ? null : crossingTile(r, st, point)
   const trail = routeSearch(room.at, point => {
     if (pointKey(point) !== pointKey(room.at) && crossing(room, stage, point) !== 'free') return []
     return ORDER.flatMap((direction): [Direction, Point][] => {
@@ -256,4 +258,13 @@ export function planRoomWalk(room: Room, stage: Stage, to: Point): Direction[] |
     if (!best || route.length < best.length) best = route
   }
   return best
+}
+
+// What one step means to the walker: a bump takes a full step time like the Safari Zone's, so a held key into a wall doesn't repeat
+// every few milliseconds; a warp or a bump that does something lets go of the held input; a tap route stops at a bump or anything
+// that happens, except the silent crack left behind when it starts on cracked floor.
+export function walkOutcome(result: Pick<RoomResult, 'move' | 'events'>) {
+  if (result.move === 'none') return { moved: false, stop: false, drop: false }
+  return { moved: true, stop: result.move === 'bump' || result.events.some(event => event !== 'crack'),
+    drop: result.move === 'warp' || (result.move === 'bump' && result.events.length > 0) }
 }

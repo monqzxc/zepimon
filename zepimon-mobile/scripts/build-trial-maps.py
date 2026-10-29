@@ -85,81 +85,87 @@ GLOW = (0xB8, 0x78, 0xF8)                    # the meteorite's pattern light
 PATTERNS = 3                                 # meteorite pattern frames (the island's `patterns`)
 
 
+def check(condition, message=''):
+    """A check that survives `python -O`, which strips assert."""
+    if not condition:
+        sys.exit(f'build-trial-maps: {message}')
+
+
 def read_stages():
     """stages.json, checked so a broken room never reaches the app."""
     stages = json.loads(STAGES.read_text(encoding='utf-8'))
     for sid, stage in stages.items():
         kind, tiles = stage.get('kind'), stage.get('tiles')
-        assert kind in KINDS, f'{sid}: unknown kind {kind!r}'
-        assert re.fullmatch(r'star' if kind == 'star' else rf'{kind}-(tutorial|1|2|3)', sid), f'{sid}: ids are <kind>-tutorial, <kind>-1|2|3 or star'
-        assert tiles and all(isinstance(row, str) for row in tiles), f'{sid}: tiles are rows of characters'
+        check(kind in KINDS, f'{sid}: unknown kind {kind!r}')
+        check(re.fullmatch(r'star' if kind == 'star' else rf'{kind}-(tutorial|1|2|3)', sid), f'{sid}: ids are <kind>-tutorial, <kind>-1|2|3 or star')
+        check(tiles and all(isinstance(row, str) for row in tiles), f'{sid}: tiles are rows of characters')
         rows, cols = len(tiles), len(tiles[0])
-        assert all(len(row) == cols for row in tiles), f'{sid}: rows must have equal length'
-        assert rows <= MAX_SIZE and cols <= MAX_SIZE, f'{sid}: at most {MAX_SIZE} x {MAX_SIZE} tiles'
+        check(all(len(row) == cols for row in tiles), f'{sid}: rows must have equal length')
+        check(rows <= MAX_SIZE and cols <= MAX_SIZE, f'{sid}: at most {MAX_SIZE} x {MAX_SIZE} tiles')
         grid = ''.join(tiles)
         count = grid.count
         for y, row in enumerate(tiles):
             for x, char in enumerate(row):
-                assert char in LEGEND, f'{sid}: unsupported tile {char!r} at {x},{y}'
-                assert kind == 'star' or char not in STAR_ONLY, f'{sid}: only the star island may use {char!r} ({x},{y})'
-        assert count('@') == 1, f'{sid}: exactly one start @'
+                check(char in LEGEND, f'{sid}: unsupported tile {char!r} at {x},{y}')
+                check(kind == 'star' or char not in STAR_ONLY, f'{sid}: only the star island may use {char!r} ({x},{y})')
+        check(count('@') == 1, f'{sid}: exactly one start @')
         par = stage.get('par')
-        assert isinstance(par, int) and not isinstance(par, bool) and par > 0, f'{sid}: par is a positive integer'
-        assert isinstance(stage.get('hint'), str) and stage['hint'], f'{sid}: needs a hint line'
+        check(isinstance(par, int) and not isinstance(par, bool) and par > 0, f'{sid}: par is a positive integer')
+        check(isinstance(stage.get('hint'), str) and stage['hint'], f'{sid}: needs a hint line')
         warps = stage.get('warps', {})
-        assert isinstance(warps, dict), f'{sid}: warps maps pad digits to pad digits'
+        check(isinstance(warps, dict), f'{sid}: warps maps pad digits to pad digits')
         for pad, target in warps.items():
-            assert re.fullmatch('[1-9]', pad) and pad in grid, f'{sid}: warp {pad!r} is not a pad in the grid'
-            assert isinstance(target, str), f'{sid}: warp {pad} leads to {target!r}; targets are pad digits as strings'
-            assert re.fullmatch('[1-9]', target) and target in grid, f'{sid}: warp {pad} leads to {target!r}, not a pad in the grid'
-        assert all(count(pad) <= 1 for pad in '123456789'), f'{sid}: each warp pad digit is used once'
-        assert count('O') >= count('_'), f'{sid}: a room with plates needs at least as many boulders'
-        assert not stage.get('crackAll') or ':' in grid, f'{sid}: crackAll needs fragile floor'
+            check(re.fullmatch('[1-9]', pad) and pad in grid, f'{sid}: warp {pad!r} is not a pad in the grid')
+            check(isinstance(target, str), f'{sid}: warp {pad} leads to {target!r}; targets are pad digits as strings')
+            check(re.fullmatch('[1-9]', target) and target in grid, f'{sid}: warp {pad} leads to {target!r}, not a pad in the grid')
+        check(all(count(pad) <= 1 for pad in '123456789'), f'{sid}: each warp pad digit is used once')
+        check(count('O') >= count('_'), f'{sid}: a room with plates needs at least as many boulders')
+        check(not stage.get('crackAll') or ':' in grid, f'{sid}: crackAll needs fragile floor')
         open_ = stage.get('open', '')
-        assert isinstance(open_, str) and all(gate in 'ABC' and gate in grid for gate in open_), f'{sid}: open lists gate letters A-C that are in the grid'
+        check(isinstance(open_, str) and all(gate in 'ABC' and gate in grid for gate in open_), f'{sid}: open lists gate letters A-C that are in the grid')
         star = stage.get('star')
         opened = {node.get('opens') for node in star['nodes']} if star else set()
         for gate in 'ABC':
-            assert gate not in grid or gate.lower() in grid or gate in opened, f'{sid}: gate {gate} has no switch'
-            assert gate.lower() not in grid or gate in grid, f'{sid}: switch {gate.lower()} has no gate'
+            check(gate not in grid or gate.lower() in grid or gate in opened, f'{sid}: gate {gate} has no switch')
+            check(gate.lower() not in grid or gate in grid, f'{sid}: switch {gate.lower()} has no gate')
         if kind == 'star':
             read_star(sid, tiles, star)
         else:
-            assert star is None, f'{sid}: only the star island has star rules'
-            assert count('X') == 1, f'{sid}: exactly one exit X'
+            check(star is None, f'{sid}: only the star island has star rules')
+            check(count('X') == 1, f'{sid}: exactly one exit X')
     return stages
 
 
 def read_star(sid, tiles, star):
-    assert star, f'{sid}: the star island needs its rules'
+    check(star, f'{sid}: the star island needs its rules')
     cells = lambda char: [(x, y) for y, row in enumerate(tiles) for x, c in enumerate(row) if c == char]
-    assert not cells('X'), f'{sid}: the island has no exit X'
+    check(not cells('X'), f'{sid}: the island has no exit X')
     block = cells('M')
-    assert len(block) == 4 and {(x - block[0][0], y - block[0][1]) for x, y in block} == {(0, 0), (1, 0), (0, 1), (1, 1)}, \
-        f'{sid}: exactly one 2 x 2 meteorite M'
+    check(len(block) == 4 and {(x - block[0][0], y - block[0][1]) for x, y in block} == {(0, 0), (1, 0), (0, 1), (1, 1)},
+        f'{sid}: exactly one 2 x 2 meteorite M')
     crystals, nodes = cells('%'), star['nodes']
-    assert 3 <= len(crystals) <= 5, f'{sid}: 3-5 crystals'
+    check(3 <= len(crystals) <= 5, f'{sid}: 3-5 crystals')
     ids = [node['id'] for node in nodes]
-    assert len(set(ids)) == len(ids), f'{sid}: node ids are unique'
+    check(len(set(ids)) == len(ids), f'{sid}: node ids are unique')
     for x, y in crystals:
-        assert sum(1 for node in nodes if tuple(node['at']) == (x, y)) == 1, f'{sid}: crystal {x},{y} needs exactly one node'
+        check(sum(1 for node in nodes if tuple(node['at']) == (x, y)) == 1, f'{sid}: crystal {x},{y} needs exactly one node')
     gates = {char for row in tiles for char in row if char in 'ABC'}
     for node in nodes:
-        assert tuple(node['at']) in crystals, f'{sid}: node {node["id"]} is not on a crystal'
-        assert all(link in ids for link in node['links']), f'{sid}: node {node["id"]} links an unknown id'
-        assert isinstance(node['turns'], int) and node['turns'] >= 0, f'{sid}: node {node["id"]} turns'
-        assert 'opens' not in node or node['opens'] in gates, f'{sid}: node {node["id"]} opens a gate not in the grid'
+        check(tuple(node['at']) in crystals, f'{sid}: node {node["id"]} is not on a crystal')
+        check(all(link in ids for link in node['links']), f'{sid}: node {node["id"]} links an unknown id')
+        check(isinstance(node['turns'], int) and node['turns'] >= 0, f'{sid}: node {node["id"]} turns')
+        check('opens' not in node or node['opens'] in gates, f'{sid}: node {node["id"]} opens a gate not in the grid')
     patterns = star['patterns']
-    assert isinstance(patterns, int) and patterns > 0 and 0 <= star['target']['pattern'] < patterns, f'{sid}: 0 <= target.pattern < patterns'
-    assert all(i in ids for i in star['startLit'] + star['target']['lit']), f'{sid}: startLit and target.lit are node ids'
-    assert isinstance(star['resetOnFail'], bool), f'{sid}: resetOnFail is true or false'
+    check(isinstance(patterns, int) and patterns > 0 and 0 <= star['target']['pattern'] < patterns, f'{sid}: 0 <= target.pattern < patterns')
+    check(all(i in ids for i in star['startLit'] + star['target']['lit']), f'{sid}: startLit and target.lit are node ids')
+    check(isinstance(star['resetOnFail'], bool), f'{sid}: resetOnFail is true or false')
     stones = cells('?')
     for x, y in stones:
-        assert sum(1 for clue in star['clues'] if tuple(clue['at']) == (x, y)) == 1, f'{sid}: clue stone {x},{y} needs exactly one clue'
+        check(sum(1 for clue in star['clues'] if tuple(clue['at']) == (x, y)) == 1, f'{sid}: clue stone {x},{y} needs exactly one clue')
     for clue in star['clues']:
-        assert tuple(clue['at']) in stones, f'{sid}: clue at {clue["at"]} is not on a stone'
-        assert all(r in ids or r == 'pattern' for r in clue['reveals']), f'{sid}: a clue reveals an unknown id'
-    assert len(star['hints']) == 3, f'{sid}: exactly 3 hints'
+        check(tuple(clue['at']) in stones, f'{sid}: clue at {clue["at"]} is not on a stone')
+        check(all(r in ids or r == 'pattern' for r in clue['reveals']), f'{sid}: a clue reveals an unknown id')
+    check(len(star['hints']) == 3, f'{sid}: exactly 3 hints')
 
 
 def tileset_name(name):
@@ -172,7 +178,7 @@ def check_themes():
     for kind, theme in THEMES.items():
         layout = layouts[theme['map'] + '_Layout']
         pair = (layout['primary_tileset'], layout['secondary_tileset'])
-        assert pair == (tileset_name(theme['primary']), tileset_name(theme['secondary'])), (kind, pair)
+        check(pair == (tileset_name(theme['primary']), tileset_name(theme['secondary'])), (kind, pair))
 
 
 def map_metatile(theme, tiles, x, y):
@@ -490,7 +496,7 @@ def write_assets(sprites, rooms):
 
 def main():
     if sys.argv[1:2] == ['--reference']:
-        assert len(sys.argv) == 4, 'usage: --reference <primary> <secondary>'
+        check(len(sys.argv) == 4, 'usage: --reference <primary> <secondary>')
         reference(sys.argv[2], sys.argv[3], ROOT.parent / 'tmp')
         return
     stages = read_stages()

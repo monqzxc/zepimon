@@ -84,7 +84,7 @@ export default function ExpeditionsScreen() {
         onCheckpoint={run => store.saveTrialCheckpoint(key, index, run)}
         onLeave={run => {
           leave('You left the trial. The encounter is still waiting for you.')
-          store.saveTrialCheckpoint(key, index, run).catch(() => setMessage('You left the trial, but your place in it could not be saved. The encounter is still waiting for you.'))
+          if (!encounter?.trial) store.saveTrialCheckpoint(key, index, run).catch(() => setMessage('You left the trial, but your place in it could not be saved. The encounter is still waiting for you.'))
         }}
         onSolved={results => { void act(async () => { await store.finishTrial(key, index, results); await store.openChamber(key, index) },
           () => setStep({ kind: 'chamber', key, index })) }} />

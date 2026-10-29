@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { deadCells, goalsMet, hintTier, lit, planRoomWalk, resetAlignment, resonance, startRoom, stepRoom } from '../src/games/trial.ts'
+import { deadCells, goalsMet, hintTier, lit, planRoomWalk, resetAlignment, resonance, startRoom, stepRoom, walkOutcome } from '../src/games/trial.ts'
 import { STAR } from './star-fixture.js'
 import { KIND_NAMES, nextRoom, restartRoom, restartRun, restoreRun, restoreTrialRecords, runCleared, saveTrialRecords, startRun, trialFor } from '../src/games/trials.ts'
 import { legendarySpecies } from '../src/generated/expedition.js'
@@ -535,4 +535,26 @@ test('a saved run must use canonical keys and a cleared room must end on its exi
   const sy = trialStages.star.tiles.findIndex(row => row.includes('M'))
   const sx = trialStages.star.tiles[sy].indexOf('M')
   assert.notEqual(restoreRun(edit(r => { r.room.status = 'cleared'; r.room.at = { x: sx - 1, y: sy } }, star)), null, 'Beside the meteorite')
+})
+
+test('tap routes in the dark only run over tiles already seen', () => {
+  const st = stage(['@...'], { dark: true })
+  const room = { ...startRoom(st), seen: ['0,0', '1,0', '3,0'] }
+  assert.equal(planRoomWalk(room, st, { x: 3, y: 0 }), null)
+  assert.deepEqual(planRoomWalk({ ...room, seen: [...room.seen, '2,0'] }, st, { x: 3, y: 0 }), ['east', 'east', 'east'])
+  const lit = stage(['@...'])
+  assert.deepEqual(planRoomWalk({ ...startRoom(lit), seen: [] }, lit, { x: 3, y: 0 }), ['east', 'east', 'east'])
+})
+
+test('a plain bump costs step time and keeps input; eventful ones let go', () => {
+  const wall = stage(['@#'])
+  const bump = stepRoom(startRoom(wall), wall, 'east')
+  assert.deepEqual(walkOutcome(bump), { moved: true, stop: true, drop: false })
+  assert.deepEqual(walkOutcome({ move: 'none', events: [] }), { moved: false, stop: false, drop: false })
+  for (const event of ['attune', 'clue', 'locked']) assert.deepEqual(walkOutcome({ move: 'bump', events: [event] }), { moved: true, stop: true, drop: true }, event)
+  assert.deepEqual(walkOutcome({ move: 'step', events: ['crack'] }), { moved: true, stop: false, drop: false })
+  assert.deepEqual(walkOutcome({ move: 'step', events: [] }), { moved: true, stop: false, drop: false })
+  assert.deepEqual(walkOutcome({ move: 'warp', events: ['warp'] }), { moved: true, stop: true, drop: true })
+  assert.equal(walkOutcome({ move: 'step', events: ['relic'] }).stop, true)
+  assert.equal(walkOutcome({ move: 'step', events: ['switch'] }).stop, true)
 })

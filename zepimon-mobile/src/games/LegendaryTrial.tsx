@@ -4,7 +4,7 @@ import { pokemonType } from '../catalog'
 import { setPreference, usePreferences } from '../preferences'
 import { Chip, Copy, Panel, colors, fonts, themedStyles, typeTints } from '../ui'
 import { trialStages } from '../generated/trial-maps.js'
-import { hintTier, planRoomWalk, resetAlignment, stepRoom } from './trial'
+import { hintTier, planRoomWalk, resetAlignment, stepRoom, walkOutcome } from './trial'
 import { KIND_NAMES, nextRoom, restartRoom, restartRun, startRun, trialFor } from './trials'
 import type { TrialRun } from './trials'
 import type { Direction, Point } from './safari-zone'
@@ -82,21 +82,22 @@ export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial
   const walkOnce = (direction: Direction) => {
     const before = current.current
     const result = stepRoom(before.room, stages[before.stages[before.index]], direction)
-    if (result.move === 'none') return { moved: false, stop: false }
+    const outcome = walkOutcome(result)
+    if (result.move === 'none') return outcome
     setMove(previous => ({ kind: result.move === 'bump' ? 'bump' : 'step', id: previous.id + 1, warp: result.move === 'warp' }))
     // Arriving on a pad stops you there: a held key or button is let go, as a tap route stops on the warp event. A bump that
     // does something (attuning the meteorite, reading a stone, a sealed exit) lets go too: a bump takes no step time, so a
     // held key would otherwise repeat it every few milliseconds and count dozens of attempts.
     if (result.move === 'warp') setJump(value => value + 1)
-    if (result.move === 'warp' || (result.move === 'bump' && result.events.length)) dropInput.current()
+    if (outcome.drop) dropInput.current()
     const next = { ...before, room: result.room }
     update(next)
     if (result.room.message) setStatus(result.room.message)
     if (result.room.status === 'fell') {
       setPhase('fall')
-      later(600, () => { update(restartRoom(current.current)); setJump(value => value + 1); setPhase('play') })
+      later(600, () => { update(restartRoom(current.current)); setStatus(stage.hint); setJump(value => value + 1); setPhase('play') })
     } else if (result.room.status === 'cleared') cleared(next)
-    return { moved: result.move !== 'bump', stop: result.move === 'bump' || result.events.some(event => event !== 'crack') }
+    return outcome
   }
   useEffect(() => { if (current.current.room.status === 'cleared') cleared(current.current) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const walking = phase === 'play' && !busy && room.status === 'playing'
