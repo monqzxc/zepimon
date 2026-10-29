@@ -607,6 +607,8 @@ Open **Play**, then choose a game:
 
 - **Route Guard / Trail Defense / Safari Zone:** see [Adventure games](#adventure-games). Free play saves the most waves cleared (out of 10 and 12) and the most Pokemon caught in one Safari Zone round.
 
+The Play tab lists the games as a grid of tiles, two to a row: each shows the game's logo, name and best result, and a tap opens it. Screen readers also hear a one-line description of each game. To add a game, add one entry to the list passed to `GameGrid` in `src/app/(tabs)/play.tsx`.
+
 Every game except Memory Match works without an import. Only completed games save scores; returning to the arcade discards an unfinished round, and switching tabs or leaving the app pauses it. Scores and stars survive app restarts and journal imports. No game changes watch distance, evolution or Shiny odds; the Safari Zone is the only one that adds Dex entries, marked ◎ Safari and kept out of missions.
 
 ## Run locally
