@@ -539,7 +539,7 @@ The Safari Zone and the Legendary Trial (including Shrine Revisit practice rooms
 
 - **Rotate** (top right) turns the game to landscape and back. The choice is remembered for next time. The rest of the app always stays portrait.
 - **Exit full screen** (top right), Android's back button, leaving the screen or putting the app in the background all leave full screen, and so do the end of a Safari round, a trial reaching the Legendary's lair, and a Safari encounter in landscape (encounters only fit in portrait).
-- In landscape the map uses about 9 tiles across the shorter side, so it doesn't zoom in too far. With reduced motion the D-pad changes instantly instead of fading.
+- In landscape the map uses about 10 tiles across the shorter side, so it doesn't zoom in too far. With reduced motion the D-pad changes instantly instead of fading.
 - On the web the browser can't rotate, so there is no rotate button; full screen is a layout, and it uses the landscape layout whenever the window is wider than it is tall.
 
 Turning the phone needs the native `expo-screen-orientation` module, so this release needs a new app build (an over-the-air update can't add it). The layout maths are in `src/games/immersive.ts`; `src/games/useImmersive.ts` applies and undoes the orientation lock, the hidden bars and the back button.

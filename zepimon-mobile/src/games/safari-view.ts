@@ -4,7 +4,7 @@ import type { Direction, Point, SafariMap } from './safari-zone.ts'
 // View maths for the Safari Zone screen, kept free of React so it can be tested: tile size, camera, which map chunks
 // to load, sprite frames, and the queue that turns D-pad presses and tap routes into one step at a time.
 export const STEP_MS = 220
-const ACROSS = 9
+const ACROSS = 10
 // Chunks stay loaded 2 tiles past the screen edge, enough for a step or hop to glide in without a gap.
 const MARGIN = 2
 const FACING: Direction[] = ['south', 'north', 'west', 'east']
@@ -12,12 +12,12 @@ const FACING: Direction[] = ['south', 'north', 'west', 'east']
 // How long until the next step may go: held walking lands each step exactly STEP_MS after the last, like the glide.
 export const stepDelay = (now: number, lastStep: number) => Math.max(0, lastStep + STEP_MS - now)
 
-// About 9 tiles across, between 40 and 64 px. Given a height too (the immersive map), the 9 tiles go across the shorter
-// side, so a short, wide landscape view doesn't zoom in too far. A height under one 40 px tile is no map at all and is
-// ignored, so `widths.map(tileSizeFor)` (which passes the index second) still reads the widths alone.
+// About 10 tiles across, between 36 and 58 px. Given a height too (the immersive map), the 10 tiles go across the shorter
+// side, so a short, wide landscape view doesn't zoom in too far. A height under 40 px is no map at all and is ignored,
+// so `widths.map(tileSizeFor)` (which passes the index second) still reads the widths alone.
 export function tileSizeFor(width: number, height?: number): number {
   const side = height !== undefined && height >= 40 ? Math.min(width, height) : width
-  return Math.min(64, Math.max(40, Math.floor(side / ACROSS)))
+  return Math.min(58, Math.max(36, Math.floor(side / ACROSS)))
 }
 
 // Where the map layer goes so the trainer's tile sits in the middle of the view.
