@@ -410,6 +410,17 @@ Both defense games use type matchups (super-effective hits do double damage) and
 
 **Safari catches in the Dex.** Gen 1–4 non-Legendary Pokemon caught in the Safari Zone join your Dex on this phone with a ◎ Safari mark and a **Safari** filter. They have no distance, steps or time, and they never count toward missions or badges. If the watch later hatches the same Normal/Shiny variant, the watch record replaces the Safari mark. Safari catches can be used as buddies, in Memory Match and in battle teams, even before any watch import.
 
+#### Full screen and landscape (1.13.0)
+
+The Safari Zone and the Legendary Trial have a **Full screen** button while you play. In full screen the map fills the screen, and the status bar and the tab bar or header are hidden. The HUD and status line sit in a small translucent strip at the top, and the D-pad floats over the map, faint until you press it (bottom-left in portrait, left-centre in landscape). The game's buttons (Pause, Restart room, Hint, Leave and so on) sit in the opposite corner. Its buttons are as big as ever; only their look is faded. With **Tap to walk** there is no D-pad: tap the map as usual.
+
+- **Rotate** (top right) turns the game to landscape and back. The choice is remembered for next time. The rest of the app always stays portrait.
+- **Exit full screen** (top right), Android's back button, leaving the screen or putting the app in the background all leave full screen, and so do the end of a Safari round, a trial reaching the chamber, and a Safari encounter in landscape (encounters only fit in portrait).
+- In landscape the map uses about 9 tiles across the shorter side, so it doesn't zoom in too far. With reduced motion the D-pad changes instantly instead of fading.
+- On the web the browser can't rotate, so there is no rotate button; full screen is a layout, and it uses the landscape layout whenever the window is wider than it is tall.
+
+Turning the phone needs the native `expo-screen-orientation` module, so this release needs a new app build (an over-the-air update can't add it). The layout maths are in `src/games/immersive.ts`; `src/games/useImmersive.ts` applies and undoes the orientation lock, the hidden bars and the back button.
+
 ### Collection and games
 
 - Gen 1–4 Pokémon and the extra Mega families, with bundled sprites and type-themed habitats.

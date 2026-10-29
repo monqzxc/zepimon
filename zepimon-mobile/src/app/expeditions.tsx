@@ -12,6 +12,8 @@ import { clueMilestones, expeditionGoal } from '../generated/expedition.js'
 import { km } from '../journal'
 import { pokemonType } from '../catalog'
 import { useReducedMotion } from '../games/hooks'
+import { GameScreenContext } from '../games/fullscreen'
+import { useImmersive } from '../games/useImmersive'
 import { LegendaryTrial } from '../games/LegendaryTrial'
 import { LegendaryChamber } from '../games/LegendaryChamber'
 import { LegendaryBattle } from '../games/LegendaryBattle'
@@ -49,6 +51,9 @@ export default function ExpeditionsScreen() {
   const [friend, setFriend] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  // Full screen for the trial, as in the arcade: hides the header and status bar, and the back button leaves it first.
+  // Leaving the trial for the chamber or the overview ends it.
+  const { screen, full, overlay } = useImmersive(step.kind === 'trial', 'header')
   const partner = buddy ? { name: buddy.replace(/^Shiny /, ''), shiny: buddy.startsWith('Shiny ') } : { name: 'Pikachu', shiny: false }
   const trails = Object.entries(expeditions.trails).sort((a, b) => a[1].startedAt - b[1].startedAt)
   const pending = trails.reduce((sum, [key, trail]) => sum + trailUnlocked(quest, key, trail) - trail.claimed, 0)
@@ -99,7 +104,7 @@ export default function ExpeditionsScreen() {
   }
 
   // The trial fills the screen without scrolling, so the map and the D-pad are on screen together, as in the Safari Zone.
-  return <Screen key={step.kind} fill={step.kind === 'trial'}>
+  return <Screen key={step.kind} fill={step.kind === 'trial'} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
     {content ?? <>
       <Hero eyebrow="LEGENDARY EXPEDITIONS" title="Follow a little mystery.">
         <Copy color={colors.onBrand}>Walk 25 km, finish an Expedition Quest or earn arcade points. Then clear the shrine trial and catch the Legendary waiting inside.</Copy>
@@ -128,7 +133,7 @@ export default function ExpeditionsScreen() {
       <Copy small>Each roll in the chamber has a 1 in 100 Shiny chance. Leaving, reopening or syncing never rerolls it; only a confirmed reset does, after a 5-second wait, and only before the battle. Encounters opened before this update keep the Shiny they were already showing.</Copy>
       <Copy small>Distance counts only saved adventures, never live distance. A failed catch or leaving uses nothing up. Befriending records, quests and permits are kept on this phone; reinstalling requires befriending unlocked encounters again.</Copy>
     </>}
-  </Screen>
+  </GameScreenContext.Provider></Screen>
 }
 
 function Encounter({ trailKey, trail, encounter, busy, onBegin, onChamber, onPermit }: {

@@ -14,7 +14,8 @@ const modules = {
   react: { useEffect: effect => effect(), useRef: value => ({ current: value }) },
   'react/jsx-runtime': { jsx: () => null, jsxs: () => null },
   'react-native': { Platform: { OS: 'web' }, Pressable: 'Pressable', Text: 'Text', View: 'View' },
-  '../ui': { colors: {}, fonts: {}, themedStyles: () => ({}) }
+  '../ui': { colors: {}, fonts: {}, themedStyles: () => ({}) },
+  './immersive': { DPAD_BUTTON: 52, OVERLAY_IDLE: 0.35, OVERLAY_PRESSED: 0.85 }
 }
 const context = { exports: {}, require: name => modules[name], window: fakeWindow }
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/games/DPad.tsx', 'utf8'), {

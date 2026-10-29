@@ -14,15 +14,15 @@ const items = safariMap.tiles.flatMap((row, y) => [...row].flatMap((tile, x) => 
 type Props = {
   game: ZoneGame, move: { kind: WalkResult['move'], id: number }, trainer: 'brendan' | 'may',
   buddy: { name: string, shiny: boolean } | null, width: number, height: number, reduced: boolean,
-  tapToWalk: boolean, onTapTile: (tile: Point) => void, miss: { tile: Point, id: number } | null
+  tapToWalk: boolean, onTapTile: (tile: Point) => void, miss: { tile: Point, id: number } | null, jump?: number, fitHeight?: boolean
 }
 
 // The Safari Zone map: the shared tile world with the Safari's items, rustling grass and missed-tap marks on the ground.
-export function SafariWorld({ game, move, trainer, buddy, width, height, reduced, tapToWalk, onTapTile, miss }: Props) {
-  const tile = tileSizeFor(width)
+export function SafariWorld({ game, move, trainer, buddy, width, height, reduced, tapToWalk, onTapTile, miss, jump = 0, fitHeight = false }: Props) {
+  const tile = tileSizeFor(width, fitHeight ? height : undefined)
   return <TileWorld map={safariMap} chunks={chunkImages} at={game.at} facing={game.facing} buddyAt={game.buddy} buddyFacing={game.buddyFacing}
-    move={move} trainer={trainer} buddy={buddy} onGrass={tileAt(game.at) === 'g'} width={width} height={height} reduced={reduced} jump={0}
-    background="#1d3b2a" tapToWalk={tapToWalk} onTapTile={onTapTile}>
+    move={move} trainer={trainer} buddy={buddy} onGrass={tileAt(game.at) === 'g'} width={width} height={height} reduced={reduced} jump={jump}
+    background="#1d3b2a" tapToWalk={tapToWalk} onTapTile={onTapTile} fitHeight={fitHeight}>
     {items.filter(point => !game.items.includes(pointKey(point))).map(point =>
       <Sprite key={pointKey(point)} strip={sprites.item} frame={0} at={point} tile={tile} />)}
     {game.rustling && <Rustle at={game.rustling} tile={tile} reduced={reduced} />}

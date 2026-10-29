@@ -12,8 +12,12 @@ const FACING: Direction[] = ['south', 'north', 'west', 'east']
 // How long until the next step may go: held walking lands each step exactly STEP_MS after the last, like the glide.
 export const stepDelay = (now: number, lastStep: number) => Math.max(0, lastStep + STEP_MS - now)
 
-export function tileSizeFor(width: number): number {
-  return Math.min(64, Math.max(40, Math.floor(width / ACROSS)))
+// About 9 tiles across, between 40 and 64 px. Given a height too (the immersive map), the 9 tiles go across the shorter
+// side, so a short, wide landscape view doesn't zoom in too far. A height under one 40 px tile is no map at all and is
+// ignored, so `widths.map(tileSizeFor)` (which passes the index second) still reads the widths alone.
+export function tileSizeFor(width: number, height?: number): number {
+  const side = height !== undefined && height >= 40 ? Math.min(width, height) : width
+  return Math.min(64, Math.max(40, Math.floor(side / ACROSS)))
 }
 
 // Where the map layer goes so the trainer's tile sits in the middle of the view.
