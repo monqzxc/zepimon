@@ -5,21 +5,117 @@ export const trialChunks = {
     "0,0": { ground: require('../../assets/trials/switch-tutorial-ground-0-0.png'), top: require('../../assets/trials/switch-tutorial-top-0-0.png') },
     "1,0": { ground: require('../../assets/trials/switch-tutorial-ground-1-0.png'), top: require('../../assets/trials/switch-tutorial-top-1-0.png') }
   },
+  "switch-1": {
+    "0,0": { ground: require('../../assets/trials/switch-1-ground-0-0.png'), top: require('../../assets/trials/switch-1-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/switch-1-ground-1-0.png'), top: require('../../assets/trials/switch-1-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/switch-1-ground-0-1.png'), top: require('../../assets/trials/switch-1-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/switch-1-ground-1-1.png'), top: require('../../assets/trials/switch-1-top-1-1.png') }
+  },
+  "switch-2": {
+    "0,0": { ground: require('../../assets/trials/switch-2-ground-0-0.png'), top: require('../../assets/trials/switch-2-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/switch-2-ground-1-0.png'), top: require('../../assets/trials/switch-2-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/switch-2-ground-0-1.png'), top: require('../../assets/trials/switch-2-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/switch-2-ground-1-1.png'), top: require('../../assets/trials/switch-2-top-1-1.png') }
+  },
+  "switch-3": {
+    "0,0": { ground: require('../../assets/trials/switch-3-ground-0-0.png'), top: require('../../assets/trials/switch-3-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/switch-3-ground-1-0.png'), top: require('../../assets/trials/switch-3-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/switch-3-ground-0-1.png'), top: require('../../assets/trials/switch-3-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/switch-3-ground-1-1.png'), top: require('../../assets/trials/switch-3-top-1-1.png') }
+  },
   "crumble-tutorial": {
     "0,0": { ground: require('../../assets/trials/crumble-tutorial-ground-0-0.png') },
     "1,0": { ground: require('../../assets/trials/crumble-tutorial-ground-1-0.png') }
+  },
+  "crumble-1": {
+    "0,0": { ground: require('../../assets/trials/crumble-1-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/crumble-1-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/crumble-1-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/crumble-1-ground-1-1.png') }
+  },
+  "crumble-2": {
+    "0,0": { ground: require('../../assets/trials/crumble-2-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/crumble-2-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/crumble-2-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/crumble-2-ground-1-1.png') }
+  },
+  "crumble-3": {
+    "0,0": { ground: require('../../assets/trials/crumble-3-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/crumble-3-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/crumble-3-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/crumble-3-ground-1-1.png') }
   },
   "dark-tutorial": {
     "0,0": { ground: require('../../assets/trials/dark-tutorial-ground-0-0.png') },
     "1,0": { ground: require('../../assets/trials/dark-tutorial-ground-1-0.png') }
   },
+  "dark-1": {
+    "0,0": { ground: require('../../assets/trials/dark-1-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/dark-1-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/dark-1-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/dark-1-ground-1-1.png') }
+  },
+  "dark-2": {
+    "0,0": { ground: require('../../assets/trials/dark-2-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/dark-2-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/dark-2-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/dark-2-ground-1-1.png') }
+  },
+  "dark-3": {
+    "0,0": { ground: require('../../assets/trials/dark-3-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/dark-3-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/dark-3-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/dark-3-ground-1-1.png') }
+  },
   "temple-tutorial": {
     "0,0": { ground: require('../../assets/trials/temple-tutorial-ground-0-0.png'), top: require('../../assets/trials/temple-tutorial-top-0-0.png') },
     "1,0": { ground: require('../../assets/trials/temple-tutorial-ground-1-0.png'), top: require('../../assets/trials/temple-tutorial-top-1-0.png') }
   },
+  "temple-1": {
+    "0,0": { ground: require('../../assets/trials/temple-1-ground-0-0.png'), top: require('../../assets/trials/temple-1-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/temple-1-ground-1-0.png'), top: require('../../assets/trials/temple-1-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/temple-1-ground-0-1.png'), top: require('../../assets/trials/temple-1-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/temple-1-ground-1-1.png'), top: require('../../assets/trials/temple-1-top-1-1.png') }
+  },
+  "temple-2": {
+    "0,0": { ground: require('../../assets/trials/temple-2-ground-0-0.png'), top: require('../../assets/trials/temple-2-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/temple-2-ground-1-0.png'), top: require('../../assets/trials/temple-2-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/temple-2-ground-0-1.png'), top: require('../../assets/trials/temple-2-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/temple-2-ground-1-1.png'), top: require('../../assets/trials/temple-2-top-1-1.png') }
+  },
+  "temple-3": {
+    "0,0": { ground: require('../../assets/trials/temple-3-ground-0-0.png'), top: require('../../assets/trials/temple-3-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/temple-3-ground-1-0.png'), top: require('../../assets/trials/temple-3-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/temple-3-ground-0-1.png'), top: require('../../assets/trials/temple-3-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/temple-3-ground-1-1.png'), top: require('../../assets/trials/temple-3-top-1-1.png') }
+  },
   "warp-tutorial": {
     "0,0": { ground: require('../../assets/trials/warp-tutorial-ground-0-0.png') },
     "1,0": { ground: require('../../assets/trials/warp-tutorial-ground-1-0.png') }
+  },
+  "warp-1": {
+    "0,0": { ground: require('../../assets/trials/warp-1-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/warp-1-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/warp-1-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/warp-1-ground-1-1.png') }
+  },
+  "warp-2": {
+    "0,0": { ground: require('../../assets/trials/warp-2-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/warp-2-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/warp-2-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/warp-2-ground-1-1.png') }
+  },
+  "warp-3": {
+    "0,0": { ground: require('../../assets/trials/warp-3-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/warp-3-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/warp-3-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/warp-3-ground-1-1.png') }
+  },
+  "star": {
+    "0,0": { ground: require('../../assets/trials/star-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/star-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/star-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/star-ground-1-1.png') }
   }
 }
 export const trialSprites = {

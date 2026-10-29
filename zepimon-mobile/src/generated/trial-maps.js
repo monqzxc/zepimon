@@ -16,6 +16,71 @@ export const trialStages = {
     star: null,
     chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true } }
   },
+  "switch-1": {
+    id: "switch-1", kind: "switch",
+    tiles: [
+      "###############",
+      "#@#.........#a#",
+      "#.###.#####.#.#",
+      "#.....#.....#.#",
+      "#.#.#.#.#####.#",
+      "#.#...#.......#",
+      "#.###.#######.#",
+      "#.....#*#.....#",
+      "#######.#.#.###",
+      "#X#...#...#...#",
+      "#A#.#.#.###.#.#",
+      "#...#.......#*#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 76, hint: "A red gate guards the exit. Its switch waits at the end of a long corridor.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "switch-2": {
+    id: "switch-2", kind: "switch",
+    tiles: [
+      "###############",
+      "#@....#*#....*#",
+      "#####.#B#.#.###",
+      "#..b#.#.......#",
+      "#.###.#.#####.#",
+      "#.#...#.AX#...#",
+      "#.#.#######.#.#",
+      "#.#.....#..a..#",
+      "#.#.#.#.#.#####",
+      "#.#...#.#.....#",
+      "#.#####.#####.#",
+      "#.............#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 96, hint: "Each step onto a switch flips its gate, so mind the one at the crossroads.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "switch-3": {
+    id: "switch-3", kind: "switch",
+    tiles: [
+      "################",
+      "#@..#......#..*#",
+      "#.#.#.####.#.###",
+      "#.#...#..#...#.#",
+      "#.#####.##.###.#",
+      "#.....b.....#..#",
+      "###.#.####.##.##",
+      "#*B.#....#.....#",
+      "#####.##.#.###.#",
+      "#a..#.#..#...#.#",
+      "###.#.#A######.#",
+      "#...#.#....#####",
+      "#.###.#..O.=.X##",
+      "#.....#_...#####",
+      "################"
+    ],
+    warps: {}, open: "B", crackAll: false, dark: false, par: 101, hint: "The blue gate starts open, and the switch in the hall shuts it. Take what it guards first.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
   "crumble-tutorial": {
     id: "crumble-tutorial", kind: "crumble",
     tiles: [
@@ -28,6 +93,69 @@ export const trialStages = {
     warps: {}, open: "", crackAll: true, dark: false, par: 12, hint: "Cracked floor gives way once you step off it. Cross every crack, then take the stairs.",
     star: null,
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false } }
+  },
+  "crumble-1": {
+    id: "crumble-1", kind: "crumble",
+    tiles: [
+      "################",
+      "#@..#.......#..#",
+      "#.#.#.#####.#.##",
+      "#.#...#*..#.:..#",
+      "#.#####.#.#.:#.#",
+      "#...::....#.:#.#",
+      "###.##.####.##.#",
+      "#...#..:::.....#",
+      "#.###.##.###.#.#",
+      "#.#...#*..#..#.#",
+      "#.#.###.#.#.##.#",
+      "#...:::.#...:.X#",
+      "################"
+    ],
+    warps: {}, open: "", crackAll: true, dark: false, par: 57, hint: "Every cracked tile has to fall. Find a way across each crack exactly once.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "crumble-2": {
+    id: "crumble-2", kind: "crumble",
+    tiles: [
+      "###############",
+      "#@..#.....#..*#",
+      "#.#.#.###.#.###",
+      "#.#...#.:::...#",
+      "#.#####.#.###.#",
+      "#...#...#.#...#",
+      "###.#.###.#.#.#",
+      "#*:::.#.....#.#",
+      "#.#.#.#.###:#.#",
+      "#.#...#.#*#:#.#",
+      "#.#####.#.#:..#",
+      "#.......#....X#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: true, dark: false, par: 84, hint: "Some cracked bridges lead only one way. Save them until you are done on this side.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "crumble-3": {
+    id: "crumble-3", kind: "crumble",
+    tiles: [
+      "################",
+      "#@...#.....#..*#",
+      "#.##.#.###.#.###",
+      "#.#..#.#.#.....#",
+      "#.#.##.#.#.###.#",
+      "#.#.....:#...#.#",
+      "#.######:###.#.#",
+      "#.....::a::....#",
+      "#####.#.:#.#####",
+      "#.....#.:#.....#",
+      "#.###.#.....##A#",
+      "#..X#...###.*#*#",
+      "################"
+    ],
+    warps: {}, open: "", crackAll: true, dark: false, par: 86, hint: "The switch sits in the cracked floor and you will cross it twice. Visit the gate between your crossings.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
   },
   "dark-tutorial": {
     id: "dark-tutorial", kind: "dark",
@@ -45,6 +173,73 @@ export const trialStages = {
     star: null,
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false } }
   },
+  "dark-1": {
+    id: "dark-1", kind: "dark",
+    tiles: [
+      "###############",
+      "#@#*#.........#",
+      "#.#.#.#####.#.#",
+      "#.#.#.....#.#*#",
+      "#.#.#####.!.###",
+      "#.!...........#",
+      "#.#.##!.#.###.#",
+      "#.#..X#...#...#",
+      "#.#####.###.#.#",
+      "#.#...#.....#.#",
+      "#.#.!.#######.#",
+      "#...#.........#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: true, par: 70, hint: "Wall torches light the turns that matter.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "dark-2": {
+    id: "dark-2", kind: "dark",
+    tiles: [
+      "###############",
+      "#@..#...#.....#",
+      "###.#.#.#.###.#",
+      "#...#.#...#...#",
+      "#.!.#######.!.#",
+      "#...........#.#",
+      "########!####.#",
+      "#.....#....*#.#",
+      "#.#.##!.#.###.#",
+      "#.#.....#.....#",
+      "#.###.#.#######",
+      "#.#*#...#X....#",
+      "#.#.########!.#",
+      "#.............#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: true, par: 74, hint: "Long tunnels twist in the dark. Follow the torches and remember the dead ends.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "dark-3": {
+    id: "dark-3", kind: "dark",
+    tiles: [
+      "###############",
+      "#@....#X......#",
+      "#####.##!.#.#.#",
+      "#*..#...#4#...#",
+      "###.###.###.#.#",
+      "#...#...#...#.#",
+      "#.!.#.###.###.#",
+      "#.#1#.#.....#.#",
+      "#.###.#.!##.#.#",
+      "#.....#.#.....#",
+      "#.###.!.#.#####",
+      "#.#.....#.#.*.#",
+      "#.#.#####.#.!.#",
+      "#...#*....#2#3#",
+      "###############"
+    ],
+    warps: { "1": "2", "3": "4" }, open: "", crackAll: false, dark: true, par: 94, hint: "Some pads only go one way. Gather what you can reach on foot before you trust them.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
   "temple-tutorial": {
     id: "temple-tutorial", kind: "temple",
     tiles: [
@@ -59,6 +254,69 @@ export const trialStages = {
     star: null,
     chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true } }
   },
+  "temple-1": {
+    id: "temple-1", kind: "temple",
+    tiles: [
+      "################",
+      "#@..#.....#....#",
+      "#.#.#.###.#.##.#",
+      "#.#...#*#...#..#",
+      "#.#####.#####.##",
+      "#...#.........*#",
+      "###.#.###.######",
+      "#...#.....######",
+      "#.###.O.O.######",
+      "#.#.._.._.=..X##",
+      "#.#.......######",
+      "################"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 58, hint: "Two plates, two boulders. The door opens only while both plates are held.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "temple-2": {
+    id: "temple-2", kind: "temple",
+    tiles: [
+      "################",
+      "#@........#...*#",
+      "#.###.#.#.#.##.#",
+      "#.#...#.#...#..#",
+      "#.#.###.#####.##",
+      "#.#.#.....#....#",
+      "#...#.O...#.##.#",
+      "###.#.#.O.#..#.#",
+      "#*..#._...#.##.#",
+      "#####..._.#....#",
+      "######=#########",
+      "#X.*...........#",
+      "################"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 72, hint: "One boulder cannot go straight down. Bring it round the pillar to its plate.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "temple-3": {
+    id: "temple-3", kind: "temple",
+    tiles: [
+      "################",
+      "#@...#.......#.#",
+      "#.##.#.#####.#.#",
+      "#.#..#.#.....#.#",
+      "#.#.##.#.###...#",
+      "#.#....#...#A###",
+      "#.####.###.#.#*#",
+      "#......#...#...#",
+      "###.####a#######",
+      "#...#....._#####",
+      "#.###.O....#####",
+      "#.#...._.O..=.X#",
+      "#...#......#####",
+      "################"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 81, hint: "The switch on the way to the plates opens the eastern gate. Count how often you cross it.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
   "warp-tutorial": {
     id: "warp-tutorial", kind: "warp",
     tiles: [
@@ -71,5 +329,94 @@ export const trialStages = {
     warps: { "1": "2", "2": "1", "3": "4" }, open: "", crackAll: false, dark: false, par: 10, hint: "Pads whisk you across the chamber. Some only go one way.",
     star: null,
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false } }
+  },
+  "warp-1": {
+    id: "warp-1", kind: "warp",
+    tiles: [
+      "################",
+      "#@..#.1#2.#...*#",
+      "#.#.#.##.##.#.##",
+      "#.#...6#...#...#",
+      "#.###.##.#...#.#",
+      "#7....##.#.#..3#",
+      "################",
+      "#4....##8.#...X#",
+      "#####.##.#..#.##",
+      "#*..#..#...#...#",
+      "#.#.#.###.#..#9#",
+      "#.#...5#..#.#..#",
+      "################"
+    ],
+    warps: { "1": "2", "2": "1", "3": "4", "5": "6", "7": "8", "9": "6" }, open: "", crackAll: false, dark: false, par: 65, hint: "Pads link the four halls, and some only go one way. Follow them in order.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "warp-2": {
+    id: "warp-2", kind: "warp",
+    tiles: [
+      "################",
+      "#@..##2..*#4.#*#",
+      "#.#.1###.###...#",
+      "#.#..#9..##..#.#",
+      "#.##8##.###.####",
+      "#....#...3#..5##",
+      "#.##############",
+      "#.#..#6..##X..##",
+      "#.#.###..7###.##",
+      "#...##..#.#...##",
+      "###.##.##.#.#..#",
+      "#*...#.........#",
+      "################"
+    ],
+    warps: { "1": "2", "3": "4", "5": "6", "7": "8", "9": "6" }, open: "", crackAll: false, dark: false, par: 74, hint: "One pad skips a hall. Take the long way round so you miss no relic.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "warp-3": {
+    id: "warp-3", kind: "warp",
+    tiles: [
+      "###############",
+      "#@......#X#...#",
+      "#######.#.#.#.#",
+      "#....*#1#...#.#",
+      "#.######!##.#.#",
+      "#.#...#4..#...#",
+      "#.#.#.###.#.#.#",
+      "#...#..2#...#*#",
+      "#.###.!########",
+      "#...#...#...#3#",
+      "###.###.#.#.!.#",
+      "#...#7#...#...#",
+      "#.!##.#########",
+      "#............*#",
+      "###############"
+    ],
+    warps: { "1": "2", "3": "4", "7": "1" }, open: "", crackAll: false, dark: true, par: 110, hint: "In the dark, one pad brings you home again. Find the one that goes on.",
+    star: null,
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "star": {
+    id: "star", kind: "star",
+    tiles: [
+      "~~~~~~~~~~~~~~~~",
+      "~~~~~~~%~~~~~~~~",
+      "~~~~wwg,g.ww~~~~",
+      "~~~wwg.,.R..w~~~",
+      "~~ww?.R,..g.ww~~",
+      "~~w..g.,...R.w~~",
+      "~~w.R..,....g~~~",
+      "~%w...gMM,,,,%~~",
+      "~~w....MM.?..~~~",
+      "~~ww.g@....R.ww~",
+      "~~~w.R.?..g..w~~",
+      "~~~~ww....ww.w~~",
+      "~~~~~~~%~~~~A~~~",
+      "~~~~~~~~~~~www~~",
+      "~~~~~~~~~~~%?w~~",
+      "~~~~~~~~~~~~~~~~"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 54, hint: "Read the stones, then wake the crystals the island asks for.",
+    star: {"nodes": [{"id": "north", "at": [7, 1], "links": ["west", "east"], "turns": 0}, {"id": "east", "at": [13, 7], "links": ["north", "islet"], "turns": 0}, {"id": "islet", "at": [11, 14], "links": ["east", "south"], "turns": 0}, {"id": "south", "at": [7, 12], "links": ["islet", "west"], "turns": 1, "opens": "A"}, {"id": "west", "at": [1, 7], "links": ["south", "north"], "turns": 0}], "patterns": 3, "startLit": [], "target": {"lit": ["east", "north"], "pattern": 2}, "resetOnFail": false, "clues": [{"at": [4, 4], "text": "Where the sun sets, the crystal sleeps.", "reveals": ["west"]}, {"at": [10, 8], "text": "Old stars are drawn on the ground in lines running out from the meteorite. Each line ends at a crystal that must shine.", "reveals": ["north", "east"]}, {"at": [7, 10], "text": "The star rests on its first face. Turn it twice before you call it.", "reveals": ["pattern"]}, {"at": [12, 14], "text": "Out here the sea keeps its crystal dark, and the south shore sleeps as well.", "reveals": ["islet", "south"]}], "hints": ["A crystal never changes alone: each one flips itself and its two neighbours along the shore.", "Only the southern crystal turns the star.", "When the star wakes, the northern crystal shines."]},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
   }
 }

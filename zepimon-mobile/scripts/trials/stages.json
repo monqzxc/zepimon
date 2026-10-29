@@ -12,6 +12,69 @@
     "par": 12,
     "hint": "Step on the switch to open the gate."
   },
+  "switch-1": {
+    "kind": "switch",
+    "tiles": [
+      "###############",
+      "#@#.........#a#",
+      "#.###.#####.#.#",
+      "#.....#.....#.#",
+      "#.#.#.#.#####.#",
+      "#.#...#.......#",
+      "#.###.#######.#",
+      "#.....#*#.....#",
+      "#######.#.#.###",
+      "#X#...#...#...#",
+      "#A#.#.#.###.#.#",
+      "#...#.......#*#",
+      "###############"
+    ],
+    "par": 76,
+    "hint": "A red gate guards the exit. Its switch waits at the end of a long corridor."
+  },
+  "switch-2": {
+    "kind": "switch",
+    "tiles": [
+      "###############",
+      "#@....#*#....*#",
+      "#####.#B#.#.###",
+      "#..b#.#.......#",
+      "#.###.#.#####.#",
+      "#.#...#.AX#...#",
+      "#.#.#######.#.#",
+      "#.#.....#..a..#",
+      "#.#.#.#.#.#####",
+      "#.#...#.#.....#",
+      "#.#####.#####.#",
+      "#.............#",
+      "###############"
+    ],
+    "par": 96,
+    "hint": "Each step onto a switch flips its gate, so mind the one at the crossroads."
+  },
+  "switch-3": {
+    "kind": "switch",
+    "tiles": [
+      "################",
+      "#@..#......#..*#",
+      "#.#.#.####.#.###",
+      "#.#...#..#...#.#",
+      "#.#####.##.###.#",
+      "#.....b.....#..#",
+      "###.#.####.##.##",
+      "#*B.#....#.....#",
+      "#####.##.#.###.#",
+      "#a..#.#..#...#.#",
+      "###.#.#A######.#",
+      "#...#.#....#####",
+      "#.###.#..O.=.X##",
+      "#.....#_...#####",
+      "################"
+    ],
+    "open": "B",
+    "par": 101,
+    "hint": "The blue gate starts open, and the switch in the hall shuts it. Take what it guards first."
+  },
   "crumble-tutorial": {
     "kind": "crumble",
     "tiles": [
@@ -24,6 +87,69 @@
     "crackAll": true,
     "par": 12,
     "hint": "Cracked floor gives way once you step off it. Cross every crack, then take the stairs."
+  },
+  "crumble-1": {
+    "kind": "crumble",
+    "tiles": [
+      "################",
+      "#@..#.......#..#",
+      "#.#.#.#####.#.##",
+      "#.#...#*..#.:..#",
+      "#.#####.#.#.:#.#",
+      "#...::....#.:#.#",
+      "###.##.####.##.#",
+      "#...#..:::.....#",
+      "#.###.##.###.#.#",
+      "#.#...#*..#..#.#",
+      "#.#.###.#.#.##.#",
+      "#...:::.#...:.X#",
+      "################"
+    ],
+    "crackAll": true,
+    "par": 57,
+    "hint": "Every cracked tile has to fall. Find a way across each crack exactly once."
+  },
+  "crumble-2": {
+    "kind": "crumble",
+    "tiles": [
+      "###############",
+      "#@..#.....#..*#",
+      "#.#.#.###.#.###",
+      "#.#...#.:::...#",
+      "#.#####.#.###.#",
+      "#...#...#.#...#",
+      "###.#.###.#.#.#",
+      "#*:::.#.....#.#",
+      "#.#.#.#.###:#.#",
+      "#.#...#.#*#:#.#",
+      "#.#####.#.#:..#",
+      "#.......#....X#",
+      "###############"
+    ],
+    "crackAll": true,
+    "par": 84,
+    "hint": "Some cracked bridges lead only one way. Save them until you are done on this side."
+  },
+  "crumble-3": {
+    "kind": "crumble",
+    "tiles": [
+      "################",
+      "#@...#.....#..*#",
+      "#.##.#.###.#.###",
+      "#.#..#.#.#.....#",
+      "#.#.##.#.#.###.#",
+      "#.#.....:#...#.#",
+      "#.######:###.#.#",
+      "#.....::a::....#",
+      "#####.#.:#.#####",
+      "#.....#.:#.....#",
+      "#.###.#.....##A#",
+      "#..X#...###.*#*#",
+      "################"
+    ],
+    "crackAll": true,
+    "par": 86,
+    "hint": "The switch sits in the cracked floor and you will cross it twice. Visit the gate between your crossings."
   },
   "dark-tutorial": {
     "kind": "dark",
@@ -41,6 +167,74 @@
     "par": 13,
     "hint": "A wall torch marks the true turn."
   },
+  "dark-1": {
+    "kind": "dark",
+    "tiles": [
+      "###############",
+      "#@#*#.........#",
+      "#.#.#.#####.#.#",
+      "#.#.#.....#.#*#",
+      "#.#.#####.!.###",
+      "#.!...........#",
+      "#.#.##!.#.###.#",
+      "#.#..X#...#...#",
+      "#.#####.###.#.#",
+      "#.#...#.....#.#",
+      "#.#.!.#######.#",
+      "#...#.........#",
+      "###############"
+    ],
+    "dark": true,
+    "par": 70,
+    "hint": "Wall torches light the turns that matter."
+  },
+  "dark-2": {
+    "kind": "dark",
+    "tiles": [
+      "###############",
+      "#@..#...#.....#",
+      "###.#.#.#.###.#",
+      "#...#.#...#...#",
+      "#.!.#######.!.#",
+      "#...........#.#",
+      "########!####.#",
+      "#.....#....*#.#",
+      "#.#.##!.#.###.#",
+      "#.#.....#.....#",
+      "#.###.#.#######",
+      "#.#*#...#X....#",
+      "#.#.########!.#",
+      "#.............#",
+      "###############"
+    ],
+    "dark": true,
+    "par": 74,
+    "hint": "Long tunnels twist in the dark. Follow the torches and remember the dead ends."
+  },
+  "dark-3": {
+    "kind": "dark",
+    "tiles": [
+      "###############",
+      "#@....#X......#",
+      "#####.##!.#.#.#",
+      "#*..#...#4#...#",
+      "###.###.###.#.#",
+      "#...#...#...#.#",
+      "#.!.#.###.###.#",
+      "#.#1#.#.....#.#",
+      "#.###.#.!##.#.#",
+      "#.....#.#.....#",
+      "#.###.!.#.#####",
+      "#.#.....#.#.*.#",
+      "#.#.#####.#.!.#",
+      "#...#*....#2#3#",
+      "###############"
+    ],
+    "warps": { "1": "2", "3": "4" },
+    "dark": true,
+    "par": 94,
+    "hint": "Some pads only go one way. Gather what you can reach on foot before you trust them."
+  },
   "temple-tutorial": {
     "kind": "temple",
     "tiles": [
@@ -54,6 +248,66 @@
     "par": 15,
     "hint": "Push the boulder onto the plate to open the door."
   },
+  "temple-1": {
+    "kind": "temple",
+    "tiles": [
+      "################",
+      "#@..#.....#....#",
+      "#.#.#.###.#.##.#",
+      "#.#...#*#...#..#",
+      "#.#####.#####.##",
+      "#...#.........*#",
+      "###.#.###.######",
+      "#...#.....######",
+      "#.###.O.O.######",
+      "#.#.._.._.=..X##",
+      "#.#.......######",
+      "################"
+    ],
+    "par": 58,
+    "hint": "Two plates, two boulders. The door opens only while both plates are held."
+  },
+  "temple-2": {
+    "kind": "temple",
+    "tiles": [
+      "################",
+      "#@........#...*#",
+      "#.###.#.#.#.##.#",
+      "#.#...#.#...#..#",
+      "#.#.###.#####.##",
+      "#.#.#.....#....#",
+      "#...#.O...#.##.#",
+      "###.#.#.O.#..#.#",
+      "#*..#._...#.##.#",
+      "#####..._.#....#",
+      "######=#########",
+      "#X.*...........#",
+      "################"
+    ],
+    "par": 72,
+    "hint": "One boulder cannot go straight down. Bring it round the pillar to its plate."
+  },
+  "temple-3": {
+    "kind": "temple",
+    "tiles": [
+      "################",
+      "#@...#.......#.#",
+      "#.##.#.#####.#.#",
+      "#.#..#.#.....#.#",
+      "#.#.##.#.###...#",
+      "#.#....#...#A###",
+      "#.####.###.#.#*#",
+      "#......#...#...#",
+      "###.####a#######",
+      "#...#....._#####",
+      "#.###.O....#####",
+      "#.#...._.O..=.X#",
+      "#...#......#####",
+      "################"
+    ],
+    "par": 81,
+    "hint": "The switch on the way to the plates opens the eastern gate. Count how often you cross it."
+  },
   "warp-tutorial": {
     "kind": "warp",
     "tiles": [
@@ -66,5 +320,118 @@
     "warps": { "1": "2", "2": "1", "3": "4" },
     "par": 10,
     "hint": "Pads whisk you across the chamber. Some only go one way."
+  },
+  "warp-1": {
+    "kind": "warp",
+    "tiles": [
+      "################",
+      "#@..#.1#2.#...*#",
+      "#.#.#.##.##.#.##",
+      "#.#...6#...#...#",
+      "#.###.##.#...#.#",
+      "#7....##.#.#..3#",
+      "################",
+      "#4....##8.#...X#",
+      "#####.##.#..#.##",
+      "#*..#..#...#...#",
+      "#.#.#.###.#..#9#",
+      "#.#...5#..#.#..#",
+      "################"
+    ],
+    "warps": { "1": "2", "2": "1", "3": "4", "5": "6", "7": "8", "9": "6" },
+    "par": 65,
+    "hint": "Pads link the four halls, and some only go one way. Follow them in order."
+  },
+  "warp-2": {
+    "kind": "warp",
+    "tiles": [
+      "################",
+      "#@..##2..*#4.#*#",
+      "#.#.1###.###...#",
+      "#.#..#9..##..#.#",
+      "#.##8##.###.####",
+      "#....#...3#..5##",
+      "#.##############",
+      "#.#..#6..##X..##",
+      "#.#.###..7###.##",
+      "#...##..#.#...##",
+      "###.##.##.#.#..#",
+      "#*...#.........#",
+      "################"
+    ],
+    "warps": { "1": "2", "3": "4", "5": "6", "7": "8", "9": "6" },
+    "par": 74,
+    "hint": "One pad skips a hall. Take the long way round so you miss no relic."
+  },
+  "warp-3": {
+    "kind": "warp",
+    "tiles": [
+      "###############",
+      "#@......#X#...#",
+      "#######.#.#.#.#",
+      "#....*#1#...#.#",
+      "#.######!##.#.#",
+      "#.#...#4..#...#",
+      "#.#.#.###.#.#.#",
+      "#...#..2#...#*#",
+      "#.###.!########",
+      "#...#...#...#3#",
+      "###.###.#.#.!.#",
+      "#...#7#...#...#",
+      "#.!##.#########",
+      "#............*#",
+      "###############"
+    ],
+    "warps": { "1": "2", "3": "4", "7": "1" },
+    "dark": true,
+    "par": 110,
+    "hint": "In the dark, one pad brings you home again. Find the one that goes on."
+  },
+  "star": {
+    "kind": "star",
+    "tiles": [
+      "~~~~~~~~~~~~~~~~",
+      "~~~~~~~%~~~~~~~~",
+      "~~~~wwg,g.ww~~~~",
+      "~~~wwg.,.R..w~~~",
+      "~~ww?.R,..g.ww~~",
+      "~~w..g.,...R.w~~",
+      "~~w.R..,....g~~~",
+      "~%w...gMM,,,,%~~",
+      "~~w....MM.?..~~~",
+      "~~ww.g@....R.ww~",
+      "~~~w.R.?..g..w~~",
+      "~~~~ww....ww.w~~",
+      "~~~~~~~%~~~~A~~~",
+      "~~~~~~~~~~~www~~",
+      "~~~~~~~~~~~%?w~~",
+      "~~~~~~~~~~~~~~~~"
+    ],
+    "par": 54,
+    "hint": "Read the stones, then wake the crystals the island asks for.",
+    "star": {
+      "nodes": [
+        { "id": "north", "at": [7, 1], "links": ["west", "east"], "turns": 0 },
+        { "id": "east", "at": [13, 7], "links": ["north", "islet"], "turns": 0 },
+        { "id": "islet", "at": [11, 14], "links": ["east", "south"], "turns": 0 },
+        { "id": "south", "at": [7, 12], "links": ["islet", "west"], "turns": 1, "opens": "A" },
+        { "id": "west", "at": [1, 7], "links": ["south", "north"], "turns": 0 }
+      ],
+      "patterns": 3,
+      "startLit": [],
+      "target": { "lit": ["east", "north"], "pattern": 2 },
+      "resetOnFail": false,
+      "clues": [
+        { "at": [4, 4], "text": "Where the sun sets, the crystal sleeps.", "reveals": ["west"] },
+        { "at": [10, 8], "text": "Old stars are drawn on the ground in lines running out from the meteorite. Each line ends at a crystal that must shine.", "reveals": ["north", "east"] },
+        { "at": [7, 10], "text": "The star rests on its first face. Turn it twice before you call it.", "reveals": ["pattern"] },
+        { "at": [12, 14], "text": "Out here the sea keeps its crystal dark, and the south shore sleeps as well.", "reveals": ["islet", "south"] }
+      ],
+      "hints": [
+        "A crystal never changes alone: each one flips itself and its two neighbours along the shore.",
+        "Only the southern crystal turns the star.",
+        "When the star wakes, the northern crystal shines."
+      ]
+    }
   }
 }
