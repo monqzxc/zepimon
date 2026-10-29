@@ -292,21 +292,24 @@ Rooms are Emerald tiles, and a minimap shows only the tiles you have seen.
 Every maze room also has walls, rocks and deep water that block, relics to collect, and a golden exit (the chamber
 door in the last room) that opens once every relic is found ("The seal holds. 2 relics remain." until then).
 
-**Room order.** The first time you meet a kind, its trial starts with a short tutorial room that teaches its
-mechanic. Then comes one main room: room 1 if you have cleared no main room of that kind yet, room 2 after one, and
+**Room order.** Until you have cleared that kind's tutorial, its trial starts with a short tutorial room that teaches
+its mechanic. Then comes one main room: room 1 if you have cleared no main room of that kind yet, room 2 after one, and
 room 3 after two or more. So a trial is one or two rooms, and later Legendaries of a kind you know get harder rooms.
 The Shattered Star is always the one island; its clue stones and hints stand in for a tutorial.
 
 **Moves and par.** There is no timer and no move limit. Each room counts your moves (a step, push or warp) and shows
-its par, the fewest moves that clear it. **Restart room** puts the room back as it was. **Start the
-trial over** goes back to the first room.
+its par, the fewest moves that clear it. **Restart room** puts the room back as it was. **Start over**
+goes back to the first room, and **Leave** takes you back to Expeditions. While you play, the screen doesn't scroll:
+the map takes the space left by the status line, the moves line, the D-pad with the minimap beside it and these
+buttons, so everything fits on a phone at once.
 
 **The Shattered Star (Deoxys).** A meteorite sits at the island's heart, with five crystals around the shore and on
 an islet. The goal is to light the right crystals and turn the star to the right face, then wake it.
 
 - **Crystals.** Each time you step *onto* a crystal, it flips: lit goes dark and dark lights up. Its two linked
   neighbours flip with it. Only the step onto it counts: standing on a crystal, or bumping into something while you
-  stand on it, changes nothing.
+  stand on it, changes nothing. The status line says whether the crystal lit up or went dark and whether a passage
+  opened, but never whether the star turned.
 - **Turns.** Some crystals also turn the star one face each time you step onto them. It has three faces, so the
   third turn brings it back to the first face.
 - **Passages.** A crystal can open a passage (a gate across the water) the first time it lights. The passage stays
@@ -317,7 +320,7 @@ an islet. The goal is to light the right crystals and turn the star to the right
   meteorite wakes and Deoxys appears. If not, the attempt counts and the meteorite says how close you were without
   saying which part is wrong: "The meteorite flickers. 3 of 6 lights answer." counts each crystal in the right state,
   plus one if the face is right. A failed attempt changes nothing else, so you can build on what it told you.
-- **Hints.** The **Hint** button gives a new hint after every two attempts, up to three, from vague to specific.
+- **Hints.** The **Hint** button shows, in the status line, a new hint after every two attempts, up to three, from vague to specific.
   None of them gives the whole answer.
 - **Reset the crystals** puts the crystals and the star's face back to how you found them. You keep your place,
   the map you have explored, the stones you have read, the passages you have opened and your attempts (and so your
@@ -329,9 +332,9 @@ moves, open gates, holes, boulders and seen tiles. If an app update changes a ro
 checkpoint is dropped and the trial starts fresh; the encounter itself is kept. Finishing the trial is permanent.
 
 **Records and achievements.** Your best moves for every room are kept on this phone (`trialRecords`, included in
-backups). The arcade has seven trial achievements, 80 points in all: **Clear a Switch Maze / Crumbling Floor / Dark
-Labyrinth / Ancient Temple / Warp Chamber trial** (a main room of that kind, 10 points each), **Wake the Shattered
-Star** (10) and **Right on par** (clear 5 different rooms at or under par, 20). The trial itself never claims the
+backups). The arcade has seven trial achievements, 80 points in all: **Switch Maze clear**, **Crumbling Floor clear**,
+**Dark Labyrinth clear**, **Ancient Temple clear** and **Warp Chamber clear** (clear a main room of that kind, 10
+points each), **Wake the Shattered Star** (10) and **Right on par** (clear 5 different rooms at or under par, 20). The trial itself never claims the
 encounter or changes its species, Shiny roll or order: only a successful catch does.
 
 Trial animations (steps, falls, warps, room fades and the star's reveal) respect reduce motion. The art is Emerald's,
