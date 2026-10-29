@@ -53,8 +53,10 @@ THEMES = {
     'warp': dict(map='MossdeepCity_Gym', primary='building', secondary='mossdeep_gym', ground=0x20A, path=0x203, grass=0x20A,
                  water=0x221, shore=0x20A, rock=0x204, cap=0x20E, face=0x216, fill=0x208, pond=False),
     # Birth Island's exterior: grass ground, the pale summit path, tall grass, the sea, a shallow pond tile, the cliffs.
+    # path_glow washes the path toward starlight (colour, strength) so the constellation lines clue 2 points to stand out.
     'star': dict(map='BirthIsland_Exterior', primary='general', secondary='dewford', ground=0x001, path=0x1D9, grass=0x00D,
-                 water=0x170, shore=0x0D1, rock=0x0E0, cap=0x06C, face=0x07C, fill=0x074, pond=False),
+                 water=0x170, shore=0x0D1, rock=0x0E0, cap=0x06C, face=0x07C, fill=0x074, pond=False,
+                 path_glow=((255, 246, 200), 0.4)),
 }
 # The General tileset's pond by which sides are land: (north, south, west, east); other shapes use the middle.
 POND = {(1, 0, 1, 0): 0x0C8, (1, 0, 0, 0): 0x0C9, (1, 0, 0, 1): 0x0CA, (0, 0, 1, 0): 0x0D0, (0, 0, 0, 0): 0x0D1,
@@ -205,7 +207,13 @@ def build_rooms(stages):
             number = map_metatile(theme, tiles, x, y)
             if number not in cache:
                 cache[number] = tilesets.metatile(number)
-            return tuple(layer.copy() for layer in cache[number])
+            below, above = (layer.copy() for layer in cache[number])
+            if 'path_glow' in theme and tiles[y][x] == ',':
+                colour, strength = theme['path_glow']
+                lit = Image.blend(below, Image.new('RGBA', below.size, colour + (255,)), strength)
+                lit.putalpha(below.getchannel('A'))
+                below = lit
+            return below, above
         images, chunks = chunk_images(tiles, CHUNK, metatile_for)
         data = dict(id=sid, kind=stage['kind'], tiles=tiles, warps=stage.get('warps', {}), open=''.join(sorted(stage.get('open', ''))),
                     crackAll=bool(stage.get('crackAll', False)), dark=bool(stage.get('dark', False)), par=stage['par'], hint=stage['hint'],
