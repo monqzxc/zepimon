@@ -106,3 +106,36 @@ test('three groups are independent', () => {
   assert.equal(all.room.open, 'ABC')
   assert.equal(stepRoom(all.room, st, 'west').room.open, 'AC')
 })
+
+test('leaving a fragile tile makes a hole', () => {
+  const st = stage(['@:.'])
+  const { room, events } = press(startRoom(st), st, 'east', 'east')
+  assert.deepEqual(events, ['crack'])
+  assert.deepEqual(room.holes, ['1,0'])
+})
+
+test('stepping into a hole falls', () => {
+  const st = stage(['@:.'])
+  const fell = press(startRoom(st), st, 'east', 'east', 'west')
+  assert.equal(fell.room.status, 'fell')
+  assert.deepEqual(fell.events, ['fall'])
+  assert.equal(fell.room.message, 'The floor gave way!')
+  assert.equal(stepRoom(fell.room, st, 'east').move, 'none')
+})
+
+test('crackAll rooms open only when every fragile tile is gone', () => {
+  const st = stage(['@:X', '.:#'], { crackAll: true })
+  const locked = press(startRoom(st), st, 'east', 'east')
+  assert.deepEqual(locked.events, ['locked'])
+  assert.equal(locked.room.message, 'Cross every cracked tile to open the way.')
+  const done = press(startRoom(st), st, 'south', 'east', 'north', 'east')
+  assert.equal(done.room.status, 'cleared')
+})
+
+test('restart is a fresh room', () => {
+  const st = stage(['@:.'])
+  const fell = press(startRoom(st), st, 'east', 'east', 'west').room
+  assert.equal(fell.status, 'fell')
+  assert.deepEqual(startRoom(st), startRoom(stage(['@:.'])))
+  assert.deepEqual(startRoom(st).holes, [])
+})

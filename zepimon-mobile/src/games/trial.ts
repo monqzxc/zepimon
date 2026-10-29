@@ -28,7 +28,7 @@ const around = (stage: Stage, center: Point, radius: number): string[] => {
 const relicsIn = (stage: Stage) => stage.tiles.reduce((total, row) => total + [...row].filter(tile => tile === '*').length, 0)
 const merge = (seen: string[], more: string[]) => [...new Set([...seen, ...more])]
 
-const WALKABLE = '.,g@*w_abc'
+const WALKABLE = '.,g@*w_abc:'
 
 function blockedText(tile: string): string {
   if (tile === '~') return 'The water is too deep to cross.'
@@ -47,9 +47,13 @@ export function startRoom(stage: Stage): Room {
   return { ...room, seen: around(stage, at, stage.dark ? LIGHT : SIGHT) }
 }
 
-// Every relic is collected. (Later rules add the cracked-floor and meteorite goals.) `leaving` is the exit tile being stepped onto.
-export function goalsMet(room: Room, stage: Stage, _leaving?: Point): boolean {
-  return room.relics.length >= relicsIn(stage)
+const fragileLeft = (room: Room, stage: Stage, leaving?: Point) => stage.tiles.reduce((total, row, y) => total + [...row].filter((tile, x) =>
+  tile === ':' && !room.holes.includes(pointKey({ x, y })) && !(leaving && leaving.x === x && leaving.y === y)).length, 0)
+
+// Every relic is collected and, in crackAll rooms, every fragile tile is a hole. (Later rules add the meteorite goal.)
+// `leaving` is the tile being stepped off, which crumbles as the trainer goes and so counts as gone.
+export function goalsMet(room: Room, stage: Stage, leaving?: Point): boolean {
+  return room.relics.length >= relicsIn(stage) && (!stage.crackAll || fragileLeft(room, stage, leaving) === 0)
 }
 
 // Tiles you can see right now: around you, and in a dark room also around every wall torch.
@@ -66,15 +70,25 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
   const next = { x: room.at.x + STEPS[direction].x, y: room.at.y + STEPS[direction].y }
   const tile = tileAt(stage, next)
   const events: RoomEvent[] = []
-  if (tile === 'X' && !goalsMet(room, stage, next)) {
+  if (tile === 'X' && !goalsMet(room, stage, room.at)) {
     const left = relicsIn(stage) - room.relics.length
-    return { room: { ...turned, message: `The seal holds. ${left} ${left === 1 ? 'relic remains' : 'relics remain'}.` }, move: 'bump', events: ['locked'] }
+    const message = left ? `The seal holds. ${left} ${left === 1 ? 'relic remains' : 'relics remain'}.` : 'Cross every cracked tile to open the way.'
+    return { room: { ...turned, message }, move: 'bump', events: ['locked'] }
   }
   const gate = 'ABC'.includes(tile) && room.open.includes(tile)
   if (tile !== 'X' && !gate && !WALKABLE.includes(tile)) return { room: { ...turned, message: blockedText(tile) }, move: 'bump', events }
   let walked: Room = { ...turned, at: next, buddy: room.at, buddyFacing: direction, moves: room.moves + 1 }
   let message = ''
   const key = pointKey(next)
+  if (tileAt(stage, room.at) === ':') {
+    walked = { ...walked, holes: [...room.holes, pointKey(room.at)] }
+    events.push('crack')
+  }
+  if (tile === ':' && room.holes.includes(key)) {
+    walked = { ...walked, status: 'fell' }
+    events.push('fall')
+    message = 'The floor gave way!'
+  }
   if (tile === '*' && !room.relics.includes(key)) {
     walked = { ...walked, relics: [...room.relics, key] }
     events.push('relic')
