@@ -57,7 +57,7 @@ export const trialStages = {
     ],
     warps: {}, open: "", crackAll: false, dark: false, par: 15, hint: "Push the boulder onto the plate to open the door.",
     star: null,
-    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false } }
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true } }
   },
   "warp-tutorial": {
     id: "warp-tutorial", kind: "warp",

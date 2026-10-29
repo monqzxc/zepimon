@@ -45,9 +45,10 @@ THEMES = {
     # Granite Cave B1F. Path is the cracked dark floor; grass the cave's speckled ground.
     'dark': dict(map='GraniteCave_B1F', primary='general', secondary='cave', ground=0x201, path=0x22F, grass=0x2DD,
                  water=None, shore=0x201, rock=0x203, cap=0x21B, face=0x219, fill=0x2E1, pond=True),
-    # Desert Ruins: cobbled walls over sand. Path is the speckled sand; grass the darker speckle.
-    'temple': dict(map='DesertRuins', primary='general', secondary='cave', ground=0x201, path=0x2DD, grass=0x2DE,
-                   water=None, shore=0x201, rock=0x2D5, cap=0x236, face=0x229, fill=0x2E1, pond=True),
+    # Desert Ruins' pair, but warm: the pair's bright desert sand and stone columns, so a temple never reads as Granite Cave.
+    # Path is the speckled sand, grass the edged sand; rocks are the ruins' boulders.
+    'temple': dict(map='DesertRuins', primary='general', secondary='cave', ground=0x2A1, path=0x29F, grass=0x2A9,
+                   water=None, shore=0x2A1, rock=0x2D5, cap=0x2C3, face=0x2BB, fill=0x2E0, pond=True),
     # Mossdeep Gym. Path is the shaded floor; grass the plain floor; water the blue pool block.
     'warp': dict(map='MossdeepCity_Gym', primary='building', secondary='mossdeep_gym', ground=0x20A, path=0x203, grass=0x20A,
                  water=0x221, shore=0x20A, rock=0x204, cap=0x20E, face=0x216, fill=0x208, pond=False),
@@ -66,11 +67,14 @@ GYM_FLOOR, SWITCH_OFF, SWITCH_ON, BEAMS = 0x20A, 0x205, 0x206, (0x228, 0x220, 0x
 GROUPS = {
     'a': ((0x60, 0x08, 0x10), (0xC8, 0x18, 0x20), (0xF8, 0x60, 0x50)),
     'b': ((0x08, 0x18, 0x68), (0x18, 0x50, 0xD8), (0x58, 0x98, 0xF8)),
-    'c': ((0x50, 0x2C, 0x00), (0xB0, 0x68, 0x00), (0xF0, 0xA8, 0x18)),
+    'c': ((0x38, 0x20, 0x00), (0x98, 0x58, 0x00), (0xE8, 0xA0, 0x10)),
 }
-FRAGILE, HOLE = 0x236, 0x237                 # Sky Pillar's cracked floor and its hole
-PLATE, DOOR_SEALED, DOOR_OPEN = 0x259, 0x234, 0x22B   # Desert Ruins' stone slab, its sealed braille wall and an opening
-WARP_PAD = 0x25C                             # Mossdeep Gym's blue floor button
+# Metatile sprites keep only what differs from their own tileset's floor (or, for the clue, the wall it is set in).
+SKY_FLOOR, FRAGILE, HOLE = 0x234, 0x236, 0x237      # Sky Pillar's floor, its cracks and its hole
+RUINS_FLOOR, RUINS_WALL = 0x201, 0x229               # the Desert Ruins' floor and cobbled wall
+PLATE, DOOR_SEALED = 0x259, 0x234                    # the Desert Ruins' stone slab and sealed braille slab
+PLATE_EDGE = (0x48, 0x30, 0x20)                      # the plate's outline
+MOSSDEEP_FLOOR, WARP_PAD = 0x20A, 0x25C      # Mossdeep Gym's floor and blue floor button
 EXIT_SEAL, EXIT_STAIRS = 0x2CA, 0x244        # Sky Pillar's sealed hatch, sliding off its stairs
 CLUE = 0x232                                 # Desert Ruins' braille stone
 MISC = 'graphics/object_events/pics/misc/'
@@ -101,14 +105,16 @@ def read_stages():
         assert isinstance(par, int) and not isinstance(par, bool) and par > 0, f'{sid}: par is a positive integer'
         assert isinstance(stage.get('hint'), str) and stage['hint'], f'{sid}: needs a hint line'
         warps = stage.get('warps', {})
+        assert isinstance(warps, dict), f'{sid}: warps maps pad digits to pad digits'
         for pad, target in warps.items():
             assert re.fullmatch('[1-9]', pad) and pad in grid, f'{sid}: warp {pad!r} is not a pad in the grid'
+            assert isinstance(target, str), f'{sid}: warp {pad} leads to {target!r}; targets are pad digits as strings'
             assert re.fullmatch('[1-9]', target) and target in grid, f'{sid}: warp {pad} leads to {target!r}, not a pad in the grid'
         assert all(count(pad) <= 1 for pad in '123456789'), f'{sid}: each warp pad digit is used once'
         assert count('O') >= count('_'), f'{sid}: a room with plates needs at least as many boulders'
         assert not stage.get('crackAll') or ':' in grid, f'{sid}: crackAll needs fragile floor'
         open_ = stage.get('open', '')
-        assert all(gate in grid for gate in open_), f'{sid}: open names a gate that is not in the grid'
+        assert isinstance(open_, str) and all(gate in 'ABC' and gate in grid for gate in open_), f'{sid}: open lists gate letters A-C that are in the grid'
         star = stage.get('star')
         opened = {node.get('opens') for node in star['nodes']} if star else set()
         for gate in 'ABC':
@@ -253,28 +259,45 @@ def blend(a, b, t):
     return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3)) + (a[3],)
 
 
-def gate_frames(ramp):
-    """Mauville's electric barrier in the group's colours, its two crossing and one upright beam on one tile; open leaves a faint trace of it."""
-    floor = metatile(MAUVILLE, GYM_FLOOR)
-    shut = floor.copy()
-    for number in BEAMS:
-        beam = metatile(MAUVILLE, number)
-        for y in range(16):
-            for x in range(16):
-                if beam.getpixel((x, y)) != floor.getpixel((x, y)):
-                    shut.putpixel((x, y), beam.getpixel((x, y)))
-    shut = swap(shut, floor, ramp)
-    trace = floor.copy()
+def cut(pair, number, floor):
+    """A metatile with its source floor taken out: pixels that match the floor metatile underneath are clear, so the
+    object sits on any room's ground."""
+    image, under = metatile(pair, number), metatile(pair, floor)
     for y in range(16):
         for x in range(16):
-            if shut.getpixel((x, y)) != floor.getpixel((x, y)):
-                trace.putpixel((x, y), blend(floor.getpixel((x, y)), shut.getpixel((x, y)), 0.35))
-    return [shut, trace]
+            if image.getpixel((x, y)) == under.getpixel((x, y)):
+                image.putpixel((x, y), (0, 0, 0, 0))
+    return image
+
+
+def outline(image, colour):
+    """A one-pixel outline around the opaque pixels, so a piece reads on any floor."""
+    out = image.copy()
+    for y in range(16):
+        for x in range(16):
+            if not image.getpixel((x, y))[3] and any(0 <= x + dx < 16 and 0 <= y + dy < 16 and image.getpixel((x + dx, y + dy))[3]
+                                                     for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                out.putpixel((x, y), colour + (255,))
+    return out
+
+
+def gate_frames(ramp):
+    """Mauville's electric barrier in the group's colours, its two crossing and one upright beam on one tile, outlined in
+    the group's darkest colour so it reads on any floor; open leaves a faint trace of the beams."""
+    beams = Image.new('RGBA', (16, 16))
+    for number in BEAMS:
+        image = cut(MAUVILLE, number, GYM_FLOOR)
+        beams.alpha_composite(image)
+    shut = swap(beams, Image.new('RGBA', (16, 16)), ramp)
+    outlined = outline(shut, ramp[0])
+    trace = shut.copy()
+    trace.putalpha(shut.getchannel('A').point(lambda a: 96 if a else 0))
+    return [outlined, trace]
 
 
 def warp_frames():
     """Mossdeep's floor button, then its square brightening three times."""
-    pad = metatile(MOSSDEEP, WARP_PAD)
+    pad = cut(MOSSDEEP, WARP_PAD, MOSSDEEP_FLOOR)
     frames = [pad]
     for t in (0.25, 0.5, 0.75):
         frame = pad.copy()
@@ -288,8 +311,8 @@ def warp_frames():
 
 
 def exit_frames():
-    """Sky Pillar's sealed hatch sliding off its stairs, in four steps."""
-    seal, stairs = metatile(PACIFIDLOG, EXIT_SEAL), metatile(PACIFIDLOG, EXIT_STAIRS)
+    """Sky Pillar's sealed hatch sliding off its stairs, in four steps (both are whole-tile objects; only floor pixels are cut)."""
+    seal, stairs = cut(PACIFIDLOG, EXIT_SEAL, SKY_FLOOR), cut(PACIFIDLOG, EXIT_STAIRS, SKY_FLOOR)
     frames = []
     for step in range(4):
         frame = stairs.copy()
@@ -298,6 +321,29 @@ def exit_frames():
             frame.alpha_composite(seal.crop((0, 0, 16 - shift, 16)), (shift, 0))
         frames.append(frame)
     return frames
+
+
+def plate():
+    """The Desert Ruins' stone slab (the top seven rows of its metatile, on a different sand from the floor), keeping only
+    colours the floor doesn't use, moved to the middle of the tile and outlined."""
+    slab, floor = metatile(CAVE, PLATE), metatile(CAVE, RUINS_FLOOR)
+    sand = {floor.getpixel((x, y)) for y in range(16) for x in range(16)}
+    out = Image.new('RGBA', (16, 16))
+    for y in range(7):
+        for x in range(16):
+            if slab.getpixel((x, y)) not in sand:
+                out.putpixel((x, y + 4), slab.getpixel((x, y)))
+    return outline(out, PLATE_EDGE)
+
+
+def door_frames():
+    """The Desert Ruins' sealed braille slab; open, only its outer two pixels stay, as the doorway's frame."""
+    sealed = metatile(CAVE, DOOR_SEALED)
+    doorway = sealed.copy()
+    for y in range(2, 14):
+        for x in range(2, 14):
+            doorway.putpixel((x, y), (0, 0, 0, 0))
+    return [sealed, doorway]
 
 
 def torch_frames():
@@ -364,19 +410,25 @@ def build_sprites():
     floor = metatile(MAUVILLE, GYM_FLOOR)
     built = {
         'relic': enlarge([sheet(MISC + 'ruby.png', (16, 16))]),
-        'plate': enlarge([metatile(CAVE, PLATE)]),
-        'door': enlarge([metatile(CAVE, DOOR_SEALED), metatile(CAVE, DOOR_OPEN)]),
+        'plate': enlarge([plate()]),
+        'door': enlarge(door_frames()),
         'boulder': enlarge([sheet(MISC + 'pushable_boulder.png', (16, 16))]),
-        'fragile': enlarge([metatile(PACIFIDLOG, FRAGILE), metatile(PACIFIDLOG, HOLE)]),
+        'fragile': enlarge([cut(PACIFIDLOG, FRAGILE, SKY_FLOOR), cut(PACIFIDLOG, HOLE, SKY_FLOOR)]),
         'warp': enlarge(warp_frames()),
         'exit': enlarge(exit_frames()),
         'torch': enlarge(torch_frames()),
         'crystal': enlarge(crystal_frames()),
-        'clue': enlarge([metatile(CAVE, CLUE)]),
+        'clue': enlarge([cut(CAVE, CLUE, RUINS_WALL)]),
         'meteorite': enlarge(meteorite_frames()),
     }
     for group, ramp in GROUPS.items():
-        built[f'switch-{group}'] = enlarge([swap(metatile(MAUVILLE, number), floor, ramp) for number in (SWITCH_OFF, SWITCH_ON)])
+        switches = [swap(metatile(MAUVILLE, number), floor, ramp) for number in (SWITCH_OFF, SWITCH_ON)]
+        for image in switches:
+            for y in range(16):
+                for x in range(16):
+                    if image.getpixel((x, y)) == floor.getpixel((x, y)):
+                        image.putpixel((x, y), (0, 0, 0, 0))
+        built[f'switch-{group}'] = enlarge(switches)
         built[f'gate-{group}'] = enlarge(gate_frames(ramp))
     return built
 

@@ -14,8 +14,8 @@ export const trialChunks = {
     "1,0": { ground: require('../../assets/trials/dark-tutorial-ground-1-0.png') }
   },
   "temple-tutorial": {
-    "0,0": { ground: require('../../assets/trials/temple-tutorial-ground-0-0.png') },
-    "1,0": { ground: require('../../assets/trials/temple-tutorial-ground-1-0.png') }
+    "0,0": { ground: require('../../assets/trials/temple-tutorial-ground-0-0.png'), top: require('../../assets/trials/temple-tutorial-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/temple-tutorial-ground-1-0.png'), top: require('../../assets/trials/temple-tutorial-top-1-0.png') }
   },
   "warp-tutorial": {
     "0,0": { ground: require('../../assets/trials/warp-tutorial-ground-0-0.png') },
