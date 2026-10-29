@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { deadCells, goalsMet, lit, planRoomWalk, startRoom, stepRoom } from '../src/games/trial.ts'
+import { deadCells, goalsMet, hintTier, lit, planRoomWalk, resetAlignment, resonance, startRoom, stepRoom } from '../src/games/trial.ts'
+import { STAR } from './star-fixture.js'
 
 const stage = (tiles, extra = {}) => ({ id: 't', kind: 'switch', tiles, warps: {}, open: '', crackAll: false, dark: false, par: 99, hint: '', star: null, ...extra })
 const press = (room, st, ...directions) => directions.reduce((result, direction) => stepRoom(result.room, st, direction), { room, move: 'none', events: [] })
@@ -279,4 +280,106 @@ test('a warp reveals around both pads', () => {
   const room = stepRoom(startRoom(st), st, 'east').room
   assert.ok(room.seen.includes('5,0'))
   assert.ok(room.seen.includes('14,0'))
+})
+
+const toN1 = ['east', 'north', 'north', 'north']
+const starWith = (star) => ({ ...STAR, star: { ...STAR.star, ...star } })
+
+test('a clue stone is read by walking into it', () => {
+  const first = stepRoom(startRoom(STAR), STAR, 'north')
+  assert.equal(first.move, 'bump')
+  assert.deepEqual(first.events, ['clue'])
+  assert.equal(first.room.message, 'One light alone, one point turned.')
+  assert.deepEqual(first.room.cluesRead, ['0,2'])
+  const second = stepRoom(first.room, STAR, 'north')
+  assert.equal(second.room.message, 'One light alone, one point turned.')
+  assert.deepEqual(second.room.cluesRead, ['0,2'])
+})
+
+test('crystals follow their rules', () => {
+  const a = press(startRoom(STAR), STAR, ...toN1)
+  assert.deepEqual(a.events, ['node'])
+  assert.deepEqual(a.room.lit, ['n1', 'n2'])
+  assert.equal(a.room.pattern, 0)
+  const b = press(a.room, STAR, 'east', 'east')
+  assert.deepEqual(b.room.lit, ['n1'])
+  assert.equal(b.room.pattern, 1)
+  const c = press(b.room, STAR, 'west', 'east')
+  assert.deepEqual(c.room.lit, ['n1', 'n2'])
+  assert.equal(c.room.pattern, 2)
+  const d = press(c.room, STAR, 'west', 'east')
+  assert.equal(d.room.pattern, 0)
+})
+
+test('the right alignment wakes the star', () => {
+  const { room, events } = press(startRoom(STAR), STAR, ...toN1, 'east', 'east', 'south')
+  assert.equal(room.status, 'cleared')
+  assert.ok(events.includes('clear'))
+})
+
+test('a wrong attune only counts and answers', () => {
+  const before = press(startRoom(STAR), STAR, 'east', 'north').room
+  const { room, events, move } = stepRoom(before, STAR, 'east')
+  assert.equal(move, 'bump')
+  assert.deepEqual(events, ['attune'])
+  assert.equal(room.status, 'playing')
+  assert.equal(room.attunes, 1)
+  assert.equal(room.message, 'The meteorite flickers. 2 of 4 lights answer.')
+  assert.deepEqual(room.at, before.at)
+  assert.equal(room.moves, before.moves)
+  assert.deepEqual(room.seen, before.seen)
+  assert.deepEqual(room.cluesRead, before.cluesRead)
+  assert.deepEqual(room.lit, before.lit)
+})
+
+test('resetOnFail puts only the crystals back', () => {
+  const st = starWith({ resetOnFail: true })
+  const read = press(startRoom(st), st, 'north').room
+  const lit1 = press(read, st, 'east', 'north', 'north', 'north').room
+  assert.deepEqual(lit1.lit, ['n1', 'n2'])
+  const wrong = press(lit1, st, 'east', 'south').room
+  assert.equal(wrong.attunes, 1)
+  assert.deepEqual(wrong.lit, [])
+  assert.equal(wrong.pattern, 0)
+  assert.deepEqual(wrong.cluesRead, ['0,2'])
+  assert.deepEqual(wrong.at, { x: 2, y: 0 })
+})
+
+test('reset the crystals keeps the island', () => {
+  const read = press(startRoom(STAR), STAR, 'north', 'east', 'north', 'north', 'north').room
+  const attuned = press(read, STAR, 'east', 'south').room
+  assert.equal(attuned.attunes, 1)
+  assert.deepEqual(attuned.lit, ['n1', 'n2'])
+  const after = resetAlignment(attuned, STAR)
+  assert.deepEqual(after.lit, [])
+  assert.equal(after.pattern, 0)
+  for (const field of ['at', 'seen', 'cluesRead', 'open', 'attunes', 'moves']) assert.deepEqual(after[field], attuned[field])
+})
+
+test('a crystal opens its passage for good', () => {
+  const st = stage(['@%A.'], { kind: 'star', star: { nodes: [{ id: 'n1', at: [1, 0], links: [], turns: 0, opens: 'A' }], patterns: 1, startLit: [],
+    target: { lit: ['n1'], pattern: 0 }, resetOnFail: false, clues: [], hints: ['a', 'b', 'c'] } })
+  const on = press(startRoom(st), st, 'east').room
+  assert.equal(on.open, 'A')
+  const off = press(on, st, 'west', 'east').room
+  assert.deepEqual(off.lit, [])
+  assert.equal(off.open, 'A')
+  assert.equal(resetAlignment(off, st).open, 'A')
+})
+
+test('hints unlock every two misses', () => {
+  const tier = (attunes) => hintTier({ ...startRoom(STAR), attunes })
+  assert.deepEqual([1, 2, 4, 6, 9].map(tier), [0, 1, 2, 3, 3])
+})
+
+test('resonance counts crystals and the pattern', () => {
+  assert.deepEqual(resonance(startRoom(STAR), STAR), { matching: 2, total: 4 })
+  assert.deepEqual(resonance({ ...startRoom(STAR), lit: ['n1'], pattern: 1 }, STAR), { matching: 4, total: 4 })
+})
+
+test('tap-to-walk treats crystals as destinations and clues and the meteorite as walls', () => {
+  const room = startRoom(STAR)
+  assert.ok(planRoomWalk(room, STAR, { x: 1, y: 0 }))
+  assert.ok(planRoomWalk(room, STAR, { x: 0, y: 2 }))
+  assert.ok(planRoomWalk(room, STAR, { x: 2, y: 2 }))
 })

@@ -108,6 +108,20 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
   const next = { x: room.at.x + STEPS[direction].x, y: room.at.y + STEPS[direction].y }
   const tile = tileAt(stage, next)
   const events: RoomEvent[] = []
+  const star = stage.star
+  if (star && tile === '?') {
+    const clue = star.clues.find(c => c.at[0] === next.x && c.at[1] === next.y)
+    if (clue) return { room: { ...turned, cluesRead: merge(room.cluesRead, [pointKey(next)]), message: clue.text }, move: 'bump', events: ['clue'] }
+  }
+  if (star && tile === 'M') {
+    if (sameSet(room.lit, star.target.lit) && room.pattern === star.target.pattern) {
+      return { room: { ...turned, status: 'cleared', message: 'The meteorite wakes. The island remembers!' }, move: 'bump', events: ['clear'] }
+    }
+    const { matching, total } = resonance(room, stage)
+    const message = `The meteorite flickers. ${matching} of ${total} lights answer.`
+    const reset = star.resetOnFail ? { lit: [...star.startLit].sort(), pattern: 0 } : {}
+    return { room: { ...turned, ...reset, attunes: room.attunes + 1, message }, move: 'bump', events: ['attune'] }
+  }
   if (tile === 'X' && !goalsMet(room, stage, room.at)) {
     const left = relicsIn(stage) - room.relics.length
     const message = left ? `The seal holds. ${left} ${left === 1 ? 'relic remains' : 'relics remain'}.` : 'Cross every cracked tile to open the way.'
@@ -129,7 +143,7 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
   }
   const gate = 'ABC'.includes(tile) && room.open.includes(tile)
   const door = tile === '=' && room.doorsOpen
-  if (tile !== 'X' && !gate && !door && !pushed && !WALKABLE.includes(tile)) return { room: { ...turned, message: blockedText(tile) }, move: 'bump', events }
+  if (tile !== 'X' && !gate && !door && !pushed && !WALKABLE.includes(tile) && tile !== '%') return { room: { ...turned, message: blockedText(tile) }, move: 'bump', events }
   let walked: Room = { ...turned, at: next, buddy: room.at, buddyFacing: direction, moves: room.moves + 1, boulders }
   let message = ''
   if (pushed && !room.doorsOpen && plates(stage).length && plates(stage).every(plate => boulders.includes(plate))) {
@@ -158,6 +172,15 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
     events.push('switch')
     message = room.open.includes(group) ? 'A gate swings shut.' : 'A gate swings open.'
   }
+  const node = star && tile === '%' ? star.nodes.find(n => n.at[0] === next.x && n.at[1] === next.y) : undefined
+  if (star && node) {
+    const flip = new Set(room.lit)
+    for (const id of [node.id, ...node.links]) { if (!flip.delete(id)) flip.add(id) }
+    const lit = [...flip].sort()
+    const open = node.opens && lit.includes(node.id) && !room.open.includes(node.opens) ? [...room.open + node.opens].sort().join('') : room.open
+    walked = { ...walked, lit, open, pattern: (room.pattern + node.turns) % star.patterns }
+    events.push('node')
+  }
   if (tile === 'X') {
     walked = { ...walked, status: 'cleared' }
     events.push('clear')
@@ -174,6 +197,22 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
   walked = { ...walked, seen: merge(merge(walked.seen, around(stage, next, stage.dark ? LIGHT : SIGHT)), around(stage, walked.at, stage.dark ? LIGHT : SIGHT)), message }
   return { room: walked, move, events }
 }
+
+const sameSet = (a: string[], b: string[]) => a.length === b.length && [...a].sort().every((id, i) => id === [...b].sort()[i])
+
+// How many of the star's lights answer: crystals in their target state, plus the pattern, out of crystals + 1.
+export function resonance(room: Room, stage: Stage): { matching: number, total: number } {
+  const star = stage.star
+  if (!star) return { matching: 0, total: 0 }
+  const matching = star.nodes.filter(n => room.lit.includes(n.id) === star.target.lit.includes(n.id)).length + (room.pattern === star.target.pattern ? 1 : 0)
+  return { matching, total: star.nodes.length + 1 }
+}
+
+// Reset the crystals: the alignment only. Position, seen tiles, clues, opened passages and attunes stay.
+export const resetAlignment = (room: Room, stage: Stage): Room => ({ ...room, lit: [...(stage.star?.startLit ?? [])].sort(), pattern: 0 })
+
+// A hint tier unlocks for every two failed attunes, up to three.
+export const hintTier = (room: Room): 0 | 1 | 2 | 3 => Math.min(3, Math.floor(room.attunes / 2)) as 0 | 1 | 2 | 3
 
 const ORDER: Direction[] = ['north', 'south', 'west', 'east']
 
