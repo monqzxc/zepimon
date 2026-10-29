@@ -15,7 +15,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png",
-        "backgroundColor": "#1C0D3F"
+        "backgroundColor": "#0B1F3A"
       },
       "package": "com.zepimon.companion",
       "versionCode": 43,

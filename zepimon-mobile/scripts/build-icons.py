@@ -7,16 +7,16 @@ Phone (Expo): 1024x1024 icon on a solid background (iOS rejects transparency), a
 monochrome layer kept inside the 66/108 safe zone, and a 48x48 web favicon.
 """
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'pokemon_data' / 'zepimon-icon.png'
 WATCH_ASSETS = ROOT / 'hatdog-app' / 'assets'
 PHONE_ASSETS = ROOT / 'zepimon-mobile' / 'assets'
-BADGE = (28, 13, 63, 255)       # deep purple sampled from the icon's shading
-RIM = (109, 59, 214, 255)       # lighter purple ring so the badge reads on a black watch face
-BAND_SATURATION = 130           # monochrome layer drops dark, muted pixels: the band and button ring measure about
-BAND_VALUE = 140                # saturation 86-99 and value 87-103 (of 255), while the purple body is 185+ saturated
+BADGE = (11, 31, 58, 255)       # deep navy, a night sky under the ball's red and sky blue (#0B1F3A)
+RIM = (30, 136, 208, 255)       # the icon's sky blue as a ring, so the badge reads on a black watch face
+DARK_VALUE = 90                 # monochrome layer drops the black outlines and band (value under 90 of 255 once
+                                # smoothed); the red, blue and orange, even shaded, stay above 150
 
 
 def enclosing_circle(image):
@@ -58,13 +58,13 @@ def badge(size, margin, fill, rim, rim_width):
 
 
 def monochrome(layer):
-    """White silhouette for Android 13 themed icons. Only the grey band and button ring (dark, colorless) are cut out,
-    so the shaded purple body stays solid and the ball reads like a Pokeball glyph."""
+    """White silhouette for Android 13 themed icons. Only the black outlines and band are cut out, so the red and blue
+    halves, the Z and its frame stay solid and the ball reads as one glyph. The artwork's outlines have soft, noisy
+    edges, so brightness is smoothed before the cut and the mask is median-filtered after it: clean shapes, no speckle."""
     alpha = layer.getchannel('A')
-    _, saturation, value = layer.convert('RGB').convert('HSV').split()
-    keep = Image.new('L', layer.size, 0)
-    keep.putdata([0 if s < BAND_SATURATION and v < BAND_VALUE else a
-                  for a, s, v in zip(alpha.tobytes(), saturation.tobytes(), value.tobytes())])
+    value = layer.convert('RGB').convert('HSV').getchannel('V').filter(ImageFilter.GaussianBlur(2))
+    dark = value.point(lambda v: 255 if v < DARK_VALUE else 0)
+    keep = ImageChops.subtract(alpha, dark).filter(ImageFilter.MedianFilter(5))
     out = Image.new('RGBA', layer.size, (255, 255, 255, 0))
     out.putalpha(keep)
     return out

@@ -609,9 +609,9 @@ Sprite source and credits: [PokeAPI sprites README](https://github.com/PokeAPI/s
 
 Both apps' icons come from `pokemon_data/zepimon-icon.png`. After changing it, run `python scripts/build-icons.py` (needs Pillow) to rebuild:
 
-- the watch icon in every `hatdog-app/assets/<target>/icon.png`: 248 x 248, a round purple badge with a 4px transparent margin, per Zepp's app icon spec;
-- `assets/icon.png`: 1024 x 1024 on a solid purple background, since iOS does not allow transparent icons;
-- the Android adaptive icon (`android-icon-foreground.png` inside the launcher safe zone, background `#1C0D3F`) and its Android 13 themed `android-icon-monochrome.png`;
+- the watch icon in every `hatdog-app/assets/<target>/icon.png`: 248 x 248, a round deep-navy badge with a sky-blue rim and a 4px transparent margin, per Zepp's app icon spec;
+- `assets/icon.png`: 1024 x 1024 on a solid deep-navy background (`#0B1F3A`), since iOS does not allow transparent icons;
+- the Android adaptive icon (`android-icon-foreground.png` inside the launcher safe zone, background `#0B1F3A`) and its Android 13 themed `android-icon-monochrome.png`;
 - `assets/favicon.png` for the web build.
 
 `npm run sync:watch` no longer touches the app icon.
