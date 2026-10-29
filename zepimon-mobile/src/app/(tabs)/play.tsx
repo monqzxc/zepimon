@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import type React from 'react'
 import { useJournal } from '../../store'
 import { MemoryMatch } from '../../MemoryMatch'
 import { Image, Text, View } from 'react-native'
@@ -7,7 +6,7 @@ import { BerryCatch, BerryIcon } from '../../games/BerryCatch'
 import { PokemonQuiz } from '../../games/PokemonQuiz'
 import type { ArcadeGame } from '../../games/scores'
 import { spriteSource } from '../../catalog'
-import { Button, Copy, Eyebrow, Hero, IconBubble, IconButton, Panel, Screen, Sprite, Title, colors, styles, typeTints, useTheme } from '../../ui'
+import { Button, Copy, Eyebrow, Hero, IconBubble, IconButton, Panel, Screen, Sprite, colors, styles, typeTints, useTheme } from '../../ui'
 import { GameScreenContext } from '../../games/fullscreen'
 import { useImmersive } from '../../games/useImmersive'
 import { DefenseGame, starText } from '../../games/DefenseGame'
@@ -24,6 +23,7 @@ import { ArcadeAchievements } from '../../games/ArcadeAchievements'
 import { legendaryAssists, teamChoices } from '../../games/roster'
 import type { TeamCard } from '../../games/roster'
 import { PixelSprite } from '../../games/TeamPicker'
+import { GameGrid } from '../../games/GameGrid'
 
 type Launch = { game: 'guard' | 'trail' | 'safari', stop?: Stop, level?: Level }
 type Selected = 'memory' | 'quiz' | 'berries' | 'map' | 'levels' | Launch | null
@@ -94,8 +94,32 @@ export default function PlayScreen() {
       {inGame && !fill && <IconButton name="fullscreen" label="Full screen" size={50} onPress={() => setFull(true)} />}
     </View> : <>
       <Hero eyebrow="ZEPIMON · POCKET ARCADE" title="A little trail break.">
-        <Copy color={colors.onBrand}>An adventure map, three battle and hunting games, and three quick puzzles. Everything works offline and saves on this phone.</Copy>
+        <Copy color={colors.onBrand}>Pick a game. Everything works offline and saves on this phone.</Copy>
       </Hero>
+      <GameGrid games={[
+        { id: 'map', title: 'Adventure Map', tint: typeTints.flying, logo: <PixelSprite name="Dragonite" size={76} />,
+          record: `★ ${totalStars} / ${STOPS.length * 3}`, onPress: () => select('map'),
+          about: `Nine stops from Route 1 to Victory Road that mix the battle and hunting games.${nextStop ? ` Next: ${nextStop.title}, ${MODE_NAMES[nextStop.mode]}.` : ''}` },
+        { id: 'guard', title: 'Route Guard', tint: typeTints.ground, logo: <PixelSprite name="Snorlax" size={76} />,
+          record: best('guard', 'waves', 10), onPress: () => select({ game: 'guard' }),
+          about: 'Lane defense: hold five lanes against Shadow Pokemon with berries, Grass and Rock types.' },
+        { id: 'trail', title: 'Trail Defense', tint: typeTints.fire, logo: <PixelSprite name="Charizard" size={76} />,
+          record: `★ ${levelStars} / ${LEVELS.length * 3}`, onPress: () => select('levels'),
+          about: `Tower defense: ${LEVELS.length} levels in ${STAGES.length} stages; ${levelsCleared} cleared.${nextLevel ? ` Next: Level ${nextLevel.number}.` : ''} Evolve your team mid-battle with berries.` },
+        { id: 'safari', title: 'Safari Zone', tint: typeTints.grass, logo: <PixelSprite name="Kangaskhan" size={76} />,
+          record: `Best: ${arcadeScores.safari === undefined ? 'Not set' : `${arcadeScores.safari} caught`}`, onPress: () => select({ game: 'safari' }),
+          about: 'Walk Emerald’s Safari Zone with your buddy and catch Pokemon in the tall grass. Catches join your Dex.' },
+        { id: 'memory', title: 'Memory Match', tint: typeTints.fairy, logo: <><Sprite name="Bulbasaur" size={52} /><Sprite name="Bulbasaur" shiny size={52} /></>,
+          onPress: () => select('memory'),
+          about: 'Find matching Normal and Shiny pairs from your collection. Needs at least two variants.' },
+        { id: 'quiz', title: 'Who’s That Pokémon?', tint: typeTints.water,
+          logo: <Image source={spriteSource('Pikachu')} resizeMode="contain" accessible={false} style={{ width: 72, height: 72, tintColor: colors.ink }} />,
+          record: `Best: ${arcadeScores.quiz === undefined ? 'Not set' : `${arcadeScores.quiz} / 10`}`, onPress: () => select('quiz'),
+          about: 'Ten silhouettes, four choices each, from Gen 1 to 4.' },
+        { id: 'berries', title: 'Berry Catch', tint: typeTints.bug, logo: <BerryIcon />,
+          record: `Best: ${arcadeScores.berries === undefined ? 'Not set' : `${arcadeScores.berries} / 20`}`, onPress: () => select('berries'),
+          about: 'A 30-second garden game: tap each ripe berry before it hops away.' }
+      ]} />
       <Panel style={{ backgroundColor: colors.mint, borderColor: colors.mintLine }}>
         <View style={[styles.row, { flexWrap: 'nowrap' }]}>
           <IconBubble name="walk" background={colors.panel} />
@@ -105,37 +129,6 @@ export default function PlayScreen() {
         <Copy small>A bonus, never a requirement: every game is fully playable without walking.</Copy>
       </Panel>
       <ArcadeAchievements place="arcade" />
-      <GameCard tint={typeTints.flying} eyebrow="01 · ADVENTURE MAP" title="From Route 1 to Victory Road"
-        art={['Pidgey', 'Geodude', 'Clefairy', 'Gastly', 'Dragonite'].map(name => <PixelSprite key={name} name={name} size={56} />)}
-        text="Nine stops that mix all three new games. Earn stars to open the trail ahead."
-        record={`★ ${totalStars} / ${STOPS.length * 3}${nextStop ? ` · Next: ${nextStop.title} (${MODE_NAMES[nextStop.mode]})` : ''}`}
-        action="Open the Adventure Map" onPress={() => select('map')} />
-      <GameCard tint={typeTints.ground} eyebrow="02 · LANE DEFENSE" title="Route Guard"
-        art={['Bulbasaur', 'Charmander', 'Geodude', 'Snorlax'].map(name => <PixelSprite key={name} name={name} size={64} />)}
-        text="Shadow Pokemon march down five lanes. Grow berries with Grass types, block with Rock types, and hold the line. Snorlax naps at the end of every lane."
-        record={best('guard', 'waves', 10)} action="Play Route Guard" onPress={() => select({ game: 'guard' })} />
-      <GameCard tint={typeTints.fire} eyebrow="03 · TOWER DEFENSE" title="Trail Defense"
-        art={([['Charmander', 48], ['Charmeleon', 60], ['Charizard', 76]] as const).map(([name, size]) => <PixelSprite key={name} name={name} size={size} />)}
-        text={`${LEVELS.length} levels in ${STAGES.length} stages, on maps that keep getting bigger. Build a team beside a winding trail and evolve them mid-battle with berries. Pokemon hatched on your watch bring their egg moves.`}
-        record={`★ ${levelStars} / ${LEVELS.length * 3} · ${levelsCleared} / ${LEVELS.length} levels cleared${nextLevel ? ` · Next: Level ${nextLevel.number}` : ''}`}
-        action="Play Trail Defense" onPress={() => select('levels')} />
-      <GameCard tint={typeTints.grass} eyebrow="04 · HUNTING" title="Safari Zone"
-        art={['Pidgey', 'Pikachu', 'Oddish'].map(name => <PixelSprite key={name} name={name} size={64} />)}
-        text="Walk Emerald’s Safari Zone with your buddy. Step into tall grass, time your throw on the shrinking ring, and chain catches for a better Shiny chance. Catches join your Dex."
-        record={safariBest} action="Enter the Safari Zone" onPress={() => select({ game: 'safari' })} />
-      <GameCard tint={typeTints.fairy} eyebrow="05 · PAIRS & PATIENCE" title="Memory Match"
-        art={<><Sprite name="Bulbasaur" size={80} /><Sprite name="Bulbasaur" shiny size={80} /></>}
-        text="Find matching Normal and Shiny pairs from your collection. Import or catch at least two variants to play."
-        action="Play Memory Match" onPress={() => select('memory')} />
-      <GameCard tint={typeTints.water} eyebrow="06 · FIELD RESEARCH" title="Who’s That Pokémon?"
-        art={<Image source={spriteSource('Pikachu')} resizeMode="contain" accessibilityLabel="Mystery Pokemon silhouette"
-          style={{ width: 120, height: 120, tintColor: colors.ink }} />}
-        text="Ten silhouettes. Four choices. How well do you know Gen 1–4?"
-        record={`Best: ${arcadeScores.quiz === undefined ? 'Not set' : `${arcadeScores.quiz} / 10`}`} action="Play Pokemon Quiz" onPress={() => select('quiz')} />
-      <GameCard tint={typeTints.bug} eyebrow="07 · GARDEN DASH" title="Berry Catch"
-        art={<View style={{ height: 88, justifyContent: 'center' }}><BerryIcon /></View>}
-        text="A 30-second garden game. Tap each ripe berry before it hops to another patch."
-        record={`Best: ${arcadeScores.berries === undefined ? 'Not set' : `${arcadeScores.berries} / 20`}`} action="Play Berry Catch" onPress={() => select('berries')} />
       <Copy small>Every game except Memory Match is available right away. Game points, stars and Safari catches stay on this phone; your walking distance, hatching and watch records come from your watch.</Copy>
     </>}
     {!(immersive && fill) && !!message && <Copy color={colors.gold}>{message}</Copy>}
@@ -168,20 +161,6 @@ export default function PlayScreen() {
     {selected === 'quiz' && <PokemonQuiz best={arcadeScores.quiz} onComplete={score => saveScore('quiz', score)} />}
     {selected === 'berries' && <BerryCatch best={arcadeScores.berries} onComplete={score => saveScore('berries', score)} />}
   </GameScreenContext.Provider></Screen>
-}
-
-// An arcade menu card: artwork on a pastel strip, then the game's name, pitch, best result and play button.
-function GameCard({ tint, eyebrow, title, art, text, record, action, onPress }: {
-  tint: string, eyebrow: string, title: string, art: React.ReactNode, text: string, record?: string, action: string, onPress: () => void
-}) {
-  return <Panel>
-    <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: 4, paddingVertical: 12, borderRadius: 16, backgroundColor: tint }}>{art}</View>
-    <Eyebrow>{eyebrow}</Eyebrow>
-    <Title>{title}</Title>
-    <Copy>{text}</Copy>
-    {!!record && <Copy small color={colors.gold}>{record}</Copy>}
-    <Button title={action} onPress={onPress} />
-  </Panel>
 }
 
 // One Trail Defense level, with its map preview and a button to the next level after a win.
