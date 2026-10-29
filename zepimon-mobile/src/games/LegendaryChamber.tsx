@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Animated, Easing, Platform, Text, View } from 'react-native'
 import { pokemonType } from '../catalog'
 import { Button, Copy, Eyebrow, Panel, colors, fonts, themedStyles, typeInks } from '../ui'
-import { resetDue } from '../expedition-encounter'
+import { RESET_COOLDOWN, resetDue } from '../expedition-encounter'
 import type { ActiveEncounter } from '../expedition-encounter'
 import { Sparkles } from './SafariEncounter'
 import { PixelSprite } from './TeamPicker'
@@ -19,7 +19,7 @@ export function LegendaryChamber({ encounter, number, reduced, busy, onBattle, o
 }) {
   const [now, setNow] = useState(() => Date.now())
   const [confirm, setConfirm] = useState<Confirm>('none')
-  const settled = useRef('')
+  const lastTry = useRef(0)
   const settle = useRef(onSettle)
   useEffect(() => { settle.current = onSettle })
   const pending = encounter.resetPending
@@ -28,15 +28,16 @@ export function LegendaryChamber({ encounter, number, reduced, busy, onBattle, o
     const timer = setInterval(() => setNow(Date.now()), 100)
     return () => clearInterval(timer)
   }, [pending])
-  // Finishes a due reset once per attempt, including one left running when the app closed.
+  // Finishes a due reset, including one left running when the app closed. The clock is read fresh here: the ticking now
+  // can be a moment old, and an old one looks like a turned-back clock. Until the saved encounter shows the new roll,
+  // it asks again about once a second, so one early or failed attempt never leaves the reset stuck at 0.
   const due = pending && resetDue(encounter, now)
   useEffect(() => {
-    const id = `${encounter.index}:${encounter.attempt}`
-    if (!due || settled.current === id) return
-    settled.current = id
+    if (!due || !resetDue(encounter, Date.now()) || Date.now() - lastTry.current < 1000) return
+    lastTry.current = Date.now()
     settle.current()
-  }, [due, encounter.index, encounter.attempt])
-  const remaining = Math.max(0, encounter.nextResetAllowedAt - now) / 1000
+  }, [due, now, encounter])
+  const remaining = Math.min(RESET_COOLDOWN, Math.max(0, encounter.nextResetAllowedAt - now)) / 1000
   const ink = typeInks[pokemonType(encounter.name)] || colors.edge
   const label = `${encounter.shiny ? 'Shiny ' : ''}${encounter.name}`
   return <Panel style={{ backgroundColor: look.shrine.backgroundColor, borderColor: ink }}>
