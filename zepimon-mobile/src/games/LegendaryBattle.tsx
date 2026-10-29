@@ -106,7 +106,7 @@ export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLea
       </> : <Button title={rematch ? 'Saving your win…' : 'Saving your new friend…'} loading onPress={() => {}} />}
     </View>}
     {(battle.phase === 'out' || battle.phase === 'fled') && <View style={gba.after}>
-      <Button title={rematch ? 'Back to Shrine Revisits' : 'Back to the chamber'} onPress={onLeave} />
+      <Button title={rematch ? 'Back to Shrine Revisits' : 'Back to the lair'} onPress={onLeave} />
     </View>}
     {!done && <Text style={gba.footer}>{rematch ? 'REMATCH' : `EXPEDITION ${number}`} · Poké Balls ×{battle.balls} · Moves never knock the Legendary out.</Text>}
   </View>

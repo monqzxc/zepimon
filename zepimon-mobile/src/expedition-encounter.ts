@@ -6,16 +6,19 @@ import { restoreRun } from './games/trials.ts'
 import type { TrialRun } from './games/trials.ts'
 
 export const SHINY_ODDS = 100
-export const RESET_COOLDOWN = 5000
+// After walking out of a Legendary's lair, its entrance stays sealed this long before the next try.
+export const RESET_COOLDOWN = 1500
 
 // The Legendary waiting at a trail's next encounter, kept beside the trail rather than in it. Its species comes from
 // the canonical draw (generated/expedition.js) and never changes. Whether it is Shiny is this encounter's own roll,
-// 1 in 100: made the first time the chamber opens after the trial, and again only after a confirmed reset and its
-// five-second wait. shiny is null until that first roll. nextResetAllowedAt is a clock time, so leaving, refreshing or
-// reopening the app cannot skip the wait or reroll. checkpoint is the trial in progress and exists only until the trial is finished.
-// resonance is the Legendary Resonance Trial after the chamber (src/games/resonance.ts): started once the player walks
-// into its arena, which ends any chance of a reset; the seals switched on so far, kept whatever happens; and stabilized
-// once all four are on, which is what unlocks the catch.
+// 1 in 100, made as the player enters its lair after the trial (src/games/lairs.ts). Walking back out through the
+// lair's entrance (a Shiny asks twice) seals the entrance for RESET_COOLDOWN; the next entry after that rolls again.
+// shiny is null until the first roll; resetPending is set while the player is out and the next entry should roll.
+// nextResetAllowedAt is a clock time, so leaving, refreshing or reopening the app cannot skip the wait or reroll, and
+// leaving any other way (the Leave button, closing the app) keeps the result. checkpoint is the trial in progress and
+// exists only until the trial is finished. resonance is the Legendary Resonance Trial in the lair
+// (src/games/resonance.ts): started when the first seal switches on, which sets the result for good; the seals
+// switched on so far, kept whatever happens; and stabilized once all four are on, which is what unlocks the catch.
 export const RESONANCE_SEALS = ['wave', 'runes', 'pulse', 'stones'] as const
 export type SealId = typeof RESONANCE_SEALS[number]
 export type ResonanceProgress = { started: boolean, seals: SealId[], stabilized: boolean }
@@ -35,8 +38,9 @@ export const readyToBattle = (encounter: ActiveEncounter | undefined): encounter
 export const readyToCapture = (encounter: ActiveEncounter | undefined): encounter is ActiveEncounter & { shiny: boolean } =>
   readyToBattle(encounter) && !!encounter.resonance?.stabilized
 
-// Where the Resonance Trial stands: locked until the chamber is settled, ready to enter, active while seals remain,
-// stabilizing once all four are on, and capture-ready after that. (Captured encounters are gone from the saved list.)
+// Where the Resonance Trial stands: locked until the Legendary has been met in its lair, ready while no seal is on yet
+// (the result can still be rerolled), active while seals remain, stabilizing once all four are on, and capture-ready
+// after that. (Captured encounters are gone from the saved list.)
 export type ResonanceStage = 'locked' | 'ready' | 'active' | 'stabilizing' | 'capture-ready'
 export function resonanceStage(encounter: ActiveEncounter | undefined): ResonanceStage {
   if (!readyToBattle(encounter)) return 'locked'
@@ -80,47 +84,35 @@ function settle(encounter: ActiveEncounter, now: number, random: () => number): 
   return encounter
 }
 
-// Entering the chamber rolls only the first time, or finishes a reset whose wait is over. Coming back otherwise keeps
-// the result exactly as it was.
-export function openChamber(play: Play, key: string, index: number, now = Date.now(), random = Math.random): Encounters {
+// Entering the lair rolls the first time, and again on the first entry after walking out once the entrance has
+// opened. Coming back otherwise (after Leave, a restart, a lost catch) keeps the result exactly as it was. While the
+// entrance is still sealed, entering is refused.
+export function enterLair(play: Play, key: string, index: number, now = Date.now(), random = Math.random): Encounters {
   const encounter = activeEncounter(play, key, index)
-  if (!encounter.trial) throw new Error('Finish the trial to open the chamber.')
+  if (!encounter.trial) throw new Error('Finish the trial to reach the lair.')
+  if (encounter.resetPending && !resetDue(encounter, now)) throw new Error('The entrance is still sealed. Try again in a moment.')
   const next = settle(encounter, now, random)
   return next === encounter ? play.encounters : save(play, key, next)
 }
 
-// A confirmed reset: the shrine waits five seconds, then rolls once. Discarding a Shiny needs its own confirmation. Once
-// the Resonance Trial has started, the encounter is set and can no longer be reset.
-export function requestReset(play: Play, key: string, index: number, discardShiny: boolean, now = Date.now()): Encounters {
+// Walking back out through the lair's entrance: the entrance seals for RESET_COOLDOWN, and the next entry rolls once.
+// Leaving a Shiny behind needs its own confirmation. Once a seal is on, the result is set and walking out rerolls nothing.
+export function leaveLair(play: Play, key: string, index: number, discardShiny: boolean, now = Date.now()): Encounters {
   const encounter = activeEncounter(play, key, index)
-  if (!encounter.trial || encounter.shiny === null) throw new Error('Open the chamber before resetting.')
-  if (encounter.resonance?.started) throw new Error('The Resonance Trial has begun, so this encounter can no longer be reset.')
+  if (!encounter.trial || encounter.shiny === null) throw new Error('Enter the lair first.')
+  if (encounter.resonance?.started) throw new Error('A seal is on, so this Legendary stays as it is.')
   if (encounter.resetPending) return play.encounters
-  if (encounter.shiny && !discardShiny) throw new Error('Confirm that you want to give up this Shiny.')
+  if (encounter.shiny && !discardShiny) throw new Error('Confirm that you want to leave this Shiny behind.')
   return save(play, key, { ...encounter, resetPending: true, nextResetAllowedAt: now + RESET_COOLDOWN })
 }
 
-export function finishReset(play: Play, key: string, index: number, now = Date.now(), random = Math.random): Encounters {
-  const encounter = activeEncounter(play, key, index)
-  if (!encounter.resetPending) return play.encounters
-  const next = settle(encounter, now, random)
-  return next === encounter ? play.encounters : save(play, key, next)
-}
-
-// Walking into the Resonance Trial's arena: only from a settled chamber, and only once. From here the result is set.
-export function startResonance(play: Play, key: string, index: number): Encounters {
-  const encounter = activeEncounter(play, key, index)
-  if (!readyToBattle(encounter)) throw new Error('Finish the trial and the chamber before the Resonance Trial.')
-  if (encounter.resonance?.started) return play.encounters
-  return save(play, key, { ...encounter, resonance: { started: true, seals: [], stabilized: false } })
-}
-
-// A seal switched on stays on: leaving, losing focus or a failed catch never turns it off. Switching it on again changes nothing.
+// A seal switched on stays on: leaving, losing focus or a failed catch never turns it off. Switching it on again
+// changes nothing. The first one starts the Resonance Trial, which sets the result: no more rerolls.
 export function activateSeal(play: Play, key: string, index: number, seal: SealId): Encounters {
   const encounter = activeEncounter(play, key, index)
   if (!RESONANCE_SEALS.includes(seal)) throw new Error('There is no such seal.')
-  const progress = encounter.resonance
-  if (!readyToBattle(encounter) || !progress?.started) throw new Error('Start the Resonance Trial first.')
+  if (!readyToBattle(encounter)) throw new Error('Enter the lair first.')
+  const progress = encounter.resonance ?? { started: true, seals: [], stabilized: false }
   if (progress.seals.includes(seal)) return play.encounters
   return save(play, key, { ...encounter, resonance: { ...progress, seals: [...progress.seals, seal] } })
 }
@@ -135,11 +127,11 @@ export function stabilizeResonance(play: Play, key: string, index: number): Enco
 }
 
 // A successful catch is the only thing that claims an encounter: once, with the rolled result, and only after the
-// trial, a settled chamber roll and a stabilized Resonance Trial. The claim advances the trail, so a second call throws
+// trial, a settled roll in the lair and a stabilized Resonance Trial. The claim advances the trail, so a second call throws
 // instead of adding twice.
 export function catchEncounter(play: Play, key: string, index: number, now = Date.now()): Pick<Play, 'expeditions' | 'encounters'> {
   const encounter = activeEncounter(play, key, index)
-  if (!readyToBattle(encounter)) throw new Error('Finish the trial and the chamber before the battle.')
+  if (!readyToBattle(encounter)) throw new Error('Finish the trial and meet the Legendary in its lair before the battle.')
   if (!readyToCapture(encounter)) throw new Error('Stabilize the Resonance Trial before the catch.')
   const expeditions = claimExpedition(play.expeditions, key, index, now, { shiny: encounter.shiny, permits: trailPermits(play.quest, key) })
   const { [key]: _caught, ...encounters } = play.encounters
@@ -147,7 +139,7 @@ export function catchEncounter(play: Play, key: string, index: number, now = Dat
 }
 
 // Saves from before encounter rolls: an encounter that was already open was shown with its seeded 1-in-50 result, so a
-// Shiny shown there stays Shiny as that encounter's first roll. Everything else rolls 1 in 100 when its chamber opens.
+// Shiny shown there stays Shiny as that encounter's first roll. Everything else rolls 1 in 100 as its lair is entered.
 // Claimed rewards are never touched.
 export function legacyEncounters(expeditions: ExpeditionProgress): Encounters {
   const encounters: Encounters = {}

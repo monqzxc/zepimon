@@ -7,7 +7,7 @@ import { trialFor } from './games/trials.ts'
 
 // The Legendary Gate (src/LegendaryGate.tsx), the way into Legendary Expeditions on Home, Adventure and the Expeditions
 // header. This works out what it shows from the saved progress, and only reads it:
-// - waiting: an encounter is open. The next one's Legendary is named and shown in full; its Shiny is the chamber's to reveal.
+// - waiting: an encounter is open. The next one's Legendary is named and shown in full; its Shiny is for its lair to reveal.
 // - permit: nothing is open, but a permit is in hand, or the Expedition Quest is done and one is ready to claim.
 // - walking: the distance left to the next encounter on the newest trail.
 // - none: no trail yet; saving an adventure starts one.

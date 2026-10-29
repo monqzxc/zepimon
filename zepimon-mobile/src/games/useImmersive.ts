@@ -31,7 +31,7 @@ export function useImmersive(allowed: boolean, chrome: 'tabs' | 'header') {
   const active = full && allowed
   const landscape = active && overlay && playOrientation === 'landscape'
 
-  // Leaving the game (back to a menu, on to the chamber) ends full screen, so the next game opens normally.
+  // Leaving the game (back to a menu, on to a Legendary's lair) ends full screen, so the next game opens normally.
   const [wasAllowed, setWasAllowed] = useState(allowed)
   if (wasAllowed !== allowed) {
     setWasAllowed(allowed)

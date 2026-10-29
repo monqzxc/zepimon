@@ -3,7 +3,7 @@ import { battleType } from './roster.ts'
 // The Legendary battle at the end of an Expedition, in the style of the Gen III games: FIGHT, BAG, POKéMON and RUN.
 // It is a catch, not a contest. Moves wear the Legendary down but always leave it at least 1 HP, nothing can faint,
 // and the encounter is only claimed after a Poké Ball holds. Battle state is never saved: running, running out of
-// balls or closing the app all leave the encounter waiting, with its trial done and its chamber result unchanged.
+// balls or closing the app all leave the encounter waiting, with its trial done and the result from its lair unchanged.
 //
 //   intro → choose ⇄ attack (a move lands, then back to choose)
 //                  ⇄ throw  (the ball shakes, then caught, or back to choose, or out of balls)
