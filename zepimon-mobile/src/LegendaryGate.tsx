@@ -8,7 +8,7 @@ import { usePreferences } from './preferences'
 import { gateStatus } from './legendary-gate'
 import type { GateState, GateStatus } from './legendary-gate'
 import { Parallax } from './Parallax'
-import { PixelSprite } from './games/TeamPicker'
+import { OverworldSprite } from './games/OverworldSprite'
 import { Frame } from './games/TileWorld'
 import type { Strip } from './games/TileWorld'
 import { trainerFrame } from './games/safari-view'
@@ -135,7 +135,7 @@ function GateScene({ status, framing, trainer = false, still = false }: { status
         <Svg width={gate.width} height={gate.height} viewBox="0 0 120 110"><FrontGate lit={lit} /></Svg>
       </View>}
       {status.name ? <View style={{ position: 'absolute', ...spriteAt }}>
-        <PixelSprite name={status.name} shiny={status.shiny} size={spriteSize} tint={lit ? undefined : '#06110D'} />
+        <OverworldSprite name={status.name} shiny={status.shiny} size={spriteSize} still={reduced || !lit} tint={lit ? undefined : '#06110D'} />
       </View> : <Text style={[look.unknown, { position: 'absolute', left: spriteAt.left, top: spriteAt.top, width: spriteSize, height: spriteSize,
         fontSize: spriteSize * 0.5, lineHeight: spriteSize }]}>?</Text>}
       {framing === 'inside' && <Svg style={StyleSheet.absoluteFill} width={width} height={height} viewBox={`0 0 ${width} ${height}`}>

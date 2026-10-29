@@ -266,7 +266,9 @@ where you stand:
   encounter".
 - **No trail yet:** save an adventure to find the first clue.
 
-Away from waiting, the gate is dim and the last Legendary you caught stands in it
+The Legendary in the gate, the chamber and the Shrine Revisits rows is drawn as its front-facing overworld sprite
+(`src/games/OverworldSprite.tsx`, from `assets/trail/`). Away from waiting, the gate is dim and the last Legendary you
+caught stands in it
 as a dark silhouette (a ? before your first catch). It never reveals a Shiny; the
 chamber does. With reduced motion the gate holds still, and the glow, the
 silhouette and the words still tell the states apart. `gateStatus` in
@@ -298,7 +300,7 @@ never grants a free catch. Permits are kept beside the trails (`quest` in the ph
 trail contract `{ seed, startedAt, meters }` and its merge rules are unchanged. Distance keeps counting toward the
 next 25 km after a permit encounter.
 
-**Each encounter: trial → chamber → battle → catch.**
+**Each encounter: trial → chamber → Resonance Trial → battle → catch.**
 
 1. **Trial:** a species-themed Legendary Trial (for example Sky Pillar Ascent for Rayquaza), one or two rooms walked
    like the Safari Zone. See **Legendary Trials** below. Once finished, it stays finished.
@@ -306,15 +308,54 @@ next 25 km after a permit encounter.
    the first time the chamber opens. Leaving, refreshing, reopening or syncing never rerolls. **Reset encounter**
    asks for confirmation (two steps for a Shiny), waits **5 seconds**, then rolls once. The wait is saved as a clock
    time, so a reset left running finishes when you come back. Resetting never changes the species, the trial,
-   distance or claim order, and is only possible before the battle.
-3. **Battle:** an Emerald-style FIGHT / BAG / POKéMON / RUN battle with your buddy (or Pikachu). Moves (your
+   distance or claim order, and is only possible before the Resonance Trial starts.
+3. **Resonance Trial:** an arena where you switch on four ancient seals to steady the Legendary. See **Legendary
+   Resonance Trials** below. The catch opens once it is stabilized.
+4. **Battle:** an Emerald-style FIGHT / BAG / POKéMON / RUN battle with your buddy (or Pikachu). Moves (your
    buddy's type move and False Swipe) lower HP but always leave the Legendary at 1 HP or more.
-4. **Catch:** five Poké Balls per battle; lower HP makes a catch likelier. A failed catch, running or running out of
+5. **Catch:** five Poké Balls per battle; lower HP makes a catch likelier. A failed catch, running or running out of
    balls uses nothing up. Only a successful catch claims the encounter and adds the Legendary to the Dex, once.
 
 Battle animations (entrances, idle bob, lunge, hit flashes with Gen III move strips, ball arc, shakes and capture)
 respect the phone's or the app's reduce-motion setting. They reuse the Emerald battle backgrounds and move sprites
 already credited in `SPRITE-CREDITS.md`; the Poké Ball is the app's own vector icon.
+
+#### Legendary Resonance Trials
+
+Between the chamber and the battle, the Legendary resonates in an arena: a 9 × 9 clearing of the Safari Zone where it
+lives. Its story decides first: the Lake Guardians Uxie, Mesprit and Azelf, Lugia, and Latias and Latios meet by the
+lake; Mewtwo (Cerulean Cave), Palkia and Arceus (Spear Pillar) and Regigigas on the rocky mountain; Jirachi and
+Zeraora in the night forest; Mew in the sunny meadow (Faraway Island's tall grass). Every other Legendary goes where its
+type lives, by the same rule as the Safari Zone's wild Pokemon: Water and Ice by the lake (Kyogre, Suicune…); Rock,
+Ground, Fighting, Steel, Fire and Dragon on the mountain (Groudon, Rayquaza, Dialga…); Ghost, Dark, Poison and Psychic
+in the night forest (Darkrai, Giratina, Celebi…); and Grass, Bug, Normal, Electric and Fairy in the meadow (Shaymin,
+Zapdos, Raikou…). The list is `LORE_HOMES` in `src/games/resonance.ts`. The arena is drawn, walked
+and collided exactly as the Safari Zone is (the same map and terrain, D-pad, arrow keys / WASD or Tap to walk, trainer
+and buddy). Every clearing has the same plan of seals, runes, stones and safe tiles; a mark that would land on a tree or
+rock moves to the nearest open tile. The Legendary stands in the middle as its Emerald overworld sprite, the same
+pixel art your buddy walks with, stepping in place and turning to face you as you move around it. Four ancient seals
+◇ sit around it:
+
+- **Wave:** an energy wave covers the whole clearing but one safe tile ◎; stand on it before it lands (3.2 s).
+- **Rune:** three numbered runes light up; step on 1, 2, then 3. A rune out of turn simply doesn't count.
+- **Pulse:** stand on the seal and press **Resonate** (or Space / Enter) while the shrinking ring is inside the gold band.
+  The Legendary holds still while you focus.
+- **Stone:** three guardian stones ▲ stir; step on each, in any order.
+
+Runes and stones keep their progress while you walk around; the wave and the pulse simply start again if missed.
+Meanwhile the Legendary sends gentle attacks: a ring around you or a line through you, marked ⚠ on the ground for 1.8 s
+before it lands ✸. That's time for about eight steps, and one or two always get you clear: where trees or rocks leave a nook a line would fill, the
+Legendary aims another way. Only the marked tiles count,
+at the moment the attack lands. A hit costs one **resonance** and a short stagger. You start with 3, plus 1 for each km
+of saved walks and runs this week, up to 5 (the arcade's walking bonus: only saved, finished adventures count). At 0
+you catch your breath while the Legendary holds back, then you're back to full. Nothing ever turns a seal off.
+
+With all four seals on, **Steady the Legendary** plays a short stabilization and opens the catch: the battle and
+catch above, unchanged. Leaving, pausing (or the app going to the background), restarting the app or a failed catch
+keeps every seal; each one is saved the moment it switches on. Entering the arena sets the encounter, so the chamber
+can no longer be reset, and only a successful catch claims it. The rules are in `src/games/resonance.ts`, the saved
+progress (`resonance` on the waiting encounter) in `src/expedition-encounter.ts`, and the screen is
+`src/games/ResonanceTrial.tsx`. They're covered by `tests/resonance-arena.test.js` and `tests/resonance-encounter.test.js`.
 
 #### Legendary Trials
 

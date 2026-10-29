@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { claimExpedition, emptyExpeditions, importExpeditions, restoreExpeditions } from '../src/expeditions.ts'
 import { QUEST_SESSIONS, arcadePointsLeft, completeChallenge, distanceLeg, earnArcadePermit, earnPermit, emptyQuest, encounterReady, questSessions, restoreQuest, spendPermit,
   trailUnlocked } from '../src/expedition-quest.ts'
-import { catchEncounter, finishTrial, openChamber } from '../src/expedition-encounter.ts'
+import { RESONANCE_SEALS, activateSeal, catchEncounter, finishTrial, openChamber, stabilizeResonance, startResonance } from '../src/expedition-encounter.ts'
 import { emptyProgress, importProgress } from '../src/progress.ts'
 import { parseJournal } from '../src/journal.ts'
 import { ARCADE_PERMIT_POINTS, achieved, arcadeAchievements, arcadePoints } from '../src/games/achievements.ts'
@@ -25,6 +25,12 @@ const journalOf = (runs, meters = 0) => parseJournal(JSON.stringify({
     recent: runs.map(([at, runMeters]) => ({ route: 0, meters: runMeters, steps: 100, shiny: false, startedAt: at - 3600000, finishedAt: new Date(at).toISOString() })) }
 }))
 const sessionsFor = (quest, progress, expeditions) => questSessions(quest, progress, expeditions, NOW)
+// The Resonance Trial between the chamber and the catch: start it, switch on every seal and stabilize.
+function resonated(play, key) {
+  let encounters = startResonance(play, key, 0)
+  for (const seal of RESONANCE_SEALS) encounters = activateSeal({ ...play, encounters }, key, 0, seal)
+  return stabilizeResonance({ ...play, encounters }, key, 0)
+}
 
 test('the distance route opens at exactly 25,000 m of saved distance', () => {
   for (const [meters, ready] of [[24999, false], [25000, true]]) {
@@ -86,12 +92,13 @@ test('a permit opens the same next encounter below 25 km, once, and keeps claim 
   assert.ok(encounterReady(quest, key, trail))
   assert.throws(() => spendPermit({ ...quest, permits: 1 }, expeditions, key), /already open/, 'A second permit cannot stack on an open encounter')
   assert.throws(() => claimExpedition(expeditions, key, 0, NOW), /not ready/, 'Without its permit the claim still needs 25 km')
-  // Same species as the distance route would have offered, and still trial → chamber → battle → catch.
+  // Same species as the distance route would have offered, and still trial → chamber → Resonance Trial → battle → catch.
   let encounters = {}
   assert.throws(() => catchEncounter({ expeditions, quest, encounters }, key, 0, NOW), /trial/, 'No free catch')
   encounters = finishTrial({ expeditions, quest, encounters }, key, 0)
   encounters = openChamber({ expeditions, quest, encounters }, key, 0, NOW, () => 0.5)
   assert.equal(encounters[key].name, expeditionEncounter(trail, 0).name)
+  encounters = resonated({ expeditions, quest, encounters }, key)
   const caught = catchEncounter({ expeditions, quest, encounters }, key, 0, NOW)
   expeditions = caught.expeditions
   assert.equal(expeditions.trails[key].claimed, 1)
@@ -111,7 +118,8 @@ test('permit claims survive saving, reopening and repeated imports, and nothing 
   const key = keyOf(trail)
   const quest = spendPermit({ ...emptyQuest(), permits: 2 }, progressWith(trail), key)
   let expeditions = progressWith(trail)
-  const encounters = openChamber({ expeditions, quest, encounters: finishTrial({ expeditions, quest, encounters: {} }, key, 0) }, key, 0, NOW, () => 0.5)
+  const chamber = openChamber({ expeditions, quest, encounters: finishTrial({ expeditions, quest, encounters: {} }, key, 0) }, key, 0, NOW, () => 0.5)
+  const encounters = resonated({ expeditions, quest, encounters: chamber }, key)
   expeditions = catchEncounter({ expeditions, quest, encounters }, key, 0, NOW).expeditions
   const savedQuest = restoreQuest(JSON.parse(JSON.stringify(quest)))
   assert.deepEqual(savedQuest, quest)
