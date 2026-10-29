@@ -4,7 +4,7 @@ import { LocalStorage } from '@zos/storage'
 import { setWakeUpRelaunch } from '@zos/display'
 import { back } from '@zos/router'
 import { createSprite, drawSprite } from './sprite'
-import { JOURNAL_KEY, ACTIVE_KEY, NEXT_KEY, PHONE_RUNS_KEY, readKey, readActive, readNext, readPhoneRuns, phoneAdventure } from './saved'
+import { JOURNAL_KEY, ACTIVE_KEY, NEXT_KEY, PHONE_RUNS_KEY, companionApp, readKey, readActive, readNext, readPhoneRuns, phoneAdventure } from './saved'
 import { legendarySpecies, ensureExpedition, expeditionGoal, clueMilestones } from '../shared/expedition'
 import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords, applyPhoneRun } from './pokemon'
 
@@ -189,7 +189,7 @@ Page({
   },
 
   syncPhone() {
-    try { getApp()._options.syncToPhone() }
+    try { companionApp().syncToPhone() }
     catch (error) { console.log('Zepimon phone sync unavailable:', String(error)) }
   },
 
@@ -228,7 +228,7 @@ Page({
     const now = Date.now()
     if (!force && now >= (this.sharedAt || 0) && now - (this.sharedAt || 0) < SHARE_MS) return
     this.sharedAt = now
-    try { getApp()._options.shareAdventure(this.shared(session), (current) => { if (this.takenOver(current)) this.handOver() }) }
+    try { companionApp().shareAdventure(this.shared(session), (current) => { if (this.takenOver(current)) this.handOver() }) }
     catch (error) { console.log('Zepimon share unavailable:', String(error)) }
   },
 
@@ -542,7 +542,7 @@ Page({
         // The phone continued this adventure: it saves it, so the watch must not save it too.
         if (this.takenOver(readNext(this.storage).adventure)) { this.handOver(); return }
         if (this.state.active.shareId) {
-          try { getApp()._options.shareAdventure(this.shared(this.state.active, true)) }
+          try { companionApp().shareAdventure(this.shared(this.state.active, true)) }
           catch (error) { console.log('Zepimon share unavailable:', String(error)) }
         }
         const before = this.state.expedition.meters

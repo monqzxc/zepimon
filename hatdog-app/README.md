@@ -48,6 +48,17 @@ and goes with the next plan request. The Zepimon page in Zepp has an
 Re-run `zepimon-sync/schema.sql` to add the `adventures` table and its
 functions.
 
+Fix (1.22): until this version, nothing a watch screen sent ever reached Zepp.
+Starting, updating or finishing an adventure, the sync after saving one, and
+the title screen's check for a phone adventure all failed without a word. The
+screens called the companion in `app.js` through `getApp()._options`, but Zepp
+OS runs the app's `onCreate` on the app itself, so the messaging ZML starts
+there was never on that object. Only requests started by Zepp (**Sync from
+watch**) worked. Now `app.js` leaves itself in `globalData`, as ZML does with its
+messaging, and screens reach it through `companionApp()` (`page/saved.js`). The
+companion test now keeps the two objects apart, as the watch does. When the
+title screen cannot reach Zepp, it now says so.
+
 ### Adventures recorded on the phone (1.13)
 
 Adventures recorded in Zepimon mobile's Adventure tab now reach the watch. The

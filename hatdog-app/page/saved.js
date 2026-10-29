@@ -15,6 +15,15 @@ export const PHONE_RUNS_KEY = 'zepimon-phone-runs'
 // A phone adventure older than this is treated as forgotten rather than still recording.
 const PHONE_FRESH_MS = 12 * 3600000
 
+// The app's companion (app.js), which talks to Zepp. Zepp OS runs the app's onCreate on the app itself, not on
+// getApp()._options, so the messaging ZML starts there exists only on the app; a screen calling getApp()._options
+// reached no messaging, and every share, sync and plan request it made failed silently. app.js leaves itself in
+// globalData, which both share, as ZML does with its messaging. Where they are one object, it is the same.
+export function companionApp() {
+  const options = getApp()._options
+  return (options.globalData && options.globalData.companion) || options
+}
+
 export function readKey(storage, key) {
   const value = storage.getItem(key)
   return value === undefined ? null : value
