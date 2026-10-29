@@ -21,15 +21,15 @@ type Props = {
   map: TileMap, chunks: TileChunks, at: Point, facing: Direction, buddyAt: Point, buddyFacing: Direction, move: Move,
   trainer: 'brendan' | 'may', buddy: { name: string, shiny: boolean } | null, onGrass: boolean, width: number, height: number,
   reduced: boolean, jump: number, background: string, tapToWalk: boolean, onTapTile: (tile: Point) => void,
-  children?: ReactNode, cover?: ReactNode
+  children?: ReactNode, cover?: ReactNode, falling?: boolean
 }
 
 // A tile map seen GBA-style. The trainer stays in the middle and the map glides under them one tile per step.
 // Layers, bottom to top: ground chunks, `children` (items, marks), the buddy, the trainer, the top chunks (tree crowns
 // and roofs) so the trainer walks behind them, then `cover`. Only chunks near the view are loaded. A new `jump` value
-// (a warp, a room change) snaps the camera and buddy into place instead of gliding.
+// (a warp, a room change) snaps the camera and buddy into place instead of gliding. `falling` drops the trainer out of sight.
 export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move, trainer, buddy, onGrass, width, height, reduced, jump, background,
-  tapToWalk, onTapTile, children, cover }: Props) {
+  tapToWalk, onTapTile, children, cover, falling = false }: Props) {
   const tile = tileSizeFor(width)
   const [camera] = useState(() => new Animated.ValueXY(cameraOffset(at, tile, width, height)))
   const target = cameraOffset(at, tile, width, height)
@@ -51,7 +51,7 @@ export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move,
         <Buddy name={buddy.name} shiny={buddy.shiny} at={buddyAt} frame={buddyFrame(buddyFacing, (move.id % 2) as 0 | 1)} tile={tile} reduced={reduced} jump={jump} />}
     </>)}
     <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile}
-      left={width / 2 - tile / 2} top={height / 2 - tile / 2} reduced={reduced} />
+      left={width / 2 - tile / 2} top={height / 2 - tile / 2} reduced={reduced} falling={falling} />
     {layer(<Chunks map={map} chunks={chunks} keys={keys} tile={tile} layer="top" />)}
     {!!cover && layer(cover)}
   </View>
@@ -107,9 +107,9 @@ function Buddy({ name, shiny, at, frame, tile, reduced, jump }: { name: string, 
 }
 
 // The trainer, fixed in the middle of the view: a step frame on each step, a hop with a shadow and a dust puff over
-// ledges, and tall grass over their feet while they stand in it.
-function Trainer({ trainer, facing, move, onGrass, tile, left, top, reduced }: {
-  trainer: 'brendan' | 'may', facing: Direction, move: Move, onGrass: boolean, tile: number, left: number, top: number, reduced: boolean
+// ledges, tall grass over their feet while they stand in it, and a 300 ms drop through the floor while falling.
+function Trainer({ trainer, facing, move, onGrass, tile, left, top, reduced, falling }: {
+  trainer: 'brendan' | 'may', facing: Direction, move: Move, onGrass: boolean, tile: number, left: number, top: number, reduced: boolean, falling: boolean
 }) {
   // The step frame shows until this move has settled; a hop lasts until it has landed. Both are set by timers.
   const [settled, setSettled] = useState(move.id)
@@ -117,6 +117,13 @@ function Trainer({ trainer, facing, move, onGrass, tile, left, top, reduced }: {
   const [dust, setDust] = useState(-1)
   const [grass, setGrass] = useState(0)
   const [lift] = useState(() => new Animated.Value(0))
+  const [sink] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    if (!falling || reduced) { sink.setValue(0); return }
+    const drop = Animated.timing(sink, { toValue: 1, duration: 300, easing: Easing.in(Easing.quad), useNativeDriver: native })
+    drop.start()
+    return () => drop.stop()
+  }, [falling, reduced, sink])
   const phase = move.kind !== 'none' && move.id !== settled ? (move.id % 2 ? 1 : 2) : 0
   const hopping = move.kind === 'hop' && !reduced && move.id !== landed
   useEffect(() => {
@@ -141,7 +148,8 @@ function Trainer({ trainer, facing, move, onGrass, tile, left, top, reduced }: {
     {hopping && <View style={{ position: 'absolute', left: 0, top: tile * 1.6 }}>
       <Frame strip={sprites.shadow} frame={0} width={tile} height={tile / 2} />
     </View>}
-    <Animated.View style={{ transform: [{ translateY: lift }] }}>
+    <Animated.View style={{ opacity: sink.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+      transform: [{ translateY: Animated.add(lift, sink.interpolate({ inputRange: [0, 1], outputRange: [0, tile * 0.75] })) }, { scale: sink.interpolate({ inputRange: [0, 1], outputRange: [1, 0.5] }) }] }}>
       <Frame strip={strip} frame={trainerFrame(facing, phase)} width={tile} height={tile * 2} />
     </Animated.View>
     {onGrass && !hopping && <View style={{ position: 'absolute', left: 0, top: tile * 1.5, width: tile, height: tile / 2, overflow: 'hidden' }}>

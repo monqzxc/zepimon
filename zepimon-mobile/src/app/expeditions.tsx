@@ -12,12 +12,12 @@ import { clueMilestones, expeditionGoal } from '../generated/expedition.js'
 import { km } from '../journal'
 import { pokemonType } from '../catalog'
 import { useReducedMotion } from '../games/hooks'
-import { MazeTrial } from '../games/MazeTrial'
+import { LegendaryTrial } from '../games/LegendaryTrial'
 import { LegendaryChamber } from '../games/LegendaryChamber'
 import { LegendaryBattle } from '../games/LegendaryBattle'
 import { ShrineLanterns } from '../games/ShrineLanterns'
 import { ArcadeAchievements } from '../games/ArcadeAchievements'
-import { trialFor } from '../games/maze'
+import { KIND_NAMES, trialFor } from '../games/trials'
 import { questTheme } from '../games/lanterns'
 import { Button, Copy, Eyebrow, HabitatScene, Heading, Hero, Panel, Screen, colors, gradient, styles, useTheme } from '../ui'
 
@@ -30,8 +30,10 @@ const stories: Record<string, { title: string, clues: string[] }> = {
 const storyOf = (name: string) => stories[name] || { title: 'A whisper on the trail',
   clues: [`A curious trace leads toward a ${pokemonType(name)} habitat.`, 'A shy silhouette watches from a quiet hiding place.', `${name} waits at the end of the trail.`] }
 
-// A battle keeps its own copy of the Legendary, so the screen stays on it after the catch claims the encounter.
-type Step = { kind: 'overview' } | { kind: 'lanterns' } | { kind: 'trial' | 'chamber', key: string, index: number }
+// A battle keeps its own copy of the Legendary, so the screen stays on it after the catch claims the encounter. A trial keeps
+// the rooms picked when it opened, so a record saved mid-trial never changes them.
+type Step = { kind: 'overview' } | { kind: 'lanterns' } | { kind: 'chamber', key: string, index: number }
+  | { kind: 'trial', key: string, index: number, trial: ReturnType<typeof trialFor> }
   | { kind: 'battle', key: string, index: number, foe: { name: string, shiny: boolean } }
 
 // Legendary Expeditions. Three ways open the next encounter: 25 km of saved walks and runs, the Expedition Quest
@@ -76,10 +78,16 @@ export default function ExpeditionsScreen() {
     const number = step.index + 1
     if (!trail || trail.claimed !== step.index) content = null
     else if (step.kind === 'trial') {
-      content = <MazeTrial name={expeditionEncounter(trail, step.index).name} number={number} partner={partner} reduced={reduced} busy={busy}
-        onLeave={() => leave('You left the trial. The encounter is still waiting for you.')}
-        onSolved={() => { void act(async () => { await store.finishTrial(step.key, step.index, {}); await store.openChamber(step.key, step.index) },
-          () => setStep({ kind: 'chamber', key: step.key, index: step.index })) }} />
+      const { key, index } = step
+      content = <LegendaryTrial name={expeditionEncounter(trail, index).name} number={number} partner={partner} reduced={reduced} busy={busy}
+        trial={step.trial} checkpoint={encounter?.index === index ? encounter.checkpoint : undefined}
+        onCheckpoint={run => store.saveTrialCheckpoint(key, index, run)}
+        onLeave={run => {
+          leave('You left the trial. The encounter is still waiting for you.')
+          store.saveTrialCheckpoint(key, index, run).catch(() => setMessage('You left the trial, but your place in it could not be saved. The encounter is still waiting for you.'))
+        }}
+        onSolved={results => { void act(async () => { await store.finishTrial(key, index, results); await store.openChamber(key, index) },
+          () => setStep({ kind: 'chamber', key, index })) }} />
     } else if (encounter?.index === step.index && encounter.shiny !== null) {
       content = <LegendaryChamber encounter={encounter as ActiveEncounter & { shiny: boolean }} number={number} reduced={reduced} busy={busy}
         onBattle={() => { if (readyToBattle(encounter)) setStep({ kind: 'battle', key: step.key, index: step.index, foe: { name: encounter.name, shiny: encounter.shiny } }) }}
@@ -101,7 +109,8 @@ export default function ExpeditionsScreen() {
       {pending > 0 && <Panel><Copy color={colors.gold}>{pending} encounter{pending === 1 ? '' : 's'} ready to meet. Take your time: they will wait.</Copy></Panel>}
       {selected && selected[1].claimed < 4000 ? <Encounter key={`${selected[0]}:${selected[1].claimed}`} trailKey={selected[0]} trail={selected[1]}
         encounter={encounters[selected[0]]?.index === selected[1].claimed ? encounters[selected[0]] : undefined} busy={busy}
-        onBegin={() => setStep({ kind: 'trial', key: selected[0], index: selected[1].claimed })}
+        onBegin={() => setStep({ kind: 'trial', key: selected[0], index: selected[1].claimed,
+          trial: trialFor(expeditionEncounter(selected[1], selected[1].claimed).name, store.trialRecords) })}
         onChamber={() => { void enterChamber(selected[0], selected[1].claimed) }}
         onPermit={() => { void act(() => store.unlockWithPermit(selected[0]), () => setMessage('Your Expedition Permit opened the next encounter!')) }} /> :
         <Panel><Heading>{selected ? 'Every recorded trail explored' : 'Your first clue awaits'}</Heading>
@@ -124,8 +133,9 @@ export default function ExpeditionsScreen() {
 function Encounter({ trailKey, trail, encounter, busy, onBegin, onChamber, onPermit }: {
   trailKey: string, trail: Trail, encounter: ActiveEncounter | undefined, busy: boolean, onBegin: () => void, onChamber: () => void, onPermit: () => void
 }) {
-  const { quest } = useJournal()
+  const { quest, trialRecords } = useJournal()
   const { name } = expeditionEncounter(trail, trail.claimed)
+  const trial = trialFor(name, trialRecords)
   const meters = distanceLeg(quest, trailKey, trail)
   const ready = encounterReady(quest, trailKey, trail)
   const byPermit = ready && meters < expeditionGoal
@@ -141,7 +151,7 @@ function Encounter({ trailKey, trail, encounter, busy, onBegin, onChamber, onPer
       <Copy color={clues >= milestone ? colors.ink : colors.muted}>{clues >= milestone ? story.clues[i] : 'Keep exploring to reveal this clue.'}</Copy>
     </View>)}
     {ready ? <>
-      <Copy color={colors.gold}>{encounter?.trial ? `Your trial is done. ${name} waits in the shrine chamber.` : `${trialFor(name).title}: clear the shrine maze to reach ${name}.`}</Copy>
+      <Copy color={colors.gold}>{encounter?.trial ? `Your trial is done. ${name} waits in the shrine chamber.` : `${trial.title} · ${KIND_NAMES[trial.kind]}: ${encounter?.checkpoint ? 'pick up the trial where you left it' : 'clear the trial'} to reach ${name}.`}</Copy>
       <Button title={encounter?.trial ? 'Return to the chamber' : 'Begin the trial'} loading={busy} onPress={encounter?.trial ? onChamber : onBegin} />
       {encounter?.resetPending && <Copy small>A reset is in progress. It finishes when you return to the chamber.</Copy>}
     </> : <>
