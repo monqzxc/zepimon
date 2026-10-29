@@ -1,4 +1,4 @@
-import { STEPS, pointKey } from './safari-zone.ts'
+import { STEPS, pointKey, routeSearch, routeTo } from './safari-zone.ts'
 import type { Direction, Point } from './safari-zone.ts'
 
 // Rules for a Legendary trial room: one tile per press on a grid of characters, the same walk as the Safari Zone.
@@ -93,6 +93,12 @@ export function lit(room: Room, stage: Stage): Set<string> {
   return tiles
 }
 
+const padAt = (stage: Stage, pad?: string): Point | null => {
+  if (!pad) return null
+  for (let y = 0; y < stage.tiles.length; y++) { const x = stage.tiles[y].indexOf(pad); if (x >= 0) return { x, y } }
+  return null
+}
+
 // One press of a direction. Facing always turns; a bump costs no move; nothing happens once the room is over.
 export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomResult {
   if (room.status !== 'playing') return { room, move: 'none', events: [] }
@@ -155,6 +161,51 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
     events.push('clear')
     message = 'The seal breaks. The way is open!'
   }
-  walked = { ...walked, seen: merge(walked.seen, around(stage, next, stage.dark ? LIGHT : SIGHT)), message }
-  return { room: walked, move: pushed ? 'push' : 'step', events }
+  let move: RoomResult['move'] = pushed ? 'push' : 'step'
+  const pair = /[1-9]/.test(tile) ? padAt(stage, stage.warps[tile]) : null
+  if (pair) {
+    walked = { ...walked, at: pair, buddy: pair, warpsUsed: walked.warpsUsed.includes(tile) ? walked.warpsUsed : [...walked.warpsUsed, tile] }
+    events.push('warp')
+    move = 'warp'
+    message = 'The pad whisks you across the chamber.'
+  }
+  walked = { ...walked, seen: merge(walked.seen, around(stage, walked.at, stage.dark ? LIGHT : SIGHT)), message }
+  return { room: walked, move, events }
+}
+
+const ORDER: Direction[] = ['north', 'south', 'west', 'east']
+
+// 'free' tiles can be crossed without side effects; 'end' tiles (switches, fragile floor, live pads, crystals, the exit) only end a route.
+function crossing(room: Room, stage: Stage, point: Point): 'free' | 'end' | null {
+  const tile = tileAt(stage, point), key = pointKey(point)
+  if (room.boulders.includes(key)) return null
+  if ('.,g@w_O*'.includes(tile)) return 'free'
+  if ('ABC'.includes(tile)) return room.open.includes(tile) ? 'free' : null
+  if (tile === '=') return room.doorsOpen ? 'free' : null
+  if (tile === ':') return room.holes.includes(key) ? null : 'end'
+  if ('abcX%'.includes(tile)) return 'end'
+  if (/[1-9]/.test(tile)) return stage.warps[tile] ? 'end' : 'free'
+  return null
+}
+
+// Tap-to-walk: the presses that reach a tapped tile without stepping on anything that acts (see crossing); a tile that acts can be the
+// last step. A wall, boulder or other blocked tile walks to its nearest reachable side. Null when there is no way there.
+export function planRoomWalk(room: Room, stage: Stage, to: Point): Direction[] | null {
+  if (room.at.x === to.x && room.at.y === to.y) return []
+  const trail = routeSearch(room.at, point => {
+    if (pointKey(point) !== pointKey(room.at) && crossing(room, stage, point) !== 'free') return []
+    return ORDER.flatMap((direction): [Direction, Point][] => {
+      const next = { x: point.x + STEPS[direction].x, y: point.y + STEPS[direction].y }
+      return crossing(room, stage, next) ? [[direction, next]] : []
+    })
+  })
+  if (crossing(room, stage, to)) return trail.has(pointKey(to)) ? routeTo(trail, pointKey(to)) : null
+  let best: Direction[] | null = null
+  for (const direction of ORDER) {
+    const side = { x: to.x + STEPS[direction].x, y: to.y + STEPS[direction].y }, key = pointKey(side)
+    if (!trail.has(key) || (key !== pointKey(room.at) && crossing(room, stage, side) !== 'free')) continue
+    const route = routeTo(trail, key)
+    if (!best || route.length < best.length) best = route
+  }
+  return best
 }

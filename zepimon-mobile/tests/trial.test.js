@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { deadCells, goalsMet, lit, startRoom, stepRoom } from '../src/games/trial.ts'
+import { deadCells, goalsMet, lit, planRoomWalk, startRoom, stepRoom } from '../src/games/trial.ts'
 
 const stage = (tiles, extra = {}) => ({ id: 't', kind: 'switch', tiles, warps: {}, open: '', crackAll: false, dark: false, par: 99, hint: '', star: null, ...extra })
 const press = (room, st, ...directions) => directions.reduce((result, direction) => stepRoom(result.room, st, direction), { room, move: 'none', events: [] })
@@ -207,4 +207,61 @@ test('two boulders in a row do not move', () => {
 
 test('without plates no cell is dead', () => {
   assert.equal(deadCells(stage(['@O.#'])).size, 0)
+})
+test('a pad sends you to its pair', () => {
+  const st = stage(['@1.2X'], { warps: { 1: '2', 2: '1' } })
+  const warped = stepRoom(startRoom(st), st, 'east')
+  assert.equal(warped.move, 'warp')
+  assert.deepEqual(warped.room.at, { x: 3, y: 0 })
+  assert.deepEqual(warped.events, ['warp'])
+  assert.deepEqual(warped.room.warpsUsed, ['1'])
+  assert.deepEqual(warped.room.buddy, { x: 3, y: 0 })
+  assert.equal(stepRoom(warped.room, st, 'east').room.status, 'cleared')
+})
+
+test('arriving never chains', () => {
+  const st = stage(['@1.2.'], { warps: { 1: '2', 2: '1' } })
+  const warped = stepRoom(startRoom(st), st, 'east').room
+  assert.deepEqual(warped.at, { x: 3, y: 0 })
+  const back = press(warped, st, 'east', 'west')
+  assert.equal(back.move, 'warp')
+  assert.deepEqual(back.room.at, { x: 1, y: 0 })
+  assert.deepEqual(back.room.warpsUsed, ['1', '2'])
+})
+
+test('a pad with no entry is only a landing', () => {
+  const st = stage(['@1.2.'], { warps: { 1: '2' } })
+  const warped = stepRoom(startRoom(st), st, 'east').room
+  const back = press(warped, st, 'east', 'west')
+  assert.equal(back.move, 'step')
+  assert.deepEqual(back.room.at, { x: 3, y: 0 })
+})
+
+test('tap routes avoid hazards', () => {
+  const st = stage(['@:.', '...'])
+  const room = startRoom(st)
+  assert.deepEqual(planRoomWalk(room, st, { x: 2, y: 0 }), ['south', 'east', 'east', 'north'])
+  assert.deepEqual(planRoomWalk(room, st, { x: 1, y: 0 }), ['east'])
+  assert.deepEqual(planRoomWalk(room, st, { x: 0, y: 0 }), [])
+  const sw = stage(['@a.', '...'])
+  assert.deepEqual(planRoomWalk(startRoom(sw), sw, { x: 1, y: 0 }), ['east'])
+  assert.deepEqual(planRoomWalk(startRoom(sw), sw, { x: 2, y: 0 }), ['south', 'east', 'east', 'north'])
+  const pad = stage(['@1.'], { warps: { 1: '1' } })
+  assert.deepEqual(planRoomWalk(startRoom(pad), pad, { x: 1, y: 0 }), ['east'])
+})
+
+test('tap routes go around boulders or fail', () => {
+  const around = stage(['@O.', '...'])
+  assert.deepEqual(planRoomWalk(startRoom(around), around, { x: 2, y: 0 }), ['south', 'east', 'east', 'north'])
+  const shut = stage(['@O.'])
+  assert.equal(planRoomWalk(startRoom(shut), shut, { x: 2, y: 0 }), null)
+})
+
+test('tap on a wall walks to its nearest side', () => {
+  const st = stage(['@..#', '....'])
+  const room = startRoom(st)
+  assert.deepEqual(planRoomWalk(room, st, { x: 3, y: 0 }), ['east', 'east'])
+  const sealed = stage(['@#.'])
+  assert.equal(planRoomWalk(startRoom(sealed), sealed, { x: 2, y: 0 }), null)
+  assert.equal(planRoomWalk(startRoom(sealed), sealed, { x: 1, y: 0 }) !== null, true)
 })
