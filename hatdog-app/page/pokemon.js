@@ -182,12 +182,21 @@ export function refreshPersonalBests(state, extra = []) {
   return winners
 }
 
+// The least distance that earns each Pokemon on any of its routes. Built on first use: checking every Dex entry
+// against every route took most of the time the adventure screen needs to open with a full Dex.
+let earliest = null
+function dexMinimum(name) {
+  if (!earliest) {
+    earliest = Object.create(null)
+    routes.forEach((route) => route.forEach((form, index) => {
+      if (!(earliest[form] <= (index + 1) * 5000)) earliest[form] = (index + 1) * 5000
+    }))
+  }
+  return name.indexOf('Mega ') === 0 ? 21000 : earliest[name] || Infinity
+}
+
 export function hasDexDistance(name, record) {
-  name = name.replace(/^Shiny /, '')
-  const minimum = name.indexOf('Mega ') === 0 ? 21000 : routes.reduce((lowest, route) => {
-    const index = route.indexOf(name)
-    return index < 0 ? lowest : Math.min(lowest, (index + 1) * 5000)
-  }, Infinity)
+  const minimum = dexMinimum(name.replace(/^Shiny /, ''))
   return !!record && Number.isFinite(record.meters) && record.meters >= minimum
 }
 

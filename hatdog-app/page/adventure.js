@@ -487,6 +487,7 @@ Page({
     this.portraitKey = null
     this.listRows = null
     this.listCounter = null
+    this.shown = {}
     if (this.view === 'history') { this.renderHistory(); return }
     if (this.view === 'history-detail') { this.renderHistoryDetail(); return }
     if (this.view === 'home') { this.renderHub(); return }
@@ -609,6 +610,15 @@ Page({
     this.syncPhone()
   },
 
+  // Writes a property only when it changes. The step and distance sensors and the clock each refresh the session
+  // screen several times a second, and every write makes the watch redraw, though most values stay the same.
+  setShown(key, item, property, value) {
+    const text = typeof value === 'object' ? JSON.stringify(value) : value
+    if (this.shown[key] === text) return
+    item.setProperty(property, value)
+    this.shown[key] = text
+  },
+
   refreshStats() {
     const session = this.state.active
     const form = currentForm(session.route, session.meters, session.mega)
@@ -616,18 +626,22 @@ Page({
     const values = [(session.shiny ? 'Shiny ' : '') + (form === 'Egg' ? routes[session.route][0] + ' egg' : form),
       'Distance ' + km(session.meters), (session.activity === 'running' ? 'Run: ' : 'Walk: ') + session.steps + ' steps',
       next === null ? 'Final form reached!' : km(next - session.meters) + ' to ' + (next === 21000 ? 'Mega' : form === 'Egg' ? 'hatch' : 'evolve')]
-    this.stats.forEach((item, i) => item.setProperty(prop.TEXT, values[i]))
-    this.stats[0].setProperty(prop.MORE, { text_size: values[0].length > 30 ? 14 : 18 })
+    this.stats.forEach((item, i) => this.setShown('stat' + i, item, prop.TEXT, values[i]))
+    this.setShown('nameSize', this.stats[0], prop.MORE, { text_size: values[0].length > 30 ? 14 : 18 })
     this.refreshSprite()
-    this.updateBackground(form === 'Egg' ? routes[session.route][0] : form)
+    const scene = form === 'Egg' ? routes[session.route][0] : form
+    if (this.shown.scene !== scene) {
+      this.updateBackground(scene)
+      this.shown.scene = scene
+    }
     this.refreshClock()
   },
 
   refreshClock() {
     const session = this.state.active
     const seconds = elapsedSeconds(session)
-    this.clockStats[0].setProperty(prop.TEXT, 'Time ' + elapsedLabel(seconds))
-    this.clockStats[1].setProperty(prop.TEXT, 'Est. pace ' + this.paceText)
+    this.setShown('time', this.clockStats[0], prop.TEXT, 'Time ' + elapsedLabel(seconds))
+    this.setShown('pace', this.clockStats[1], prop.TEXT, 'Est. pace ' + this.paceText)
   },
 
   refreshSprite() {
