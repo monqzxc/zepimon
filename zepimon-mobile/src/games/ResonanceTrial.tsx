@@ -15,6 +15,7 @@ import { DPad, useKeyboardDirections } from './DPad'
 import { useGameLoop } from './hooks'
 import { OverworldSprite } from './OverworldSprite'
 import { Sparkles } from './SafariEncounter'
+import { ShinyGlow, ShinyStars } from './ShinyAura'
 import { LairAmbience } from './LairAmbience'
 import type { LairId } from './lairs'
 import { PULSE_WINDOW, SEAL_NAMES, arenaFor, arenaTick, arenaWalk, maxResonance, objective, pauseArena, pulsePhase, resonate,
@@ -299,20 +300,23 @@ function facingToward(at: Point, legendary: Point): Direction {
 }
 
 // The Legendary as its Emerald overworld sprite, two tiles tall, standing on its tile with a shadow and stepping in
-// place facing you; a Shiny sparkles every few seconds, and it glows as the seals steady it.
+// place facing you; a Shiny stands in a gold glow with stars twinkling around it and sparkles every few seconds, and it
+// glows as the seals steady it.
 function Legendary({ at, name, shiny, tile, facing, glowing, reduced }: { at: Point, name: string, shiny: boolean, tile: number, facing: Direction, glowing: boolean, reduced: boolean }) {
   const size = tile * 2
   const [glint, setGlint] = useState(0)
   useEffect(() => {
     if (!shiny || reduced) return
-    const timer = setInterval(() => setGlint(current => current + 1), 4000)
+    const timer = setInterval(() => setGlint(current => current + 1), 3000)
     return () => clearInterval(timer)
   }, [shiny, reduced])
   return <View pointerEvents="none" style={{ position: 'absolute', left: at.x * tile + tile / 2 - size / 2, top: (at.y + 1) * tile - size }}>
     <View style={{ position: 'absolute', left: size * 0.2, top: size * 0.86, width: size * 0.6, height: size * 0.16, borderRadius: size, backgroundColor: 'rgba(0, 0, 0, 0.3)' }} />
     {glowing && <View style={{ position: 'absolute', left: -tile * 0.2, top: -tile * 0.2, width: size + tile * 0.4, height: size + tile * 0.4, borderRadius: size,
       backgroundColor: 'rgba(242, 194, 48, 0.28)' }} />}
+    {shiny && <ShinyGlow size={size} reduced={reduced} />}
     <OverworldSprite name={name} shiny={shiny} size={size} facing={facing} />
+    {shiny && <ShinyStars size={size} reduced={reduced} />}
     {shiny && <Sparkles key={glint} centre={{ x: size / 2, y: size / 2 }} size={size} reduced={reduced} />}
   </View>
 }

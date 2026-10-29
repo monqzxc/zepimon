@@ -355,7 +355,8 @@ story, a lair drawn for it in Emerald's pixel style. The lairs and who lives the
 Mt. Pyre (the graveyard) stays as the lair for a future ghost, dark or poison Legendary.
 
 The whole lair fits the screen. You come in by its entrance (marked OUT) and the Legendary waits where it lives in
-that room, as its Emerald overworld sprite, turning to watch you; a Shiny sparkles. Each lair has its own air drifting
+that room, as its Emerald overworld sprite, turning to watch you; a Shiny stands in a gold glow with stars twinkling around it
+and sparkles every few seconds (they hold still with reduced motion). Each lair has its own air drifting
 over the art (bubbles, embers, wind, dust, snow, falling petals, twinkling motes or stars), which stays off with reduced motion. Until a
 seal is on, the Legendary only watches, and stepping back out of the entrance (or tapping it with Tap to walk) leaves
 so the next entry meets it anew. Four ancient seals ◇ sit around the lair:
