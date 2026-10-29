@@ -349,6 +349,7 @@ let shareReply = null
 let pageBacks = 0
 let widgetsCreated = 0
 let widgetsDeleted = 0
+let propertyWrites = 0
 class Sensor {
   constructor() { sensors.push(this) }
   onChange(callback) { this.callback = callback }
@@ -387,6 +388,7 @@ Object.assign(context, {
     assert.ok(options.y >= 64 && options.y + options.h <= 380, 'Widget overlaps system header or screen edge')
     if (type === 3) imageUpdates.push(options)
     const item = { ...options, clear() {}, drawImage(value) { this.src = value.image; this.drawn = value; imageUpdates.push(value) }, setProperty(property, value) {
+      propertyWrites++
       if (property === 2) {
         if (type === 2) {
           for (const key of ['x', 'y', 'w', 'h']) assert.ok(Number.isFinite(value[key]), 'Button updates must include geometry')
@@ -695,8 +697,19 @@ assert.equal(page.state.active.activity, 'running', 'Reopening retains the selec
 click('Finish & save')
 click('Keep running')
 assert.equal(page.view, 'session')
+// Sensor and clock refreshes only write what changed: the same reading redraws nothing, a new step only its count.
+page.sync()
+const writesBefore = propertyWrites
+page.sync()
+assert.equal(propertyWrites, writesBefore, 'An unchanged reading writes no widget property')
+steps += 1
+page.sync()
+assert.equal(propertyWrites, writesBefore + 1, 'One more step rewrites only the step count')
+assert.ok(page.stats[2].text.endsWith(' steps'))
+assert.equal(page.stats[0].text, 'Bulbasaur egg')
 distance += 6000
 page.sync()
+assert.equal(page.stats[0].text, 'Bulbasaur', 'A hatch still shows at once')
 click('Finish & save')
 click('Save & finish')
 assert.equal(page.state.records[0].meters, 6000)

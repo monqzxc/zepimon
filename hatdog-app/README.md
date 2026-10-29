@@ -78,6 +78,16 @@ screen saves only when a repair changes something, screens change without the
 loading animation, and `page/catalog.js` builds its sprite paths and generations
 from Dex numbers instead of listing them (70 KB → 22 KB, same exports).
 
+Speed (1.21): opening the adventure screen checks every Dex entry's distance,
+and that check used to scan all 305 egg families per entry. It now looks each
+Pokemon up in a table built once, which makes the repair pass about 5× faster
+with a full Dex (about 30 ms → 6 ms in Node without its JIT; the watch is
+slower, so the saving there is larger). The answers are identical. During an
+adventure, the step and distance sensors and the clock refresh the screen
+several times a second; each refresh used to rewrite about ten on-screen
+values. Now it rewrites only the ones that changed, so a new step redraws just
+the step count.
+
 ### Legendary Expeditions (v1.11.0)
 
 Legendary and Mythical Pokemon now come from phone expeditions rather than new
