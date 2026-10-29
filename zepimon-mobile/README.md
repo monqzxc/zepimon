@@ -322,9 +322,14 @@ already credited in `SPRITE-CREDITS.md`; the Poké Ball is the app's own vector 
 
 #### Legendary Resonance Trials
 
-Between the chamber and the battle, the Legendary resonates in an arena: a 9 × 9 clearing of the Safari Zone by the
-lake, drawn, walked and collided exactly as the Safari Zone is (the same map and terrain, D-pad, arrow keys / WASD or
-Tap to walk, trainer and buddy). The Legendary stands in the middle as its Emerald overworld sprite, the same
+Between the chamber and the battle, the Legendary resonates in an arena: a 9 × 9 clearing of the Safari Zone in the
+area its type lives in, by the same rule as the Safari Zone's wild Pokemon. Water and Ice Legendaries (Kyogre,
+Suicune, Articuno…) meet by the lake; Rock, Ground, Fighting, Steel, Fire and Dragon ones (Groudon, Rayquaza, Moltres…)
+on the rocky mountain; Ghost, Dark, Poison and Psychic ones (Darkrai, Giratina, Uxie, Mewtwo…) in the night forest; and
+Grass, Bug, Normal, Electric and Fairy ones (Shaymin, Zapdos, Arceus…) in the sunny meadow. The arena is drawn, walked
+and collided exactly as the Safari Zone is (the same map and terrain, D-pad, arrow keys / WASD or Tap to walk, trainer
+and buddy). Every clearing has the same plan of seals, runes, stones and safe tiles; a mark that would land on a tree or
+rock moves to the nearest open tile. The Legendary stands in the middle as its Emerald overworld sprite, the same
 pixel art your buddy walks with, stepping in place and turning to face you as you move around it. Four ancient seals
 ◇ sit around it:
 
@@ -336,7 +341,8 @@ pixel art your buddy walks with, stepping in place and turning to face you as yo
 
 Runes and stones keep their progress while you walk around; the wave and the pulse simply start again if missed.
 Meanwhile the Legendary sends gentle attacks: a ring around you or a line through you, marked ⚠ on the ground for 1.8 s
-before it lands ✸. That's time for about eight steps, and one or two always get you clear. Only the marked tiles count,
+before it lands ✸. That's time for about eight steps, and one or two always get you clear: where trees or rocks leave a nook a line would fill, the
+Legendary aims another way. Only the marked tiles count,
 at the moment the attack lands. A hit costs one **resonance** and a short stagger. You start with 3, plus 1 for each km
 of saved walks and runs this week, up to 5 (the arcade's walking bonus: only saved, finished adventures count). At 0
 you catch your breath while the Legendary holds back, then you're back to full. Nothing ever turns a seal off.

@@ -14,9 +14,9 @@ import { useStepWalker } from './step-walker'
 import { DPad, useKeyboardDirections } from './DPad'
 import { useGameLoop } from './hooks'
 import { OverworldSprite } from './OverworldSprite'
-import { ARENA, LEGENDARY_AT, PULSE_WINDOW, RUNES, SEAL_AT, SEAL_NAMES, STONES, arenaMap, arenaTick, arenaWalk, maxResonance, objective,
-  pauseArena, pulsePhase, resonate, resumeArena, startArena } from './resonance'
-import type { Arena } from './resonance'
+import { ARENA_SIZE, PULSE_WINDOW, SEAL_NAMES, arenaFor, arenaTick, arenaWalk, maxResonance, objective, pauseArena, pulsePhase, resonate,
+  resumeArena, startArena } from './resonance'
+import type { Arena, ArenaLayout } from './resonance'
 
 const chunks = safariChunks as TileChunks
 const STEADY_MS = 3000
@@ -33,16 +33,18 @@ type Props = {
 }
 
 // The Legendary Resonance Trial, between the chamber and the catch (rules in src/games/resonance.ts, saved progress in
-// src/expedition-encounter.ts). Entering sets the encounter (no more resets); the arena is the Safari Zone's own ground,
-// walked the Safari Zone's way, with the Legendary in the middle. Four seals switched on steady it, and the existing
+// src/expedition-encounter.ts). Entering sets the encounter (no more resets); the arena is a clearing of the Safari Zone's
+// own ground in the area the Legendary's type lives in, walked the Safari Zone's way, with the Legendary in the middle. Four seals switched on steady it, and the existing
 // battle and catch open. Every seal is saved the moment it switches on, so leaving, a failed catch or a restart keeps it.
 export function ResonanceTrial(props: Props) {
   const { encounter, number, busy, error, weekKm, onStart, onCapture, onLeave } = props
   const stage = resonanceStage(encounter)
   const name = `${encounter.shiny ? 'Shiny ' : ''}${encounter.name}`
+  const { label } = arenaFor(encounter.name)
   if (stage === 'ready') return <Panel>
     <Eyebrow>EXPEDITION {number} · LEGENDARY RESONANCE TRIAL</Eyebrow>
     <Title>{name} is resonating</Title>
+    <Copy color={colors.ink}>It waits in a clearing of the Safari Zone’s {label.toLowerCase()}, where its kind lives.</Copy>
     <View style={{ alignItems: 'center' }}><OverworldSprite name={encounter.name} shiny={encounter.shiny} size={132} /></View>
     <Copy color={colors.ink}>Switch on the four ancient seals around {encounter.name} to steady it, and the catch opens. It will send slow, clearly marked attacks: step off the marked tiles ⚠ before they land.</Copy>
     <Copy>Your saved walks and runs this week give you {maxResonance(weekKm)} resonance (3, plus 1 for each km, up to 5). A hit costs one; run out and you simply catch your breath. Seals stay on whatever happens.</Copy>
@@ -64,7 +66,8 @@ export function ResonanceTrial(props: Props) {
 
 function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, onStabilize, onLeave }: Props) {
   const saved = encounter.resonance?.seals ?? []
-  const [arena, setArena] = useState(() => startArena(saved, maxResonance(weekKm), Date.now()))
+  const [arena, setArena] = useState(() => startArena(arenaFor(encounter.name), saved, maxResonance(weekKm), Date.now()))
+  const { layout } = arena
   const [move, setMove] = useState<{ kind: 'step' | 'bump' | 'none', id: number }>({ kind: 'none', id: 0 })
   const [area, setArea] = useState({ width: 0, height: 0 })
   const [clock, setClock] = useState(() => Date.now())
@@ -91,7 +94,7 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
     update(result.arena)
     if (result.completed) report(result.arena.seals)
     // A tap route stops at a bump, a seal or anything that switched on.
-    const onSeal = RESONANCE_SEALS.some(seal => pointKey(SEAL_AT[seal]) === pointKey(result.arena.at))
+    const onSeal = RESONANCE_SEALS.some(seal => pointKey(layout.seals[seal]) === pointKey(result.arena.at))
     return { moved: result.move === 'step', stop: result.move !== 'step' || !!result.completed || onSeal }
   }
   const walking = !arena.paused && !steadying
@@ -140,20 +143,21 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
       <Text accessibilityLabel={`Resonance ${arena.resonance} of ${arena.maxResonance}${arena.recoverUntil ? ', recovering' : ''}`} style={look.resonance}>
         RESONANCE {'●'.repeat(arena.resonance)}{'○'.repeat(arena.maxResonance - arena.resonance)}{arena.recoverUntil ? ' · RECOVERING' : ''}
       </Text>
+      <Text style={look.place}>{layout.label.toUpperCase()} · {encounter.name.toUpperCase()}’S CLEARING</Text>
       <Text numberOfLines={2} style={look.objective}>{steadying ? `The seals’ light flows into ${encounter.name}…` : objective(arena)}</Text>
     </View>
     <View style={look.map} onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}
       accessible={safariControls !== 'tap'} accessibilityRole="image"
-      accessibilityLabel={`Arena. You are at row ${arena.at.y - ARENA.top + 1}, column ${arena.at.x - ARENA.left + 1}. ${arena.danger ? 'Danger is marked on the ground.' : ''}`}>
+      accessibilityLabel={`Arena in the ${layout.label.toLowerCase()}. You are at row ${arena.at.y - layout.top + 1}, column ${arena.at.x - layout.left + 1}. ${arena.danger ? 'Danger is marked on the ground.' : ''}`}>
       {area.width > 0 && <View style={{ position: 'absolute', left: 0, top: 0 }}>
         <TileWorld map={safariMap} chunks={chunks} at={arena.at} facing={arena.facing} buddyAt={arena.buddy} buddyFacing={arena.buddyFacing}
           move={move} trainer={safariTrainer} buddy={partner} onGrass={tileAt(arena.at, safariMap) === 'g'} width={area.width} height={area.height}
           reduced={reduced} jump={0} background="#1d3b2a" tapToWalk={safariControls === 'tap' && walking}
-          onTapTile={(to: Point) => { const route = planWalk(current.current.at, to, arenaMap); if (route) walker.follow(route) }}
-          cover={<Outside tile={tile} />}>
+          onTapTile={(to: Point) => { const route = planWalk(current.current.at, to, layout.map); if (route) walker.follow(route) }}
+          cover={<Outside layout={layout} tile={tile} />}>
           <Marks arena={arena} tile={tile} clock={clock} reduced={reduced} />
-          {pulseOn && <PulseRing tile={tile} phase={phase} lit={inWindow} />}
-          <Legendary name={encounter.name} shiny={encounter.shiny} tile={tile} facing={facingToward(arena.at)} glowing={steadying || arena.seals.length === 4} />
+          {pulseOn && <PulseRing at={layout.seals.pulse} tile={tile} phase={phase} lit={inWindow} />}
+          <Legendary at={layout.legendary} name={encounter.name} shiny={encounter.shiny} tile={tile} facing={facingToward(arena.at, layout.legendary)} glowing={steadying || arena.seals.length === 4} />
         </TileWorld>
       </View>}
       {arena.paused && <View style={look.pause}>
@@ -209,15 +213,15 @@ function Marks({ arena, tile, clock, reduced }: { arena: Arena, tile: number, cl
   return <>
     {RESONANCE_SEALS.map(seal => {
       const on = arena.seals.includes(seal)
-      return <View key={seal} style={[box(SEAL_AT[seal]), look.mark, on ? look.sealTileOn : look.sealTile]}>
+      return <View key={seal} style={[box(arena.layout.seals[seal]), look.mark, on ? look.sealTileOn : look.sealTile]}>
         <Text style={[look.markText, { fontSize: tile * 0.42, color: on ? '#1A1200' : '#FFFFFF' }]}>{on ? '◆' : '◇'}</Text>
         <Text style={[look.markLabel, { fontSize: Math.max(8, tile * 0.18), color: on ? '#1A1200' : '#FFFFFF' }]}>{SEAL_NAMES[seal].toUpperCase()}</Text>
       </View>
     })}
-    {arena.runes !== null && RUNES.map((point, i) => <View key={`rune-${i}`} style={[box(point), look.mark, i < arena.runes! ? look.runeDone : look.rune]}>
+    {arena.runes !== null && arena.layout.runes.map((point, i) => <View key={`rune-${i}`} style={[box(point), look.mark, i < arena.runes! ? look.runeDone : look.rune]}>
       <Text style={[look.markText, { fontSize: tile * 0.45 }]}>{i + 1}</Text>
     </View>)}
-    {arena.stones !== null && STONES.map((point, i) => <View key={`stone-${i}`} style={[box(point), look.mark, arena.stones!.includes(i) ? look.stoneAwake : look.stone]}>
+    {arena.stones !== null && arena.layout.stones.map((point, i) => <View key={`stone-${i}`} style={[box(point), look.mark, arena.stones!.includes(i) ? look.stoneAwake : look.stone]}>
       <Text style={[look.markText, { fontSize: tile * 0.45 }]}>▲</Text>
     </View>)}
     {danger?.tiles.map(key => {
@@ -233,9 +237,9 @@ function Marks({ arena, tile, clock, reduced }: { arena: Arena, tile: number, cl
 }
 
 // The pulse: a ring shrinking onto the seal; press while it is inside the gold band.
-function PulseRing({ tile, phase, lit }: { tile: number, phase: number, lit: boolean }) {
+function PulseRing({ at, tile, phase, lit }: { at: Point, tile: number, phase: number, lit: boolean }) {
   const radius = (p: number) => tile * (2.2 - 1.9 * p)
-  const centre = { x: (SEAL_AT.pulse.x + 0.5) * tile, y: (SEAL_AT.pulse.y + 0.5) * tile }
+  const centre = { x: (at.x + 0.5) * tile, y: (at.y + 0.5) * tile }
   const outer = radius(PULSE_WINDOW[0]), inner = radius(PULSE_WINDOW[1])
   const ring = radius(phase)
   return <>
@@ -247,17 +251,17 @@ function PulseRing({ tile, phase, lit }: { tile: number, phase: number, lit: boo
 }
 
 // The way from the Legendary toward the trainer, along the longer axis, so it turns to watch you walk around it.
-function facingToward(at: Point): Direction {
-  const dx = at.x - LEGENDARY_AT.x, dy = at.y - LEGENDARY_AT.y
+function facingToward(at: Point, legendary: Point): Direction {
+  const dx = at.x - legendary.x, dy = at.y - legendary.y
   if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'east' : 'west'
   return dy < 0 ? 'north' : 'south'
 }
 
 // The Legendary as its Emerald overworld sprite, two tiles tall, standing on its tile with a shadow and stepping in
 // place facing you; it glows as the seals steady it.
-function Legendary({ name, shiny, tile, facing, glowing }: { name: string, shiny: boolean, tile: number, facing: Direction, glowing: boolean }) {
+function Legendary({ at, name, shiny, tile, facing, glowing }: { at: Point, name: string, shiny: boolean, tile: number, facing: Direction, glowing: boolean }) {
   const size = tile * 2
-  return <View pointerEvents="none" style={{ position: 'absolute', left: LEGENDARY_AT.x * tile + tile / 2 - size / 2, top: (LEGENDARY_AT.y + 1) * tile - size }}>
+  return <View pointerEvents="none" style={{ position: 'absolute', left: at.x * tile + tile / 2 - size / 2, top: (at.y + 1) * tile - size }}>
     <View style={{ position: 'absolute', left: size * 0.2, top: size * 0.86, width: size * 0.6, height: size * 0.16, borderRadius: size, backgroundColor: 'rgba(0, 0, 0, 0.3)' }} />
     {glowing && <View style={{ position: 'absolute', left: -tile * 0.2, top: -tile * 0.2, width: size + tile * 0.4, height: size + tile * 0.4, borderRadius: size,
       backgroundColor: 'rgba(242, 194, 48, 0.28)' }} />}
@@ -266,10 +270,10 @@ function Legendary({ name, shiny, tile, facing, glowing }: { name: string, shiny
 }
 
 // Outside the clearing the Safari Zone dims, and a gold line marks the arena's edge.
-function Outside({ tile }: { tile: number }) {
+function Outside({ layout, tile }: { layout: ArenaLayout, tile: number }) {
   const shade = 'rgba(6, 14, 12, 0.55)'
   const width = safariMap.cols * tile, height = safariMap.rows * tile
-  const left = ARENA.left * tile, top = ARENA.top * tile, right = (ARENA.left + ARENA.width) * tile, bottom = (ARENA.top + ARENA.height) * tile
+  const left = layout.left * tile, top = layout.top * tile, right = (layout.left + ARENA_SIZE) * tile, bottom = (layout.top + ARENA_SIZE) * tile
   return <>
     <View style={{ position: 'absolute', left: 0, top: 0, width, height: top, backgroundColor: shade }} />
     <View style={{ position: 'absolute', left: 0, top: bottom, width, height: height - bottom, backgroundColor: shade }} />
@@ -285,6 +289,7 @@ const look = themedStyles(() => ({
   seal: { fontFamily: fonts.heavy, fontSize: 13, lineHeight: 18, color: colors.muted },
   sealOn: { color: colors.gold },
   resonance: { fontFamily: fonts.heavy, fontSize: 13, lineHeight: 18, color: colors.edge, letterSpacing: 0.5 },
+  place: { fontFamily: fonts.heavy, fontSize: 11, lineHeight: 15, color: colors.muted, letterSpacing: 0.8 },
   objective: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 19, color: colors.ink },
   map: { flex: 1, minHeight: 200, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000000' },
   message: { fontFamily: fonts.bold, fontSize: 15, lineHeight: 21, color: colors.ink, minHeight: 42 },
