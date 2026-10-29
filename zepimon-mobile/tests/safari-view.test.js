@@ -4,16 +4,16 @@ import { buddyFrame, cameraOffset, chunksAround, followPath, noInput, pressDirec
   tileSizeFor, trainerFrame } from '../src/games/safari-view.ts'
 import { safariMap } from '../src/games/safari-zone.ts'
 
-test('tile size fits about 9 tiles across, between 40 and 64', () => {
-  assert.deepEqual([320, 390, 600, 1280].map(tileSizeFor), [40, 43, 64, 64])
+test('tile size fits about 10 tiles across, between 36 and 58', () => {
+  assert.deepEqual([320, 390, 600, 1280].map(tileSizeFor), [36, 39, 58, 58])
 })
 
-test('given a height, about 9 tiles go across the shorter side, between 40 and 64', () => {
-  assert.equal(tileSizeFor(844, 390), 43)
-  assert.equal(tileSizeFor(740, 360), 40)
+test('given a height, about 10 tiles go across the shorter side, between 36 and 58', () => {
+  assert.equal(tileSizeFor(844, 390), 39)
+  assert.equal(tileSizeFor(740, 360), 36)
   assert.equal(tileSizeFor(390, 844), tileSizeFor(390))
-  assert.equal(tileSizeFor(1280, 800), 64)
-  assert.equal(tileSizeFor(568, 300), 40)
+  assert.equal(tileSizeFor(1280, 800), 58)
+  assert.equal(tileSizeFor(568, 300), 36)
 })
 
 test("the camera centres the trainer's tile", () => {
