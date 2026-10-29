@@ -243,9 +243,10 @@ Hoenn's sky with hills, sea and clouds drifting in layers at different speeds
 (`src/Parallax.tsx`). Buttons, chips and tiles rise a few pixels onto a deeper
 shadow while pressed. Chosen chips and theme cards glow, and the chosen row in a
 settings list gets Emerald's ▶ cursor. With reduced motion nothing drifts or
-lifts. Its tab-bar Pokemon is Deoxys, met on Birth Island in Emerald, with an
-emerald-and-gold ball and aura; no other Hoenn Pokemon has the cut-out training
-poses. All of this goes through `colors`, `fonts`, `themedStyles` and the
+lifts. Its tab-bar Pokemon is Rayquaza, the Legendary on Emerald's box, peeking
+over the bar and working out in its cap and tee (kettlebell, dumbbells, plank,
+sit-ups, ab roller; cut from `pokemon_data/rayquaza-fitness.png` by
+`scripts/build-nav-poses.py`), with an emerald-and-gold ball and aura. All of this goes through `colors`, `fonts`, `themedStyles` and the
 components in `src/ui.tsx` (`retro()` tells them Emerald is on), so every screen
 picks it up and the other themes look as before.
 

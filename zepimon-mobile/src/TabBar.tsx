@@ -14,7 +14,7 @@ import { useJournal } from './store'
 import { waitingEncounters } from './legendary-gate'
 
 // A floating glass tab bar. The middle tab (Adventure) is a Poke Ball sitting in a notch cut into the bar.
-// The open tab shows in the bar's accent with a heavier label, and the theme's Pokemon (Gengar, Deoxys or Pikachu; see
+// The open tab shows in the bar's accent with a heavier label, and the theme's Pokemon (Rayquaza, Gengar, Deoxys or Pikachu; see
 // mascots) peeks over the bar's top edge above it: the head is drawn behind the bar and the paws in front.
 // That art sits on a 120 x 100 grid whose row 72 meets the edge. The Pokemon bobs and blinks while idle, ducks behind
 // the bar when you switch tabs and pops up wide-eyed on the new one, and the labels change over as it passes. Tapping
@@ -76,9 +76,20 @@ const pikachu: Mascot = {
   ball: { body: '#F2C21B', band: '#3B2A0A', stripe: '#E0483A', rings: ['#F2C21B', '#FFD95A', '#FFF0A6'], rim: '#3B2A0A', shade: '#4A3300' },
   aura: ['#5C4500', '#A07800', '#E8B800', '#FFDA4A', '#FFE98A'], wisp: ['#7A5A00', '#D9A800', '#FFE066']
 }
-// Emerald's mascot is Deoxys too, met on Birth Island in Pokemon Emerald: the same art, with a ball in emerald green and
-// Rayquaza gold and an aura that glows like the Legendary Gate. No other Hoenn Pokemon has the cut-out training poses.
-const emerald: Mascot = { ...deoxys,
+// Emerald's mascot is Rayquaza, the Legendary on Pokemon Emerald's box, all cut from pokemon_data/rayquaza-fitness.png:
+// a kettlebell swing, a cap-tip, dumbbells on a glowing pad, a plank, sit-ups and an ab roller (in that order, standing
+// in for the others' stand, wave, lift, push-up, sit-up and worn-out). Its blink is drawn and its surprise borrows the
+// dumbbell pose's sweat drop. The ball is emerald green with a Rayquaza-gold stripe, the aura glows like the Legendary
+// Gate.
+const emerald: Mascot = {
+  walker: 'Rayquaza',
+  art: {
+    grin: require('../assets/nav/rayquaza/head-idle.png'), blink: require('../assets/nav/rayquaza/head-blink.png'),
+    boo: require('../assets/nav/rayquaza/head-boo.png'), paws: require('../assets/nav/rayquaza/paws.png')
+  },
+  floats: [require('../assets/nav/rayquaza/float-stand.png'), require('../assets/nav/rayquaza/float-wave.png'),
+    require('../assets/nav/rayquaza/float-lift.png'), require('../assets/nav/rayquaza/float-pushup.png'),
+    require('../assets/nav/rayquaza/float-situp.png'), require('../assets/nav/rayquaza/float-tired.png')],
   ball: { body: '#1F9E5C', band: '#0B2A1A', stripe: '#F2C230', rings: ['#1F9E5C', '#4CC383', '#9BE3BC'], rim: '#0B2A1A', shade: '#06180E' },
   aura: ['#063A24', '#0E6E3E', '#1F9E5C', '#5FD49A', '#F2C230'], wisp: ['#0B4A2E', '#1F9E5C', '#F2C230'] }
 const mascots: Record<ThemeName, Mascot> = { emerald, gengar, deoxys, pikachu }

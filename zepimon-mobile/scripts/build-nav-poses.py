@@ -1,5 +1,5 @@
 """Cuts the tab bar's fitness art (src/TabBar.tsx) from sheets in pokemon_data/: the six poses each Pokemon takes turns
-in while floating over the Adventure button, and the Deoxys and Pikachu that peek over the bar in their themes. (Gengar's
+in while floating over the Adventure button, and the Deoxys, Pikachu and Rayquaza that peek over the bar in their themes. (Gengar's
 peeking art is drawn by scripts/build-nav-gengar.mjs.)
 
 Usage: python scripts/build-nav-poses.py   (needs Pillow and numpy)
@@ -8,7 +8,7 @@ Each sheet shows the Pokemon in a cap, T-shirt and shorts on a pale background, 
 - assets/nav/<pokemon>/float-stand, float-wave, float-lift, float-tired, float-pushup and float-situp: each pose on a
   320 x 256 canvas (wider than tall, so lifted dumbbells fit) at one scale per Pokemon, centered with the ground on
   one line, so the Pokemon keeps its size as it changes pose.
-- assets/nav/<pokemon>/head-idle, head-blink and head-boo, for Deoxys and Pikachu: the head peeking over the bar, on
+- assets/nav/<pokemon>/head-idle, head-blink and head-boo, for Deoxys, Pikachu and Rayquaza: the head peeking over the bar, on
   the 120 x 100 grid at two pixels per unit with the chin on row 72, the bar's top edge. Idle is the standing pose's
   head; blink and boo (the surprised pop-up) come from other poses or are drawn, as HEADS says.
 - assets/nav/<pokemon>/paws: Gengar's paw shapes (scripts/build-nav-gengar.mjs) in the Pokemon's colors, at the same
@@ -41,24 +41,33 @@ POSES = {
         'stand': ('pikachu-fitness.png', (40, 0, 330, 290)), 'wave': ('pikachu-fitness.png', (390, 0, 690, 290)),
         'lift': ('pikachu-fitness.png', (700, 0, 1024, 290)), 'tired': ('pikachu-fitness.png', (20, 290, 345, 559)),
         'pushup': ('pikachu-fitness.png', (360, 290, 680, 559)), 'situp': ('pikachu-fitness.png', (700, 290, 1024, 559))
+    },
+    # Rayquaza's sheet has a kettlebell swing, a cap-tip and an ab roller in place of standing, waving and worn out.
+    'rayquaza': {
+        'stand': ('rayquaza-fitness.png', (425, 15, 670, 295)), 'wave': ('rayquaza-fitness.png', (50, 300, 305, 540)),
+        'lift': ('rayquaza-fitness.png', (715, 20, 1010, 300)), 'tired': ('rayquaza-fitness.png', (720, 330, 1000, 530)),
+        'pushup': ('rayquaza-fitness.png', (380, 330, 710, 530)), 'situp': ('rayquaza-fitness.png', (30, 25, 345, 285))
     }
 }
 # A sheet drawn smaller than its Pokemon's first is enlarged by this much first: at 1.4 the second Gengar sheet's caps
 # and heads match the first's.
 SHEET_SCALE = {'gengar-fitness-2.png': 1.4}
 # Sheets on pure white, where the shirts are greyer: there, pure white shut in by an arm or tail is background too.
-WHITE_POCKETS = {'pikachu-fitness.png'}
+WHITE_POCKETS = {'pikachu-fitness.png', 'rayquaza-fitness.png'}
 
 # The peeking heads. cap: the standing pose's cap in its sheet, which lines up the other poses' heads with it. bottom:
 # the sheet row below the chin where the head crop stops. edge: the chin's row, which sits on the bar's edge so the
 # whole face shows. blink and boo: a pose whose head is used as it is ('wave': Deoxys's shut eyes, Pikachu's open-mouthed
 # cheer), the standing head with another pose's sweat drop ('sweat'), or the standing head with its eyes drawn shut
-# ('shut', for a sheet with no shut-eyed face). paws: fill, shine and outline.
+# ('shut', for a sheet with no shut-eyed face; skin: how bright the skin around the eyes is at least). paws: fill, shine
+# and outline.
 HEADS = {
     'deoxys': {'cap': (140, 30, 270, 110), 'bottom': 205, 'edge': 186, 'blink': 'wave', 'boo': 'sweat',
                'paws': ((110, 154, 146), (150, 190, 182), (52, 14, 20))},
     'pikachu': {'cap': (118, 28, 208, 92), 'bottom': 165, 'edge': 150, 'blink': 'shut', 'boo': 'wave',
-                'paws': ((240, 196, 40), (255, 226, 120), (58, 30, 22))}
+                'paws': ((240, 196, 40), (255, 226, 120), (58, 30, 22))},
+    'rayquaza': {'cap': (465, 38, 555, 92), 'bottom': 160, 'edge': 150, 'blink': 'shut', 'boo': 'sweat', 'skin': 100,
+                 'paws': ((58, 138, 72), (118, 188, 104), (24, 40, 28))}
 }
 
 
@@ -184,9 +193,10 @@ def sweat(idle, sweaty):
     return out
 
 
-def shut(idle):
+def shut(idle, light=150):
     """idle with its eyes shut: each eye (a dark, roundish patch, set in the face rather than on its outline) is painted
-    over in the skin color around it, then drawn as a lid line curving down, in the eye's own dark."""
+    over in the skin color around it (the pixels brighter than light: Rayquaza's darker green needs a lower bar than
+    Pikachu's yellow), then drawn as a lid line curving down, in the eye's own dark."""
     rgba = np.asarray(idle).copy()
     rgb = rgba[..., :3].astype(np.int16)
     dark = (rgb.max(axis=2) < 70) & (rgba[..., 3] > 0)
@@ -207,7 +217,7 @@ def shut(idle):
         cy, cx = (top + bottom) / 2, (left + right) / 2
         ry, rx = (bottom - top) / 2 + 2.5, (right - left) / 2 + 2.5
         around = rgb[max(0, top - 5):bottom + 6, max(0, left - 5):right + 6].reshape(-1, 3)
-        skin = np.median(around[around.max(axis=1) > 150], axis=0)
+        skin = np.median(around[around.max(axis=1) > light], axis=0)
         cover = Image.new('L', (width, height))
         ImageDraw.Draw(cover).ellipse((cx - rx, cy - ry, cx + rx, cy + ry), fill=255)
         out.paste(Image.new('RGBA', out.size, tuple(int(c) for c in skin) + (255,)), (0, 0), cover.filter(ImageFilter.GaussianBlur(0.8)))
@@ -235,7 +245,7 @@ def heads(pokemon, sheet, art):
         """image cut to the standing head's outline, so the two swap cleanly."""
         image.putalpha(Image.fromarray(np.minimum(np.asarray(image.getchannel('A')), np.asarray(idle.getchannel('A')))))
         return image
-    faces = {'wave': lambda: within(head('wave')), 'sweat': lambda: sweat(idle, crop('lift')), 'shut': lambda: shut(idle)}
+    faces = {'wave': lambda: within(head('wave')), 'sweat': lambda: sweat(idle, crop('lift')), 'shut': lambda: shut(idle, spec.get('skin', 150))}
     blink, boo = faces[spec['blink']](), faces[spec['boo']]()
     top = idle.getbbox()[1]
     scale = min(1.0, (144 - 4) / (spec['edge'] - top))     # the head's top stays at least two rows inside the grid
