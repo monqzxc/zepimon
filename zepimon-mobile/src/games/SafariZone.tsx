@@ -3,7 +3,7 @@ import { Animated, Easing, Platform, Text, View, useWindowDimensions } from 'rea
 import type { DexRecord } from '../journal'
 import { setPreference, usePreferences } from '../preferences'
 import { Button, Chip, Copy, Eyebrow, Heading, IconButton, Panel, colors, fonts, styles, themedStyles } from '../ui'
-import { ZONES, pauseSafari, resumeSafari, shinyOdds, tickSafari } from './safari'
+import { ZONES, pauseSafari, resumeSafari, tickSafari } from './safari'
 import type { SafariGame, Zone } from './safari'
 import { confirmLeave, planWalk, startZone, stayInZone, walk, zoneAction, zoneBudget } from './safari-zone'
 import type { Direction, Point, WalkResult, ZoneEvent, ZoneGame } from './safari-zone'
@@ -144,9 +144,8 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   </View>
 
   const playing = game.status === 'playing'
-  const chainOdds = game.chain.count ? shinyOdds(game, game.chain.name) : 0
   const areaName = `${game.area === 'gate' ? 'Gate' : ZONES[game.area].label}${playing ? '' : ' · Paused'}`
-  const chain = chainOdds ? `Chain: ${game.chain.name} ×${game.chain.count} · Shiny chance 1 in ${chainOdds}` : ''
+  const chain = game.chain.count ? `Chain: ${game.chain.name} ×${game.chain.count}` : ''
   const message = game.message && !game.prompt ? `${game.lastThrow && game.encounter ? `${throwText[game.lastThrow]} ` : ''}${game.message}` : ''
   const gate = <Panel>
     <Text accessibilityLiveRegion="polite" style={zoneLook.message}>Leave the Safari Zone?</Text>

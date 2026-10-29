@@ -12,5 +12,12 @@ export const lairArt = {
   "new-mauville": { ground: require('../../assets/lairs/new-mauville-ground.png'), top: require('../../assets/lairs/new-mauville-top.png') },
   "mt-pyre-summit": { ground: require('../../assets/lairs/mt-pyre-summit-ground.png'), top: require('../../assets/lairs/mt-pyre-summit-top.png') },
   "mt-pyre": { ground: require('../../assets/lairs/mt-pyre-ground.png'), top: require('../../assets/lairs/mt-pyre-top.png') },
-  "crystal-cavern": { ground: require('../../assets/lairs/crystal-cavern-ground.png'), top: require('../../assets/lairs/crystal-cavern-top.png') }
+  "crystal-cavern": { ground: require('../../assets/lairs/crystal-cavern-ground.png'), top: require('../../assets/lairs/crystal-cavern-top.png') },
+  "outer-space": { ground: require('../../assets/lairs/outer-space-ground.png'), top: require('../../assets/lairs/outer-space-top.png') },
+  "ozone-layer": { ground: require('../../assets/lairs/ozone-layer-ground.png'), top: require('../../assets/lairs/ozone-layer-top.png') },
+  "distortion-world": { ground: require('../../assets/lairs/distortion-world-ground.png'), top: require('../../assets/lairs/distortion-world-top.png') },
+  "nightmare-realm": { ground: require('../../assets/lairs/nightmare-realm-ground.png'), top: require('../../assets/lairs/nightmare-realm-top.png') },
+  "bubble-playroom": { ground: require('../../assets/lairs/bubble-playroom-ground.png'), top: require('../../assets/lairs/bubble-playroom-top.png') },
+  "cell-hollow": { ground: require('../../assets/lairs/cell-hollow-ground.png'), top: require('../../assets/lairs/cell-hollow-top.png') },
+  "cinnabar-lab": { ground: require('../../assets/lairs/cinnabar-lab-ground.png'), top: require('../../assets/lairs/cinnabar-lab-top.png') }
 }

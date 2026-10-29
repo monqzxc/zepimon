@@ -304,7 +304,7 @@ next 25 km after a permit encounter.
 
 1. **Trial:** a species-themed Legendary Trial (for example Sky Pillar Ascent for Rayquaza), one or two rooms walked
    like the Safari Zone. See **Legendary Trials** below. Once finished, it stays finished.
-2. **Lair:** you walk into the Legendary's lair, a room from Pokemon Emerald, and see it waiting there, Shiny or not
+2. **Lair:** you walk into the Legendary's lair, a room from Pokemon Emerald or one drawn for it, and see it waiting there, Shiny or not
    (a **1 in 100** chance each time it is met). Until you switch on a seal it only watches: walk back out of the
    entrance and the next time you come in it is met anew. The entrance then stays sealed for **1.5 seconds**, and
    walking out of a lair with a Shiny asks twice first. The wait is saved as a clock time. Leaving any other way
@@ -324,27 +324,40 @@ already credited in `SPRITE-CREDITS.md`; the Poké Ball is the app's own vector 
 #### Legendary Resonance Trials
 
 After the trial, each Legendary waits in its own lair: a room from Pokemon Emerald, drawn from Emerald's own tiles and
-walked and collided by its rules (Emerald's collision, water, height and stairs). The lairs and who lives there:
+walked and collided by its rules (Emerald's collision, water, height and stairs), or, where no Emerald room fits its
+story, a lair drawn for it in Emerald's pixel style. The lairs and who lives there:
 
 | Lair (Emerald room) | Legendaries |
 | --- | --- |
 | Seafloor Cavern (the pool where Kyogre sleeps) | Kyogre, Lugia, Manaphy, Phione |
 | Cave of Origin (the magma chamber from Ruby and Sapphire) | Groudon, Heatran, Entei, Moltres |
-| Sky Pillar (the summit) | Rayquaza, Ho-Oh |
+| Sky Pillar (the summit) | Ho-Oh |
 | Sealed Ruins (the Regis' chamber) | Regirock, Regice, Registeel |
 | Sealed Chamber | Regigigas |
 | Southern Island | Latias, Latios, Suicune, Uxie, Mesprit, Azelf |
-| Faraway Island | Mew, Celebi, Shaymin, Zygarde |
-| Birth Island | Deoxys, Jirachi, Cresselia |
+| Faraway Island | Celebi, Shaymin |
+| Birth Island | Jirachi, Cresselia |
 | Shoal Cave (the ice room) | Articuno |
 | New Mauville (the generator room) | Zapdos, Raikou, Zeraora, Magearna |
 | Mt. Pyre Summit (the orb altar) | Dialga, Palkia, Arceus |
-| Mt. Pyre (the graveyard) | Giratina, Darkrai |
-| Crystal Cavern (Cave of Origin's crystal ring) | Mewtwo, Diancie |
+| Crystal Cavern (Cave of Origin's crystal ring) | Diancie |
+
+| Drawn lair | Legendary |
+| --- | --- |
+| Meteor Field (an asteroid adrift in space, glowing meteorites, meteors streaking past) | Deoxys |
+| Ozone Layer (cloud platforms high in the sky, broken sky-temple pillars) | Rayquaza |
+| Distortion World (floating rock in a swirling dark dimension, twisted spires) | Giratina |
+| Nightmare Realm (a dream floor under a crescent moon, thorn shadows with red eyes, dark pits) | Darkrai |
+| Bubble Playroom (a pastel playroom of toppled toy blocks, soap bubbles and puddles) | Mew |
+| Cell Hollow (green honeycomb on black, crystallised gene clusters) | Zygarde |
+| Cinnabar Lab (a dark purple lab, Mewtwo in its shattered containment tank) | Mewtwo |
+
+Mt. Pyre (the graveyard) stays as the lair for a future ghost, dark or poison Legendary.
 
 The whole lair fits the screen. You come in by its entrance (marked OUT) and the Legendary waits where it lives in
-that room, as its Emerald overworld sprite, turning to watch you; a Shiny sparkles. Each lair has its own air drifting
-over the art (bubbles, embers, wind, dust, snow, falling petals, twinkling motes), which stays off with reduced motion. Until a
+that room, as its Emerald overworld sprite, turning to watch you; a Shiny stands in a gold glow with stars twinkling around it
+and sparkles every few seconds (they hold still with reduced motion). Each lair has its own air drifting
+over the art (bubbles, embers, wind, dust, snow, falling petals, twinkling motes or stars), which stays off with reduced motion. Until a
 seal is on, the Legendary only watches, and stepping back out of the entrance (or tapping it with Tap to walk) leaves
 so the next entry meets it anew. Four ancient seals ◇ sit around the lair:
 
@@ -370,9 +383,9 @@ possible from the doorway.
 With all four seals on, **Steady the Legendary** plays a short stabilization and opens the catch: the battle and
 catch above, unchanged. Leaving, pausing (or the app going to the background), restarting the app or a failed catch
 keeps every seal; each one is saved the moment it switches on, and the first one sets the result, so walking out after
-that just leaves. Only a successful catch claims the encounter. The lairs are built by `scripts/build-lairs.py` (which
-Emerald room, the window, where the Legendary waits, the way out, and the few boulders cleared from Sky Pillar's summit)
-into `assets/lairs/` and `src/generated/lair-maps.js`; who lives where and each lair's air are in `src/games/lairs.ts`,
+that just leaves. Only a successful catch claims the encounter. The lairs are built by `scripts/build-lairs.py` (which lists each
+Emerald room, the window, where the Legendary waits, the way out, and the few boulders cleared from Sky Pillar's summit; the drawn lairs' layouts and
+painters are in `scripts/drawn_lairs.py`) into `assets/lairs/` and `src/generated/lair-maps.js`; who lives where and each lair's air are in `src/games/lairs.ts`,
 the rules in `src/games/resonance.ts`, the saved progress (`resonance` on the waiting encounter) in
 `src/expedition-encounter.ts`, and the screen is `src/games/ResonanceTrial.tsx`. They're covered by
 `tests/resonance-arena.test.js` (every lair), `tests/resonance-encounter.test.js` and `tests/legendary-encounter.test.js`.

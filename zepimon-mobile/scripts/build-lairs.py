@@ -7,7 +7,8 @@ Usage: python scripts/build-lairs.py            (needs Pillow; reads hatdog-app/
 
 Each lair is a window of a real Emerald room (LAIRS below): the Seafloor Cavern pool where Kyogre sleeps, the Cave of
 Origin's magma chamber, the top of Sky Pillar, the Regis' chamber, Southern Island, Faraway Island, Birth Island, and
-fitting rooms for the Legendaries Emerald doesn't have. A lair names its room and window, where the Legendary waits,
+fitting rooms for the Legendaries Emerald doesn't have. Legendaries whose home no Emerald room fits (Deoxys in space,
+Mewtwo's lab and others) get a lair drawn in Emerald's style by scripts/drawn_lairs.py instead. A lair names its room and window, where the Legendary waits,
 the start tile just inside the entrance and the way out (the direction from the start onto the entrance). A few edits
 copy one of the room's own blocks onto another tile, to clear a boulder from the middle or close a side passage, so the
 art stays Emerald's.
@@ -25,6 +26,7 @@ import re
 import sys
 from collections import deque
 from PIL import Image, ImageDraw
+import drawn_lairs
 from emerald_tiles import ROOT, SCALE, Tilesets, fetch
 
 OUT = ROOT / 'assets' / 'lairs'
@@ -171,12 +173,39 @@ def build(lair_id, spec, preview=False):
         for dx, dy in STEPS.values():
             if (x + dx, y + dy) in area:
                 assert same_level(elevation(x, y), elevation(x + dx, y + dy)), (lair_id, 'height step', (x, y))
-    tiles = [''.join('.' if (x0 + x, y0 + y) in area else '#' for x in range(w)) for y in range(h)]
     ground, top = room.draw(x0, y0, w, h)
     # Around the art, the colour most common along its outer edge, so the lair seems to carry on past the screen.
-    edge = [ground.getpixel((x, y))[:3] for x in range(w * 16) for y in (0, h * 16 - 1)] + \
-           [ground.getpixel((x, y))[:3] for y in range(h * 16) for x in (0, w * 16 - 1)]
+    edge = edge_pixels(ground)
     background = '#%02x%02x%02x' % max(set(edge), key=edge.count)
+    shift = lambda p: (p[0] - x0, p[1] - y0)
+    return save(lair_id, name, room_name, ground, top, {shift(p) for p in area}, shift(legendary), shift(start),
+                shift(entrance), out, background, preview)
+
+
+def build_drawn(lair_id, preview=False):
+    """A lair drawn by scripts/drawn_lairs.py: the layout's floor tiles reachable from the start are the play area."""
+    ground, top, layout = drawn_lairs.draw(lair_id)
+    rows, legendary, start, entrance = layout['rows'], layout['legendary'], layout['start'], layout['entrance']
+    assert rows[start[1]][start[0]] == '.', (lair_id, 'start', start)
+    floor = lambda x, y: 0 <= y < len(rows) and 0 <= x < len(rows[0]) and rows[y][x] == '.'
+    area = reachable(floor, lambda x, y: 0, start)
+    # The art is noisy (stars, fog), so the background is its edge's average colour rather than the most common one.
+    edge = edge_pixels(ground)
+    background = '#%02x%02x%02x' % tuple(round(sum(p[i] for p in edge) / len(edge)) for i in range(3))
+    return save(lair_id, drawn_lairs.NAMES[lair_id], 'drawn', ground, top, area, legendary, start, entrance, 'south',
+                background, preview)
+
+
+def edge_pixels(image):
+    w, h = image.size
+    return [image.getpixel((x, y))[:3] for x in range(w) for y in (0, h - 1)] + \
+           [image.getpixel((x, y))[:3] for y in range(h) for x in (0, w - 1)]
+
+
+def save(lair_id, name, room_name, ground, top, area, legendary, start, entrance, out, background, preview):
+    """Writes the lair's art and returns its map data. Positions are lair tiles."""
+    w, h = ground.width // 16, ground.height // 16
+    tiles = [''.join('.' if (x, y) in area else '#' for x in range(w)) for y in range(h)]
     OUT.mkdir(parents=True, exist_ok=True)
     for image, layer in ((ground, 'ground'), (top, 'top')):
         image.resize((w * 16 * SCALE, h * 16 * SCALE), Image.Resampling.NEAREST).save(OUT / f'{lair_id}-{layer}.png', optimize=True)
@@ -187,11 +216,11 @@ def build(lair_id, spec, preview=False):
         sheet = sheet.resize((w * 32, h * 32), Image.Resampling.NEAREST)
         draw = ImageDraw.Draw(sheet)
         for (x, y) in area:
-            draw.rectangle([(x - x0) * 32 + 13, (y - y0) * 32 + 13, (x - x0) * 32 + 18, (y - y0) * 32 + 18], fill=(80, 255, 120, 255))
+            draw.rectangle([x * 32 + 13, y * 32 + 13, x * 32 + 18, y * 32 + 18], fill=(80, 255, 120, 255))
         for (x, y), colour in ((legendary, (255, 60, 220, 255)), (start, (60, 200, 255, 255)), (entrance, (255, 230, 60, 255))):
-            draw.rectangle([(x - x0) * 32 + 4, (y - y0) * 32 + 4, (x - x0) * 32 + 27, (y - y0) * 32 + 27], outline=colour, width=3)
+            draw.rectangle([x * 32 + 4, y * 32 + 4, x * 32 + 27, y * 32 + 27], outline=colour, width=3)
         sheet.save(PREVIEW / f'lair-{lair_id}.png')
-    point = lambda p: {'x': p[0] - x0, 'y': p[1] - y0}
+    point = lambda p: {'x': p[0], 'y': p[1]}
     return {'name': name, 'room': room_name, 'cols': w, 'rows': h, 'tiles': tiles, 'legendary': point(legendary), 'start': point(start),
             'entrance': point(entrance), 'out': out, 'background': background}
 
@@ -205,7 +234,8 @@ def main():
         return
     preview = '--preview' in args
     data = {lair_id: build(lair_id, spec, preview) for lair_id, spec in LAIRS.items()}
-    header = '// Generated by scripts/build-lairs.py from Pokemon Emerald rooms (pokeemerald-expansion). Plain data, no images, so tests\n' \
+    data.update({lair_id: build_drawn(lair_id, preview) for lair_id in drawn_lairs.LAYOUTS})
+    header = '// Generated by scripts/build-lairs.py from Pokemon Emerald rooms (pokeemerald-expansion) and drawn lairs. Plain data, no images, so tests\n' \
              '// and the game rules can import it; the art is in lair-art.js. tiles: . walkable, # not. Positions are in lair tiles.\n'
     MAP_DATA.write_text(header + 'export const lairMaps = ' + json.dumps(data, indent=2) + '\n')
     requires = ',\n'.join(f"  {json.dumps(lair_id)}: {{ ground: require('../../assets/lairs/{lair_id}-ground.png'), "

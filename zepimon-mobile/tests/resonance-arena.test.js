@@ -35,12 +35,14 @@ const planWalkAvoiding = (layout, target) => planWalk(layout.start, target, { ..
 // A PNG's width and height, from its header.
 const pngSize = path => { const png = readFileSync(path); return [png.readUInt32BE(16), png.readUInt32BE(20)] }
 
-test('every Legendary has a lair from Emerald, by its story where Emerald has one', () => {
+test('every Legendary has a lair by its story: an Emerald room, or one drawn for it', () => {
   assert.deepEqual(Object.keys(LAIR_OF).sort(), [...legendarySpecies].sort(), 'Each of the 39 Legendaries is placed')
   for (const lair of Object.values(LAIR_OF)) assert.ok(LAIRS[lair], lair)
-  const homes = { Kyogre: 'seafloor-cavern', Groudon: 'cave-of-origin', Rayquaza: 'sky-pillar', Regirock: 'regi-chamber', Regice: 'regi-chamber',
-    Registeel: 'regi-chamber', Regigigas: 'sealed-chamber', Latias: 'southern-island', Latios: 'southern-island', Mew: 'faraway-island',
-    Deoxys: 'birth-island', Articuno: 'shoal-cave', Zapdos: 'new-mauville', Dialga: 'mt-pyre-summit', Giratina: 'mt-pyre', Mewtwo: 'crystal-cavern' }
+  const homes = { Kyogre: 'seafloor-cavern', Groudon: 'cave-of-origin', Rayquaza: 'ozone-layer', 'Ho-Oh': 'sky-pillar', Regirock: 'regi-chamber', Regice: 'regi-chamber',
+    Registeel: 'regi-chamber', Regigigas: 'sealed-chamber', Latias: 'southern-island', Latios: 'southern-island', Mew: 'bubble-playroom',
+    Celebi: 'faraway-island', Deoxys: 'outer-space', Jirachi: 'birth-island', Articuno: 'shoal-cave', Zapdos: 'new-mauville',
+    Dialga: 'mt-pyre-summit', Giratina: 'distortion-world', Darkrai: 'nightmare-realm', Zygarde: 'cell-hollow', Mewtwo: 'cinnabar-lab',
+    Diancie: 'crystal-cavern' }
   for (const [name, lair] of Object.entries(homes)) assert.equal(lairOf(name), lair, name)
   assert.equal(arenaFor('Shiny Kyogre'), arenaFor('Kyogre'), 'A Shiny lives where its kind does')
   assert.equal(lairOf('Pikachu'), 'new-mauville', 'A Pokemon no lair lists meets in the lair of its type')
