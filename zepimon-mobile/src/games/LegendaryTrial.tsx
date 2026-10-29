@@ -79,7 +79,8 @@ export function LegendaryTrial({ name, number, partner, reduced, busy, error = '
     })
   }
 
-  // One step; the step walker times it. A tap route stops at a bump or anything that happens.
+  // One step; the step walker times it. A tap route stops at a bump or anything that happens, except the silent crack left
+  // behind when it starts on cracked floor (it never crosses any other), so it doesn't halt after one step.
   const walkOnce = (direction: Direction) => {
     const before = current.current
     const result = stepRoom(before.room, stages[before.stages[before.index]], direction)
@@ -94,7 +95,7 @@ export function LegendaryTrial({ name, number, partner, reduced, busy, error = '
       setPhase('fall')
       later(600, () => { update(restartRoom(current.current)); setJump(value => value + 1); setPhase('play') })
     } else if (result.room.status === 'cleared') cleared(next)
-    return { moved: result.move !== 'bump', stop: result.move === 'bump' || result.events.length > 0 }
+    return { moved: result.move !== 'bump', stop: result.move === 'bump' || result.events.some(event => event !== 'crack') }
   }
   useEffect(() => { if (current.current.room.status === 'cleared') cleared(current.current) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const walking = phase === 'play' && !busy && room.status === 'playing'
