@@ -45,6 +45,7 @@ export function useStepWalker(walkOnce: (direction: Direction) => { moved: boole
     },
     release(direction: Direction) { input.current = releaseDirection(input.current, direction) },
     follow(path: Direction[]) {
+      if (!walking) return
       input.current = followPath(input.current, path)
       step()
     },
