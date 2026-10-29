@@ -2,6 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { deadCells, goalsMet, hintTier, lit, planRoomWalk, resetAlignment, resonance, startRoom, stepRoom } from '../src/games/trial.ts'
 import { STAR } from './star-fixture.js'
+import { KIND_NAMES, nextRoom, restartRoom, restartRun, restoreRun, restoreTrialRecords, runCleared, saveTrialRecords, startRun, trialFor } from '../src/games/trials.ts'
+import { legendarySpecies } from '../src/generated/expedition.js'
+import { trialStages } from '../src/generated/trial-maps.js'
 
 const stage = (tiles, extra = {}) => ({ id: 't', kind: 'switch', tiles, warps: {}, open: '', crackAll: false, dark: false, par: 99, hint: '', star: null, ...extra })
 const press = (room, st, ...directions) => directions.reduce((result, direction) => stepRoom(result.room, st, direction), { room, move: 'none', events: [] })
@@ -396,4 +399,118 @@ test('tap-to-walk treats crystals as destinations and clues and the meteorite as
   assert.deepEqual(planRoomWalk(room, STAR, { x: 1, y: 0 }), ['east', 'north', 'north', 'north'])
   assert.deepEqual(planRoomWalk(room, STAR, { x: 2, y: 2 }), ['east', 'east'])
   assert.deepEqual(planRoomWalk(room, STAR, { x: 0, y: 2 }), [])
+})
+
+const KINDS = {
+  switch: ['Zapdos', 'Raikou', 'Ho-Oh', 'Jirachi', 'Magearna', 'Zeraora', 'Arceus'],
+  crumble: ['Articuno', 'Moltres', 'Suicune', 'Regice', 'Latias', 'Latios', 'Rayquaza', 'Heatran'],
+  dark: ['Entei', 'Celebi', 'Kyogre', 'Groudon', 'Giratina', 'Darkrai', 'Cresselia', 'Zygarde'],
+  temple: ['Lugia', 'Regirock', 'Registeel', 'Regigigas', 'Shaymin', 'Diancie', 'Phione', 'Manaphy'],
+  warp: ['Mewtwo', 'Mew', 'Uxie', 'Mesprit', 'Azelf', 'Dialga', 'Palkia'],
+  star: ['Deoxys']
+}
+
+test('every Legendary has a themed trial of its kind', () => {
+  const kinds = new Set()
+  for (const name of legendarySpecies) {
+    const trial = trialFor(name, {})
+    const kind = Object.keys(KINDS).find(k => KINDS[k].includes(name))
+    assert.ok(kind, `${name} is in the table`)
+    assert.notEqual(trial.title, `${name}’s Shrine`)
+    assert.equal(trial.kind, kind)
+    assert.ok(trial.lore.length > 0)
+    kinds.add(trial.kind)
+  }
+  assert.deepEqual([...kinds].sort(), Object.keys(KINDS).sort())
+  assert.equal(trialFor('Rayquaza', {}).title, 'Sky Pillar Ascent')
+  assert.deepEqual(Object.keys(KIND_NAMES).sort(), Object.keys(KINDS).sort())
+  const unknown = trialFor('Nobody', {})
+  assert.deepEqual([unknown.title, unknown.kind], ['Nobody’s Shrine', 'switch'])
+})
+
+test("room order follows the player's own clears", () => {
+  assert.deepEqual(trialFor('Zapdos', {}).stages, ['switch-tutorial', 'switch-1'])
+  const records = { 'switch-tutorial': 12, 'switch-1': 60 }
+  assert.deepEqual(trialFor('Zapdos', records).stages, ['switch-2'])
+  assert.deepEqual(trialFor('Zapdos', { ...records, 'switch-2': 70 }).stages, ['switch-3'])
+  assert.deepEqual(trialFor('Zapdos', { ...records, 'switch-2': 70, 'switch-3': 80 }).stages, ['switch-3'])
+  assert.deepEqual(trialFor('Mew', { 'switch-1': 5 }).stages, ['warp-tutorial', 'warp-1'], 'Records of another kind do not count')
+  for (const anything of [{}, { star: 90 }]) {
+    const trial = trialFor('Deoxys', anything)
+    assert.deepEqual([trial.stages, trial.kind, trial.title], [['star'], 'star', 'Shattered Star'])
+  }
+  for (const name of legendarySpecies) for (const id of trialFor(name, {}).stages) assert.ok(trialStages[id], id)
+})
+
+const walk = (run, ...directions) => directions.reduce((current, direction) => ({ ...current, room: stepRoom(current.room, trialStages[current.stages[current.index]], direction).room }), run)
+
+test('a run survives a save and reload', () => {
+  const run = walk(startRun(['switch-tutorial', 'switch-1']), 'east', 'east')
+  assert.equal(run.room.moves, 2)
+  assert.deepEqual(restoreRun(JSON.parse(JSON.stringify(run))), run)
+  const star = walk(startRun(['star']), 'east', 'north')
+  assert.deepEqual(restoreRun(JSON.parse(JSON.stringify(star))), star)
+})
+
+test('a run that no longer fits the rooms is dropped', () => {
+  const run = walk(startRun(['switch-tutorial', 'switch-1']), 'east')
+  const edit = (change, base = run) => { const copy = JSON.parse(JSON.stringify(base)); change(copy); return copy }
+  assert.notEqual(restoreRun(edit(() => {})), null)
+  const bad = [
+    edit(r => { r.stages = ['nope', 'switch-1'] }),
+    edit(r => { r.index = 5 }),
+    edit(r => { r.index = 1 }),
+    edit(r => { r.stages = [] }),
+    edit(r => { r.room.boulders = ['0,0'] }),
+    edit(r => { r.room.at = { x: 99, y: 0 } }),
+    edit(r => { r.room.at = { x: 0, y: 0 } }),
+    edit(r => { r.room.at = { x: 1.5, y: 1 } }),
+    edit(r => { r.room.open = 'Z' }),
+    edit(r => { r.room.moves = -1 }),
+    edit(r => { r.room.moves = 1.5 }),
+    edit(r => { r.room.status = 'won' }),
+    edit(r => { r.room.relics = 'x' }),
+    edit(r => { r.room.lit = ['n1'] }),
+    edit(r => { r.room.pattern = 1 }),
+    edit(r => { r.results = { 'switch-tutorial': -2 } }),
+    edit(r => { r.results = { nope: 2 } }),
+    edit(r => { r.room.stage = 'switch-1' }),
+    edit(r => { r.room.facing = 'up' }),
+    edit(r => { r.room.cluesRead = ['1,1'] })
+  ]
+  bad.forEach((raw, i) => assert.equal(restoreRun(raw), null, `case ${i}`))
+  const star = walk(startRun(['star']), 'east')
+  assert.notEqual(restoreRun(JSON.parse(JSON.stringify(star))), null)
+  assert.equal(restoreRun(edit(r => { r.room.lit = ['n9'] }, star)), null)
+  assert.equal(restoreRun(edit(r => { r.room.pattern = 7 }, star)), null)
+  assert.equal(restoreRun(edit(r => { r.room.cluesRead = ['0,0'] }, star)), null)
+  assert.equal(restoreRun(edit(r => { r.room.boulders = ['4,4'] }, star)), null, 'the star has no boulders')
+  for (const garbage of [null, undefined, 3, 'x', [], {}, { stages: ['star'], index: 0 }, { stages: 'star', index: 0, room: {}, results: {} }, { stages: ['star'], index: 0, room: null, results: {} }]) {
+    assert.equal(restoreRun(garbage), null)
+  }
+})
+
+test('records keep the best', () => {
+  assert.deepEqual(saveTrialRecords({ a: 50 }, { a: 60, b: 70 }), { a: 50, b: 70 })
+  assert.deepEqual(saveTrialRecords({ a: 50 }, { a: 40 }), { a: 40 })
+  assert.deepEqual(restoreTrialRecords({ 'switch-1': 40, nope: 3, 'crumble-1': -1, 'dark-1': 'x', 'warp-1': 2.5 }), { 'switch-1': 40 })
+  for (const garbage of [null, 4, 'x', []]) assert.deepEqual(restoreTrialRecords(garbage), {})
+})
+
+test('moving through the rooms of a run', () => {
+  let run = startRun(['switch-tutorial', 'switch-1'])
+  assert.deepEqual([run.index, run.room.stage, run.results], [0, 'switch-tutorial', {}])
+  assert.equal(runCleared(run), false)
+  const moved = walk(run, 'east', 'east')
+  assert.equal(restartRoom(moved).room.moves, 0)
+  assert.deepEqual(restartRoom({ ...moved, results: { x: 1 } }).results, { x: 1 })
+  assert.deepEqual(restartRun({ ...moved, index: 1 }), run)
+  run = nextRoom(moved)
+  assert.deepEqual([run.index, run.room.stage, run.results], [1, 'switch-1', { 'switch-tutorial': 2 }])
+  assert.equal(runCleared(run), false)
+  const last = { ...run, room: { ...run.room, status: 'cleared', moves: 33 } }
+  assert.equal(runCleared(last), true)
+  assert.equal(runCleared({ ...last, index: 0 }), false)
+  const done = nextRoom(last)
+  assert.deepEqual([done.index, done.room, done.results], [1, last.room, { 'switch-tutorial': 2, 'switch-1': 33 }])
 })

@@ -4,7 +4,6 @@ import { RESET_COOLDOWN, SHINY_ODDS, activeEncounter, catchEncounter, finishRese
   requestReset, restoreEncounters, rollLegendaryShiny } from '../src/expedition-encounter.ts'
 import { emptyQuest } from '../src/expedition-quest.ts'
 import { expeditionEncounter, expeditionKey, legendarySpecies } from '../src/generated/expedition.js'
-import { LAYOUTS, mazeOpen, startMaze, stepMaze, trialFor } from '../src/games/maze.ts'
 import { LANTERN_SIDE, lanternBoard, lanternsLit, pressLantern, questTheme } from '../src/games/lanterns.ts'
 import { BATTLE_BALLS, FOE_HP, attackWith, catchChance, chooseMenu, finishAttack, finishIntro, finishThrow, runFromBattle, startBattle,
   throwBall } from '../src/games/legendary-battle.ts'
@@ -132,47 +131,6 @@ test('saved encounters must match their trail: wrong species, index or fields ar
   assert.deepEqual(restoreEncounters({ elsewhere: opened }, play().expeditions, emptyQuest()), {})
   assert.deepEqual(restoreEncounters('nope', play().expeditions, emptyQuest()), {})
   assert.equal(activeEncounter(play({ [key]: { ...opened, index: 3 } }), key, 0).shiny, null, 'An entry for another index never leaks in')
-})
-
-test('every maze has one start and one reachable exit; walls block and only the exit finishes it', () => {
-  for (const [style, layout] of Object.entries(LAYOUTS)) {
-    const text = layout.join('')
-    assert.equal(text.split('S').length - 1, 1, style)
-    assert.equal(text.split('E').length - 1, 1, style)
-    assert.ok(layout.every(row => row.length === layout[0].length), style)
-    const seen = new Set()
-    const queue = [startMaze(layout).at]
-    let exit = false
-    while (queue.length) {
-      const at = queue.shift()
-      if (seen.has(`${at.row},${at.col}`)) continue
-      seen.add(`${at.row},${at.col}`)
-      exit ||= layout[at.row][at.col] === 'E'
-      for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const next = { row: at.row + dr, col: at.col + dc }
-        if (mazeOpen(layout, next)) queue.push(next)
-      }
-    }
-    assert.ok(exit, `${style} can be solved`)
-  }
-  const layout = ['S#', '.E']
-  let maze = startMaze(layout)
-  assert.deepEqual(maze.at, { row: 0, col: 0 })
-  for (const blocked of ['north', 'west', 'east']) {
-    const bumped = stepMaze(maze, blocked)
-    assert.deepEqual([bumped.at, bumped.moves, bumped.bumped], [maze.at, 0, true], `${blocked} is a wall or the edge`)
-  }
-  maze = stepMaze(maze, 'south')
-  assert.equal(maze.solved, false)
-  maze = stepMaze(maze, 'east')
-  assert.deepEqual([maze.solved, maze.moves, maze.at], [true, 2, { row: 1, col: 1 }])
-  assert.equal(stepMaze(maze, 'west'), maze, 'A finished maze stays finished')
-  for (const name of legendarySpecies) {
-    const trial = trialFor(name)
-    assert.ok(Object.values(LAYOUTS).includes(trial.layout) && trial.title !== `${name}’s Shrine`, `${name} has its own themed trial`)
-  }
-  assert.deepEqual(trialFor('Rayquaza'), trialFor('Rayquaza'))
-  assert.equal(trialFor('Rayquaza').title, 'Sky Pillar Ascent')
 })
 
 test('the shrine lanterns start dimmed, the same each time, and can always be lit', () => {
