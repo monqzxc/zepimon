@@ -77,7 +77,9 @@ To use Zepimon with someone else's watch and email, see [Using Zepimon with anot
 
 You can close the app and keep walking; it still counts. On the title screen, **Continue adventure** takes you back. For adventures longer than a day, open Zepimon at least once a day, because the watch's daily step and distance counters reset at midnight.
 
-**Finish.** Tap **Finish & save**, then **Save & finish**. This adds the Pokémon you reached to your Dex and replaces that egg's last record. An adventure under 5 km is saved but unlocks no Pokémon.
+**Finish.** Tap **Finish**, then **Save & finish**. This adds the Pokémon you reached to your Dex and replaces that egg's last record. An adventure under 5 km is saved but unlocks no Pokémon.
+
+**Discard.** Tap **Finish**, then **Discard adventure**, and confirm with **Discard**. Nothing is saved: no Pokémon, record or Expedition distance. The title screen offers the same egg again, keeping its Shiny roll.
 
 **History** shows your personal bests: **Highest distance**, **Longest elapsed time** and **Fastest 5 km hatch**.
 

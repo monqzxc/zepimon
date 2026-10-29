@@ -48,6 +48,17 @@ and goes with the next plan request. The Zepimon page in Zepp has an
 Re-run `zepimon-sync/schema.sql` to add the `adventures` table and its
 functions.
 
+Fix (1.22): until this version, nothing a watch screen sent ever reached Zepp.
+Starting, updating or finishing an adventure, the sync after saving one, and
+the title screen's check for a phone adventure all failed without a word. The
+screens called the companion in `app.js` through `getApp()._options`, but Zepp
+OS runs the app's `onCreate` on the app itself, so the messaging ZML starts
+there was never on that object. Only requests started by Zepp (**Sync from
+watch**) worked. Now `app.js` leaves itself in `globalData`, as ZML does with its
+messaging, and screens reach it through `companionApp()` (`page/saved.js`). The
+companion test now keeps the two objects apart, as the watch does. When the
+title screen cannot reach Zepp, it now says so.
+
 ### Adventures recorded on the phone (1.13)
 
 Adventures recorded in Zepimon mobile's Adventure tab now reach the watch. The
@@ -254,7 +265,7 @@ Saving only updates forms reached during that adventure. For example, a new
 5.5 km Bulbasaur run updates Bulbasaur but preserves the previous Venusaur
 and Mega Venusaur records. A run below 5 km does not replace any Dex details.
 Normal and shiny records remain separate. The Dex shows completed journeys;
-use **Finish & save** to record the active adventure's distance and timing.
+use **Finish**, then **Save & finish**, to record the active adventure's distance and timing.
 
 Older versions could overwrite acquired forms with an unhatched repeat run's
 0 km or short distance. Opening the watch app or syncing now repairs those
@@ -355,7 +366,13 @@ so source snapshots and original art are excluded from the installer.
 Mega Zygarde uses its base sprite with the Mega name because its sprite is
 missing from the source.
 
-**Finish & save** opens a confirmation. Saving replaces the selected route's
+**Finish** offers **Save & finish**, **Discard adventure** and **Keep walking**
+(or **Keep running**). Discarding asks once more, then ends the adventure
+without saving anything: no Dex entry, record, personal best or Expedition
+distance. The phone and Zepp hear that it ended, and the title screen offers
+the same egg again with its Shiny roll, so discarding never rerolls a Shiny.
+An egg chosen on the phone afterwards, or another egg picked on the watch,
+rolls as usual. Saving replaces the selected route's
 last journey, adds newly earned Pokemon, and updates only the acquired forms
 reached during this run. Earlier evolution/Mega records remain until another
 run reaches those forms, and acquisitions are never removed by a shorter run.

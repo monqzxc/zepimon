@@ -21,7 +21,7 @@ class EventBus extends EventEmitter {
 }
 
 async function main() {
-  let watchApp, phoneService, settingsPage, deviceReceive, phoneReceive, connected = true
+  let watchApp, watchOptions, phoneService, settingsPage, deviceReceive, phoneReceive, connected = true
   let watchState = { dex: {}, records: {}, active: null }
   const watchKeys = new Map()
   const phoneStorage = new Map()
@@ -74,7 +74,9 @@ async function main() {
       getItem(key) { return key === 'zepimon-v1' ? clone(watchState) : watchKeys.has(key) ? clone(watchKeys.get(key)) : undefined }
       setItem(key, value) { if (key === 'zepimon-v1') watchState = clone(value); else watchKeys.set(key, clone(value)) }
     },
-    App: definition => { watchApp = definition }, getApp: () => ({ _options: watchApp })
+    // Zepp OS runs the app's lifecycle on the app itself, which carries the options' properties, while getApp()._options
+    // is the options object: the two share globalData, which ZML relies on to hand its messaging to screens.
+    App: definition => { watchOptions = definition; watchApp = { ...definition } }, getApp: () => ({ _options: watchOptions })
   })
   const phone = vm.createContext({ Buffer, console: quiet, setTimeout, clearTimeout, Logger,
     sideService: { appInfo: { app: { appName: 'Zepimon' } }, launchReasons: { settingsChanged: true },
@@ -100,7 +102,7 @@ async function main() {
   phone.routes = clone(watch.routes)
   source('shared/cloud-config.js', phone, ['cloudConfig'])
   source('shared/cloud.js', phone, ['cloudMethods', 'CLOUD_REQUEST_KEY', 'CLOUD_STATUS_KEY'])
-  source('page/saved.js', watch, ['JOURNAL_KEY', 'ACTIVE_KEY', 'NEXT_KEY', 'readKey', 'readActive', 'readNext', 'nextEgg', 'phoneAdventure', 'withPlan', 'PHONE_RUNS_KEY', 'readPhoneRuns', 'withReceivedRuns', 'withShared', 'withoutPending'])
+  source('page/saved.js', watch, ['JOURNAL_KEY', 'ACTIVE_KEY', 'NEXT_KEY', 'readKey', 'readActive', 'readNext', 'nextEgg', 'phoneAdventure', 'withPlan', 'PHONE_RUNS_KEY', 'readPhoneRuns', 'withReceivedRuns', 'withShared', 'withoutPending', 'companionApp'])
   source('app.js', watch)
   source('app-side/index.js', phone)
   phoneService.onInit()
@@ -373,6 +375,15 @@ async function main() {
   assert.match(page, /ADVENTURE/)
   assert.match(page, /Charmander/)
   assert.match(page, /Walking · 5\.40 km · recording on your watch/)
+  // Screens reach the companion through getApp()._options, which is not the app the messaging started on.
+  // companionApp finds that app through globalData, so a share from the adventure screen reaches Zepp.
+  assert.notEqual(watchOptions, watchApp)
+  assert.equal(watch.companionApp(), watchApp, 'Screens reach the app that holds the messaging')
+  current = 'none'
+  watch.companionApp().shareAdventure({ ...onWatch, meters: 5450, at: Date.now() }, value => { current = value })
+  await drain()
+  assert.equal(current.meters, 5450, 'A share from a screen reaches Zepp and comes back from the cloud')
+  assert.equal(JSON.parse(phoneStorage.get(ui.SHARED_KEY)).adventure.meters, 5450, 'and the Zepimon page in Zepp shows it')
   assert.equal(phoneStorage.get(ui.SHARED_REQUEST_KEY) > 0, true, 'Opening the page asks Zepp for a fresh copy')
   // Offline, the share waits and goes out first with the next plan request.
   connected = false
