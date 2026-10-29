@@ -8,7 +8,7 @@ import ts from 'typescript'
 const modules = {
   '@react-native-async-storage/async-storage': { __esModule: true, default: { getItem: () => Promise.resolve(null), setItem: () => Promise.resolve() } },
   react: { useSyncExternalStore: () => {} },
-  './palettes.ts': { themeNames: ['gengar', 'deoxys', 'pikachu'] }
+  './palettes.ts': { themeNames: ['emerald', 'gengar', 'deoxys', 'pikachu'] }
 }
 const context = { exports: {}, require: name => modules[name] }
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/preferences.ts', 'utf8'), {
@@ -31,4 +31,23 @@ test('immersive play opens in portrait until landscape is chosen, and keeps the 
   assert.equal(prefs.restorePreferences({ playOrientation: 'landscape' }).playOrientation, 'landscape')
   assert.equal(prefs.restorePreferences({ playOrientation: 'sideways' }).playOrientation, 'portrait')
   assert.equal(prefs.restorePreferences({ playOrientation: 'landscape', safariControls: 'tap' }).safariControls, 'tap')
+})
+
+test('a fresh install opens in Emerald; every saved theme is kept', () => {
+  assert.equal(prefs.defaultPreferences.theme, 'emerald')
+  assert.equal(prefs.startingPreferences(null, false).theme, 'emerald', 'A new install with nothing saved')
+  for (const theme of ['gengar', 'deoxys', 'pikachu', 'emerald']) {
+    assert.equal(prefs.restorePreferences({ theme }).theme, theme)
+    assert.equal(prefs.startingPreferences({ theme, appearance: 'dark' }, true).theme, theme)
+  }
+})
+
+test('people who had the app before Emerald keep the Gengar look they were seeing', () => {
+  // They never opened Theme, so nothing was saved, but their journal was: Gengar was the default they saw.
+  assert.equal(prefs.startingPreferences(null, true).theme, 'gengar')
+  assert.equal(JSON.stringify({ ...prefs.startingPreferences(null, true), theme: 'emerald' }), JSON.stringify(prefs.defaultPreferences), 'Everything else is the default')
+  // Settings saved before themes existed, or a theme that no longer exists, also meant Gengar.
+  assert.equal(prefs.restorePreferences({ motion: 'reduced' }).theme, 'gengar')
+  assert.equal(prefs.restorePreferences({ theme: 'teal' }).theme, 'gengar')
+  assert.equal(prefs.startingPreferences({ appearance: 'dark' }, false).theme, 'gengar', 'Any saved settings mean an earlier install')
 })

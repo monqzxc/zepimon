@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from 'react'
-import { Appearance, StyleSheet } from 'react-native'
+import { AccessibilityInfo, Appearance, StyleSheet } from 'react-native'
 import { themes, typeInksFor, typeTintsFor } from './palettes'
 import type { Mode, Palette, ThemeName } from './palettes'
 import { getPreferences, subscribePreferences } from './preferences'
 
-// The active theme (Gengar, Deoxys or Pikachu, src/palettes.ts) in light or dark, both chosen in Settings → Theme.
+// The active theme (Emerald, Gengar, Deoxys or Pikachu, src/palettes.ts) in light or dark, both chosen in Settings → Theme.
 // Appearance follows the phone's dark mode unless it is set to always light or dark.
 //
 // colors, typeTints and every themedStyles sheet are live: reading a value gives the active palette's. Values are read
@@ -58,6 +58,17 @@ const inks = { light: typeInksFor('light'), dark: typeInksFor('dark') }
 export const typeInks: Record<string, string> = live(() => inks[active.mode])
 // A frosted layer over a tinted card, like a badge on a pastel tile: white at alpha in light, a faint lift in dark.
 export const glass = (alpha: number) => `rgba(255, 255, 255, ${active.dark ? +(alpha * 0.12).toFixed(3) : alpha})`
+
+// Emerald is the retro theme: Pokemon Emerald's framed menus, a pixel display font and 2.5D depth (src/ui.tsx). Read while
+// rendering or inside themedStyles, like colors; Emerald's palettes are its own, so its sheets are too.
+export const retro = () => active.theme === 'emerald'
+
+// Reduce motion, for what is decided while rendering rather than in an effect (a press's lift): the phone's setting, or
+// Settings asking this app to reduce motion. Components that animate use useReducedMotion (src/games/hooks.ts).
+let systemReduced = false
+AccessibilityInfo.isReduceMotionEnabled().then(value => { systemReduced = value }).catch(() => {})
+AccessibilityInfo.addEventListener('reduceMotionChanged', value => { systemReduced = value })
+export const motionReduced = () => systemReduced || getPreferences().motion === 'reduced'
 
 // StyleSheet.create for styles that use theme colors. make runs once per palette, the first time it is shown, and
 // reads the live colors above.

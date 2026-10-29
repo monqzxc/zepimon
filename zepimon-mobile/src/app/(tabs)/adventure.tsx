@@ -19,6 +19,7 @@ import type { LocationIssue } from '../../tracker'
 import { RouteMap } from '../../RouteMap'
 import { AdventureCard } from '../../AdventureCard'
 import { QuestTiles } from '../../QuestTiles'
+import { LegendaryGate } from '../../LegendaryGate'
 import { PixelSprite } from '../../games/TeamPicker'
 import { useReducedMotion } from '../../games/hooks'
 import { Button, Chip, Copy, Eyebrow, Heading, Hero, Icon, IconBubble, Panel, PokeballLoader, Screen, Title, colors, fonts, styles, themedStyles, typeTints, glass, useTheme } from '../../ui'
@@ -184,6 +185,7 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
     <Copy small>Recording keeps going with the screen off; Android shows a notification while Zepimon uses your location. Elapsed time includes stops, like on the watch.{session && linked ? ' Your watch and Zepp show the same adventure, and either device can continue it. One started on your watch shows here live, without the map.' : ''}</Copy>
     <Heading>Missions & expeditions</Heading>
     <QuestTiles />
+    <LegendaryGate variant="strip" />
     {phoneRuns.length > 0 && <>
       <Heading>Your routes</Heading>
       {[...phoneRuns].sort((a, b) => Date.parse(b.record.finishedAt) - Date.parse(a.record.finishedAt)).slice(0, 10)

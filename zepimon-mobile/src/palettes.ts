@@ -1,16 +1,18 @@
 // The themes' colors, as plain data so tests can check them (tests/palettes.test.js). src/theme.ts picks the active one.
 //
-// Three themes, each in light and dark: Gengar (ghostly violet, with its red eyes as the second accent), Deoxys
-// (orange-red and teal, from space) and Pikachu (electric yellow, red cheeks, brown stripes).
+// Four themes, each in light and dark: Emerald (the default: Pokemon Emerald's GBA menus, emerald green with Hoenn sea
+// blue and Rayquaza gold, on cream paper by day and deep teal at night), Gengar (ghostly violet, with its red eyes as the
+// second accent), Deoxys (orange-red and teal, from space) and Pikachu (electric yellow, red cheeks, brown stripes).
 // Every text color keeps 4.5:1 on the page, cards, sunken areas and its accent tint, and on every type tint; the
 // test lists the exact pairs. edge is the theme's accent, for text and fills (the name comes from the first, teal
 // theme), with onEdge on it, and mint is its soft tint. alt is the second accent, which sets one thing apart from the
 // first, like the Expeditions tile. brand is the gradient on banners and main buttons, with onBrand on it. The tab*
-// colors are the floating tab bar's. star is for large glyphs only.
+// colors are the floating tab bar's. star is for large glyphs only. frameOuter and frameInner are Emerald's text-box
+// double border (RetroFrame in src/ui.tsx), dark outside and light inside; only Emerald has them.
 
 export type Mode = 'light' | 'dark'
-export type ThemeName = 'gengar' | 'deoxys' | 'pikachu'
-export const themeNames: ThemeName[] = ['gengar', 'deoxys', 'pikachu']
+export type ThemeName = 'emerald' | 'gengar' | 'deoxys' | 'pikachu'
+export const themeNames: ThemeName[] = ['emerald', 'gengar', 'deoxys', 'pikachu']
 
 // Official type colors, darkened where needed so white badge text stays readable (4.5:1).
 export const typeColors: Record<string, string> = {
@@ -23,7 +25,8 @@ type Colors = {
   bg: string, panel: string, sunken: string, line: string, mint: string, mintLine: string, track: string,
   ink: string, muted: string, edge: string, onEdge: string, alt: string, gold: string, star: string, danger: string, success: string,
   altTint: string, goldTint: string, dangerTint: string, brandFrom: string, brandTo: string, onBrand: string, glow: string, scrim: string, shadow: string,
-  tabTop: string, tabBottom: string, tabHalo: string, tabRim: string, tabPill: string, tabShadow: string, tabInk: string, tabActive: string, tabMark: string
+  tabTop: string, tabBottom: string, tabHalo: string, tabRim: string, tabPill: string, tabShadow: string, tabInk: string, tabActive: string, tabMark: string,
+  frameOuter?: string, frameInner?: string
 }
 export type Palette = Colors & { brand: string }
 const palette = (colors: Colors): Palette => ({ ...colors, brand: `linear-gradient(135deg, ${colors.brandFrom} 0%, ${colors.brandTo} 100%)` })
@@ -37,6 +40,21 @@ const darkStatus = { gold: '#E9A84A', star: '#F2B630', danger: '#F27878', succes
 const darkTab = { tabHalo: 'rgba(0, 0, 0, 0.35)', tabRim: 'rgba(255, 255, 255, 0.1)', tabShadow: 'rgba(0, 0, 0, 0.45)', glow: 'rgba(0, 0, 0, 0.45)', scrim: 'rgba(0, 0, 0, 0.6)' }
 
 export const themes: Record<ThemeName, Record<Mode, Palette>> = {
+  emerald: {
+    light: palette({ ...lightStatus,
+      bg: '#F5EFDA', panel: '#FFFCEF', sunken: '#F0E9CF', line: '#D8CDA6', mint: '#DCF0E0', mintLine: '#A6D6B4', track: '#E5DDBF',
+      ink: '#1B2A22', muted: '#4D5A50', edge: '#0E6E3E', onEdge: '#FFFFFF', alt: '#155A9E', altTint: '#DCEAF8',
+      brandFrom: '#0E7340', brandTo: '#0C4F7E', onBrand: '#FFFFFF', glow: 'rgba(14, 110, 62, 0.3)', scrim: 'rgba(10, 30, 22, 0.45)',
+      tabTop: '#FFFCEF', tabBottom: '#ECE3C3', tabHalo: 'rgba(14, 110, 62, 0.18)', tabRim: 'rgba(255, 255, 255, 0.95)', tabPill: 'rgba(14, 110, 62, 0.16)',
+      tabShadow: 'rgba(40, 70, 40, 0.18)', tabInk: '#4F5B4C', tabActive: '#0A4A2A', tabMark: '#D9A400',
+      frameOuter: '#3B5A4A', frameInner: '#FFFFFF' }),
+    dark: palette({ ...darkStatus, ...darkTab,
+      bg: '#0A191E', panel: '#10252B', sunken: '#0D1F24', line: '#1F3C43', mint: '#103A2B', mintLine: '#1C5A43', track: '#1A333A',
+      ink: '#EAF4EE', muted: '#9DB7AD', edge: '#5FD49A', onEdge: '#04210F', alt: '#76BDF4', altTint: '#11304A',
+      brandFrom: '#0E7340', brandTo: '#0C4F7E', onBrand: '#FFFFFF',
+      tabTop: '#16313A', tabBottom: '#10252C', tabPill: 'rgba(95, 212, 154, 0.2)', tabInk: '#A3BDB4', tabActive: '#A6F2CB', tabMark: '#F2C230',
+      frameOuter: '#5C8F7C', frameInner: '#1C3A41' })
+  },
   gengar: {
     light: palette({ ...lightStatus,
       bg: '#F2EFF8', panel: '#FFFFFF', sunken: '#F7F5FB', line: '#E0DAEC', mint: '#EEE7FB', mintLine: '#D9CCF4', track: '#E6E0F0',

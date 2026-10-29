@@ -207,9 +207,11 @@ reduce-motion setting) and **Record with the screen off** (the foreground-servic
 recording, which a crash during an adventure turns off). The open tab's icon
 sits on a soft violet pill.
 
-**Theme** picks a Pokemon, **Gengar** (ghostly violet, the default), **Deoxys**
-(cosmic orange-red and teal) or **Pikachu** (electric yellow), from small
-previews of each with the Pokemon perched on a tiny tab bar. Its **Appearance**
+**Theme** picks **Emerald** (the default for new installs; see below), **Gengar**
+(ghostly violet), **Deoxys** (cosmic orange-red and teal) or **Pikachu**
+(electric yellow), from small previews of each with its Pokemon perched on a
+tiny tab bar. A phone that had Zepimon before Emerald keeps the theme it was
+showing, Gengar unless another was chosen. Its **Appearance**
 is System, Light or Dark; System follows the phone's dark mode and switches with
 it. A theme recolors the whole app in both appearances: pages and cards, the
 accent on chips and links, the gradient on banners and main buttons, the second
@@ -222,13 +224,55 @@ during an adventure. With reduced motion the poses change only on a tap. The
 floating poses, and Deoxys's and Pikachu's peeking art, are cut from the
 `*-fitness*.png` sheets in `pokemon_data/` by `scripts/build-nav-poses.py`;
 Pikachu's sheet has no shut-eyed face, so its blink is drawn. Every text color
-keeps at least 4.5:1 contrast in all six palettes, which
+keeps at least 4.5:1 contrast in all eight palettes, which
 `tests/palettes.test.js` checks. Share images and the route map keep their own
 colors. The palettes are in `src/palettes.ts` and the active one in
 `src/theme.ts`; styles that use them are made with `themedStyles`, and each
 screen calls `useTheme()` so it redraws when the theme changes.
 
+#### Themes: Emerald (1.15.0)
+
+**Emerald** looks like Pokemon Emerald on the Game Boy Advance, with a little
+HD-2D depth. Its colors are emerald green with Hoenn sea blue and Rayquaza gold,
+on soft cream paper by day and deep teal at night. Every card is a **RetroFrame**,
+like the game's text boxes: a rounded double border (dark outside, light inside)
+with chunky corners, a light line along the top edge and a hard drop shadow.
+Eyebrows, titles and headings use the **Pixelify Sans** pixel face
+(`fonts.pixel`, SIL Open Font License); body text stays in Nunito. Banners show
+Hoenn's sky with hills, sea and clouds drifting in layers at different speeds
+(`src/Parallax.tsx`). Buttons, chips and tiles rise a few pixels onto a deeper
+shadow while pressed. Chosen chips and theme cards glow, and the chosen row in a
+settings list gets Emerald's ▶ cursor. With reduced motion nothing drifts or
+lifts. Its tab-bar Pokemon is Deoxys, met on Birth Island in Emerald, with an
+emerald-and-gold ball and aura; no other Hoenn Pokemon has the cut-out training
+poses. All of this goes through `colors`, `fonts`, `themedStyles` and the
+components in `src/ui.tsx` (`retro()` tells them Emerald is on), so every screen
+picks it up and the other themes look as before.
+
 ### Legendary Expeditions (1.5.0)
+
+**The Legendary Gate (1.15.0)** is the way in. It's the featured card at the top
+of Home, a smaller strip on the Adventure tab under Missions, and the header of
+the Expeditions screen, seen from inside the gate. It's a Sky Pillar-style stone
+gate under a layered sky, with your Safari Zone trainer at its foot, and it shows
+where you stand:
+
+- **Waiting:** the gate glows and gently pulses, the waiting Legendary stands in
+  it, and the line reads "Mesprit is waiting at Lake Verity". A ✦ badge shows on
+  the Journal tab.
+- **Permit ready:** a permit is in hand, or the Expedition Quest is done and one
+  is ready to claim.
+- **On the trail:** how far to the next encounter, for example "3 km to your next
+  encounter".
+- **No trail yet:** save an adventure to find the first clue.
+
+Away from waiting, the gate is dim and the last Legendary you caught stands in it
+as a dark silhouette (a ? before your first catch). It never reveals a Shiny; the
+chamber does. With reduced motion the gate holds still, and the glow, the
+silhouette and the words still tell the states apart. `gateStatus` in
+`src/legendary-gate.ts` works the state out (`tests/legendary-gate.test.js`); the
+scene is `src/LegendaryGate.tsx`.
+
 
 Open **Expeditions** under **Missions & expeditions** on the Adventure tab. With watch v1.11.0, saved
 walks/runs accumulate toward clues at 5, 15 and 25 km. Mystery habitats and silhouettes become visible as

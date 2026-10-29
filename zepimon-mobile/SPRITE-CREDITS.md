@@ -34,3 +34,7 @@ The trial rooms' art comes from the same repository, [rh-hideout/pokeemerald-exp
 - Fragile floor's cracks and hole, and the exit's sealed hatch and stairs, from Sky Pillar; the pressure plate (a stone slab), the sealed door (a braille slab, whose edge stays as the open doorway) and the clue stone (a braille stone) from the Desert Ruins; warp pads from Mossdeep Gym's floor buttons, brightened for their glow. These pieces are cut out of their own tileset's floor so they sit on any room's ground; gates and plates get a one-pixel outline.
 - The relic (the Ruby) and the boulder (`graphics/object_events/pics/misc/`).
 - The wall torch's flame (the Ember battle sprite), the Shattered Star's crystals (the Ice Crystals battle sprite, dimmed and brightened) and its meteorite (the Rock Throw boulder, with a turning glow for its patterns and split for its shatter frames), from `graphics/battle_anims/sprites/`.
+
+# Emerald theme and the Legendary Gate
+
+The Emerald theme's pixel display face is [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans) by the Pixelify Sans Project Authors, bundled through `@expo-google-fonts/pixelify-sans` under the SIL Open Font License 1.1. The Legendary Gate's stone gate, sky layers and glow are original vector drawings made for this app in `src/LegendaryGate.tsx` and `src/Parallax.tsx`; the trainer at its foot is the Safari Zone's Brendan or May (see Safari Zone above), and the Legendary in it is the Pokemon's existing sprite.

@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from 'react-native'
 import type { DimensionValue } from 'react-native'
 import { PixelSprite } from '../../games/TeamPicker'
-import { Screen, colors, fonts, gradient, themedStyles, useTheme } from '../../ui'
+import { Screen, colors, displayFont, fonts, gradient, retro, themedStyles, useTheme } from '../../ui'
 import { themes } from '../../palettes'
 import type { Palette, ThemeName } from '../../palettes'
 import { setPreference, usePreferences } from '../../preferences'
@@ -9,12 +9,14 @@ import type { Appearance } from '../../preferences'
 import { SettingsGroup, SettingsRadio } from '../../SettingsList'
 import type { IconName } from '../../ui'
 
-// Settings → Theme: three cards, each a tiny Settings screen in that Pokemon's colors with the Pokemon perched on its
-// tab bar, shown in the current light or dark. Below, the appearance: follow the phone, or always light or dark.
-const choices: { value: ThemeName, label: string, detail: string }[] = [
-  { value: 'gengar', label: 'Gengar', detail: 'Ghostly violet' },
-  { value: 'deoxys', label: 'Deoxys', detail: 'Cosmic red and teal' },
-  { value: 'pikachu', label: 'Pikachu', detail: 'Electric yellow' }
+// Settings → Theme: four cards in a 2 × 2 grid, each a tiny Settings screen in that theme's colors with its Pokemon
+// perched on the tab bar, shown in the current light or dark. Below, the appearance: follow the phone, or always light
+// or dark.
+const choices: { value: ThemeName, label: string, pokemon: string, detail: string }[] = [
+  { value: 'emerald', label: 'Emerald', pokemon: 'Rayquaza', detail: 'Hoenn’s GBA menus' },
+  { value: 'gengar', label: 'Gengar', pokemon: 'Gengar', detail: 'Ghostly violet' },
+  { value: 'deoxys', label: 'Deoxys', pokemon: 'Deoxys', detail: 'Cosmic red and teal' },
+  { value: 'pikachu', label: 'Pikachu', pokemon: 'Pikachu', detail: 'Electric yellow' }
 ]
 const appearances: { value: Appearance, label: string, icon: IconName, detail?: string }[] = [
   { value: 'system', label: 'System', icon: 'contrast', detail: 'Matches your phone' },
@@ -27,15 +29,15 @@ export default function ThemeScreen() {
   const { theme, appearance } = usePreferences()
   return <Screen>
     <View style={{ gap: 8 }}>
-      <Text accessibilityRole="header" style={look.section}>Pokemon</Text>
-      <View accessibilityRole="radiogroup" accessibilityLabel="Pokemon theme" style={look.cards}>
+      <Text accessibilityRole="header" style={look.section}>Look</Text>
+      <View accessibilityRole="radiogroup" accessibilityLabel="Theme" style={look.cards}>
         {choices.map(choice => {
           const on = choice.value === theme
           return <Pressable key={choice.value} accessibilityRole="radio" accessibilityState={{ checked: on }}
             accessibilityLabel={`${choice.label}. ${choice.detail}`} onPress={() => setPreference('theme', choice.value)}
             style={({ pressed }) => [look.card, { opacity: pressed ? 0.8 : 1 }]}>
             <View style={[look.frame, on && look.frameOn]}>
-              <Preview palette={themes[choice.value][mode]} pokemon={choice.label} />
+              <Preview palette={themes[choice.value][mode]} pokemon={choice.pokemon} />
             </View>
             <View style={look.labelRow}>
               <View style={[look.radio, on && look.radioOn]}>{on && <View style={look.radioDot} />}</View>
@@ -80,11 +82,12 @@ function Preview({ palette, pokemon }: { palette: Palette, pokemon: string }) {
 }
 
 const look = themedStyles(() => ({
-  section: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 19, color: colors.muted, paddingHorizontal: 4 },
-  cards: { flexDirection: 'row', gap: 10 },
-  card: { flex: 1, gap: 8 },
-  frame: { aspectRatio: 0.6, borderRadius: 16, borderWidth: 2, borderColor: colors.line, overflow: 'hidden' },
-  frameOn: { borderColor: colors.edge, borderWidth: 2.5 },
+  section: { fontFamily: displayFont(fonts.bold), fontSize: 14, lineHeight: 19, color: colors.muted, paddingHorizontal: 4 },
+  cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  card: { width: '47%', flexGrow: 1, gap: 8 },
+  frame: { aspectRatio: 0.85, borderRadius: retro() ? 10 : 16, borderWidth: 2, borderColor: colors.line, overflow: 'hidden' },
+  // The chosen theme glows in Emerald.
+  frameOn: { borderColor: colors.edge, borderWidth: 2.5, ...(retro() ? { boxShadow: `0px 0px 12px ${colors.glow}` } : null) },
   preview: { flex: 1, padding: 8, gap: 7 },
   // The Pokemon stands on the tab bar, as Gengar does on the real one.
   perch: { position: 'absolute', left: 0, right: 0, bottom: 18, alignItems: 'center' },
@@ -94,6 +97,7 @@ const look = themedStyles(() => ({
   radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   radioOn: { borderColor: colors.edge },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.edge },
+  // Names stay in Nunito: at this size the pixel face's capital G reads as a B.
   label: { flexShrink: 1, fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20, color: colors.ink },
   detail: { fontFamily: fonts.body, fontSize: 12, lineHeight: 16, color: colors.muted, paddingHorizontal: 2 }
 }))

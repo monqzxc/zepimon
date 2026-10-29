@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@expo-google-fonts/nunito": "^0.4.2",
+    "@expo-google-fonts/pixelify-sans": "^0.4.2",
     "@expo/metro-runtime": "~57.0.17",
     "@maplibre/maplibre-gl-leaflet": "^0.1.4",
     "@react-native-async-storage/async-storage": "2.2.0",

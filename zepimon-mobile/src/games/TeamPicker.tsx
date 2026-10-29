@@ -10,9 +10,10 @@ import type { TeamCard } from './roster'
 const SHOWN = 24
 
 // A still sprite for busy game boards; the Dex keeps the interactive Sprite.
-export function PixelSprite({ name, shiny = false, size }: { name: string, shiny?: boolean, size: number }) {
+// tint paints the sprite one solid color, as a silhouette (the Legendary Gate's sealed Legendary).
+export function PixelSprite({ name, shiny = false, size, tint }: { name: string, shiny?: boolean, size: number, tint?: string }) {
   return <Image source={spriteSource(name, shiny)} resizeMode="contain" fadeDuration={0} accessible={false}
-    style={{ width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }} />
+    style={{ width: size, height: size, ...(tint ? { tintColor: tint } : {}), ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }} />
 }
 
 export function TeamPicker({ layout, choices, team, onChange }: { layout: Layout, choices: TeamCard[], team: TeamCard[], onChange: (team: TeamCard[]) => void }) {
