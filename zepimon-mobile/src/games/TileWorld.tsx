@@ -6,7 +6,7 @@ import { safariSprites } from '../generated/safari-assets.js'
 import { trailWalkers } from '../generated/trail-walkers.js'
 import { PixelSprite } from './TeamPicker'
 import type { Direction, Point } from './safari-zone'
-import { STEP_MS, buddyFrame, cameraOffset, chunksAround, tapPoint, tileFromTap, tileSizeFor, trainerFrame } from './safari-view'
+import { STEP_MS, buddyFrame, cameraOffset, chunksAround, fitOffset, fitTile, tapPoint, tileFromTap, tileSizeFor, trainerFrame } from './safari-view'
 
 export type Strip = { source: ImageSourcePropType, frames: number, width: number, height: number }
 export type TileMap = { cols: number, rows: number, chunk: number }
@@ -21,7 +21,7 @@ type Props = {
   map: TileMap, chunks: TileChunks, at: Point, facing: Direction, buddyAt: Point, buddyFacing: Direction, move: Move,
   trainer: 'brendan' | 'may', buddy: { name: string, shiny: boolean } | null, onGrass: boolean, width: number, height: number,
   reduced: boolean, jump: number, background: string, tapToWalk: boolean, onTapTile: (tile: Point) => void,
-  children?: ReactNode, cover?: ReactNode, falling?: boolean, fitHeight?: boolean
+  children?: ReactNode, cover?: ReactNode, falling?: boolean, fitHeight?: boolean, fit?: boolean
 }
 
 // A tile map seen GBA-style. The trainer stays in the middle and the map glides under them one tile per step.
@@ -29,11 +29,12 @@ type Props = {
 // and roofs) so the trainer walks behind them, then `cover`. Only chunks near the view are loaded. A new `jump` value
 // (a warp, a room change, a rotation) snaps the camera and buddy into place instead of gliding. `falling` drops the trainer out
 // of sight. `fitHeight` (immersive play) sizes tiles by the shorter side, so a landscape view doesn't zoom in too far.
+// `fit` shows a small map whole (a Legendary's lair): the camera stays centred on the map and the trainer walks across it.
 export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move, trainer, buddy, onGrass, width, height, reduced, jump, background,
-  tapToWalk, onTapTile, children, cover, falling = false, fitHeight = false }: Props) {
-  const tile = tileSizeFor(width, fitHeight ? height : undefined)
-  const [camera] = useState(() => new Animated.ValueXY(cameraOffset(at, tile, width, height)))
-  const target = cameraOffset(at, tile, width, height)
+  tapToWalk, onTapTile, children, cover, falling = false, fitHeight = false, fit = false }: Props) {
+  const tile = fit ? fitTile(width, height, map) : tileSizeFor(width, fitHeight ? height : undefined)
+  const target = fit ? fitOffset(tile, width, height, map) : cameraOffset(at, tile, width, height)
+  const [camera] = useState(() => new Animated.ValueXY(target))
   const jumped = useRef(jump)
   useEffect(() => {
     if (reduced || jumped.current !== jump) { jumped.current = jump; camera.setValue(target); return }
@@ -41,7 +42,7 @@ export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move,
     glide.start()
     return () => glide.stop()
   }, [camera, target.x, target.y, reduced, jump]) // eslint-disable-line react-hooks/exhaustive-deps
-  const keys = chunksAround(at, tile, width, height, map)
+  const keys = fit ? Object.keys(chunks) : chunksAround(at, tile, width, height, map)
   const layer = (content: ReactNode) => <Animated.View pointerEvents="none"
     style={{ position: 'absolute', left: 0, top: 0, transform: camera.getTranslateTransform() }}>{content}</Animated.View>
   const view = <View pointerEvents="none" style={{ width, height, overflow: 'hidden', backgroundColor: background }}>
@@ -51,14 +52,19 @@ export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move,
       {buddy && (buddyAt.x !== at.x || buddyAt.y !== at.y) &&
         <Buddy name={buddy.name} shiny={buddy.shiny} at={buddyAt} frame={buddyFrame(buddyFacing, (move.id % 2) as 0 | 1)} tile={tile} reduced={reduced} jump={jump} />}
     </>)}
-    <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile}
-      left={width / 2 - tile / 2} top={height / 2 - tile / 2} reduced={reduced} falling={falling} />
+    {fit ? layer(<Walking at={at} tile={tile} reduced={reduced}>
+      <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile} left={0} top={0} reduced={reduced} falling={falling} />
+    </Walking>) : <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile}
+      left={width / 2 - tile / 2} top={height / 2 - tile / 2} reduced={reduced} falling={falling} />}
     {layer(<Chunks map={map} chunks={chunks} keys={keys} tile={tile} layer="top" />)}
     {!!cover && layer(cover)}
   </View>
   if (!tapToWalk) return view
   return <Pressable accessibilityRole="button" accessibilityLabel="Map. Tap a spot to walk there."
-    onPress={event => onTapTile(tileFromTap(tapPoint(event.nativeEvent), at, tile, width, height))}>
+    onPress={event => {
+      const tap = tapPoint(event.nativeEvent)
+      onTapTile(fit ? { x: Math.floor((tap.x - target.x) / tile), y: Math.floor((tap.y - target.y) / tile) } : tileFromTap(tap, at, tile, width, height))
+    }}>
     {view}
   </Pressable>
 }
@@ -89,6 +95,19 @@ export function Frame({ strip, frame, width, height, tint }: { strip: Strip, fra
     <Image source={strip.source} fadeDuration={0} resizeMode="stretch"
       style={{ position: 'absolute', top: 0, left: -frame * width, width: width * strip.frames, height, ...(tint ? { tintColor: tint } : {}), ...pixelated }} />
   </View>
+}
+
+// The trainer's place on a map shown whole: it glides a tile per step, as the camera does on a big map.
+function Walking({ at, tile, reduced, children }: { at: Point, tile: number, reduced: boolean, children: ReactNode }) {
+  const [position] = useState(() => new Animated.ValueXY({ x: at.x * tile, y: at.y * tile }))
+  useEffect(() => {
+    const toValue = { x: at.x * tile, y: at.y * tile }
+    if (reduced) { position.setValue(toValue); return }
+    const glide = Animated.timing(position, { toValue, duration: STEP_MS, easing: Easing.linear, useNativeDriver: native })
+    glide.start()
+    return () => glide.stop()
+  }, [position, at.x, at.y, tile, reduced])
+  return <Animated.View style={{ position: 'absolute', left: 0, top: 0, transform: position.getTranslateTransform() }}>{children}</Animated.View>
 }
 
 function Buddy({ name, shiny, at, frame, tile, reduced, jump }: { name: string, shiny: boolean, at: Point, frame: number, tile: number, reduced: boolean, jump: number }) {

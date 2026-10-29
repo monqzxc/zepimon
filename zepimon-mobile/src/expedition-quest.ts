@@ -7,7 +7,7 @@ import { ARCADE_PERMIT_POINTS } from './games/achievements.ts'
 // The Expedition Quest: the other way to open the next Legendary encounter, for anyone short of 25 km. Three saved
 // walks or runs of at least 1 km, plus the shrine challenge (src/games/lanterns.ts), earn one Expedition Permit. A
 // permit opens the next encounter on a trail early, and that encounter is met exactly like a 25 km one: the same
-// species, trial, chamber, battle and catch. The quest lives beside the trails, never inside them, so the watch/phone
+// species, trial, lair, battle and catch. The quest lives beside the trails, never inside them, so the watch/phone
 // trail contract and its merge rules stay as they are.
 export const QUEST_SESSIONS = 3
 export const QUEST_SESSION_METERS = 1000

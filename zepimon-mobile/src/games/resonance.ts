@@ -1,19 +1,17 @@
 import { RESONANCE_SEALS } from '../expedition-encounter.ts'
 import type { SealId } from '../expedition-encounter.ts'
-import { pokemonTypes } from '../generated/types.js'
-import { ZONES } from './safari.ts'
-import type { Zone } from './safari.ts'
-import { LEDGES, STEPS, isWalkable, pointKey, reachableFrom, safariMap, tileAt } from './safari-zone.ts'
+import { LAIRS, lairOf } from './lairs.ts'
+import type { LairId } from './lairs.ts'
+import { STEPS, isWalkable, pointKey, planWalk, tileAt } from './safari-zone.ts'
 import type { Direction, Point, SafariMap } from './safari-zone.ts'
 
-// The Legendary Resonance Trial's arena, kept free of React so its rules can be tested. It is a 9 × 9 clearing of the
-// real Safari Zone map in the area where the Legendary lives: where its story places it (LORE_HOMES), or else by its
-// type, as the Safari Zone's own wild Pokemon are placed (ZONES in src/games/safari.ts): the meadow for Grass, Bug, Normal, Electric and Fairy, the lakeside for Water and Ice, the rocky
-// mountain for Rock, Ground, Fighting, Steel, Fire and Dragon, and the night forest for Ghost, Dark, Poison and Psychic.
-// The same terrain, collision, walking and tap-to-walk (src/games/safari-zone.ts), with everything outside the clearing
-// walled off and the Legendary standing in its middle. The player switches on four ancient seals, each a small, gentle
-// challenge, while the Legendary sends readable, telegraphed attacks:
-// - wave: touching the seal calls an energy wave over the whole clearing but one safe tile (◎); stand on it when it lands.
+// The Legendary Resonance Trial, kept free of React so its rules can be tested. It happens in the Legendary's own lair
+// (src/games/lairs.ts), a room from Pokemon Emerald: walked, collided and tapped to walk the Safari Zone's way
+// (src/games/safari-zone.ts), with the Legendary waiting where it lives in that room. Until the first seal switches on
+// the Legendary only watches, and stepping back out of the entrance leaves the lair (the next entry rolls its Shiny
+// chance again). The player switches on four ancient seals, each a small, gentle challenge, while the Legendary sends
+// readable, telegraphed attacks:
+// - wave: touching the seal calls an energy wave over the whole lair but one safe tile (◎); stand on it when it lands.
 // - runes: touching the seal lights three numbered runes; step on them in order (a rune out of turn simply doesn't count).
 // - pulse: stand on the seal and press Resonate while its shrinking ring is in the gold band. The Legendary holds still.
 // - stones: touching the seal wakes three guardian stones; step on each, in any order.
@@ -21,19 +19,16 @@ import type { Direction, Point, SafariMap } from './safari-zone.ts'
 // tiles marked, at the moment they land. A hit costs one resonance and a short stagger; at none, the Legendary holds back
 // while you recover in full. Nothing here ever turns a seal off. Times are passed in (ms), so the rules run on a test
 // clock as well as the screen's.
-export const ARENA_SIZE = 9
 export type ArenaLayout = {
-  zone: Zone, label: string, left: number, top: number, legendary: Point, start: Point, seals: Record<SealId, Point>,
-  runes: Point[], stones: Point[], waveSafe: Point[], map: SafariMap, ground: Point[]
+  lair: LairId, label: string, cols: number, rows: number, background: string, legendary: Point, start: Point, entrance: Point,
+  out: Direction, seals: Record<SealId, Point>, runes: Point[], stones: Point[], waveSafe: Point[], map: SafariMap, ground: Point[]
 }
-// Each area's clearing, by its top-left corner.
-const CLEARINGS: Record<Zone, Point> = { meadow: { x: 5, y: 29 }, lake: { x: 32, y: 20 }, mountain: { x: 7, y: 2 }, night: { x: 24, y: 10 } }
-// Where each mark goes, from the clearing's corner: the Legendary in the middle, a seal near each corner, the runes and
-// the wave's safe tiles around the Legendary, the stones in three corners. A mark that lands on a tree or rock moves to
-// the nearest open tile instead, so every clearing keeps the same shape of challenge.
+// Where each mark goes, as a share of the play area's width and height from its top-left: a seal near each corner, the
+// runes around the middle, the stones in three corners. Each takes the nearest open tile to its spot, so every lair keeps
+// the same shape of challenge whatever its rocks and water.
 const PLAN = {
-  legendary: [4, 4], start: [4, 8], seals: { wave: [1, 1], runes: [7, 1], pulse: [1, 7], stones: [7, 7] } as Record<SealId, [number, number]>,
-  runes: [[3, 6], [5, 2], [6, 5]], stones: [[0, 0], [8, 0], [8, 8]], waveSafe: [[4, 0], [1, 4], [3, 3]]
+  seals: { wave: [0.125, 0.125], runes: [0.875, 0.125], pulse: [0.125, 0.875], stones: [0.875, 0.875] } as Record<SealId, [number, number]>,
+  runes: [[0.375, 0.75], [0.625, 0.25], [0.75, 0.625]], stones: [[0, 0], [1, 0], [1, 1]]
 } as const
 export const SEAL_NAMES: Record<SealId, string> = { wave: 'Wave', runes: 'Rune', pulse: 'Pulse', stones: 'Stone' }
 
@@ -48,62 +43,74 @@ export const PULSE_PERIOD = 2400
 export const PULSE_WINDOW: [number, number] = [0.55, 0.9]
 const GAP_MS = 2600
 const GAP_SPREAD_MS = 1400
+const BACK: Record<Direction, Direction> = { north: 'south', south: 'north', west: 'east', east: 'west' }
 
 const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y
-export const insideArena = (layout: Pick<ArenaLayout, 'left' | 'top'>, point: Point) =>
-  point.x >= layout.left && point.x < layout.left + ARENA_SIZE && point.y >= layout.top && point.y < layout.top + ARENA_SIZE
 
-function buildLayout(zone: Zone): ArenaLayout {
-  const { x: left, y: top } = CLEARINGS[zone]
-  const at = ([dx, dy]: readonly [number, number]): Point => ({ x: left + dx, y: top + dy })
-  const legendary = at(PLAN.legendary)
-  // The Safari map with everything outside the clearing, any ledge in it and the Legendary's own tile turned to wall.
-  const map: SafariMap = { ...safariMap, tiles: safariMap.tiles.map((row, y) => [...row].map((tile, x) =>
-    insideArena({ left, top }, { x, y }) && !same({ x, y }, legendary) && !(tile in LEDGES) ? tile : '#').join('')) }
+function buildLayout(lair: LairId): ArenaLayout {
+  const room = LAIRS[lair]
+  // Only the play area is walkable: the Legendary's tile, the entrance and everything else are walls here.
+  const map = { cols: room.cols, rows: room.rows, chunk: Math.max(room.cols, room.rows), tiles: room.tiles, areas: [], starts: {}, chunks: {} } as unknown as SafariMap
   const ground: Point[] = []
-  for (let y = top; y < top + ARENA_SIZE; y++) for (let x = left; x < left + ARENA_SIZE; x++) if (isWalkable(tileAt({ x, y }, map))) ground.push({ x, y })
-  const used = new Set<string>()
+  room.tiles.forEach((row, y) => [...row].forEach((tile, x) => { if (isWalkable(tile)) ground.push({ x, y }) }))
+  const xs = ground.map(point => point.x), ys = ground.map(point => point.y)
+  const left = Math.min(...xs), top = Math.min(...ys), width = Math.max(...xs) - left, height = Math.max(...ys) - top
+  const used = new Set([pointKey(room.start)])
   const distance = (a: Point, b: Point) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
-  // The open, reachable tile nearest a planned spot, not already taken (ties go to the upper-left, so it never varies).
-  const place = (planned: readonly [number, number], reach?: Set<string>): Point => {
-    const wanted = at(planned)
-    const spot = ground.filter(point => !used.has(pointKey(point)) && (!reach || reach.has(pointKey(point))))
+  // Whether the rest of the lair stays connected without these tiles: a seal never sits in a narrow pass, so there is
+  // always a way round it and crossing the lair never has to wake one.
+  const connectedWithout = (blocked: Set<string>) => {
+    const open = ground.filter(point => !blocked.has(pointKey(point)))
+    const seen = new Set([pointKey(room.start)])
+    const queue = [room.start]
+    while (queue.length) {
+      const point = queue.pop()!
+      for (const step of Object.values(STEPS)) {
+        const key = pointKey({ x: point.x + step.x, y: point.y + step.y })
+        if (!seen.has(key) && !blocked.has(key) && isWalkable(tileAt({ x: point.x + step.x, y: point.y + step.y }, map))) { seen.add(key); queue.push({ x: point.x + step.x, y: point.y + step.y }) }
+      }
+    }
+    return open.every(point => seen.has(pointKey(point)))
+  }
+  const sealed = new Set<string>()
+  // The open tile nearest a planned spot, not already taken (ties go to the upper-left, so it never varies). A seal also
+  // needs the way round it.
+  const place = ([fx, fy]: readonly [number, number], seal = false): Point => {
+    const wanted = { x: Math.round(left + fx * width), y: Math.round(top + fy * height) }
+    const spot = ground.filter(point => !used.has(pointKey(point)) && (!seal || connectedWithout(new Set([...sealed, pointKey(point)]))))
       .sort((a, b) => distance(a, wanted) - distance(b, wanted) || a.y - b.y || a.x - b.x)[0]
-    if (!spot) throw new Error(`No room for every mark in the ${zone} arena.`)
+    if (!spot) throw new Error(`No room for every mark in the ${room.name}.`)
     used.add(pointKey(spot))
+    if (seal) sealed.add(pointKey(spot))
     return spot
   }
-  const start = place(PLAN.start)
-  const reach = reachableFrom(start, map)
-  const seals = Object.fromEntries(RESONANCE_SEALS.map(seal => [seal, place(PLAN.seals[seal], reach)])) as Record<SealId, Point>
-  const runes = PLAN.runes.map(spot => place(spot, reach))
-  const stones = PLAN.stones.map(spot => place(spot, reach))
-  const waveSafe = PLAN.waveSafe.map(spot => place(spot, reach))
-  return { zone, label: ZONES[zone].label, left, top, legendary, start, seals, runes, stones, waveSafe, map, ground }
+  const seals = Object.fromEntries(RESONANCE_SEALS.map(seal => [seal, place(PLAN.seals[seal], true)])) as Record<SealId, Point>
+  const runes = PLAN.runes.map(spot => place(spot))
+  const stones = PLAN.stones.map(spot => place(spot))
+  // The wave's safe tiles: three a short walk from the Wave Seal (about four steps, never more than six), apart from
+  // each other, so the one picked is always reachable before the wave lands.
+  const steps = (to: Point) => planWalk(seals.wave, to, map)?.length ?? Infinity
+  const waveSafe: Point[] = []
+  for (const spot of ground.filter(point => !used.has(pointKey(point)) && steps(point) >= 3 && steps(point) <= 6)
+    .sort((a, b) => Math.abs(steps(a) - 4) - Math.abs(steps(b) - 4) || a.y - b.y || a.x - b.x)) {
+    if (waveSafe.length < 3 && waveSafe.every(safe => distance(safe, spot) >= 2)) waveSafe.push(spot)
+  }
+  if (waveSafe.length < 3) throw new Error(`No room for the wave's safe tiles in the ${room.name}.`)
+  return { lair, label: room.name, cols: room.cols, rows: room.rows, background: room.background, legendary: room.legendary, start: room.start,
+    entrance: room.entrance, out: room.out, seals, runes, stones, waveSafe, map, ground }
 }
-export const ARENAS: Record<Zone, ArenaLayout> = { meadow: buildLayout('meadow'), lake: buildLayout('lake'), mountain: buildLayout('mountain'), night: buildLayout('night') }
+export const LAYOUTS = Object.fromEntries((Object.keys(LAIRS) as LairId[]).map(lair => [lair, buildLayout(lair)])) as Record<LairId, ArenaLayout>
 
-// Where a Legendary's story places it, when that isn't the area its type would give it.
-export const LORE_HOMES: Record<string, Zone> = {
-  Mewtwo: 'mountain', // Cerulean Cave
-  Mew: 'meadow', // Faraway Island's tall grass
-  Lugia: 'lake', // the Whirl Islands' deep sea
-  Latias: 'lake', Latios: 'lake', // Southern Island and Alto Mare's canals
-  Jirachi: 'night', // wakes under the Millennium Comet
-  Uxie: 'lake', Mesprit: 'lake', Azelf: 'lake', // the Lake Guardians of Acuity, Verity and Valor
-  Palkia: 'mountain', // Spear Pillar, atop Mt. Coronet
-  Regigigas: 'mountain', // the Snowpoint Temple's stone halls
-  Arceus: 'mountain', // the Hall of Origin, above Spear Pillar
-  Zeraora: 'night' // the forest outside Fula City
-}
+// The arena for a Legendary: its own lair.
+export const arenaFor = (name: string): ArenaLayout => LAYOUTS[lairOf(name)]
 
-// The arena for a Legendary: where its story places it, or else the Safari Zone area its type lives in. Any type no
-// area lists (none of today's Legendaries) meets in the meadow.
-export function arenaFor(name: string): ArenaLayout {
-  const species = name.replace(/^Shiny /, '')
-  const type = (pokemonTypes as Record<string, string>)[species]
-  const zone = LORE_HOMES[species] ?? (Object.keys(ZONES) as Zone[]).find(id => ZONES[id].types.includes(type)) ?? 'meadow'
-  return ARENAS[zone]
+// A tap-to-walk route that goes round the seals on the way, where there is another way, so crossing a narrow lair
+// doesn't wake a seal by accident. null when the spot can't be reached.
+export function routeTo(arena: Arena, to: Point): Direction[] | null {
+  const { map, seals } = arena.layout
+  const avoid = new Set(RESONANCE_SEALS.map(seal => pointKey(seals[seal])).filter(key => key !== pointKey(to) && key !== pointKey(arena.at)))
+  const around = { ...map, tiles: map.tiles.map((row, y) => [...row].map((tile, x) => avoid.has(`${x},${y}`) ? '#' : tile).join('')) }
+  return planWalk(arena.at, to, around) ?? planWalk(arena.at, to, map)
 }
 
 // Three resonance to start, and one more for each km of saved adventures this week (src/games/adventure.ts walkingBonus),
@@ -124,8 +131,10 @@ export type Arena = {
 }
 export type ArenaResult = { arena: Arena, completed: SealId | null }
 
+// Entering the lair from its entrance, facing in. With no seal on yet the Legendary only watches.
 export function startArena(layout: ArenaLayout, seals: readonly SealId[], max: number, now: number): Arena {
-  const arena: Arena = { layout, at: layout.start, facing: 'north', buddy: layout.start, buddyFacing: 'north', seals: [...seals], resonance: max, maxResonance: max,
+  const inward = BACK[layout.out]
+  const arena: Arena = { layout, at: layout.start, facing: inward, buddy: layout.start, buddyFacing: inward, seals: [...seals], resonance: max, maxResonance: max,
     staggerUntil: 0, recoverUntil: 0, danger: null, nextAttackAt: now + FIRST_ATTACK_MS, wave: null, pulse: null, runes: null, stones: null,
     paused: false, message: '', feedback: null, feedbackId: 0 }
   return { ...arena, message: objective(arena) }
@@ -141,6 +150,7 @@ export function objective(arena: Arena): string {
   if (arena.wave) return 'An energy wave is coming: stand on the safe tile ◎ before it lands!'
   if (arena.pulse) return 'Hold still on the seal and press Resonate while the ring is in the gold band.'
   if (allOn(arena)) return 'Every seal is on. Steady the Legendary to open the catch.'
+  if (!arena.seals.length && arena.runes === null && arena.stones === null) return 'It watches, calm. Wake a seal ◇ to begin, or walk back out to try again.'
   const left = RESONANCE_SEALS.length - arena.seals.length
   const parts: string[] = []
   if (arena.runes !== null) parts.push(`step on rune ${arena.runes + 1}`)
@@ -149,9 +159,11 @@ export function objective(arena: Arena): string {
   return parts.length ? `${parts.join(' · ')} (${left} seal${left === 1 ? '' : 's'} left)` : `Walk onto a seal ◇ to wake it (${left} left).`
 }
 
-function switchOn(arena: Arena, seal: SealId): ArenaResult {
+// The first seal to switch on wakes the Legendary: its first attack comes FIRST_ATTACK_MS later.
+function switchOn(arena: Arena, seal: SealId, now: number): ArenaResult {
   const on: Arena = { ...arena, seals: [...arena.seals, seal], ...(seal === 'wave' && { wave: null }), ...(seal === 'pulse' && { pulse: null }),
-    ...(seal === 'runes' && { runes: null }), ...(seal === 'stones' && { stones: null }) }
+    ...(seal === 'runes' && { runes: null }), ...(seal === 'stones' && { stones: null }),
+    ...(!arena.seals.length && { nextAttackAt: Math.max(arena.nextAttackAt, now + FIRST_ATTACK_MS) }) }
   const left = RESONANCE_SEALS.length - on.seals.length
   return { arena: say(on, `The ${SEAL_NAMES[seal]} Seal is on!${left ? ` ${left} to go.` : ' Every seal is glowing.'}`, 'seal'), completed: seal }
 }
@@ -181,15 +193,18 @@ function touchSeal(arena: Arena, seal: SealId, now: number, random: () => number
   return say(next, `Three guardian stones ▲ stir. ${objective(next)}`)
 }
 
-// One press, from the step walker, the D-pad, the keys or a tap route. Blocked while paused, staggered or recovering.
-export function arenaWalk(arena: Arena, direction: Direction, now: number, random: () => number): ArenaResult & { move: 'step' | 'bump' | 'none' } {
-  if (arena.paused || now < arena.staggerUntil || now < arena.recoverUntil) return { arena, completed: null, move: 'none' }
+// One press, from the step walker, the D-pad, the keys or a tap route. Blocked while paused, staggered or recovering,
+// except for walking out: from the start, a step towards the entrance leaves the lair (move 'exit') whatever else is going on.
+export function arenaWalk(arena: Arena, direction: Direction, now: number, random: () => number): ArenaResult & { move: 'step' | 'bump' | 'none' | 'exit' } {
+  const { layout } = arena
+  if (arena.paused) return { arena, completed: null, move: 'none' }
+  if (same(arena.at, layout.start) && direction === layout.out) return { arena: { ...arena, facing: direction }, completed: null, move: 'exit' }
+  if (now < arena.staggerUntil || now < arena.recoverUntil) return { arena, completed: null, move: 'none' }
   const turned = { ...arena, facing: direction }
   const next = { x: arena.at.x + STEPS[direction].x, y: arena.at.y + STEPS[direction].y }
-  const { layout } = arena
   if (!isWalkable(tileAt(next, layout.map))) {
     const why = same(next, layout.legendary) ? 'The Legendary stands its ground. Switch on the seals around it.'
-      : insideArena(layout, next) ? 'Something is in the way.' : 'The seals’ glow keeps you inside the clearing.'
+      : same(next, layout.entrance) ? 'The way out is from the doorway, where you came in.' : 'Something is in the way.'
     return { arena: say(turned, why), completed: null, move: 'bump' }
   }
   let moved: Arena = { ...turned, at: next, buddy: arena.at, buddyFacing: direction }
@@ -200,7 +215,7 @@ export function arenaWalk(arena: Arena, direction: Direction, now: number, rando
   if (rune >= 0 && moved.runes !== null) {
     if (rune === moved.runes) {
       moved = { ...moved, runes: rune + 1 }
-      if (moved.runes === layout.runes.length) return { ...switchOn(moved, 'runes'), move: 'step' }
+      if (moved.runes === layout.runes.length) return { ...switchOn(moved, 'runes', now), move: 'step' }
       moved = say(moved, `Rune ${rune + 1} glows. ${objective(moved)}`)
     } else if (rune > moved.runes) moved = say(moved, `That is rune ${rune + 1}: find rune ${moved.runes + 1} first.`)
   }
@@ -208,7 +223,7 @@ export function arenaWalk(arena: Arena, direction: Direction, now: number, rando
   if (stone >= 0 && moved.stones !== null && !moved.stones.includes(stone)) {
     const stones = [...moved.stones, stone]
     moved = { ...moved, stones }
-    if (stones.length === layout.stones.length) return { ...switchOn(moved, 'stones'), move: 'step' }
+    if (stones.length === layout.stones.length) return { ...switchOn(moved, 'stones', now), move: 'step' }
     moved = say(moved, `A guardian stone wakes. ${objective(moved)}`)
   }
   return { arena: moved, completed: null, move: 'step' }
@@ -259,7 +274,7 @@ export function arenaTick(arena: Arena, now: number, random: () => number): Aren
   if (danger && !danger.struck && now >= danger.warnUntil) {
     next = { ...next, danger: { ...danger, struck: true } }
     if (danger.kind === 'wave') {
-      if (pointKey(next.at) === danger.safe) return switchOn(next, 'wave')
+      if (pointKey(next.at) === danger.safe) return switchOn(next, 'wave', now)
       next = hit({ ...next, wave: null }, now, 'The wave caught you. Step on the Wave Seal to try again.')
     } else if (danger.tiles.includes(pointKey(next.at))) next = hit(next, now, 'Hit! Resonance −1.')
     else next = say(next, `Dodged! ${objective(next)}`, 'dodge')
@@ -267,8 +282,9 @@ export function arenaTick(arena: Arena, now: number, random: () => number): Aren
   if (next.danger?.struck && now >= next.danger.strikeUntil) {
     next = { ...next, danger: null, nextAttackAt: now + GAP_MS + Math.floor(random() * GAP_SPREAD_MS) }
   }
-  // The Legendary holds back while you recover, focus on the pulse or once every seal is on.
-  if (!next.danger && !next.recoverUntil && !next.pulse && !allOn(next) && now >= next.nextAttackAt) {
+  // The Legendary only watches until the first seal is on, and holds back while you recover, focus on the pulse or once
+  // every seal is on.
+  if (!next.danger && next.seals.length && !next.recoverUntil && !next.pulse && !allOn(next) && now >= next.nextAttackAt) {
     next = say({ ...next, danger: aim(next, now, random) }, 'Danger! The Legendary is charging: step off the marked tiles ⚠.', 'warn')
   }
   return { arena: next, completed: null }
@@ -280,7 +296,7 @@ export const pulsePhase = (pulse: { since: number }, now: number) => (((now - pu
 export function resonate(arena: Arena, now: number): ArenaResult {
   if (arena.paused || !arena.pulse || !same(arena.at, arena.layout.seals.pulse)) return { arena: say(arena, 'Stand on the Pulse Seal to resonate.'), completed: null }
   const phase = pulsePhase(arena.pulse, now)
-  if (phase >= PULSE_WINDOW[0] && phase <= PULSE_WINDOW[1]) return switchOn(arena, 'pulse')
+  if (phase >= PULSE_WINDOW[0] && phase <= PULSE_WINDOW[1]) return switchOn(arena, 'pulse', now)
   return { arena: say(arena, phase < PULSE_WINDOW[0] ? 'A little early: wait for the ring to reach the gold band.' : 'A little late: try on the next ring.', 'miss'), completed: null }
 }
 

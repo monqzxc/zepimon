@@ -9,7 +9,7 @@ import type { TrialRecords } from './trials.ts'
 
 // Arcade achievements: the third way to a Legendary encounter, beside the 25 km distance route and the Expedition
 // Quest. Each achievement is worth points, and every ARCADE_PERMIT_POINTS of them can be traded for an Expedition Permit
-// (src/expedition-quest.ts), which opens the next encounter: the trial, chamber, battle and catch still decide whether
+// (src/expedition-quest.ts), which opens the next encounter: the trial, lair, battle and catch still decide whether
 // the Legendary joins you. Achievements are read from what the games already save (best scores, Memory Match moves,
 // Adventure Map and Trail Defense stars, Safari catches), which only ever improve, so replaying a game, restarting the
 // app or importing again can never count one twice.

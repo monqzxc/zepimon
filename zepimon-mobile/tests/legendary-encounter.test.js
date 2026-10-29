@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RESET_COOLDOWN, RESONANCE_SEALS, SHINY_ODDS, activateSeal, activeEncounter, catchEncounter, finishReset, finishTrial, legacyEncounters,
-  openChamber, readyToBattle, requestReset, restoreEncounters, rollLegendaryShiny, saveCheckpoint, stabilizeResonance, startResonance } from '../src/expedition-encounter.ts'
+import { RESET_COOLDOWN, RESONANCE_SEALS, SHINY_ODDS, activateSeal, activeEncounter, catchEncounter, enterLair, finishTrial, leaveLair, legacyEncounters,
+  readyToBattle, restoreEncounters, rollLegendaryShiny, saveCheckpoint, stabilizeResonance } from '../src/expedition-encounter.ts'
 import { emptyQuest } from '../src/expedition-quest.ts'
 import { startRun } from '../src/games/trials.ts'
 import { stepRoom } from '../src/games/trial.ts'
@@ -17,27 +17,27 @@ const key = expeditionKey(trail)
 const play = (encounters = {}, changes = {}) => ({ expeditions: { trails: { [key]: { ...trail, ...changes } }, dex: {} }, quest: emptyQuest(), encounters })
 const SHINY = () => 0.001
 const NORMAL = () => 0.5
-const chamber = (random = NORMAL) => openChamber(play(finishTrial(play(), key, 0)), key, 0, NOW, random)
+const lair = (random = NORMAL) => enterLair(play(finishTrial(play(), key, 0)), key, 0, NOW, random)
 // Writing to storage and reading back, as reopening the app does.
 const reopen = encounters => restoreEncounters(JSON.parse(JSON.stringify(encounters)), play().expeditions, emptyQuest())
-// The Resonance Trial between the chamber and the catch: start it, switch on every seal and stabilize (tests/resonance-encounter.test.js).
+// The Resonance Trial in the lair, before the catch: switch on every seal and stabilize (tests/resonance-encounter.test.js).
 const resonated = encounters => stabilizeResonance(play(RESONANCE_SEALS.reduce((saved, seal) => activateSeal(play(saved), key, 0, seal),
-  startResonance(play(encounters), key, 0))), key, 0)
+  encounters)), key, 0)
 
-test('the trial must be finished first, and the first chamber entry makes exactly one 1-in-100 roll', () => {
-  assert.throws(() => openChamber(play(), key, 0, NOW, NORMAL), /trial/)
+test('the trial must be finished first, and the first entry into the lair makes exactly one 1-in-100 roll', () => {
+  assert.throws(() => enterLair(play(), key, 0, NOW, NORMAL), /trial/)
   assert.throws(() => finishTrial(play({}, { meters: 24999 }), key, 0), /not ready/)
   let rolls = 0
   const counted = () => { rolls++; return 0.5 }
-  const opened = openChamber(play(finishTrial(play(), key, 0)), key, 0, NOW, counted)
+  const opened = enterLair(play(finishTrial(play(), key, 0)), key, 0, NOW, counted)
   assert.equal(rolls, 1)
   assert.deepEqual(opened[key], { index: 0, name: expeditionEncounter(trail, 0).name, trial: true, shiny: false, attempt: 1,
     resetPending: false, nextResetAllowedAt: 0 })
   for (const random of [SHINY, NORMAL]) {
-    assert.equal(openChamber(play(opened), key, 0, NOW + 60000, random), opened, 'Coming back never rerolls')
-    assert.equal(openChamber(play(reopen(opened)), key, 0, NOW, random)[key].shiny, false, 'Neither does reopening the app')
+    assert.equal(enterLair(play(opened), key, 0, NOW + 60000, random), opened, 'Coming back without walking out never rerolls')
+    assert.equal(enterLair(play(reopen(opened)), key, 0, NOW, random)[key].shiny, false, 'Neither does reopening the app')
   }
-  assert.equal(chamber(SHINY)[key].shiny, true)
+  assert.equal(lair(SHINY)[key].shiny, true)
   assert.equal(SHINY_ODDS, 100)
   assert.equal(rollLegendaryShiny(() => 0.0099), true)
   assert.equal(rollLegendaryShiny(() => 0.01), false)
@@ -53,45 +53,51 @@ test('the trial must be finished first, and the first chamber entry makes exactl
   assert.ok(shiny > 850 && shiny < 1150, `1-in-100, not the canonical 1-in-50 draw (${shiny})`)
 })
 
-test('a confirmed reset waits five seconds, then rolls once, keeping species, trial, distance and claim order', () => {
-  const opened = chamber()
-  assert.throws(() => requestReset(play(finishTrial(play(), key, 0)), key, 0, false, NOW), /chamber/, 'Nothing to reset before the first roll')
-  const pending = requestReset(play(opened), key, 0, false, NOW)
+test('walking out seals the entrance for 1.5 seconds, then the next entry rolls once, keeping species, trial, distance and claims', () => {
+  const opened = lair()
+  assert.throws(() => leaveLair(play(finishTrial(play(), key, 0)), key, 0, false, NOW), /lair/, 'Nothing to reroll before the first roll')
+  const pending = leaveLair(play(opened), key, 0, false, NOW)
   assert.deepEqual(pending[key], { ...opened[key], resetPending: true, nextResetAllowedAt: NOW + RESET_COOLDOWN })
-  assert.equal(RESET_COOLDOWN, 5000)
-  assert.equal(readyToBattle(pending[key]), false, 'No battle while the shrine gathers energy')
-  assert.equal(requestReset(play(pending), key, 0, false, NOW + 2000), pending, 'Asking again during the wait neither extends nor restarts it')
-  assert.equal(finishReset(play(pending), key, 0, NOW + 4999, SHINY), pending, 'Too early')
-  assert.equal(openChamber(play(pending), key, 0, NOW + 4999, SHINY), pending)
+  assert.equal(RESET_COOLDOWN, 1500)
+  assert.equal(readyToBattle(pending[key]), false, 'Nothing to challenge while you are outside')
+  assert.equal(leaveLair(play(pending), key, 0, false, NOW + 1000), pending, 'Walking out again neither extends nor restarts the wait')
+  assert.throws(() => enterLair(play(pending), key, 0, NOW + 1499, SHINY), /sealed/, 'Too early: the entrance is still sealed')
   let rolls = 0
-  const done = finishReset(play(pending), key, 0, NOW + 5000, () => { rolls++; return 0.001 })
+  const done = enterLair(play(pending), key, 0, NOW + 1500, () => { rolls++; return 0.001 })
   assert.equal(rolls, 1)
-  assert.deepEqual(done[key], { index: 0, name: opened[key].name, trial: true, shiny: true, attempt: 2, resetPending: false, nextResetAllowedAt: NOW + 5000 })
-  assert.equal(finishReset(play(done), key, 0, NOW + 9000, NORMAL), done, 'Only one roll per reset')
+  assert.deepEqual(done[key], { index: 0, name: opened[key].name, trial: true, shiny: true, attempt: 2, resetPending: false, nextResetAllowedAt: NOW + 1500 })
+  assert.equal(enterLair(play(done), key, 0, NOW + 9000, NORMAL), done, 'One roll per walk out')
   assert.deepEqual(play(done).expeditions, play().expeditions, 'Distance and claims are untouched')
 })
 
-test('a reset in progress survives closing the app and finishes on return; a turned-back clock cannot freeze it', () => {
-  const pending = reopen(requestReset(play(chamber()), key, 0, false, NOW))
+test('the wait survives closing the app; a turned-back clock cannot freeze it', () => {
+  const pending = reopen(leaveLair(play(lair()), key, 0, false, NOW))
   assert.equal(pending[key].resetPending, true)
   assert.equal(pending[key].nextResetAllowedAt, NOW + RESET_COOLDOWN)
-  assert.equal(openChamber(play(pending), key, 0, NOW + 1000, SHINY), pending, 'Back too early: still waiting')
-  const resumed = openChamber(play(pending), key, 0, NOW + 60000, SHINY)
+  assert.throws(() => enterLair(play(pending), key, 0, NOW + 1000, SHINY), /sealed/, 'Back too early: still sealed')
+  const resumed = enterLair(play(pending), key, 0, NOW + 60000, SHINY)
   assert.deepEqual([resumed[key].shiny, resumed[key].attempt, resumed[key].resetPending], [true, 2, false])
-  const backwards = finishReset(play(pending), key, 0, NOW - 3600000, NORMAL)
+  const backwards = enterLair(play(pending), key, 0, NOW - 3600000, NORMAL)
   assert.equal(backwards[key].resetPending, false)
 })
 
-test('giving up a Shiny needs its own confirmation', () => {
-  const shiny = chamber(SHINY)
-  assert.throws(() => requestReset(play(shiny), key, 0, false, NOW), /Shiny/)
-  assert.equal(requestReset(play(shiny), key, 0, true, NOW)[key].resetPending, true)
+test('leaving a Shiny behind needs its own confirmation', () => {
+  const shiny = lair(SHINY)
+  assert.throws(() => leaveLair(play(shiny), key, 0, false, NOW), /Shiny/)
+  assert.equal(leaveLair(play(shiny), key, 0, true, NOW)[key].resetPending, true)
 })
 
-test('only a successful catch claims, once, with the chamber result; failing or leaving keeps everything', () => {
-  assert.throws(() => catchEncounter(play(finishTrial(play(), key, 0)), key, 0, NOW), /chamber/, 'No catch before the roll')
-  const shiny = chamber(SHINY)
-  assert.throws(() => catchEncounter(play(requestReset(play(shiny), key, 0, true, NOW)), key, 0, NOW), /chamber/, 'No catch mid-reset')
+test('the first seal sets the result: walking out after that rerolls nothing', () => {
+  const sealed = activateSeal(play(lair(SHINY)), key, 0, 'pulse')
+  assert.deepEqual(sealed[key].resonance, { started: true, seals: ['pulse'], stabilized: false })
+  assert.throws(() => leaveLair(play(sealed), key, 0, true, NOW), /seal/)
+  assert.equal(enterLair(play(sealed), key, 0, NOW + 60000, NORMAL), sealed, 'Coming back finds the same Shiny')
+})
+
+test('only a successful catch claims, once, with the result from the lair; failing or leaving keeps everything', () => {
+  assert.throws(() => catchEncounter(play(finishTrial(play(), key, 0)), key, 0, NOW), /lair/, 'No catch before the roll')
+  const shiny = lair(SHINY)
+  assert.throws(() => catchEncounter(play(leaveLair(play(shiny), key, 0, true, NOW)), key, 0, NOW), /lair/, 'No catch after walking out')
   // A failed catch or leaving does not call the claim at all: the saved encounter is unchanged and can be caught later.
   assert.deepEqual(reopen(shiny), shiny)
   assert.throws(() => catchEncounter(play(shiny), key, 0, NOW), /Resonance/, 'No catch before the Resonance Trial')
@@ -124,13 +130,13 @@ test('old saves keep a Shiny they were already showing; other encounters roll fr
   assert.deepEqual(restored, legacy)
   const key0 = Object.keys(legacy)[0]
   const quest = emptyQuest()
-  const opened = openChamber({ expeditions: { trails, dex: {} }, quest, encounters: finishTrial({ expeditions: { trails, dex: {} }, quest, encounters: legacy }, key0, 0) },
+  const opened = enterLair({ expeditions: { trails, dex: {} }, quest, encounters: finishTrial({ expeditions: { trails, dex: {} }, quest, encounters: legacy }, key0, 0) },
     key0, 0, NOW, NORMAL)
-  assert.equal(opened[key0].shiny, true, 'The kept Shiny is not rerolled when its chamber opens')
+  assert.equal(opened[key0].shiny, true, 'The kept Shiny is not rerolled when its lair is entered')
 })
 
 test('saved encounters must match their trail: wrong species, index or fields are dropped', () => {
-  const opened = chamber()[key]
+  const opened = lair()[key]
   for (const changed of [{ name: 'Mew' === opened.name ? 'Lugia' : 'Mew' }, { index: 1 }, { shiny: null }, { attempt: -1 }, { trial: 'yes' },
     { nextResetAllowedAt: Infinity }, { shiny: null, attempt: 0, resetPending: true }]) {
     assert.deepEqual(restoreEncounters({ [key]: { ...opened, ...changed } }, play().expeditions, emptyQuest()), {})

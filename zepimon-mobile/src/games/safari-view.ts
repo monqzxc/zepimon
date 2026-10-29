@@ -30,6 +30,15 @@ export function tileFromTap(tap: Point, at: Point, tile: number, width: number, 
   return { x: Math.floor((tap.x - offset.x) / tile), y: Math.floor((tap.y - offset.y) / tile) }
 }
 
+// A small map shown whole (a Legendary's lair): the largest whole-pixel tile that fits it in the view, and the offset
+// that centres it. The camera then stays put and the trainer walks across the map.
+export function fitTile(width: number, height: number, map: Pick<SafariMap, 'cols' | 'rows'>): number {
+  return Math.max(8, Math.floor(Math.min(width / map.cols, height / map.rows)))
+}
+export function fitOffset(tile: number, width: number, height: number, map: Pick<SafariMap, 'cols' | 'rows'>): Point {
+  return { x: Math.round((width - map.cols * tile) / 2), y: Math.round((height - map.rows * tile) / 2) }
+}
+
 // Where a press landed inside the map. Phones report locationX/Y; on the web the press event is a DOM mouse event, which
 // has offsetX/Y instead (relative to the map, since its layers let presses through).
 export function tapPoint(event: { locationX?: number, locationY?: number, offsetX?: number, offsetY?: number }): Point {

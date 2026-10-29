@@ -1,22 +1,22 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RESONANCE_SEALS, activateSeal, catchEncounter, finishReset, finishTrial, openChamber, readyToCapture, requestReset, resonanceStage,
-  restoreEncounters, stabilizeResonance, startResonance } from '../src/expedition-encounter.ts'
+import { RESONANCE_SEALS, activateSeal, catchEncounter, enterLair, finishTrial, leaveLair, readyToCapture, resonanceStage,
+  restoreEncounters, stabilizeResonance } from '../src/expedition-encounter.ts'
 import { emptyQuest } from '../src/expedition-quest.ts'
 import { expeditionEncounter, expeditionKey, legendarySpecies } from '../src/generated/expedition.js'
 
-// The Legendary Resonance Trial sits between the chamber and the catch. Its progress lives on the saved encounter, beside
-// the trial and the chamber roll, and follows the same rules: one encounter per trail, nothing claimed until the catch.
+// The Legendary Resonance Trial happens in the Legendary's lair, before the catch. Its progress lives on the saved
+// encounter, beside the trial and the roll, and follows the same rules: one encounter per trail, nothing claimed until the catch.
 const NOW = Date.UTC(2026, 9, 29, 12)
 const trail = { seed: 23, startedAt: 1000, meters: 30000, claimed: 0 }
 const key = expeditionKey(trail)
 const play = (encounters = {}) => ({ expeditions: { trails: { [key]: { ...trail } }, dex: {} }, quest: emptyQuest(), encounters })
 const NORMAL = () => 0.5
 const SHINY = () => 0.001
-const chamber = (random = NORMAL) => openChamber(play(finishTrial(play(), key, 0)), key, 0, NOW, random)
+const lair = (random = NORMAL) => enterLair(play(finishTrial(play(), key, 0)), key, 0, NOW, random)
 const reopen = encounters => restoreEncounters(JSON.parse(JSON.stringify(encounters)), play().expeditions, emptyQuest())
 const allSeals = encounters => RESONANCE_SEALS.reduce((saved, seal) => activateSeal(play(saved), key, 0, seal), encounters)
-const stabilized = (random = NORMAL) => stabilizeResonance(play(allSeals(startResonance(play(chamber(random)), key, 0))), key, 0)
+const stabilized = (random = NORMAL) => stabilizeResonance(play(allSeals(lair(random))), key, 0)
 
 test('there are four seals, and the species is still the canonical draw', () => {
   assert.deepEqual([...RESONANCE_SEALS], ['wave', 'runes', 'pulse', 'stones'])
@@ -25,33 +25,30 @@ test('there are four seals, and the species is still the canonical draw', () => 
   assert.equal(stabilized()[key].name, expeditionEncounter(trail, 0).name)
 })
 
-test('the trial starts only from a settled chamber, once, and keeps the chamber result', () => {
-  assert.throws(() => startResonance(play(), key, 0), /chamber/, 'Not before the trial')
-  assert.throws(() => startResonance(play(finishTrial(play(), key, 0)), key, 0), /chamber/, 'Not before the first roll')
-  const pending = requestReset(play(chamber()), key, 0, false, NOW)
-  assert.throws(() => startResonance(play(pending), key, 0), /chamber/, 'Not while a reset gathers energy')
-  const opened = chamber(SHINY)
-  const started = startResonance(play(opened), key, 0)
-  assert.deepEqual(started[key].resonance, { started: true, seals: [], stabilized: false })
+test('the trial starts with the first seal, only once the Legendary has been met, and keeps the result', () => {
+  assert.throws(() => activateSeal(play(), key, 0, 'wave'), /not ready|lair/, 'Not before the trial')
+  assert.throws(() => activateSeal(play(finishTrial(play(), key, 0)), key, 0, 'wave'), /lair/, 'Not before the first roll')
+  const outside = leaveLair(play(lair()), key, 0, false, NOW)
+  assert.throws(() => activateSeal(play(outside), key, 0, 'wave'), /lair/, 'Not after walking out')
+  const opened = lair(SHINY)
+  assert.equal(resonanceStage(opened[key]), 'ready', 'In the lair with no seal on, the result can still be rerolled')
+  const started = activateSeal(play(opened), key, 0, 'wave')
+  assert.deepEqual(started[key].resonance, { started: true, seals: ['wave'], stabilized: false })
   for (const field of ['name', 'shiny', 'attempt', 'nextResetAllowedAt', 'trial']) assert.equal(started[key][field], opened[key][field], field)
-  assert.equal(startResonance(play(started), key, 0), started, 'Starting again changes nothing')
-  assert.equal(resonanceStage(opened[key]), 'ready')
   assert.equal(resonanceStage(started[key]), 'active')
 })
 
-test('once the trial has started the encounter can no longer be reset or rerolled', () => {
-  const started = startResonance(play(chamber(SHINY)), key, 0)
-  assert.throws(() => requestReset(play(started), key, 0, true, NOW), /Resonance Trial/)
-  assert.throws(() => requestReset(play(started), key, 0, false, NOW + 60000), /Resonance Trial/)
-  // Reopening the chamber or finishing a (non-existent) reset never rolls again.
-  assert.equal(openChamber(play(started), key, 0, NOW + 60000, () => 0.9), started)
-  assert.equal(finishReset(play(started), key, 0, NOW + 60000, () => 0.9), started)
+test('once a seal is on the encounter can no longer be rerolled', () => {
+  const started = activateSeal(play(lair(SHINY)), key, 0, 'runes')
+  assert.throws(() => leaveLair(play(started), key, 0, true, NOW), /seal/)
+  assert.throws(() => leaveLair(play(started), key, 0, false, NOW + 60000), /seal/)
+  // Coming back to the lair never rolls again.
+  assert.equal(enterLair(play(started), key, 0, NOW + 60000, () => 0.9), started)
   assert.equal(reopen(started)[key].shiny, true, 'The Shiny survives a restart')
 })
 
 test('seals switch on one at a time, any order, each only once', () => {
-  assert.throws(() => activateSeal(play(chamber()), key, 0, 'wave'), /Start/, 'No seals before the trial starts')
-  let saved = startResonance(play(chamber()), key, 0)
+  let saved = lair()
   assert.throws(() => activateSeal(play(saved), key, 0, 'moon'), /seal/)
   saved = activateSeal(play(saved), key, 0, 'pulse')
   saved = activateSeal(play(saved), key, 0, 'wave')
@@ -73,11 +70,11 @@ test('stabilizing unlocks the capture once; failing or leaving keeps every seal'
 })
 
 test('the catch needs the stabilized trial, claims exactly once, and nothing earlier touches the trail or the Dex', () => {
-  const started = startResonance(play(chamber(SHINY)), key, 0)
-  assert.throws(() => catchEncounter(play(chamber()), key, 0, NOW), /Resonance/, 'No catch straight from the chamber')
+  const started = activateSeal(play(lair(SHINY)), key, 0, 'wave')
+  assert.throws(() => catchEncounter(play(lair()), key, 0, NOW), /Resonance/, 'No catch on first meeting')
   assert.throws(() => catchEncounter(play(allSeals(started)), key, 0, NOW), /Resonance/, 'No catch before stabilizing')
   // Every step before the catch returns only encounters: the trail's claims and the Dex are never in its hands.
-  for (const step of [startResonance, (p, k, i) => activateSeal(p, k, i, 'runes')]) {
+  for (const step of [(p, k, i) => activateSeal(p, k, i, 'wave'), (p, k, i) => activateSeal(p, k, i, 'runes')]) {
     const result = step(play(started), key, 0)
     assert.ok(!('expeditions' in result) && result[key], 'Encounters only')
   }
@@ -92,7 +89,7 @@ test('the catch needs the stabilized trial, claims exactly once, and nothing ear
 })
 
 test('saved resonance progress that does not add up is dropped, keeping the rest of the encounter', () => {
-  const base = chamber()
+  const base = lair()
   const saved = progress => reopen({ [key]: { ...base[key], resonance: progress } })[key]
   assert.deepEqual(saved({ started: true, seals: ['wave', 'stones'], stabilized: false }).resonance, { started: true, seals: ['wave', 'stones'], stabilized: false })
   for (const bad of [{ started: true, seals: ['wave', 'wave'], stabilized: false }, { started: true, seals: ['moon'], stabilized: false },
@@ -100,9 +97,9 @@ test('saved resonance progress that does not add up is dropped, keeping the rest
     { started: true, seals: 'wave', stabilized: false }, null, 7]) {
     const encounter = saved(bad)
     assert.equal(encounter.resonance, undefined, JSON.stringify(bad))
-    assert.equal(encounter.shiny, base[key].shiny, 'The chamber result is kept')
+    assert.equal(encounter.shiny, base[key].shiny, 'The result from the lair is kept')
   }
-  // Progress on an encounter whose chamber is not settled cannot be real.
+  // Progress on an encounter not yet met in its lair cannot be real.
   const unsettled = reopen({ [key]: { ...finishTrial(play(), key, 0)[key], resonance: { started: true, seals: [], stabilized: false } } })[key]
   assert.equal(unsettled.resonance, undefined)
 })

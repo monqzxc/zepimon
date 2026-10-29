@@ -38,3 +38,7 @@ The trial rooms' art comes from the same repository, [rh-hideout/pokeemerald-exp
 # Emerald theme and the Legendary Gate
 
 The Emerald theme's pixel display face is [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans) by the Pixelify Sans Project Authors, bundled through `@expo-google-fonts/pixelify-sans` under the SIL Open Font License 1.1. The Legendary Gate's stone gate, sky layers and glow are original vector drawings made for this app in `src/LegendaryGate.tsx` and `src/Parallax.tsx`; the trainer at its foot is the Safari Zone's Brendan or May (see Safari Zone above), and the Legendary in it is the Pokemon's existing sprite.
+
+# Legendary lairs
+
+The Legendary lairs are rooms from the same repository, [rh-hideout/pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion/tree/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011), at the same pinned revision `0ecb1115129ccb7eb3a7e0dc3718dc263ab84011` and under the same [upstream credits](https://github.com/rh-hideout/pokeemerald-expansion/blob/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011/CREDITS.md). Original Pokémon characters and game artwork belong to their respective owners. `scripts/build-lairs.py` downloads each room's layout (`data/layouts/`), its tilesets (`data/tilesets/`) and the metatile behaviours (`include/constants/metatile_behaviors.h`) into the shared cache, draws a window of the room as it is (only a few of Sky Pillar's summit boulders are swapped for its own floor tile) and writes `assets/lairs/`. The air drifting over them is drawn in code (`src/games/LairAmbience.tsx`).
