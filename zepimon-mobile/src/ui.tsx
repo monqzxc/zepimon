@@ -5,16 +5,27 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { SymbolView } from 'expo-symbols'
 import type { AndroidSymbol, SFSymbol } from 'expo-symbols'
 import { pokemonType, typeColors } from './catalog'
-import { colors, themedStyles, typeTints } from './theme'
+import { colors, glass, motionReduced, retro, themedStyles, typeTints } from './theme'
+import { Parallax } from './Parallax'
 import { HabitatScene, habitatTheme } from './HabitatScene'
 import { PokeballLoader } from './PokeballLoader'
 export { Sprite } from './Sprite'
 export { HabitatScene } from './HabitatScene'
 export { PokeballLoader } from './PokeballLoader'
-export { colors, glass, themedStyles, typeInks, typeTints, useTheme } from './theme'
+export { colors, glass, motionReduced, retro, themedStyles, typeInks, typeTints, useTheme } from './theme'
 
-// Nunito is loaded in src/app/_layout.tsx. Each weight is its own family so Android picks the right file.
-export const fonts = { body: 'Nunito_600SemiBold', bold: 'Nunito_700Bold', heavy: 'Nunito_800ExtraBold', black: 'Nunito_900Black' }
+// Nunito and Pixelify Sans are loaded in src/app/_layout.tsx. Each weight is its own family so Android picks the right
+// file. pixel is Emerald's display face, for eyebrows, titles and short labels only; Nunito stays for anything longer.
+export const fonts = { body: 'Nunito_600SemiBold', bold: 'Nunito_700Bold', heavy: 'Nunito_800ExtraBold', black: 'Nunito_900Black',
+  pixel: 'PixelifySans_600SemiBold' }
+// The face for a short display label: the pixel font in Emerald, otherwise the given Nunito weight.
+export const displayFont = (nunito: string = fonts.heavy) => retro() ? fonts.pixel : nunito
+// Emerald's 2.5D press: a card or button rises 3 px onto a deeper shadow while pressed. Nothing moves with reduced motion,
+// and other themes keep their own press.
+export function pressDepth(pressed: boolean): ViewStyle | null {
+  if (!pressed || !retro() || motionReduced()) return null
+  return { transform: [{ translateY: -3 }], boxShadow: `0px 6px 0px ${colors.frameOuter}, 0px 10px 18px ${colors.shadow}` } as ViewStyle
+}
 // The theme's brand gradient by default. Native draws CSS gradients through experimental_backgroundImage; the web takes
 // plain backgroundImage.
 export function gradient(css = colors.brand, fallback = colors.brandFrom): ViewStyle {
@@ -39,13 +50,26 @@ export function Title({ children, color = colors.ink }: React.PropsWithChildren<
 export function Eyebrow({ children, color = colors.edge }: React.PropsWithChildren<{ color?: string }>) {
   return <Text style={[styles.eyebrow, { color }]}>{children}</Text>
 }
+// A card. In Emerald it is a RetroFrame, like the game's menus and text boxes.
 export function Panel({ children, style }: React.PropsWithChildren<{ style?: StyleProp<ViewStyle> }>) {
+  if (retro()) return <RetroFrame style={style}>{children}</RetroFrame>
   return <View style={[styles.panel, style]}>{children}</View>
 }
-// The gradient banner that opens each tab, with a faint Poke Ball in the corner.
+// Pokemon Emerald's text box: a rounded double border (dark outside, light inside) with small, chunky corners, a light
+// line along the inside of the top edge, and a hard drop shadow under a soft one for depth. Any theme can use it;
+// Emerald draws every Panel with it.
+export function RetroFrame({ children, style }: React.PropsWithChildren<{ style?: StyleProp<ViewStyle> }>) {
+  return <View style={[styles.frame, style]}>
+    <View pointerEvents="none" accessible={false} style={styles.frameInner}><View style={styles.frameShine} /></View>
+    {children}
+  </View>
+}
+// The gradient banner that opens each tab, with a faint Poke Ball in the corner. In Emerald, Hoenn's sky instead: hills,
+// sea and clouds drifting by in layers (src/Parallax.tsx).
 export function Hero({ eyebrow, title, children }: React.PropsWithChildren<{ eyebrow: string, title: string }>) {
   return <View style={[styles.hero, gradient(), shadows.raised]}>
-    <View pointerEvents="none" accessible={false} style={styles.heroMark}><PokeballIcon size={190} color={colors.onBrand} stroke={14} /></View>
+    {retro() ? <Parallax />
+      : <View pointerEvents="none" accessible={false} style={styles.heroMark}><PokeballIcon size={190} color={colors.onBrand} stroke={14} /></View>}
     <Text style={styles.heroEyebrow}>{eyebrow}</Text>
     <Text accessibilityRole="header" style={styles.heroTitle}>{title}</Text>
     {children}
@@ -65,15 +89,16 @@ export function Button({ title, onPress, secondary = false, disabled = false, lo
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled: disabled || loading, busy: loading }}
     disabled={disabled || loading} onPress={onPress}
     style={({ pressed }) => [styles.button, secondary && styles.secondary,
-      { opacity: loading ? 1 : disabled ? 0.45 : pressed ? 0.85 : 1, transform: [{ scale: pressed && !disabled ? 0.98 : 1 }] }]}>
+      { opacity: loading ? 1 : disabled ? 0.45 : pressed ? 0.85 : 1, transform: [{ scale: pressed && !disabled ? 0.98 : 1 }] },
+      pressDepth(pressed && !disabled && !loading)]}>
     {!secondary && <GradientFill radius={999} shadow />}
     {loading ? <View style={styles.loadingRow}><PokeballLoader size={20} />{label}</View> : label}
   </Pressable>
 }
-// A compact pill for filters and one-of-many choices.
+// A compact pill for filters and one-of-many choices. In Emerald the chosen one glows.
 export function Chip({ label, selected, onPress, disabled = false }: { label: string, selected: boolean, onPress: () => void, disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ selected, disabled }} hitSlop={4} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [styles.chip, selected && styles.chipOn, { opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }]}>
+    style={({ pressed }) => [styles.chip, selected && styles.chipOn, { opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }, pressDepth(pressed && !disabled)]}>
     <Text style={[styles.chipText, selected && { color: colors.onEdge }]}>{label}</Text>
   </Pressable>
 }
@@ -169,20 +194,25 @@ export const styles = themedStyles(() => ({
   contentFill: { flexGrow: 1, paddingBottom: 16 },
   contentFull: { paddingHorizontal: 10, paddingTop: 6, paddingBottom: 8 },
   contentEdge: { flexGrow: 1, maxWidth: '100%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0 },
-  heading: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 24, lineHeight: 31 },
-  title: { fontFamily: fonts.heavy, fontSize: 19, lineHeight: 25 },
-  eyebrow: { fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16, letterSpacing: 1.1 },
+  // Emerald sets headings, titles and eyebrows in the pixel face, a touch smaller as it runs wide.
+  heading: { fontFamily: displayFont(), color: colors.ink, fontSize: retro() ? 23 : 24, lineHeight: 31 },
+  title: { fontFamily: displayFont(), fontSize: retro() ? 18 : 19, lineHeight: 25 },
+  eyebrow: { fontFamily: displayFont(), fontSize: 12, lineHeight: 16, letterSpacing: retro() ? 1.4 : 1.1 },
   panel: { backgroundColor: colors.panel, borderColor: colors.line, borderWidth: 1, borderRadius: 20, padding: 18, gap: 10, ...shadows.card },
-  hero: { borderRadius: 24, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 24, gap: 6, overflow: 'hidden' },
+  frame: { backgroundColor: colors.panel, borderColor: colors.frameOuter ?? colors.edge, borderWidth: 2, borderRadius: 10, padding: 18, gap: 10,
+    boxShadow: `0px 3px 0px ${colors.frameOuter ?? colors.edge}, 0px 8px 18px ${colors.shadow}` },
+  frameInner: { position: 'absolute', left: 1, top: 1, right: 1, bottom: 1, borderRadius: 7, borderWidth: 2, borderColor: colors.frameInner ?? colors.line },
+  frameShine: { position: 'absolute', left: 6, right: 6, top: 1, height: 2, borderRadius: 1, backgroundColor: glass(0.8) },
+  hero: { borderRadius: retro() ? 12 : 24, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 24, gap: 6, overflow: 'hidden' },
   heroMark: { position: 'absolute', right: -42, top: -46, opacity: 0.16 },
-  heroEyebrow: { fontFamily: fonts.heavy, color: colors.onBrand, fontSize: 12, lineHeight: 16, letterSpacing: 1.1, opacity: 0.92 },
-  heroTitle: { fontFamily: fonts.black, color: colors.onBrand, fontSize: 28, lineHeight: 35 },
+  heroEyebrow: { fontFamily: displayFont(), color: colors.onBrand, fontSize: 12, lineHeight: 16, letterSpacing: 1.1, opacity: 0.92 },
+  heroTitle: { fontFamily: displayFont(fonts.black), color: colors.onBrand, fontSize: retro() ? 26 : 28, lineHeight: 35 },
   button: { minHeight: 50, borderRadius: 999, paddingVertical: 12, paddingHorizontal: 22, justifyContent: 'center' },
   secondary: { backgroundColor: colors.panel, borderWidth: 1.5, borderColor: colors.line },
   buttonText: { textAlign: 'center', fontFamily: fonts.heavy, color: colors.onBrand, fontSize: 15, lineHeight: 20 },
   secondaryText: { color: colors.edge },
   chip: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 16, borderRadius: 999, backgroundColor: colors.panel, borderWidth: 1.5, borderColor: colors.line },
-  chipOn: { backgroundColor: colors.edge, borderColor: colors.edge },
+  chipOn: { backgroundColor: colors.edge, borderColor: colors.edge, ...(retro() ? { boxShadow: `0px 0px 10px ${colors.glow}` } : null) },
   chipText: { fontFamily: fonts.bold, color: colors.ink, fontSize: 14, lineHeight: 18 },
   type: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
   typeText: { fontFamily: fonts.heavy, color: '#ffffff', fontSize: 12, lineHeight: 16, letterSpacing: 0.3 },

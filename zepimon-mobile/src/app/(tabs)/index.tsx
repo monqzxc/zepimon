@@ -10,12 +10,13 @@ import { adventuresIn, adventuresOn, bento, periodRange, recentDays, shortDurati
 import type { Period } from '../../journal-calendar'
 import { BentoTile, DayCard, DayStrip, PeriodChips } from '../../JournalCalendar'
 import { PixelSprite } from '../../games/TeamPicker'
+import { LegendaryGate } from '../../LegendaryGate'
 import { Button, Copy, Eyebrow, Icon, Panel, Screen, Title, colors, fonts, themedStyles, useTheme } from '../../ui'
 
 // The Journal is a calendar. Pick a day for its distance and time (your buddy stands on that card), then browse the
 // adventures of its week, month or year as bento tiles; each opens its details. Personal bests follow. The calendar
-// button opens the Calendar (src/app/calendar.tsx) to pick any day of any month. Missions and Legendary Expeditions live
-// on the Adventure tab.
+// button opens the Calendar (src/app/calendar.tsx) to pick any day of any month. Above it all stands the Legendary Gate
+// (src/LegendaryGate.tsx), the way into Legendary Expeditions; Missions live on the Adventure tab.
 
 // The most tiles a period shows; All adventures lists every one.
 const TILES = 12
@@ -47,6 +48,7 @@ export default function JournalScreen() {
     : `Week of ${new Date(periodRange(day, 'week')[0]).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
 
   return <Screen>
+    <LegendaryGate variant="hero" />
     <View style={page.header}>
       <View style={{ flex: 1, gap: 2 }}>
         <Eyebrow>ZEPIMON · FIELD JOURNAL</Eyebrow>

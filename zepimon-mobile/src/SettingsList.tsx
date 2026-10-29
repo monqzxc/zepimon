@@ -1,7 +1,7 @@
 import React, { Fragment } from 'react'
 import { Modal, Pressable, ScrollView, Switch, Text, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Icon, colors, fonts, shadows, themedStyles } from './ui'
+import { Icon, colors, displayFont, fonts, retro, shadows, themedStyles } from './ui'
 import type { IconName } from './ui'
 
 // The Settings tab's grouped lists: a quiet label, then a rounded card of rows split by hairlines, each with an icon
@@ -45,10 +45,12 @@ export function SettingsSwitch({ icon, label, value, onChange }: { icon: IconNam
   </View>
 }
 
-// One choice of several, with a radio circle on the right.
+// One choice of several, with a radio circle on the right. In Emerald the chosen row is lit, with the game's ▶ menu cursor.
 export function SettingsRadio({ icon, label, detail, checked, onPress }: { icon?: IconName, label: string, detail?: string, checked: boolean, onPress: () => void }) {
+  const cursor = checked && retro()
   return <Pressable accessibilityRole="radio" accessibilityState={{ checked }} accessibilityLabel={label} accessibilityHint={detail} onPress={onPress}
-    style={({ pressed }) => [list.row, pressed && { backgroundColor: colors.sunken }]}>
+    style={({ pressed }) => [list.row, cursor && list.chosen, pressed && { backgroundColor: colors.sunken }]}>
+    <Text accessible={false} style={[list.cursor, !cursor && list.noCursor]}>▶</Text>
     {icon && <IconTile name={icon} />}
     <View style={{ flex: 1, gap: 2 }}>
       <Text style={list.choice}>{label}</Text>
@@ -87,8 +89,12 @@ export function ChoiceSheet<T extends string>({ title, open, options, value, onC
 
 const list = themedStyles(() => ({
   group: { gap: 8 },
-  label: { fontFamily: fonts.bold, fontSize: 14, lineHeight: 19, color: colors.muted, paddingHorizontal: 4 },
-  card: { backgroundColor: colors.panel, borderRadius: 18, borderWidth: 1, borderColor: colors.line, overflow: 'hidden', ...shadows.card },
+  label: { fontFamily: displayFont(fonts.bold), fontSize: 14, lineHeight: 19, color: colors.muted, paddingHorizontal: 4 },
+  // In Emerald, a menu box like the game's (RetroFrame's outer border and shadow).
+  card: retro()
+    ? { backgroundColor: colors.panel, borderRadius: 10, borderWidth: 2, borderColor: colors.frameOuter, overflow: 'hidden',
+      boxShadow: `0px 3px 0px ${colors.frameOuter}, 0px 8px 18px ${colors.shadow}` }
+    : { backgroundColor: colors.panel, borderRadius: 18, borderWidth: 1, borderColor: colors.line, overflow: 'hidden', ...shadows.card },
   divider: { height: 1, marginLeft: 14, backgroundColor: colors.line },
   footer: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.muted, paddingHorizontal: 4 },
   row: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 8 },
@@ -100,10 +106,14 @@ const list = themedStyles(() => ({
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, gap: 14,
     width: '100%', maxWidth: 720, alignSelf: 'center' },
   handle: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line },
-  sheetTitle: { fontFamily: fonts.heavy, fontSize: 18, lineHeight: 24, color: colors.ink, textAlign: 'center' },
+  sheetTitle: { fontFamily: displayFont(), fontSize: 18, lineHeight: 24, color: colors.ink, textAlign: 'center' },
   choice: { fontFamily: fonts.bold, fontSize: 15, lineHeight: 20, color: colors.ink },
   detail: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.muted },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   radioOn: { borderColor: colors.edge },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.edge }
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.edge },
+  chosen: { backgroundColor: colors.mint },
+  // The cursor keeps its width on every row, so labels stay lined up; only Emerald's chosen row shows it.
+  cursor: { width: retro() ? 12 : 0, marginRight: retro() ? -4 : -12, fontSize: 12, lineHeight: 16, color: colors.edge },
+  noCursor: { opacity: 0 }
 }))

@@ -61,3 +61,31 @@ test('type colors stay readable as bold text on their own card tints', () => {
   })
   assert.deepEqual(failures, [])
 })
+
+test('Emerald is a theme in light and dark, and every check above covers it', () => {
+  assert.ok(themeNames.includes('emerald'))
+  assert.equal(themeNames[0], 'emerald', 'Listed first, as the default')
+  for (const mode of ['light', 'dark']) assert.ok(themes.emerald[mode], `emerald ${mode}`)
+  // GBA menus: cream paper by day, deep teal at night; emerald green with Hoenn sea blue.
+  const day = themes.emerald.light, night = themes.emerald.dark
+  const hue = hex => {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
+    return { r, g, b }
+  }
+  assert.ok(hue(day.bg).r > 230 && hue(day.bg).g > 225 && hue(day.bg).b < hue(day.bg).r, 'Cream paper')
+  assert.ok(hue(night.bg).r < 30 && hue(night.bg).b > hue(night.bg).r, 'Deep teal night')
+  for (const p of [day, night]) {
+    assert.ok(hue(p.edge).g > hue(p.edge).r && hue(p.edge).g > hue(p.edge).b, 'Emerald green accent')
+    assert.ok(hue(p.alt).b > hue(p.alt).r && hue(p.alt).b > hue(p.alt).g, 'Sea blue second accent')
+  }
+})
+
+test('the Emerald menu frame keeps its light inner and dark outer borders apart', () => {
+  const failures = []
+  for (const mode of ['light', 'dark']) {
+    const p = themes.emerald[mode]
+    check(failures, `emerald ${mode} outer frame on page`, p.frameOuter, p.bg, 3)
+    check(failures, `emerald ${mode} outer frame against inner`, p.frameOuter, p.frameInner, 3)
+  }
+  assert.deepEqual(failures, [])
+})

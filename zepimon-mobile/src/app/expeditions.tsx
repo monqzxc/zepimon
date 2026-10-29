@@ -23,7 +23,8 @@ import { KIND_NAMES, trialFor } from '../games/trials'
 import { questTheme } from '../games/lanterns'
 import { canRevisit, caughtLegendaries, revisitKey, revisitRooms, roomLine } from '../games/revisits'
 import { PixelSprite } from '../games/TeamPicker'
-import { Button, Copy, Eyebrow, HabitatScene, Heading, Hero, Panel, Screen, Title, colors, gradient, styles, useTheme } from '../ui'
+import { Button, Copy, Eyebrow, HabitatScene, Heading, Panel, Screen, Title, colors, gradient, styles, useTheme } from '../ui'
+import { LegendaryGate } from '../LegendaryGate'
 
 const stories: Record<string, { title: string, clues: string[] }> = {
   Articuno: { title: 'The shimmering feather', clues: ['A frosted feather rests beside the trail.', 'Wing-shaped shadows sweep across the snow.', 'Articuno lands in a quiet snowy clearing.'] },
@@ -148,9 +149,10 @@ export default function ExpeditionsScreen() {
   // The trial fills the screen without scrolling, so the map and the D-pad are on screen together, as in the Safari Zone.
   return <Screen key={step.kind} fill={playing} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
     {content ?? <>
-      <Hero eyebrow="LEGENDARY EXPEDITIONS" title="Follow a little mystery.">
+      {/* The header is the inside of the Legendary Gate, showing what waits as the gate does on Home. */}
+      <LegendaryGate variant="banner" title="Follow a little mystery.">
         <Copy color={colors.onBrand}>Walk 25 km, finish an Expedition Quest or earn arcade points. Then clear the shrine trial and catch the Legendary waiting inside.</Copy>
-      </Hero>
+      </LegendaryGate>
       {!!friend && <Panel><Heading>Gotcha!</Heading><Copy color={colors.gold}>{friend} is now in your Dex.</Copy>
         <Button title="View my new friend" onPress={() => router.push({ pathname: '/pokemon', params: { name: friend.replace(/^Shiny /, '') } })} /></Panel>}
       {!!message && <Copy color={colors.gold}>{message}</Copy>}

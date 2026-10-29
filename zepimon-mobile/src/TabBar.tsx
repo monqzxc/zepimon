@@ -10,6 +10,8 @@ import type { Activity } from './phone-adventure'
 import { walkingFrames } from './generated/walking.js'
 import { colors, fonts, gradient, themedStyles, useTheme } from './ui'
 import type { ThemeName } from './palettes'
+import { useJournal } from './store'
+import { waitingEncounters } from './legendary-gate'
 
 // A floating glass tab bar. The middle tab (Adventure) is a Poke Ball sitting in a notch cut into the bar.
 // The open tab shows in the bar's accent with a heavier label, and the theme's Pokemon (Gengar, Deoxys or Pikachu; see
@@ -74,7 +76,12 @@ const pikachu: Mascot = {
   ball: { body: '#F2C21B', band: '#3B2A0A', stripe: '#E0483A', rings: ['#F2C21B', '#FFD95A', '#FFF0A6'], rim: '#3B2A0A', shade: '#4A3300' },
   aura: ['#5C4500', '#A07800', '#E8B800', '#FFDA4A', '#FFE98A'], wisp: ['#7A5A00', '#D9A800', '#FFE066']
 }
-const mascots: Record<ThemeName, Mascot> = { gengar, deoxys, pikachu }
+// Emerald's mascot is Deoxys too, met on Birth Island in Pokemon Emerald: the same art, with a ball in emerald green and
+// Rayquaza gold and an aura that glows like the Legendary Gate. No other Hoenn Pokemon has the cut-out training poses.
+const emerald: Mascot = { ...deoxys,
+  ball: { body: '#1F9E5C', band: '#0B2A1A', stripe: '#F2C230', rings: ['#1F9E5C', '#4CC383', '#9BE3BC'], rim: '#0B2A1A', shade: '#06180E' },
+  aura: ['#063A24', '#0E6E3E', '#1F9E5C', '#5FD49A', '#F2C230'], wisp: ['#0B4A2E', '#1F9E5C', '#F2C230'] }
+const mascots: Record<ThemeName, Mascot> = { emerald, gengar, deoxys, pikachu }
 // The bar's colors (colors.tab*) come with the theme, like the lilac glass bar of Gengar's light theme.
 const BAR = 66
 const INSET = 6          // between the bar's edge and its tabs
@@ -238,9 +245,13 @@ function useKeyboardShown(enabled: boolean) {
   return enabled && shown
 }
 
-function TabFace({ icon, label, active, width }: { icon: React.ReactNode, label: string, active: boolean, width: number }) {
+// badge: a ✦ on the icon, on Home while a Legendary encounter waits (src/legendary-gate.ts).
+function TabFace({ icon, label, active, width, badge = false }: { icon: React.ReactNode, label: string, active: boolean, width: number, badge?: boolean }) {
   return <View style={[styles.face, { width }]}>
-    <View style={[styles.iconSlot, active && styles.pill]}>{icon}</View>
+    <View style={[styles.iconSlot, active && styles.pill]}>
+      {icon}
+      {badge && <View style={styles.badge}><Text style={styles.badgeMark}>✦</Text></View>}
+    </View>
     <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} maxFontSizeMultiplier={1.2}
       style={[styles.label, active && styles.activeLabel, { maxWidth: width - 8 }]}>{label}</Text>
   </View>
@@ -267,6 +278,8 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   // Walking or running while an adventure goes on here, or on the watch as the cloud last had it.
   const tracker = useTracker()
   const moving = tracker.active?.activity ?? onWatch(tracker.shared)?.activity ?? null
+  const { expeditions, quest } = useJournal()
+  const waiting = waitingEncounters(expeditions, quest) > 0
 
   useEffect(() => {
     if (!moving || reduced) { spin.setValue(0); return }
@@ -426,10 +439,12 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
         else if (!reduced) peek(duck, boo, 260)
       } else if (!event.defaultPrevented) navigation.navigate(route.name, route.params)
     }
+    const badge = route.name === 'index' && waiting
     const press = { accessibilityRole: 'tab', accessibilityState: { selected: focused },
-      accessibilityLabel: (options.tabBarAccessibilityLabel ?? label) + (index === middle && moving ? ', adventure in progress' : ''),
+      accessibilityLabel: (options.tabBarAccessibilityLabel ?? label) + (index === middle && moving ? ', adventure in progress' : '')
+        + (badge ? ', a Legendary encounter is waiting' : ''),
       testID: options.tabBarButtonTestID, onPress, onLongPress: () => navigation.emit({ type: 'tabLongPress', target: route.key }) } as const
-    return { route, index, label, icon, focused, press }
+    return { route, index, label, icon, focused, press, badge }
   })
   const middleTab = middle >= 0 ? tabs[middle] : null
 
@@ -458,15 +473,15 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
         <Path d={outline(width, middle >= 0)} fill="url(#zepimon-bar)" stroke={colors.tabRim} strokeWidth={1.5} />
       </Svg>}
       <View accessibilityRole="tablist" style={[styles.row, { width: Math.max(0, rowWidth) }]}>
-        {width > 0 && tabs.map(({ route, index, label, icon, focused, press }) => {
+        {width > 0 && tabs.map(({ route, index, label, icon, focused, press, badge }) => {
           if (index === middle) return <View key={route.key} style={{ width: CENTER_SLOT }} />
           const on = lit(index)
           return <Pressable key={route.key} {...press} style={({ pressed }) => ({ width: side, height: ROW, opacity: pressed && !focused ? 0.6 : 1 })}>
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: Animated.subtract(1, on) }]}>
-              <TabFace icon={icon(false)} label={label} active={false} width={side} />
+              <TabFace icon={icon(false)} label={label} active={false} width={side} badge={badge} />
             </Animated.View>
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: on }]}>
-              <TabFace icon={icon(true)} label={label} active width={side} />
+              <TabFace icon={icon(true)} label={label} active width={side} badge={badge} />
             </Animated.View>
           </Pressable>
         })}
@@ -524,6 +539,10 @@ const styles = themedStyles(() => ({
   // The open tab's icon sits on a soft violet pill; every icon keeps the same box, so nothing shifts as it moves.
   iconSlot: { height: 28, paddingHorizontal: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   pill: { backgroundColor: colors.tabPill },
+  // Rayquaza gold with a dark mark, ringed in the bar's color so it stands off the icon.
+  badge: { position: 'absolute', top: -5, right: 4, width: 17, height: 17, borderRadius: 9, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.star, borderWidth: 1.5, borderColor: colors.tabTop },
+  badgeMark: { color: '#1A1200', fontSize: 10, lineHeight: 12, fontFamily: fonts.black },
   label: { fontFamily: fonts.body, fontSize: 11, lineHeight: 14, color: colors.tabInk, textAlign: 'center' },
   activeLabel: { fontFamily: fonts.black, color: colors.tabActive },
   // The Pokemon's seat: a thin strip along the bar's top edge over one tab. It turns about the middle of that edge.
