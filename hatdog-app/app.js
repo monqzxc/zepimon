@@ -112,6 +112,11 @@ const companion = BaseApp({
       done()
     }
   },
+  // Ends the shared adventure (saved or discarded), then sends the journal: the small "ended" share goes first, so it
+  // never waits behind the whole journal on Bluetooth. The companion sends both even after the screen closes.
+  endAdventure(adventure) {
+    this.shareAdventure(adventure, () => this.syncToPhone())
+  },
   onRequest(request, reply) {
     if (request.method !== 'zepimon.snapshot.get') { reply({ message: 'Unknown request' }); return }
     try { reply(null, this.snapshot()) }

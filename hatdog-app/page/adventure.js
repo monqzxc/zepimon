@@ -196,6 +196,15 @@ Page({
     catch (error) { console.log('Zepimon phone sync unavailable:', String(error)) }
   },
 
+  // Tells the phone and Zepp the adventure ended (ended: its last share, or null if it was never shared), then sends
+  // the journal without it.
+  endShared(ended) {
+    try {
+      if (ended) companionApp().endAdventure(ended)
+      else companionApp().syncToPhone()
+    } catch (error) { console.log('Zepimon share unavailable:', String(error)) }
+  },
+
   sync() {
     const session = this.state.active
     if (!session) return
@@ -545,10 +554,7 @@ Page({
         this.sync()
         // The phone continued this adventure: it saves it, so the watch must not save it too.
         if (this.takenOver(readNext(this.storage).adventure)) { this.handOver(); return }
-        if (this.state.active.shareId) {
-          try { companionApp().shareAdventure(this.shared(this.state.active, true)) }
-          catch (error) { console.log('Zepimon share unavailable:', String(error)) }
-        }
+        const ended = this.state.active.shareId ? this.shared(this.state.active, true) : null
         const before = this.state.expedition.meters
         finishSession(this.state, new Date().toISOString())
         // The record goes in first: if the watch stops before the adventure in progress is cleared, the next start
@@ -556,7 +562,7 @@ Page({
         this.save()
         this.saveActive(true)
         this.suggestNext()
-        this.syncPhone()
+        this.endShared(ended)
         setWakeUpRelaunch({ relaunch: false })
         const after = this.state.expedition.meters
         const encounters = Math.floor(after / expeditionGoal) - Math.floor(before / expeditionGoal)
@@ -617,14 +623,11 @@ Page({
     const session = this.state.active
     if (!session) { back(); return }
     if (this.takenOver(readNext(this.storage).adventure)) { this.handOver(); return }
-    if (session.shareId) {
-      try { companionApp().shareAdventure(this.shared(session, true)) }
-      catch (error) { console.log('Zepimon share unavailable:', String(error)) }
-    }
+    const ended = session.shareId ? this.shared(session, true) : null
     this.state.active = null
     this.saveActive(true)
     this.updateNext(next => ({ ...next, egg: { family: routes[session.route].slice(), mega: session.mega || null, from: 'watch', shiny: !!session.shiny } }))
-    this.syncPhone()
+    this.endShared(ended)
     setWakeUpRelaunch({ relaunch: false })
     back()
   },

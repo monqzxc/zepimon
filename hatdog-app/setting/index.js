@@ -197,7 +197,10 @@ AppSettingsPage({
     const plan = read(validatePlan, shared.plan)
     const live = adventure && !adventure.ended && Date.now() - adventure.at < 12 * 3600000 ? adventure : null
     // Until the watch shares its adventure (an older watch app, or before it reaches Zepp), the one in its last sync.
-    const synced = !live && snapshot && snapshot.active && routes[snapshot.active.route] ? snapshot.active : null
+    // A shared adventure that started as late or later is newer news: once it ended (saved or discarded), the last
+    // sync's copy of it is out of date, not still recording.
+    const superseded = adventure && snapshot && snapshot.active && adventure.startedAt >= snapshot.active.startedAt
+    const synced = !live && !superseded && snapshot && snapshot.active && routes[snapshot.active.route] ? snapshot.active : null
     const problem = typeof shared.error === 'string' ? shared.error : ''
     const adventureCard = section('ADVENTURE', [...(live ? [
       title(sharedName(live)),

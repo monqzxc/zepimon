@@ -48,6 +48,13 @@ and goes with the next plan request. The Zepimon page in Zepp has an
 Re-run `zepimon-sync/schema.sql` to add the `adventures` table and its
 functions.
 
+Fix (1.23): a saved or discarded adventure kept showing in Zepp as "recording on
+your watch". Once the shared adventure had ended, the Zepimon page fell back to
+the adventure in the watch's last journal sync, which still had it in progress,
+until the next sync arrived. That copy now counts only when no shared adventure
+is as recent. The watch also sends the small "ended" share first and the
+journal only after it, instead of both at once over Bluetooth.
+
 Fix (1.22): until this version, nothing a watch screen sent ever reached Zepp.
 Starting, updating or finishing an adventure, the sync after saving one, and
 the title screen's check for a phone adventure all failed without a word. The

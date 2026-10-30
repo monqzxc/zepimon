@@ -425,7 +425,26 @@ async function main() {
   assert.match(page, /Bulbasaur egg/)
   assert.match(page, /Running · 2\.50 km · recording on your watch/)
   assert.match(page, /As of the last watch sync/)
+  // Once the watch says that adventure ended (saved or discarded), the last sync's copy of it no longer shows, even
+  // before the next sync arrives without it.
+  phoneStorage.set(ui.SHARED_KEY, JSON.stringify({ adventure: { ...onWatch, id: 'adv-1', startedAt: 1, deviceAt: 1, meters: 2500,
+    activity: 'running', at: Date.now(), ended: true } }))
+  page = texts(render())
+  assert.doesNotMatch(page, /recording on your watch/, 'A discarded adventure leaves the page at once')
+  assert.match(page, /No adventure in progress|egg/)
   phoneStorage.set(phone.SNAPSHOT_KEY, syncedBefore)
+  // Saving or discarding on the watch ends the shared adventure first, and only then sends the journal, so the small
+  // "ended" share never waits behind the whole journal on Bluetooth.
+  {
+    const sync = watchApp.syncToPhone
+    let sharedWhenSynced = null
+    watchApp.syncToPhone = function () { sharedWhenSynced = JSON.parse(phoneStorage.get(ui.SHARED_KEY) || '{}').adventure; return sync.call(this) }
+    watchApp.endAdventure({ ...onWatch, id: 'adv-9700', startedAt: 9700, deviceAt: 9700, meters: 800, at: Date.now(), ended: true })
+    await drain()
+    watchApp.syncToPhone = sync
+    assert.equal(sharedWhenSynced && sharedWhenSynced.id, 'adv-9700', 'The journal goes after the ended share has reached Zepp')
+    assert.equal(sharedWhenSynced.ended, true)
+  }
   // An adventure the phone starts reaches the page when it opens again later, or on Refresh.
   cloudAdventure = { ...onWatch, id: 'adv-9900', startedAt: 9900, device: 'phone', deviceAt: 9900, meters: 300, at: Date.now() }
   settingsPage.sharedAskedAt = Date.now()
