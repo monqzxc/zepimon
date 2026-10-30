@@ -375,7 +375,8 @@ const savedActive = () => JSON.parse(keys.get('zepimon-active') ?? 'null')
 const savedNext = () => JSON.parse(keys.get('zepimon-next') ?? '{}')
 Object.assign(context, {
   ...context.logic, Distance, Step, LocalStorage, console,
-  getApp: () => ({ _options: { syncToPhone() { phoneSyncs++ }, shareAdventure(adventure, done = () => {}) { shares.push(JSON.parse(JSON.stringify(adventure))); done(shareReply) } } }),
+  getApp: () => ({ _options: { syncToPhone() { phoneSyncs++ }, shareAdventure(adventure, done = () => {}) { shares.push(JSON.parse(JSON.stringify(adventure))); done(shareReply) },
+    endAdventure(adventure) { this.shareAdventure(adventure, () => this.syncToPhone()) } } }),
   back: () => { pageBacks++ },
   widget: { TEXT: 1, BUTTON: 2, IMG: 3, FILL_RECT: 4, CANVAS: 5 }, align: { CENTER_H: 1 }, prop: { TEXT: 1, MORE: 2 }, text_style: { WRAP: 1 }, event: { CLICK_UP: 1 },
   setInterval(callback) { const id = ++timerId; timers.set(id, callback); return id },
