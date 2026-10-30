@@ -84,8 +84,14 @@ downloads the PNG instead. Sprites are enlarged by whole
 numbers from their own pixels (`src/pixel-art.ts`), so they stay sharp.
 
 Recording keeps going with the screen off. Android runs it as a foreground
-service with a notification; iPhone uses background location with the blue
-indicator. Both need only **While using the app** permission, never **Allow all
+service with a live notification, like a running app's: the app icon, **Run · 0:05
+· 1.23 km** (the time ticks every second, the distance follows the GPS) and the
+Pokemon you are raising (**Bulbasaur egg**, **Shiny Ivysaur**) with its sprite.
+Tapping it opens the app. It is the recording notification itself
+(`modules/zepimon-live`, a local native module that posts over expo-location's
+service notification), so there is only one; Android 13 and later ask to allow
+notifications when an adventure starts, and refusing only hides it. iPhone uses
+background location with the blue indicator. Both need only **While using the app** permission, never **Allow all
 the time**, because recording always starts from the open app. If location is
 off or not allowed, the tab says so, and **Open location settings** goes to
 Android's location switch or to Zepimon's own settings for permission and

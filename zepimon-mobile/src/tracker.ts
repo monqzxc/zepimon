@@ -1,11 +1,13 @@
 import { useSyncExternalStore } from 'react'
-import { AppState, Linking, Platform } from 'react-native'
+import { AppState, Image, Linking, PermissionsAndroid, Platform } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
 import * as TaskManager from 'expo-task-manager'
 import { lastCrash } from '../modules/zepimon-diagnostics'
+import { showLive, stopLive } from '../modules/zepimon-live'
+import { spriteSource } from './catalog'
 import { cloudClient } from './cloud-client'
-import { addFix, newAdventure, restoreActive, saveActive } from './phone-adventure'
+import { addFix, liveText, newAdventure, restoreActive, saveActive } from './phone-adventure'
 import type { ActiveAdventure, Activity } from './phone-adventure'
 import { followShared, fromShared, restoreShared, sharedFrom, takenOver } from './shared-adventure'
 import type { SharedAdventure, SharedTrail } from './shared-adventure'
@@ -63,6 +65,7 @@ const loaded = Promise.all([AsyncStorage.getItem(KEY), AsyncStorage.getItem(SCRE
     const crashed = !!active && background && !!lastCrash()
     if (crashed && !screenOnly) void AsyncStorage.setItem(SCREEN_ONLY_KEY, '1').catch(() => {})
     update({ active, screenOnly: crashed || !!screenOnly, recording: active ? await isRecording() : false })
+    if (state.recording) live()
   })
   .catch(() => {})
   .finally(() => update({ ready: true }))
@@ -75,8 +78,20 @@ async function receive(locations: Location.LocationObject[]) {
     active = addFix(active, { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy, at: timestamp })
   }
   update({ active })
+  live()
   await persist(active)
   void share()
+}
+
+// Shows the adventure being recorded in the live notification ("Run · 0:05 · 1.23 km" over the Pokemon, see
+// modules/zepimon-live), as it starts and with every new distance; the notification ticks the time on its own.
+function live() {
+  const active = state.active
+  if (!active || !background) return
+  const text = liveText(active)
+  let icon: string | null = null
+  try { icon = Image.resolveAssetSource(spriteSource(text.sprite, active.shiny))?.uri ?? null } catch { /* no sprite, still the text */ }
+  showLive({ activity: text.activity, distance: text.distance, pokemon: text.pokemon, startedAt: active.startedAt, icon })
 }
 
 // Shares the adventure recorded here (as it starts, every half minute, and when it ends), also from the background
@@ -149,6 +164,11 @@ async function prepare(): Promise<LocationIssue | null> {
   let permission = await Location.getForegroundPermissionsAsync()
   if (!permission.granted && permission.canAskAgain) permission = await Location.requestForegroundPermissionsAsync()
   if (!permission.granted) return permission.canAskAgain ? 'denied' : 'blocked'
+  // Android 13 and later hide the adventure's notification (time, distance, Pokemon) until this is allowed. Refusing
+  // only hides it: recording goes on.
+  if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+    try { await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) } catch { /* asked before */ }
+  }
   return permission.android?.accuracy === 'coarse' || permission.ios?.accuracy === 'reduced' ? 'approximate' : null
 }
 
@@ -190,6 +210,7 @@ async function begin(active: ActiveAdventure, issue: LocationIssue | null) {
   await persist(active)
   try { await startUpdates() } catch (error) { update({ active: null }); await persist(null); throw error }
   update({ recording: true })
+  live()
   void share(true)
   return issue
 }
@@ -201,11 +222,13 @@ export async function resumeAdventure(): Promise<LocationIssue | null> {
   if (issue && issue !== 'approximate') return issue
   await startUpdates()
   update({ recording: true })
+  live()
   void share(true)
   return issue
 }
 
 async function stopUpdates() {
+  stopLive()
   webWatch?.remove()
   webWatch = null
   if (background) {
@@ -230,6 +253,7 @@ export async function setScreenOnly(screenOnly: boolean) {
   if (!state.recording) return
   await stopUpdates()
   try { await startUpdates() } catch (error) { update({ recording: false }); throw error }
+  live()
 }
 
 // Forgets the adventure in progress: after it is saved, or when it is discarded. Either way it ends for the watch too.
