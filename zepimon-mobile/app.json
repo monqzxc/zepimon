@@ -2,7 +2,7 @@
   "expo": {
     "name": "Zepimon",
     "slug": "zepimon-mobile",
-    "version": "1.18",
+    "version": "1.18.1",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -18,7 +18,7 @@
         "backgroundColor": "#0B1F3A"
       },
       "package": "com.zepimon.companion",
-      "versionCode": 47,
+      "versionCode": 48,
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED"
       ]
