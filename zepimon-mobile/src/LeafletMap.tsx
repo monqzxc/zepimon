@@ -32,6 +32,7 @@ type Props = {
   bottom?: number,
   zoomAt?: L.ControlPosition,             // the zoom buttons' corner, clear of buttons laid over the map
   quiet?: boolean,                        // muted streets
+  fit?: number,                           // a finished route: changing it fits the route again, for a recenter button outside the map
   openLink: (url: string) => Promise<void>,
   dom?: DOMProps
 }
@@ -54,7 +55,7 @@ function fitRoute(map: L.Map, route: L.LatLngBounds, top: number, bottom: number
   map.fitBounds(route, { paddingTopLeft: [28, 28 + top], paddingBottomRight: [28, 28 + bottom], maxZoom: 17, animate })
 }
 
-export default function LeafletMap({ path, here, stale, live, label, top = 0, bottom = 0, zoomAt = 'topleft', quiet = false, openLink }: Props) {
+export default function LeafletMap({ path, here, stale, live, label, top = 0, bottom = 0, zoomAt = 'topleft', quiet = false, fit, openLink }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const view = useRef<{ map: L.Map, layers: Layers } | null>(null)
   // A live map keeps the latest fix in view until it is dragged; Follow turns that back on. A finished route offers
@@ -135,6 +136,15 @@ export default function LeafletMap({ path, here, stale, live, label, top = 0, bo
     }
   }, [path, here, stale, live, top, bottom])
 
+  // The screen's own recenter button counts up; the first value is the initial fit above.
+  useEffect(() => {
+    if (!fit || !view.current || !route.current) return
+    setFollowing(true)
+    fitRoute(view.current.map, route.current, top, bottom, true, fitting)
+    // Only a new press refits, not a new inset.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fit])
+
   function recenter() {
     follow.current = true
     setFollowing(true)
@@ -150,9 +160,9 @@ export default function LeafletMap({ path, here, stale, live, label, top = 0, bo
     void openLink(link.href)
   }
 
-  return <div className="zepimon-map-frame" onClickCapture={openOutside}>
+  return <div className={quiet ? 'zepimon-map-frame zepimon-quiet' : 'zepimon-map-frame'} onClickCapture={openOutside}>
     <div ref={box} className="zepimon-map" role="region" aria-label={label} />
-    {!following && <button type="button" className="zepimon-follow" style={{ bottom: 28 + bottom }} onClick={recenter}>
+    {!following && (live || fit === undefined) && <button type="button" className="zepimon-follow" style={{ bottom: 28 + bottom }} onClick={recenter}>
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 2 4.5 20.3l.7.7L12 18l6.8 3 .7-.7z" /></svg>
       {live ? 'Follow me' : 'Recenter'}
     </button>}
