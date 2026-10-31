@@ -29,7 +29,7 @@ type Props = {
   label: string,
   top?: number,                           // room kept clear above and below the route when it is fitted, for views laid over the map
   bottom?: number,
-  still?: boolean,                        // a backdrop: no zoom buttons, and touches pass to the screen
+  zoomButtons?: boolean,                  // off where other buttons sit over the map's corner; pinch and double-tap still zoom
   openLink: (url: string) => Promise<void>,
   dom?: DOMProps
 }
@@ -45,21 +45,31 @@ function place(map: L.Map, layer: L.CircleMarker | L.Circle | L.Marker, at: L.La
   if (!map.hasLayer(layer)) layer.addTo(map)
 }
 
-export default function LeafletMap({ path, here, stale, live, label, top = 0, bottom = 0, still = false, openLink }: Props) {
+// Fits the route with room for views laid over the map; fitting is set until the map settles.
+function fitRoute(map: L.Map, route: L.LatLngBounds, top: number, bottom: number, animate: boolean, fitting: { current: boolean }) {
+  fitting.current = true
+  map.once('moveend', () => { fitting.current = false })
+  map.fitBounds(route, { paddingTopLeft: [28, 28 + top], paddingBottomRight: [28, 28 + bottom], maxZoom: 17, animate })
+}
+
+export default function LeafletMap({ path, here, stale, live, label, top = 0, bottom = 0, zoomButtons = true, openLink }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const view = useRef<{ map: L.Map, layers: Layers } | null>(null)
-  // A live map keeps the latest fix in view until it is dragged; Follow turns that back on.
+  // A live map keeps the latest fix in view until it is dragged; Follow turns that back on. A finished route offers
+  // Recenter instead once it is dragged or zoomed away from where it was fitted.
   const follow = useRef(true)
   const [following, setFollowing] = useState(true)
   const position = useRef<L.LatLngTuple | null>(null)
   // Whether the map has been placed on the route yet: the first fix zooms in, later ones only pan.
   const framed = useRef(false)
+  const route = useRef<L.LatLngBounds | null>(null)
+  // Set while the map moves itself, so only the person's own zooms count as moving away.
+  const fitting = useRef(false)
 
   useEffect(() => {
     const container = box.current
     if (!container) return
-    const map = L.map(container, { center: [20, 0], zoom: 2, maxZoom: 19, zoomControl: !still, dragging: !still, touchZoom: !still,
-      scrollWheelZoom: !still, doubleClickZoom: !still, boxZoom: !still, keyboard: !still })
+    const map = L.map(container, { center: [20, 0], zoom: 2, maxZoom: 19, zoomControl: zoomButtons })
     map.attributionControl.setPrefix(false)
     if (webgl()) {
       try {
@@ -78,6 +88,7 @@ export default function LeafletMap({ path, here, stale, live, label, top = 0, bo
       here: L.marker([0, 0], { icon: L.divIcon({ className: 'zepimon-here', iconSize: [26, 26] }), interactive: false, keyboard: false })
     }
     map.on('dragstart', () => { follow.current = false; setFollowing(false) })
+    map.on('zoomstart', () => { if (route.current && !fitting.current) setFollowing(false) })
     const resize = new ResizeObserver(() => map.invalidateSize())
     resize.observe(container)
     view.current = { map, layers }
@@ -87,7 +98,7 @@ export default function LeafletMap({ path, here, stale, live, label, top = 0, bo
       view.current = null
       framed.current = false
     }
-  }, [still])
+  }, [zoomButtons])
 
   useEffect(() => {
     if (!view.current) return
@@ -110,7 +121,8 @@ export default function LeafletMap({ path, here, stale, live, label, top = 0, bo
         framed.current = true
       }
     } else if (points.length && !framed.current) {
-      map.fitBounds(L.latLngBounds(points), { paddingTopLeft: [28, 28 + top], paddingBottomRight: [28, 28 + bottom], maxZoom: 17, animate: false })
+      route.current = L.latLngBounds(points)
+      fitRoute(map, route.current, top, bottom, false, fitting)
       framed.current = true
     }
   }, [path, here, stale, live, top, bottom])
@@ -118,7 +130,8 @@ export default function LeafletMap({ path, here, stale, live, label, top = 0, bo
   function recenter() {
     follow.current = true
     setFollowing(true)
-    if (view.current && position.current) view.current.map.setView(position.current, Math.max(view.current.map.getZoom(), 15))
+    if (!live) { if (view.current && route.current) fitRoute(view.current.map, route.current, top, bottom, true, fitting) }
+    else if (view.current && position.current) view.current.map.setView(position.current, Math.max(view.current.map.getZoom(), 15))
   }
 
   // In the phone's web view a link would replace the map, so the credits open in the browser instead.
@@ -131,9 +144,9 @@ export default function LeafletMap({ path, here, stale, live, label, top = 0, bo
 
   return <div className="zepimon-map-frame" onClickCapture={openOutside}>
     <div ref={box} className="zepimon-map" role="region" aria-label={label} />
-    {live && !following && <button type="button" className="zepimon-follow" onClick={recenter}>
+    {!following && <button type="button" className="zepimon-follow" style={{ bottom: 28 + bottom }} onClick={recenter}>
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 2 4.5 20.3l.7.7L12 18l6.8 3 .7-.7z" /></svg>
-      Follow me
+      {live ? 'Follow me' : 'Recenter'}
     </button>}
   </div>
 }

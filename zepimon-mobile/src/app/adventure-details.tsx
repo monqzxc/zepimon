@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
+import { Pressable, Text, View, useWindowDimensions } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useJournal } from '../store'
@@ -8,15 +8,16 @@ import type { Adventure } from '../adventures'
 import { pokemonType } from '../catalog'
 import { describeAdventure, shortDuration } from '../journal-calendar'
 import { RouteMap } from '../RouteMap'
+import { BottomSheet } from '../BottomSheet'
 import { cardTitle } from '../ShareCard'
 import { PixelSprite } from '../games/TeamPicker'
 import { Button, Copy, Icon, Panel, PokeballIcon, Screen, Title, colors, fonts, shadows, themedStyles, typeInks, typeLabel, typeTints, useTheme } from '../ui'
 import type { IconName } from '../ui'
 
-// One saved adventure, opened from a Journal tile. The route's map fills the top of the screen and stays put as a backdrop
-// while a sheet scrolls up over it: its highlight, the Pokemon it reached, when it happened, its stats and a description.
-// Watch adventures have no route, so their backdrop is the Pokemon on its type's tint. Back and the title float above
-// everything; the Dex and Share buttons stay pinned to the bottom. id is a Journal run's id or a phone adventure's own id.
+// One saved adventure, opened from a Journal tile. The route's map fills the top of the screen and stays put, still
+// draggable and zoomable, while a sheet (src/BottomSheet.tsx) slides up over it: its highlight, the Pokemon it reached,
+// when it happened, its stats and a description. Watch adventures have no route, so their backdrop is the Pokemon on its
+// type's tint. Back and the title float above everything; the Dex and Share buttons stay pinned to the bottom. id is a Journal run's id or a phone adventure's own id.
 export default function AdventureDetailsScreen() {
   useTheme()
   const { id } = useLocalSearchParams<{ id?: string }>()
@@ -66,7 +67,7 @@ function Details({ adventure }: { adventure: Adventure }) {
   const distance = Number.isFinite(record.meters) && record.meters >= 0 ? (record.meters / 1000).toFixed(2) : '--'
 
   return <View style={{ flex: 1, backgroundColor: colors.panel }}>
-    {/* The backdrop stays still behind the scrolling sheet. */}
+    {/* The backdrop stays still behind the sheet. */}
     <View style={[page.backdrop, { height: hero + OVERLAP, backgroundColor: typeTints[type] || colors.sunken }]}>
       {path ? <RouteMap path={path} height={hero + OVERLAP} bare top={bar + 46} bottom={OVERLAP * 2}
         label={`Map of the route, ${km(record.meters)}`} />
@@ -76,7 +77,7 @@ function Details({ adventure }: { adventure: Adventure }) {
         </View>}
     </View>
 
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingTop: hero - OVERLAP }} showsVerticalScrollIndicator={false}>
+    <BottomSheet low={hero - OVERLAP} high={bar + 54}>
       <View style={[page.sheet, { paddingBottom: insets.bottom + 110 }]}>
         <View style={page.ribbonRow}>
           <View accessible accessibilityLabel={highlight[1]} style={[page.ribbon, { backgroundColor: ink }]}>
@@ -127,14 +128,14 @@ function Details({ adventure }: { adventure: Adventure }) {
           </View>
         </View>
       </View>
-    </ScrollView>
+    </BottomSheet>
 
     <View style={[page.bar, { paddingTop: bar }]} pointerEvents="box-none">
       <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={back} hitSlop={6}
         style={({ pressed }) => [page.round, { opacity: pressed ? 0.7 : 1 }]}>
         <Icon name="back" size={22} />
       </Pressable>
-      <View style={page.pill}><Text style={page.pillText}>Details</Text></View>
+      <View pointerEvents="none" style={page.pill}><Text style={page.pillText}>Details</Text></View>
       <View accessible accessibilityLabel={device === 'phone' ? 'Recorded on this phone' : 'Recorded on your watch'} style={page.round}>
         <Icon name={device} size={20} color={ink} />
       </View>
@@ -172,8 +173,7 @@ const page = themedStyles(() => ({
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center', ...shadows.card },
   pill: { backgroundColor: colors.panel, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, ...shadows.card },
   pillText: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 16, lineHeight: 20 },
-  sheet: { flexGrow: 1, backgroundColor: colors.panel, borderTopLeftRadius: OVERLAP, borderTopRightRadius: OVERLAP, paddingTop: 22, gap: 16,
-    ...shadows.card },
+  sheet: { paddingTop: 4, gap: 16 },
   ribbonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingRight: 22 },
   // The highlight hangs off the sheet's left edge like a ribbon.
   ribbon: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 22, paddingRight: 18, paddingVertical: 8,
