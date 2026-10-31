@@ -124,7 +124,7 @@ const icons = {
   logout: ['rectangle.portrait.and.arrow.right', 'logout'], info: ['info.circle', 'info'], doc: ['doc.text', 'description'],
   download: ['square.and.arrow.down', 'download'], sun: ['sun.max', 'light_mode'], moon: ['moon', 'dark_mode'],
   contrast: ['circle.lefthalf.filled', 'contrast'], edit: ['pencil', 'edit'], calendar: ['calendar', 'calendar_month'], plus: ['plus', 'add'],
-  chevronDown: ['chevron.down', 'expand_more'], rotate: ['rectangle.portrait.rotate', 'screen_rotation']
+  chevronDown: ['chevron.down', 'expand_more'], rotate: ['rectangle.portrait.rotate', 'screen_rotation'], locate: ['scope', 'my_location']
 } satisfies Record<string, [SFSymbol, AndroidSymbol]>
 export type IconName = keyof typeof icons
 const symbolBox = { alignItems: 'center', justifyContent: 'center' } as const

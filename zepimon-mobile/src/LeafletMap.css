@@ -21,3 +21,7 @@
 }
 .zepimon-follow:active { background: #DDF4EF; }
 .zepimon-follow:focus-visible { outline: 3px solid #1374B8; outline-offset: 2px; }
+
+/* Quiet maps head a screen: soft round zoom buttons like the screen's own, instead of Leaflet's bordered bar. */
+.zepimon-quiet .leaflet-bar { border: none; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(31, 61, 89, 0.16); }
+.zepimon-quiet .leaflet-bar a { width: 40px; height: 40px; line-height: 40px; border-bottom-color: #EEF1F4; color: #1F2A36; }
