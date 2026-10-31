@@ -15,7 +15,8 @@ import { decodePath } from './polyline'
 // renders in the page. Leaflet draws the route over OpenFreeMap's street map, which MapLibre renders from vector tiles:
 // free, with no key or request limit. (OpenStreetMap's own tile servers refuse requests without a Referer, which a
 // web view's bundled page cannot send.) Without WebGL or a connection, the route still draws on a plain background.
-const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
+// quiet maps use the same provider's muted, light Positron style, so a route on a card stands out from its streets.
+const STYLES = { liberty: 'https://tiles.openfreemap.org/styles/liberty', positron: 'https://tiles.openfreemap.org/styles/positron' }
 const ROUTE = '#1374B8'
 const START = '#16B5A0'
 const FINISH = '#1F2A36'
@@ -29,7 +30,8 @@ type Props = {
   label: string,
   top?: number,                           // room kept clear above and below the route when it is fitted, for views laid over the map
   bottom?: number,
-  zoomButtons?: boolean,                  // off where other buttons sit over the map's corner; pinch and double-tap still zoom
+  zoomAt?: L.ControlPosition,             // the zoom buttons' corner, clear of buttons laid over the map
+  quiet?: boolean,                        // muted streets
   openLink: (url: string) => Promise<void>,
   dom?: DOMProps
 }
@@ -52,7 +54,7 @@ function fitRoute(map: L.Map, route: L.LatLngBounds, top: number, bottom: number
   map.fitBounds(route, { paddingTopLeft: [28, 28 + top], paddingBottomRight: [28, 28 + bottom], maxZoom: 17, animate })
 }
 
-export default function LeafletMap({ path, here, stale, live, label, top = 0, bottom = 0, zoomButtons = true, openLink }: Props) {
+export default function LeafletMap({ path, here, stale, live, label, top = 0, bottom = 0, zoomAt = 'topleft', quiet = false, openLink }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const view = useRef<{ map: L.Map, layers: Layers } | null>(null)
   // A live map keeps the latest fix in view until it is dragged; Follow turns that back on. A finished route offers
@@ -69,11 +71,12 @@ export default function LeafletMap({ path, here, stale, live, label, top = 0, bo
   useEffect(() => {
     const container = box.current
     if (!container) return
-    const map = L.map(container, { center: [20, 0], zoom: 2, maxZoom: 19, zoomControl: zoomButtons })
+    const map = L.map(container, { center: [20, 0], zoom: 2, maxZoom: 19, zoomControl: false })
+    L.control.zoom({ position: zoomAt }).addTo(map)
     map.attributionControl.setPrefix(false)
     if (webgl()) {
       try {
-        const streets = maplibreGL({ style: STYLE }).addTo(map).getMaplibreMap()
+        const streets = maplibreGL({ style: quiet ? STYLES.positron : STYLES.liberty }).addTo(map).getMaplibreMap()
         // The style names a few icons its sprite sheet lacks: blank ones keep the console quiet.
         streets.on('styleimagemissing', ({ id }) => { if (!streets.hasImage(id)) streets.addImage(id, { width: 1, height: 1, data: new Uint8Array(4) }) })
       } catch { /* the route still draws on the plain background */ }
@@ -98,7 +101,12 @@ export default function LeafletMap({ path, here, stale, live, label, top = 0, bo
       view.current = null
       framed.current = false
     }
-  }, [zoomButtons])
+  }, [zoomAt, quiet])
+
+  // The bottom corners' controls (the map's credits) sit above whatever covers the map's lower edge.
+  useEffect(() => {
+    box.current?.querySelectorAll<HTMLElement>('.leaflet-bottom').forEach(corner => { corner.style.bottom = `${bottom}px` })
+  }, [bottom, zoomAt, quiet])
 
   useEffect(() => {
     if (!view.current) return
