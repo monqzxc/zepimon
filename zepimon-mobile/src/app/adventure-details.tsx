@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
+import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
 import { StatusBar } from 'expo-status-bar'
 import { router, useLocalSearchParams } from 'expo-router'
@@ -11,13 +11,15 @@ import type { Adventure } from '../adventures'
 import { pokemonType } from '../catalog'
 import { describeAdventure, shortDuration } from '../journal-calendar'
 import { RouteMap } from '../RouteMap'
+import { BottomSheet } from '../BottomSheet'
 import { cardTitle } from '../ShareCard'
 import { PixelSprite } from '../games/TeamPicker'
 import { Button, Copy, Icon, Panel, PokeballIcon, Screen, Title, colors, fonts, shadows, themedStyles, typeInks, typeLabel, typeTints, useTheme } from '../ui'
 import type { IconName } from '../ui'
 
-// One saved adventure, opened from a Journal tile. The route's live map fills the top of the screen and stays put while
-// only the details below it scroll: the Pokemon it reached, when it happened, its stats and a description. The details'
+// One saved adventure, opened from a Journal tile. The route's live map fills the top of the screen and stays put; the
+// details below it (src/BottomSheet.tsx) drag up over it until they cover the screen, then scroll: what the adventure
+// earned, the Pokemon it reached, when it happened, its stats and a description. The details'
 // white panel meets the map with a stepped edge, its right side higher; what the adventure earned leads the details.
 // Watch adventures have no route, so the map's place shows the Pokemon on its type's tint. Dex and Share close the screen. id is a Journal run's id or a phone adventure's own id.
 export default function AdventureDetailsScreen() {
@@ -71,6 +73,12 @@ function Details({ adventure }: { adventure: Adventure }) {
   const edge = Math.round(height * 0.46)
   const mapHeight = edge + STEP + RADIUS
   const step = Math.round(width * 0.42)
+  // Open, the sheet's own top edge tucks under the bar, so its content starts just below the bar.
+  const high = insets.top + BAR - 2 - (STEP + 14)
+  const [y] = useState(() => new Animated.Value(edge))
+  const [open, setOpen] = useState(false)
+  const covered = y.interpolate({ inputRange: [high, high + 80], outputRange: [1, 0], extrapolate: 'clamp' })
+  const uncovered = y.interpolate({ inputRange: [high, high + 80], outputRange: [0, 1], extrapolate: 'clamp' })
   const reached = facts.evolution.at(-1)
   const share = () => router.push({ pathname: '/share', params: { id } })
   // What this adventure earned, each with the number behind it.
@@ -88,8 +96,8 @@ function Details({ adventure }: { adventure: Adventure }) {
   const distance = Number.isFinite(record.meters) && record.meters >= 0 ? (record.meters / 1000).toFixed(2) : '--'
 
   return <View style={{ flex: 1, backgroundColor: colors.panel }}>
-    <StatusBar style="light" />
-    {/* The map stays put and keeps its gestures; only the details below scroll. */}
+    <StatusBar style={open && !dark ? 'dark' : 'light'} />
+    {/* The map stays put and keeps its gestures above the details, which drag up over it and then scroll. */}
     <View style={[page.map, { height: mapHeight, backgroundColor: typeTints[type] || colors.sunken }]}>
       {path ? <RouteMap path={path} height={mapHeight} bare top={insets.top + BAR} bottom={STEP + RADIUS} zoomAt="bottomright" fit={fit}
         label={`Map of the route, ${km(record.meters)}`} />
@@ -110,27 +118,77 @@ function Details({ adventure }: { adventure: Adventure }) {
       <Rect width={width} height={insets.top + BAR + 40} fill="url(#shade)" />
     </Svg>
 
-    {/* The panel's white edge over the map's foot. */}
-    <Svg pointerEvents="none" width={width} height={STEP + RADIUS} style={[page.edge, { top: edge }]}>
-      <Path d={panelTop(width, step)} fill={colors.panel} />
-    </Svg>
+    <BottomSheet low={edge} high={high} y={y} onOpen={setOpen} contentStyle={[page.content, { paddingBottom: insets.bottom + 100 }]}
+      header={<View style={page.sheetTop}>
+        <Svg pointerEvents="none" width={width} height={STEP + RADIUS} style={page.edge}>
+          <Path d={panelTop(width, step)} fill={colors.panel} />
+        </Svg>
+        <View accessible accessibilityLabel={`${typeLabel(type)} type, recorded ${device === 'phone' ? 'on this phone' : 'on your watch'}`}
+          style={page.aside}>
+          <View style={page.typeLine}>
+            <View style={[page.dot, { backgroundColor: ink }]} />
+            <Text style={page.typeText}>{typeLabel(type)}</Text>
+          </View>
+          <Text style={page.device}>{device === 'phone' ? 'This phone' : 'Your watch'}</Text>
+        </View>
+      </View>}>
+        <View style={{ gap: 4 }}>
+          <Text style={page.title}>{cardTitle(family, record)}</Text>
+          <View style={page.when}>
+            <Icon name="calendar" size={16} color={colors.muted} />
+            <Text style={page.whenText}>{when}</Text>
+          </View>
+        </View>
 
-    <View pointerEvents="none" accessible accessibilityLabel={`${typeLabel(type)} type, recorded ${device === 'phone' ? 'on this phone' : 'on your watch'}`}
-      style={[page.aside, { top: edge + 18 }]}>
-      <View style={page.typeLine}>
-        <View style={[page.dot, { backgroundColor: ink }]} />
-        <Text style={page.typeText}>{typeLabel(type)}</Text>
-      </View>
-      <Text style={page.device}>{device === 'phone' ? 'This phone' : 'Your watch'}</Text>
-    </View>
+        {achievements.length > 0 && <View style={{ gap: 8 }}>
+          <Text accessibilityRole="header" style={page.heading}>Achievements</Text>
+          {achievements.map(({ icon, title, detail }) => <View key={title} accessible accessibilityLabel={`${title}. ${detail}`}
+            style={[page.achievement, { backgroundColor: typeTints[type] || colors.sunken }]}>
+            <View style={[page.medal, { backgroundColor: ink }]}><Icon name={icon} size={20} color={onInk} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={page.achievementTitle}>{title}</Text>
+              <Text style={page.achievementDetail}>{detail}</Text>
+            </View>
+          </View>)}
+        </View>}
 
+        <View style={page.stats}>
+          <Stat value={distance} label="Km" />
+          <Stat value={shortDuration(record.elapsedSeconds)} label="Time" divided />
+          <Stat value={pace} label="Pace /km" divided />
+          <Stat value={facts.steps ? facts.steps.toLocaleString() : '--'} label="Steps" divided />
+        </View>
+
+        <View style={{ gap: 6 }}>
+          <Text accessibilityRole="header" style={page.heading}>Description</Text>
+          <Text style={page.description}>{describeAdventure(adventure, facts)}</Text>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <Text accessibilityRole="header" style={page.heading}>Pokemon reached</Text>
+          {facts.evolution.length ? <View style={page.avatars}>
+            {facts.evolution.map((name, i) => <Pressable key={name} accessibilityRole="button" accessibilityLabel={`View ${name} in your Dex`}
+              onPress={() => router.push({ pathname: '/pokemon', params: { name } })}
+              style={({ pressed }) => [page.avatar, { marginLeft: i ? -12 : 0, zIndex: facts.evolution.length - i, opacity: pressed ? 0.7 : 1 }]}>
+              <PixelSprite name={name} shiny={record.shiny} size={44} />
+            </Pressable>)}
+            <Text style={page.chain} numberOfLines={2}>{facts.evolution.join(' › ')}</Text>
+          </View> : <Copy small>The egg did not hatch this time: it needs 5 km in one adventure.</Copy>}
+        </View>
+    </BottomSheet>
+
+    {/* Once the details cover the screen, the bar becomes a plain header over them. */}
+    <Animated.View pointerEvents="none" style={[page.barFill, { height: insets.top + BAR - 2, opacity: covered }]} />
     <View style={[page.bar, { top: insets.top + 10 }]} pointerEvents="box-none">
       <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={back} hitSlop={6}
         style={({ pressed }) => [page.round, { opacity: pressed ? 0.7 : 1 }]}>
         <Icon name="back" size={20} />
       </Pressable>
-      <Text accessibilityRole="header" style={page.barTitle}>Details</Text>
-      {path ? <Pressable accessibilityRole="button" accessibilityLabel="Recenter the map on the route" onPress={() => setFit(count => count + 1)}
+      <View>
+        <Animated.Text accessibilityRole="header" style={[page.barTitle, { opacity: uncovered }]}>Details</Animated.Text>
+        <Animated.Text accessible={false} style={[page.barTitle, page.barTitleCovered, { opacity: covered }]}>Details</Animated.Text>
+      </View>
+      {open ? <View style={page.round0} /> : path ? <Pressable accessibilityRole="button" accessibilityLabel="Recenter the map on the route" onPress={() => setFit(count => count + 1)}
         hitSlop={6} style={({ pressed }) => [page.round, { opacity: pressed ? 0.7 : 1 }]}>
         <Icon name="locate" size={20} />
       </Pressable> : <View style={page.round} accessible={false} importantForAccessibility="no-hide-descendants">
@@ -138,51 +196,6 @@ function Details({ adventure }: { adventure: Adventure }) {
       </View>}
     </View>
 
-    <ScrollView style={{ flex: 1, marginTop: edge + STEP + 14 }} contentContainerStyle={page.content} showsVerticalScrollIndicator={false}>
-      <View style={{ gap: 4 }}>
-        <Text style={page.title}>{cardTitle(family, record)}</Text>
-        <View style={page.when}>
-          <Icon name="calendar" size={16} color={colors.muted} />
-          <Text style={page.whenText}>{when}</Text>
-        </View>
-      </View>
-
-      {achievements.length > 0 && <View style={{ gap: 8 }}>
-        <Text accessibilityRole="header" style={page.heading}>Achievements</Text>
-        {achievements.map(({ icon, title, detail }) => <View key={title} accessible accessibilityLabel={`${title}. ${detail}`}
-          style={[page.achievement, { backgroundColor: typeTints[type] || colors.sunken }]}>
-          <View style={[page.medal, { backgroundColor: ink }]}><Icon name={icon} size={20} color={onInk} /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={page.achievementTitle}>{title}</Text>
-            <Text style={page.achievementDetail}>{detail}</Text>
-          </View>
-        </View>)}
-      </View>}
-
-      <View style={page.stats}>
-        <Stat value={distance} label="Km" />
-        <Stat value={shortDuration(record.elapsedSeconds)} label="Time" divided />
-        <Stat value={pace} label="Pace /km" divided />
-        <Stat value={facts.steps ? facts.steps.toLocaleString() : '--'} label="Steps" divided />
-      </View>
-
-      <View style={{ gap: 6 }}>
-        <Text accessibilityRole="header" style={page.heading}>Description</Text>
-        <Text style={page.description}>{describeAdventure(adventure, facts)}</Text>
-      </View>
-
-      <View style={{ gap: 10 }}>
-        <Text accessibilityRole="header" style={page.heading}>Pokemon reached</Text>
-        {facts.evolution.length ? <View style={page.avatars}>
-          {facts.evolution.map((name, i) => <Pressable key={name} accessibilityRole="button" accessibilityLabel={`View ${name} in your Dex`}
-            onPress={() => router.push({ pathname: '/pokemon', params: { name } })}
-            style={({ pressed }) => [page.avatar, { marginLeft: i ? -12 : 0, zIndex: facts.evolution.length - i, opacity: pressed ? 0.7 : 1 }]}>
-            <PixelSprite name={name} shiny={record.shiny} size={44} />
-          </Pressable>)}
-          <Text style={page.chain} numberOfLines={2}>{facts.evolution.join(' › ')}</Text>
-        </View> : <Copy small>The egg did not hatch this time: it needs 5 km in one adventure.</Copy>}
-      </View>
-    </ScrollView>
 
     <View style={[page.footer, { paddingBottom: insets.bottom + 14 }]}>
       {reached && <Pressable accessibilityRole="button" accessibilityLabel={`View ${reached} in your Dex`}
@@ -211,23 +224,27 @@ const page = themedStyles(() => ({
   map: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
   still: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   shade: { position: 'absolute', top: 0, left: 0 },
-  edge: { position: 'absolute', left: 0 },
+  edge: { position: 'absolute', top: 0, left: 0 },
+  // The sheet's top: the stepped edge, whose lower part the panel below continues.
+  sheetTop: { height: STEP + 14 },
+  barFill: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: colors.panel },
+  barTitleCovered: { position: 'absolute', color: colors.ink },
+  round0: { width: 44, height: 44 },
   bar: { position: 'absolute', left: 20, right: 20, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center', ...shadows.card },
-  barTitle: { fontFamily: fonts.heavy, color: '#FFFFFF', fontSize: 17, lineHeight: 22, textShadowColor: 'rgba(0, 0, 0, 0.35)',
-    textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  barTitle: { fontFamily: fonts.heavy, color: '#FFFFFF', fontSize: 17, lineHeight: 22 },
   // Each achievement on a tile in its Pokemon's type tint, behind a medal in the type's ink.
   achievement: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14 },
   medal: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   achievementTitle: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 15, lineHeight: 20 },
   achievementDetail: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18 },
   // Type and device stand on the raised right, like the reference's rating and delivery fee.
-  aside: { position: 'absolute', right: 20, alignItems: 'flex-end', gap: 2 },
+  aside: { position: 'absolute', top: 18, right: 20, alignItems: 'flex-end', gap: 2 },
   typeLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   typeText: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 14, lineHeight: 19 },
   device: { fontFamily: fonts.bold, color: colors.ink, fontSize: 13, lineHeight: 18 },
-  content: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 6, paddingBottom: 16, gap: 20 },
+  content: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 6, gap: 20 },
   title: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 20, lineHeight: 26 },
   when: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   whenText: { flex: 1, fontFamily: fonts.body, color: colors.muted, fontSize: 13, lineHeight: 18 },
@@ -242,7 +259,7 @@ const page = themedStyles(() => ({
   avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.sunken, borderWidth: 3, borderColor: colors.panel,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   chain: { flex: 1, marginLeft: 12, fontFamily: fonts.bold, color: colors.ink, fontSize: 14, lineHeight: 19 },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingTop: 10, backgroundColor: colors.panel },
+  footer: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingTop: 10, backgroundColor: colors.panel },
   dex: { width: 56, height: 56, borderRadius: 28, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   share: { flex: 1, height: 56, borderRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   shareText: { fontFamily: fonts.heavy, fontSize: 17, lineHeight: 22 }
