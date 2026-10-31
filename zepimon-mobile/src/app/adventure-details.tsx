@@ -1,10 +1,6 @@
 import { useState } from 'react'
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
-<<<<<<< HEAD
-import Svg, { Defs, G, LinearGradient, Mask, Path, Rect, Stop } from 'react-native-svg'
-=======
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
->>>>>>> cabd0a7b5521222b663f6bdcd8570df7b0934f26
 import { StatusBar } from 'expo-status-bar'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -22,11 +18,7 @@ import type { IconName } from '../ui'
 
 // One saved adventure, opened from a Journal tile. The route's live map fills the top of the screen and stays put while
 // only the details below it scroll: the Pokemon it reached, when it happened, its stats and a description. The details'
-<<<<<<< HEAD
-// white panel meets the map with a stepped edge, its right side higher, and the highlight sits in the notch on the left.
-=======
 // white panel meets the map with a stepped edge, its right side higher; what the adventure earned leads the details.
->>>>>>> cabd0a7b5521222b663f6bdcd8570df7b0934f26
 // Watch adventures have no route, so the map's place shows the Pokemon on its type's tint. Dex and Share close the screen. id is a Journal run's id or a phone adventure's own id.
 export default function AdventureDetailsScreen() {
   useTheme()
@@ -46,12 +38,7 @@ const back = () => router.canGoBack() ? router.back() : router.replace('/')
 const time = (date: Date) => date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
 // The details panel's top edge, as in the reference: its right side stands STEP higher than its left, both outer corners
-<<<<<<< HEAD
-// are rounded, and one smooth S-shaped slope joins the two levels. The highlight ribbon fills the notch the lower left
-// leaves over the map.
-=======
 // are rounded, and one smooth S-shaped slope joins the two levels. The map shows through the notch the lower left leaves.
->>>>>>> cabd0a7b5521222b663f6bdcd8570df7b0934f26
 const STEP = 52
 const RADIUS = 28
 const SLOPE = 56
@@ -71,10 +58,6 @@ function Details({ adventure }: { adventure: Adventure }) {
   const { journal } = useJournal()
   const insets = useSafeAreaInsets()
   const { width, height } = useWindowDimensions()
-<<<<<<< HEAD
-  const [ribbonWidth, setRibbonWidth] = useState(0)
-=======
->>>>>>> cabd0a7b5521222b663f6bdcd8570df7b0934f26
   const [fit, setFit] = useState(0)
   const facts = adventureFacts(adventure, journal)
   const form = recordForm(family, record)
@@ -87,12 +70,7 @@ function Details({ adventure }: { adventure: Adventure }) {
   // Where the panel's raised right side meets the map; the map runs on under the panel's curves.
   const edge = Math.round(height * 0.46)
   const mapHeight = edge + STEP + RADIUS
-<<<<<<< HEAD
-  // The slope starts just past the ribbon, within reason, so a long highlight keeps its notch.
-  const step = Math.round(Math.min(Math.max(width * 0.4, ribbonWidth + 12), width * 0.62))
-=======
   const step = Math.round(width * 0.42)
->>>>>>> cabd0a7b5521222b663f6bdcd8570df7b0934f26
   const reached = facts.evolution.at(-1)
   const share = () => router.push({ pathname: '/share', params: { id } })
   // What this adventure earned, each with the number behind it.
@@ -132,37 +110,11 @@ function Details({ adventure }: { adventure: Adventure }) {
       <Rect width={width} height={insets.top + BAR + 40} fill="url(#shade)" />
     </Svg>
 
-<<<<<<< HEAD
-    {/* The notch's wash of the type's colour, fading up and to the right into the map, then the panel's white edge. */}
-    <Svg pointerEvents="none" width={width} height={STEP + RADIUS + 28} style={[page.edge, { top: edge - 28 }]}>
-      <Defs>
-        <LinearGradient id="wash" x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0" stopColor={ink} stopOpacity="0.9" />
-          <Stop offset="0.6" stopColor={ink} stopOpacity="0.55" />
-          <Stop offset="1" stopColor={ink} stopOpacity="0" />
-        </LinearGradient>
-        <LinearGradient id="rise" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0" />
-          <Stop offset="0.45" stopColor="#FFFFFF" stopOpacity="1" />
-        </LinearGradient>
-        <Mask id="fade"><Rect width={step + SLOPE} height={STEP + 28} fill="url(#rise)" /></Mask>
-      </Defs>
-      <Rect width={step + SLOPE} height={STEP + 28} fill="url(#wash)" mask="url(#fade)" />
-      <G y={28}><Path d={panelTop(width, step)} fill={colors.panel} /></G>
-    </Svg>
-
-    <View pointerEvents="none" accessible accessibilityLabel={highlight[1]} style={[page.ribbon, { top: edge, maxWidth: width * 0.62 - 12 }]}
-      onLayout={event => setRibbonWidth(event.nativeEvent.layout.width)}>
-      <View style={[page.ribbonIcon, { backgroundColor: onInk }]}><Icon name={highlight[0]} size={16} color={ink} /></View>
-      <Text style={[page.ribbonText, { color: onInk }]} numberOfLines={1}>{highlight[1]}</Text>
-    </View>
-=======
     {/* The panel's white edge over the map's foot. */}
     <Svg pointerEvents="none" width={width} height={STEP + RADIUS} style={[page.edge, { top: edge }]}>
       <Path d={panelTop(width, step)} fill={colors.panel} />
     </Svg>
 
->>>>>>> cabd0a7b5521222b663f6bdcd8570df7b0934f26
     <View pointerEvents="none" accessible accessibilityLabel={`${typeLabel(type)} type, recorded ${device === 'phone' ? 'on this phone' : 'on your watch'}`}
       style={[page.aside, { top: edge + 18 }]}>
       <View style={page.typeLine}>
@@ -195,8 +147,6 @@ function Details({ adventure }: { adventure: Adventure }) {
         </View>
       </View>
 
-<<<<<<< HEAD
-=======
       {achievements.length > 0 && <View style={{ gap: 8 }}>
         <Text accessibilityRole="header" style={page.heading}>Achievements</Text>
         {achievements.map(({ icon, title, detail }) => <View key={title} accessible accessibilityLabel={`${title}. ${detail}`}
@@ -209,7 +159,6 @@ function Details({ adventure }: { adventure: Adventure }) {
         </View>)}
       </View>}
 
->>>>>>> cabd0a7b5521222b663f6bdcd8570df7b0934f26
       <View style={page.stats}>
         <Stat value={distance} label="Km" />
         <Stat value={shortDuration(record.elapsedSeconds)} label="Time" divided />
@@ -267,18 +216,11 @@ const page = themedStyles(() => ({
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center', ...shadows.card },
   barTitle: { fontFamily: fonts.heavy, color: '#FFFFFF', fontSize: 17, lineHeight: 22, textShadowColor: 'rgba(0, 0, 0, 0.35)',
     textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
-<<<<<<< HEAD
-  // The highlight sits in the notch the panel's lower left leaves, on the wash of the type's colour.
-  ribbon: { position: 'absolute', left: 20, height: STEP, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  ribbonIcon: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  ribbonText: { flexShrink: 1, fontFamily: fonts.black, fontSize: 19, lineHeight: 25 },
-=======
   // Each achievement on a tile in its Pokemon's type tint, behind a medal in the type's ink.
   achievement: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 14 },
   medal: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   achievementTitle: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 15, lineHeight: 20 },
   achievementDetail: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18 },
->>>>>>> cabd0a7b5521222b663f6bdcd8570df7b0934f26
   // Type and device stand on the raised right, like the reference's rating and delivery fee.
   aside: { position: 'absolute', right: 20, alignItems: 'flex-end', gap: 2 },
   typeLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
