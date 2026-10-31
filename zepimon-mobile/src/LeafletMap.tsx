@@ -27,6 +27,9 @@ type Props = {
   stale: boolean,                         // live: no fix for a while, so the position dot greys out
   live: boolean,
   label: string,
+  top?: number,                           // room kept clear above and below the route when it is fitted, for views laid over the map
+  bottom?: number,
+  still?: boolean,                        // a backdrop: no zoom buttons, and touches pass to the screen
   openLink: (url: string) => Promise<void>,
   dom?: DOMProps
 }
@@ -42,7 +45,7 @@ function place(map: L.Map, layer: L.CircleMarker | L.Circle | L.Marker, at: L.La
   if (!map.hasLayer(layer)) layer.addTo(map)
 }
 
-export default function LeafletMap({ path, here, stale, live, label, openLink }: Props) {
+export default function LeafletMap({ path, here, stale, live, label, top = 0, bottom = 0, still = false, openLink }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const view = useRef<{ map: L.Map, layers: Layers } | null>(null)
   // A live map keeps the latest fix in view until it is dragged; Follow turns that back on.
@@ -55,7 +58,8 @@ export default function LeafletMap({ path, here, stale, live, label, openLink }:
   useEffect(() => {
     const container = box.current
     if (!container) return
-    const map = L.map(container, { center: [20, 0], zoom: 2, maxZoom: 19 })
+    const map = L.map(container, { center: [20, 0], zoom: 2, maxZoom: 19, zoomControl: !still, dragging: !still, touchZoom: !still,
+      scrollWheelZoom: !still, doubleClickZoom: !still, boxZoom: !still, keyboard: !still })
     map.attributionControl.setPrefix(false)
     if (webgl()) {
       try {
@@ -83,7 +87,7 @@ export default function LeafletMap({ path, here, stale, live, label, openLink }:
       view.current = null
       framed.current = false
     }
-  }, [])
+  }, [still])
 
   useEffect(() => {
     if (!view.current) return
@@ -106,10 +110,10 @@ export default function LeafletMap({ path, here, stale, live, label, openLink }:
         framed.current = true
       }
     } else if (points.length && !framed.current) {
-      map.fitBounds(L.latLngBounds(points), { padding: [28, 28], maxZoom: 17, animate: false })
+      map.fitBounds(L.latLngBounds(points), { paddingTopLeft: [28, 28 + top], paddingBottomRight: [28, 28 + bottom], maxZoom: 17, animate: false })
       framed.current = true
     }
-  }, [path, here, stale, live])
+  }, [path, here, stale, live, top, bottom])
 
   function recenter() {
     follow.current = true

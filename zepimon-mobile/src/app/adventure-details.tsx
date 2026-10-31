@@ -1,5 +1,4 @@
-import { Pressable, ScrollView, Text, View } from 'react-native'
-import type { ReactNode } from 'react'
+import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useJournal } from '../store'
@@ -11,12 +10,13 @@ import { describeAdventure, shortDuration } from '../journal-calendar'
 import { RouteMap } from '../RouteMap'
 import { cardTitle } from '../ShareCard'
 import { PixelSprite } from '../games/TeamPicker'
-import { Button, Copy, Icon, Panel, Screen, Title, colors, fonts, shadows, themedStyles, typeInks, typeTints, glass, useTheme } from '../ui'
+import { Button, Copy, Icon, Panel, PokeballIcon, Screen, Title, colors, fonts, shadows, themedStyles, typeInks, typeLabel, typeTints, useTheme } from '../ui'
 import type { IconName } from '../ui'
 
-// One saved adventure, opened from a Journal tile: a pastel header in its Pokemon's type colour with the date, then a
-// sheet with what happened, its times and stats, the Pokemon it reached, the route (phone adventures) and a Share
-// button. id is a Journal run's id or a phone adventure's own id.
+// One saved adventure, opened from a Journal tile. The route's map fills the top of the screen and stays put as a backdrop
+// while a sheet scrolls up over it: its highlight, the Pokemon it reached, when it happened, its stats and a description.
+// Watch adventures have no route, so their backdrop is the Pokemon on its type's tint. Back and the title float above
+// everything; the Dex and Share buttons stay pinned to the bottom. id is a Journal run's id or a phone adventure's own id.
 export default function AdventureDetailsScreen() {
   useTheme()
   const { id } = useLocalSearchParams<{ id?: string }>()
@@ -34,118 +34,175 @@ export default function AdventureDetailsScreen() {
 const back = () => router.canGoBack() ? router.back() : router.replace('/')
 const time = (date: Date) => date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
+// How far the sheet's rounded top reaches up over the backdrop.
+const OVERLAP = 32
+
 function Details({ adventure }: { adventure: Adventure }) {
+  const { dark } = useTheme()
   const { id, family, record, device, path } = adventure
   const { journal } = useJournal()
   const insets = useSafeAreaInsets()
+  const { height } = useWindowDimensions()
   const facts = adventureFacts(adventure, journal)
   const form = recordForm(family, record)
   const type = pokemonType(form === 'Egg' ? family[0] : form)
   const ink = typeInks[type] || colors.edge
+  // Inks are deep in light mode and pale in dark, so what sits on them flips too.
+  const onInk = dark ? colors.panel : '#FFFFFF'
   const finished = new Date(record.finishedAt)
   const started = facts.started != null ? new Date(facts.started) : null
-  const running = record.activity === 'running'
+  const hero = Math.round(Math.min(height * 0.5, 460))
+  const bar = insets.top + 10
+  const reached = facts.evolution.at(-1)
   const share = () => router.push({ pathname: '/share', params: { id } })
-  return <ScrollView style={{ flex: 1, backgroundColor: typeTints[type] || colors.sunken }} contentContainerStyle={{ flexGrow: 1 }}>
-    <View style={[page.header, { paddingTop: insets.top + 10 }]}>
-      <View style={page.bar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={back} hitSlop={6}
-          style={({ pressed }) => [page.round, { opacity: pressed ? 0.7 : 1 }]}>
-          <Icon name="back" size={22} />
-        </Pressable>
-        <View accessible accessibilityLabel={device === 'phone' ? 'Recorded on this phone' : 'Recorded on your watch'} style={page.round}>
-          <Icon name={device} size={20} color={ink} />
+  const highlight: [IconName, string] = facts.bests.length > 1 ? ['trophy', `${facts.bests.length} personal bests`]
+    : facts.bests.length ? ['trophy', bestLabels[facts.bests[0]]]
+    : record.shiny ? ['sparkle', 'Shiny']
+    : facts.evolution.length ? ['egg', 'Hatched'] : ['egg', 'Unhatched']
+  const year = finished.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } as const : {}
+  const when = `${finished.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', ...year })} · `
+    + (started ? `${time(started)} – ${time(finished)}` : time(finished))
+  const pace = averagePace(record.elapsedSeconds, record.meters).replace(' /km', '')
+  const distance = Number.isFinite(record.meters) && record.meters >= 0 ? (record.meters / 1000).toFixed(2) : '--'
+
+  return <View style={{ flex: 1, backgroundColor: colors.panel }}>
+    {/* The backdrop stays still behind the scrolling sheet. */}
+    <View style={[page.backdrop, { height: hero + OVERLAP, backgroundColor: typeTints[type] || colors.sunken }]}>
+      {path ? <RouteMap path={path} height={hero + OVERLAP} bare top={bar + 46} bottom={OVERLAP * 2}
+        label={`Map of the route, ${km(record.meters)}`} />
+        : <View style={[page.still, { paddingTop: bar + 46, paddingBottom: OVERLAP * 2 }]}>
+          <PixelSprite name={form} shiny={record.shiny} size={Math.min(176, hero * 0.5)} />
+          <Text style={page.note}>{device === 'watch' ? 'Watches count steps without GPS, so there is no route map.' : 'No route recorded.'}</Text>
+        </View>}
+    </View>
+
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingTop: hero - OVERLAP }} showsVerticalScrollIndicator={false}>
+      <View style={[page.sheet, { paddingBottom: insets.bottom + 110 }]}>
+        <View style={page.ribbonRow}>
+          <View accessible accessibilityLabel={highlight[1]} style={[page.ribbon, { backgroundColor: ink }]}>
+            <View style={[page.ribbonIcon, { backgroundColor: onInk }]}><Icon name={highlight[0]} size={16} color={ink} /></View>
+            <Text style={[page.ribbonText, { color: onInk }]} numberOfLines={1}>{highlight[1]}</Text>
+          </View>
+          <View accessible accessibilityLabel={`${typeLabel(type)} type, recorded ${device === 'phone' ? 'on this phone' : 'on your watch'}`}
+            style={page.aside}>
+            <View style={page.typeLine}>
+              <View style={[page.dot, { backgroundColor: ink }]} />
+              <Text style={page.typeText}>{typeLabel(type)}</Text>
+            </View>
+            <Text style={page.device}>{device === 'phone' ? 'This phone' : 'Your watch'}</Text>
+          </View>
+        </View>
+
+        <View style={page.inner}>
+          <View style={{ gap: 6 }}>
+            <Text accessibilityRole="header" style={page.title}>{cardTitle(family, record)}</Text>
+            <View style={page.when}>
+              <Icon name="calendar" size={18} color={colors.muted} />
+              <Text style={page.whenText}>{when}</Text>
+            </View>
+          </View>
+
+          <View style={page.stats}>
+            <Stat value={distance} label="Km" />
+            <Stat value={shortDuration(record.elapsedSeconds)} label="Time" divided />
+            <Stat value={pace} label="Pace /km" divided />
+            <Stat value={facts.steps ? facts.steps.toLocaleString() : '--'} label="Steps" divided />
+          </View>
+
+          <View style={{ gap: 8 }}>
+            <Text accessibilityRole="header" style={page.heading}>Description</Text>
+            <Text style={page.description}>{describeAdventure(adventure, facts)}</Text>
+          </View>
+
+          <View style={{ gap: 10 }}>
+            <Text accessibilityRole="header" style={page.heading}>Pokemon reached</Text>
+            {facts.evolution.length ? <View style={page.avatars}>
+              {facts.evolution.map((name, i) => <Pressable key={name} accessibilityRole="button" accessibilityLabel={`View ${name} in your Dex`}
+                onPress={() => router.push({ pathname: '/pokemon', params: { name } })}
+                style={({ pressed }) => [page.avatar, { marginLeft: i ? -12 : 0, zIndex: facts.evolution.length - i, opacity: pressed ? 0.7 : 1 }]}>
+                <PixelSprite name={name} shiny={record.shiny} size={50} />
+              </Pressable>)}
+              <Text style={page.chain} numberOfLines={2}>{facts.evolution.join(' › ')}</Text>
+            </View> : <Copy small>The egg did not hatch this time: it needs 5 km in one adventure.</Copy>}
+          </View>
         </View>
       </View>
-      <View style={page.hero}>
-        <View style={{ flex: 1 }}>
-          <Text style={page.day}>{finished.toLocaleDateString([], { month: 'long', day: 'numeric' })}</Text>
-          <Text style={page.weekday}>{finished.toLocaleDateString([], { weekday: 'long' })}
-            {finished.getFullYear() !== new Date().getFullYear() ? `, ${finished.getFullYear()}` : ''}</Text>
-        </View>
-        <PixelSprite name={form} shiny={record.shiny} size={112} />
+    </ScrollView>
+
+    <View style={[page.bar, { paddingTop: bar }]} pointerEvents="box-none">
+      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={back} hitSlop={6}
+        style={({ pressed }) => [page.round, { opacity: pressed ? 0.7 : 1 }]}>
+        <Icon name="back" size={22} />
+      </Pressable>
+      <View style={page.pill}><Text style={page.pillText}>Details</Text></View>
+      <View accessible accessibilityLabel={device === 'phone' ? 'Recorded on this phone' : 'Recorded on your watch'} style={page.round}>
+        <Icon name={device} size={20} color={ink} />
       </View>
     </View>
 
-    <View style={[page.sheet, { paddingBottom: insets.bottom + 36 }]}>
-      <View style={page.inner}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Share image" onPress={share}
-          style={({ pressed }) => [page.fab, { backgroundColor: ink, opacity: pressed ? 0.85 : 1 }]}>
-          <Icon name="share" size={24} color="#FFFFFF" />
-        </Pressable>
-        <Text accessibilityRole="header" style={page.title}>{cardTitle(family, record)}</Text>
-        <Text style={page.description}>{describeAdventure(adventure, facts)}</Text>
-        <View style={page.divider} />
-
-        <Row lead={<View style={[page.dot, { backgroundColor: ink }]} />} label="Type" value={type.charAt(0).toUpperCase() + type.slice(1)} />
-        <Row icon="clock" label="Time" value={started ? `${time(started)}  →  ${time(finished)}` : `Finished at ${time(finished)}`}
-          side={shortDuration(record.elapsedSeconds)} />
-        <Row icon="location" label="Distance" value={km(record.meters)} side={averagePace(record.elapsedSeconds, record.meters)} />
-        <Row icon={running ? 'run' : 'walk'} label="Activity" value={record.activity ? running ? 'Run' : 'Walk' : 'Adventure'}
-          side={facts.steps ? `${facts.steps.toLocaleString()} steps` : undefined} />
-        <Row icon={device} label="Recorded on" value={device === 'phone' ? 'This phone' : 'Your watch'}
-          side={device === 'phone' ? 'GPS route' : 'Step count'} />
-        <Row icon="egg" label="Egg" value={facts.evolution.length ? facts.hatchSeconds ? `Hatched at ${shortDuration(facts.hatchSeconds)}` : 'Hatched'
-          : `${km(5000 - record.meters)} short of hatching`} />
-        {facts.bests.length > 0 && <Row icon="trophy" label="Personal best" value={facts.bests.map(metric => bestLabels[metric]).join(', ')} />}
-
-        <View style={page.divider} />
-        <Text style={page.label}>Pokemon reached</Text>
-        {facts.evolution.length ? <View style={page.avatars}>
-          {facts.evolution.map((name, i) => <Pressable key={name} accessibilityRole="button" accessibilityLabel={`View ${name} in your Dex`}
-            onPress={() => router.push({ pathname: '/pokemon', params: { name } })}
-            style={({ pressed }) => [page.avatar, { marginLeft: i ? -12 : 0, zIndex: facts.evolution.length - i, opacity: pressed ? 0.7 : 1 }]}>
-            <PixelSprite name={name} shiny={record.shiny} size={50} />
-          </Pressable>)}
-          <Text style={page.chain} numberOfLines={2}>{facts.evolution.join(' › ')}</Text>
-        </View> : <Copy small>The egg did not hatch this time: it needs 5 km in one adventure.</Copy>}
-
-        {path ? <>
-          <View style={page.divider} />
-          <Text style={page.label}>Route</Text>
-          <RouteMap path={path} height={240} label={`Map of the route, ${km(record.meters)}`} />
-        </> : <Copy small>No route: watches count your steps and distance without GPS, so only adventures recorded on this phone have a map.</Copy>}
-      </View>
+    <View style={[page.footer, { paddingBottom: insets.bottom + 12 }]}>
+      {reached && <Pressable accessibilityRole="button" accessibilityLabel={`View ${reached} in your Dex`}
+        onPress={() => router.push({ pathname: '/pokemon', params: { name: reached } })}
+        style={({ pressed }) => [page.dex, { opacity: pressed ? 0.7 : 1 }]}>
+        <PokeballIcon size={24} color={colors.ink} />
+      </Pressable>}
+      <Pressable accessibilityRole="button" accessibilityLabel="Share image" onPress={share}
+        style={({ pressed }) => [page.share, { backgroundColor: ink, opacity: pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }]}>
+        <Icon name="share" size={20} color={onInk} />
+        <Text style={[page.shareText, { color: onInk }]}>Share</Text>
+      </Pressable>
     </View>
-  </ScrollView>
+  </View>
 }
 
-// A row like a calendar event's: an icon in a soft circle, what it is, and a value on the right.
-function Row({ icon, lead, label, value, side }: { icon?: IconName, lead?: ReactNode, label: string, value: string, side?: string }) {
-  return <View accessible accessibilityLabel={`${label}: ${value}${side ? `, ${side}` : ''}`} style={page.row}>
-    <View style={page.rowIcon}>{lead ?? (icon && <Icon name={icon} size={20} color={colors.muted} />)}</View>
-    <View style={{ flex: 1 }}>
-      <Text style={page.label}>{label}</Text>
-      <Text style={page.value}>{value}</Text>
-    </View>
-    {!!side && <Text style={page.side}>{side}</Text>}
+// One cell of the stats strip: a big value over a small label, split from its neighbour by a hairline.
+function Stat({ value, label, divided = false }: { value: string, label: string, divided?: boolean }) {
+  return <View accessible accessibilityLabel={`${label}: ${value}`} style={[page.stat, divided && page.statDivided]}>
+    <Text style={page.statValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+    <Text style={page.statLabel} numberOfLines={1}>{label}</Text>
   </View>
 }
 
 const page = themedStyles(() => ({
-  header: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 20, paddingBottom: 30, gap: 18 },
-  bar: { flexDirection: 'row', justifyContent: 'space-between' },
-  round: { width: 46, height: 46, borderRadius: 23, backgroundColor: glass(0.75), alignItems: 'center', justifyContent: 'center' },
-  hero: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
-  day: { fontFamily: fonts.black, color: colors.ink, fontSize: 40, lineHeight: 46 },
-  weekday: { fontFamily: fonts.body, color: colors.ink, fontSize: 24, lineHeight: 30, opacity: 0.75 },
-  sheet: { flexGrow: 1, backgroundColor: colors.panel, borderTopLeftRadius: 34, borderTopRightRadius: 34, paddingHorizontal: 22, paddingTop: 26 },
-  inner: { width: '100%', maxWidth: 680, alignSelf: 'center', gap: 16 },
-  // The round Share button sits on the sheet's edge, like the edit button on a calendar event.
-  fab: { position: 'absolute', right: 4, top: -58, width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center',
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
+  still: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 40 },
+  note: { fontFamily: fonts.bold, color: colors.ink, fontSize: 13, lineHeight: 18, opacity: 0.7, textAlign: 'center' },
+  bar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16 },
+  round: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center', ...shadows.card },
+  pill: { backgroundColor: colors.panel, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, ...shadows.card },
+  pillText: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 16, lineHeight: 20 },
+  sheet: { flexGrow: 1, backgroundColor: colors.panel, borderTopLeftRadius: OVERLAP, borderTopRightRadius: OVERLAP, paddingTop: 22, gap: 16,
     ...shadows.card },
-  title: { fontFamily: fonts.black, color: colors.ink, fontSize: 28, lineHeight: 34, marginRight: 64 },
+  ribbonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingRight: 22 },
+  // The highlight hangs off the sheet's left edge like a ribbon.
+  ribbon: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 22, paddingRight: 18, paddingVertical: 8,
+    borderTopRightRadius: 999, borderBottomRightRadius: 999 },
+  ribbonIcon: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  ribbonText: { flexShrink: 1, fontFamily: fonts.black, fontSize: 18, lineHeight: 24 },
+  aside: { alignItems: 'flex-end', gap: 2 },
+  typeLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 12, height: 12, borderRadius: 6 },
+  typeText: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 15, lineHeight: 20 },
+  device: { fontFamily: fonts.bold, color: colors.ink, fontSize: 13, lineHeight: 18 },
+  inner: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 22, gap: 22 },
+  title: { fontFamily: fonts.black, color: colors.ink, fontSize: 24, lineHeight: 30 },
+  when: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  whenText: { flex: 1, fontFamily: fonts.body, color: colors.muted, fontSize: 14, lineHeight: 19 },
+  stats: { flexDirection: 'row', backgroundColor: colors.sunken, borderRadius: 18, paddingVertical: 16 },
+  stat: { flex: 1, alignItems: 'center', gap: 4, paddingHorizontal: 6 },
+  statDivided: { borderLeftWidth: 1, borderLeftColor: colors.line },
+  statValue: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 17, lineHeight: 22 },
+  statLabel: { fontFamily: fonts.bold, color: colors.muted, fontSize: 12, lineHeight: 16 },
+  heading: { fontFamily: fonts.black, color: colors.ink, fontSize: 18, lineHeight: 24 },
   description: { fontFamily: fonts.body, color: colors.muted, fontSize: 15, lineHeight: 23 },
-  divider: { height: 1, backgroundColor: colors.line },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  rowIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.sunken, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 16, height: 16, borderRadius: 8 },
-  label: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18 },
-  value: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 16, lineHeight: 22 },
-  side: { fontFamily: fonts.bold, color: colors.ink, fontSize: 14, lineHeight: 19, backgroundColor: colors.sunken, borderRadius: 12,
-    paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden' },
   avatars: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 58, height: 58, borderRadius: 29, backgroundColor: colors.sunken, borderWidth: 3, borderColor: colors.panel,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  chain: { flex: 1, marginLeft: 12, fontFamily: fonts.bold, color: colors.ink, fontSize: 14, lineHeight: 19 }
+  chain: { flex: 1, marginLeft: 12, fontFamily: fonts.bold, color: colors.ink, fontSize: 14, lineHeight: 19 },
+  footer: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20,
+    paddingTop: 12, backgroundColor: colors.panel, borderTopWidth: 1, borderTopColor: colors.line },
+  dex: { width: 54, height: 54, borderRadius: 27, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  share: { flex: 1, height: 54, borderRadius: 27, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, ...shadows.card },
+  shareText: { fontFamily: fonts.black, fontSize: 17, lineHeight: 22 }
 }))
