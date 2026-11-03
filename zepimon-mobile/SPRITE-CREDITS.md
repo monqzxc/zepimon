@@ -25,6 +25,10 @@ The Safari Zone's art comes from the same repository, [rh-hideout/pokeemerald-ex
 - The long grass and pond battle backgrounds (`graphics/battle_environment/`), drawn from their tilemaps and palettes.
 - The map tiles: the General and Lilycove tilesets (`data/tilesets/`), the pair Emerald's own Safari Zone uses, arranged into our own layout in `scripts/safari/`. Rocks are Emerald's Safari Zone rock tiles.
 
+# Adventure route
+
+The Adventure tab's route map uses the same General and Lilycove tilesets from [rh-hideout/pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion/tree/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011) at the same pinned revision and under the same [upstream credits](https://github.com/rh-hideout/pokeemerald-expansion/blob/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011/CREDITS.md), including Emerald's Pokémon Center front, arranged into our own route layouts in `scripts/adventure-route/`. `scripts/build-adventure-route.py` writes `assets/route/`. The trainer is the Safari Zone's Brendan or May (above), walking with those strips and running with Emerald's running sheets (`graphics/object_events/pics/people/*/running.png`), recoloured the same way; the buddy walks as its overworld sprite (see Trail Defense). The milestone pads, route header and card are drawn by the app; the milestones are named for the towns, cities and routes of Kanto, Johto, Hoenn, Sinnoh and Unova.
+
 # Legendary trials
 
 The trial rooms' art comes from the same repository, [rh-hideout/pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion/tree/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011), at the same pinned revision `0ecb1115129ccb7eb3a7e0dc3718dc263ab84011` and under the same [upstream credits](https://github.com/rh-hideout/pokeemerald-expansion/blob/0ecb1115129ccb7eb3a7e0dc3718dc263ab84011/CREDITS.md). Original Pokémon characters and game artwork belong to their respective owners. `scripts/build-trial-maps.py` downloads what it needs into the shared cache and writes `assets/trials/`:

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Animated, Easing, Image, Platform, Pressable, Text, View } from 'react-native'
+import { Animated, Easing, Image, Platform, Pressable, Text, View, useWindowDimensions } from 'react-native'
+import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
 import type { ImageSourcePropType } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useJournal } from '../../store'
 import { averagePace, duration, km, recordForm } from '../../journal'
 import type { Journal } from '../../journal'
@@ -17,12 +19,19 @@ import type { SharedAdventure, SharedTrail } from '../../shared-adventure'
 import { usePreferences } from '../../preferences'
 import type { LocationIssue } from '../../tracker'
 import { RouteMap } from '../../RouteMap'
-import { AdventureCard } from '../../AdventureCard'
-import { QuestTiles } from '../../QuestTiles'
-import { LegendaryGate } from '../../LegendaryGate'
+import { useGateStatus } from '../../LegendaryGate'
+import { MapSheet, RouteTrail } from '../../RouteTrail'
+import { Squish } from '../../JournalDashboard'
+import { allAdventures } from '../../adventures'
+import type { Adventure } from '../../adventures'
+import { reachedBy } from '../../adventure-route'
+import { averagePace as runPace, clock, fastestPace, paceText, splits } from '../../running'
+import { BottomSheet } from '../../BottomSheet'
+import { summary } from '../../journal-calendar'
+import { missions } from '../../progress'
 import { PixelSprite } from '../../games/TeamPicker'
 import { useReducedMotion } from '../../games/hooks'
-import { Button, Chip, Copy, Eyebrow, Heading, Hero, Icon, IconBubble, Panel, PokeballLoader, Screen, Title, colors, fonts, styles, themedStyles, typeTints, glass, useTheme } from '../../ui'
+import { Button, Chip, Copy, Eyebrow, Heading, Icon, IconBubble, Panel, PokeballLoader, Screen, Title, colors, displayFont, fonts, retro, styles, themedStyles, typeInks, typeTints, glass, useTheme } from '../../ui'
 
 // The phone version of the watch adventure: pick an egg, walk or run, and the phone measures the distance by GPS and
 // draws the route on a map. Saving adds it to the Journal, Dex, missions and Expeditions just like a watch adventure.
@@ -32,14 +41,17 @@ type Summary = { run: PhoneRun, news: ReturnType<typeof expeditionNews> }
 export default function AdventureScreen() {
   useTheme()
   const tracker = useTracker()
-  const [summary, setSummary] = useState<Summary | null>(null)
+  const [saved, setSaved] = useState<Summary | null>(null)
   if (!tracker.ready) return <Screen><View style={{ alignItems: 'center', paddingTop: 96 }}><PokeballLoader /></View></Screen>
   const following = onWatch(tracker.shared)
+  // The route map, and the live adventure's street map, fill the screen edge to edge, under the status bar; the rest
+  // scroll as pages.
+  if (tracker.active) return <Recording active={tracker.active} recording={tracker.recording} screenOnly={tracker.screenOnly}
+    shareError={tracker.shareError} onSaved={setSaved} />
+  if (!saved && !following) return <Setup shared={tracker.shared} handedOver={tracker.handedOver} />
   return <Screen>
-    {tracker.active ? <Recording active={tracker.active} recording={tracker.recording} screenOnly={tracker.screenOnly} shareError={tracker.shareError} onSaved={setSummary} />
-      : summary ? <Saved summary={summary} onDone={() => setSummary(null)} />
-      : following ? <Following shared={following} trail={tracker.trail} handedOver={tracker.handedOver} />
-      : <Setup shared={tracker.shared} handedOver={tracker.handedOver} />}
+    {saved ? <Saved summary={saved} onDone={() => setSaved(null)} />
+      : <Following shared={following!} trail={tracker.trail} handedOver={tracker.handedOver} />}
   </Screen>
 }
 
@@ -53,8 +65,12 @@ const issueText: Record<LocationIssue, [string, string]> = {
 const settingsHint = Platform.OS === 'web' ? 'Allow location for this site' : 'Use Open location settings'
 
 function LocationPanel({ issue }: { issue: LocationIssue | null }) {
+  return <Panel style={issue ? { borderColor: colors.star, borderWidth: 1.5 } : undefined}><LocationDetails issue={issue} /></Panel>
+}
+
+function LocationDetails({ issue }: { issue: LocationIssue | null }) {
   const web = Platform.OS === 'web'
-  return <Panel style={issue ? { borderColor: colors.star, borderWidth: 1.5 } : undefined}>
+  return <>
     <View style={[styles.row, { flexWrap: 'nowrap' }]}>
       <IconBubble name="location" />
       <View style={{ flex: 1 }}><Eyebrow>LOCATION</Eyebrow><Title>{issue ? issueText[issue][0] : 'Ready when you are'}</Title></View>
@@ -62,7 +78,7 @@ function LocationPanel({ issue }: { issue: LocationIssue | null }) {
     <Copy small>{issue ? issueText[issue][1] : 'Zepimon asks for your location when you start. It is used only while recording, and your route stays on this phone.'}</Copy>
     {web ? <Copy small>In a browser, allow location for this site when asked.</Copy>
       : <Button title="Open location settings" secondary onPress={() => { void openLocationSettings(issue) }} />}
-  </Panel>
+  </>
 }
 
 // The egg family the shared plan names, if this phone knows it.
@@ -78,21 +94,29 @@ function HandedOver({ shared }: { shared: SharedAdventure }) {
   </Panel>
 }
 
+// Before an adventure: your trainer on the route map at everything you have walked and run (src/RouteTrail.tsx), with
+// a card docked below to pick the egg, walk or run, and start. Location, Missions and Expeditions float on the right;
+// a milestone reached shows, when tapped, the adventure that got you there.
 function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedOver: SharedAdventure | null }) {
-  const { journal, phoneRuns, plan, chooseEgg, setPhoneAdventure } = useJournal()
+  const { journal, phoneRuns, progress, buddy, plan, chooseEgg, setPhoneAdventure } = useJournal()
   const { session, linked } = useCloud()
+  const reduced = useReducedMotion()
   // The egg shared with the watch, until you pick another; otherwise a random one that is only sent once you choose it.
   const [family, setFamily] = useState(() => plannedFamily(plan) ?? eggs[Math.floor(Math.random() * eggs.length)])
   const [mega, setMega] = useState<string | null>(() => plannedFamily(plan) ? plan!.egg!.mega : null)
   const [seenPlan, setSeenPlan] = useState(plan?.eggAt ?? 0)
   // Walking or Running as chosen in Settings, until you pick here.
-  const { activity: preferred } = usePreferences()
+  const { activity: preferred, safariTrainer } = usePreferences()
   const [picked, setActivity] = useState<Activity | null>(null)
   const activity = picked ?? preferred
   const [issue, setIssue] = useState<LocationIssue | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [watchConfirmed, setWatchConfirmed] = useState(false)
+  const [sheet, setSheet] = useState<'egg' | 'location' | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
+  const adventures = useMemo(() => allAdventures(progress, phoneRuns), [progress, phoneRuns])
+  const lifetime = useMemo(() => summary(adventures).meters, [adventures])
   useFocusEffect(useCallback(() => { void checkLocation().then(setIssue) }, []))
   // An egg chosen elsewhere (Hatch this next in the Dex, another phone) shows up here too.
   if (plan && plan.eggAt !== seenPlan) {
@@ -132,14 +156,77 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
       setBusy(false)
     }
   }
+
+  const startTitle = watchConfirmed ? 'Start here too' : 'Start'
+  const eggArt = (size: number) => <Pressable accessibilityRole="button" accessibilityLabel={`Your egg: ${family[0]} egg`}
+    accessibilityHint="Shows the egg and lets you change it" onPress={() => setSheet('egg')}
+    style={({ pressed }) => [adventure.eggArt, { width: size, height: size, borderRadius: size / 2, backgroundColor: typeTints[pokemonType(family[0])],
+      opacity: pressed ? 0.75 : 1 }]}>
+    <PixelSprite name="Egg" size={Math.round(size * 0.8)} />
+  </Pressable>
+  // Folds the card to one row, leaving more of the map in view; unfolds it again.
+  const fold = <Pressable accessibilityRole="button" accessibilityLabel={collapsed ? 'Show the egg and activity' : 'Fold the card'}
+    accessibilityState={{ expanded: !collapsed }} hitSlop={6} onPress={() => setCollapsed(value => !value)}
+    style={({ pressed }) => [adventure.round, { opacity: pressed ? 0.7 : 1 }]}>
+    <View style={!collapsed && { transform: [{ rotate: '180deg' }] }}><Icon name="chevronDown" size={22} color={colors.muted} /></View>
+  </Pressable>
+  // Unfolded: the egg with a change button, Walk and Run as two cards with the chosen one lit, and Start. Folded: the
+  // egg, Walk and Run as two icons, and Start, in one row.
+  const card = <>
+    {collapsed ? <View style={adventure.egg}>
+      {eggArt(40)}
+      <View accessibilityRole="radiogroup" style={adventure.mini}>
+        {(['walking', 'running'] as const).map(kind => <Pressable key={kind} accessibilityRole="radio" accessibilityState={{ checked: activity === kind }}
+          accessibilityLabel={kind === 'walking' ? 'Walking' : 'Running'} onPress={() => setActivity(kind)}
+          style={[adventure.miniOption, activity === kind && { backgroundColor: colors.edge }]}>
+          <Icon name={kind === 'walking' ? 'walk' : 'run'} size={20} color={activity === kind ? colors.onEdge : colors.muted} />
+        </Pressable>)}
+      </View>
+      <View style={{ flex: 1 }}><Button title={startTitle} loading={busy} onPress={() => { void start() }} /></View>
+      {fold}
+    </View> : <>
+      <View style={adventure.egg}>
+        {eggArt(40)}
+        <Text numberOfLines={1} style={adventure.eggName}>{family[0]} egg</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Change egg" hitSlop={4} onPress={() => setSheet('egg')}
+          style={({ pressed }) => [adventure.change, { transform: [{ scale: pressed ? 0.92 : 1 }] }]}>
+          <Icon name="sync" size={20} color={colors.edge} />
+        </Pressable>
+        {fold}
+      </View>
+      <View accessibilityRole="radiogroup" style={adventure.modes}>
+        {(['walking', 'running'] as const).map(kind => {
+          const on = activity === kind
+          return <Pressable key={kind} accessibilityRole="radio" accessibilityState={{ checked: on }}
+            accessibilityLabel={kind === 'walking' ? 'Walking' : 'Running'} onPress={() => setActivity(kind)}
+            style={({ pressed }) => [adventure.mode, on && adventure.modeOn, { transform: [{ scale: pressed ? 0.97 : 1 }] }]}>
+            <View style={[adventure.modeIcon, on && { backgroundColor: colors.edge }]}>
+              <Icon name={kind === 'walking' ? 'walk' : 'run'} size={20} color={on ? colors.onEdge : colors.muted} />
+            </View>
+            <Text style={[adventure.modeText, on && { color: colors.edge }]}>{kind === 'walking' ? 'Walk' : 'Run'}</Text>
+            {on && <View style={adventure.modeCheck}><Svg width={11} height={11} viewBox="0 0 24 24">
+              <Path d="M5 12.5l4.5 4.5L19 7.5" stroke={colors.onEdge} strokeWidth={3.6} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </Svg></View>}
+          </Pressable>
+        })}
+      </View>
+      <Button title={startTitle} loading={busy} onPress={() => { void start() }} />
+    </>}
+    {watch && <View style={adventure.noteRow}>
+      <Icon name="watch" size={16} color={colors.muted} />
+      <Text style={[adventure.note, { flex: 1 }]}>{watchFamily ? (watch.shiny ? 'Shiny ' : '') + (recordForm(watchFamily, watch) === 'Egg'
+        ? `${watchFamily[0]} egg` : recordForm(watchFamily, watch)) : 'An adventure'} on your watch · {km(watch.meters)}. Finish it there first.</Text>
+    </View>}
+    {watchConfirmed && <Text style={[adventure.note, { color: colors.gold }]}>Tap again to record here too.</Text>}
+    {!!error && <Text style={[adventure.note, { color: colors.danger }]}>{error}</Text>}
+  </>
+
   return <>
-    <Hero eyebrow="ZEPIMON · ADVENTURE" title={'Walk or run\nwith an egg.'}>
-      <Copy color={colors.onBrand}>Your phone measures the distance and draws your route on a map. Every 5 km your egg hatches or evolves, and a Mega form waits at 21 km.</Copy>
-    </Hero>
-    {handedOver && <HandedOver shared={handedOver} />}
-    <LocationPanel issue={issue} />
-    <Panel>
-      <Eyebrow>YOUR EGG</Eyebrow>
+    <RouteTrail meters={lifetime} trainer={safariTrainer} activity={activity} buddy={buddy} reduced={reduced} card={card} cardWidth={400}
+      rail={<Rail issue={issue} onLocation={() => setSheet('location')} reduced={reduced} />}
+      notice={handedOver ? <HandedOver shared={handedOver} /> : undefined}
+      tip={meters => <MilestoneTip meters={meters} adventures={adventures} />} />
+    <MapSheet visible={sheet === 'egg'} title="Your egg" onClose={() => setSheet(null)} reduced={reduced}>
       <View style={[styles.row, { flexWrap: 'nowrap' }]}>
         <View style={[adventure.art, { backgroundColor: typeTints[pokemonType(family[0])] }]}><PixelSprite name="Egg" size={64} /></View>
         <View style={{ flex: 1, gap: 2 }}>
@@ -148,6 +235,7 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
           <Copy small color={colors.gold}>{last ? `Last adventure: ${km(last.meters)}` : 'No adventure with this egg yet'}</Copy>
         </View>
       </View>
+      <Copy small>Every 5 km in one adventure your egg hatches or evolves{megas.length ? ', and a Mega form waits at 21 km' : ''}.</Copy>
       {megas.length > 0 && <>
         <Copy small>Mega form at 21 km:</Copy>
         <View style={styles.row}>{megas.map(name => <Chip key={name} label={name} selected={(mega ?? megas[0]) === name} onPress={() => pickMega(name)} />)}</View>
@@ -155,43 +243,102 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
       <Copy small>{!session || !linked ? 'Link your watch in Settings, and the egg you choose here waits on its title screen too. Adventures saved here reach its Dex as well.'
         : sentToWatch ? 'Your watch offers this egg next: open Zepimon there and tap Walk or Run.' : 'Choose an egg to send it to your watch as well.'}</Copy>
       <View style={styles.row}>
-        <View style={{ flex: 1 }}><Button title="Choose an egg" secondary
-          onPress={() => router.push({ pathname: '/eggs', params: { current: family.join('>') } })} /></View>
+        <View style={{ flex: 1 }}><Button title="Choose an egg" secondary onPress={() => {
+          setSheet(null)
+          router.push({ pathname: '/eggs', params: { current: family.join('>') } })
+        }} /></View>
         <View style={{ flex: 1 }}><Button title="Random egg" secondary onPress={() => choose(eggs[Math.floor(Math.random() * eggs.length)])} /></View>
       </View>
-    </Panel>
-    <Panel>
-      <Eyebrow>ACTIVITY</Eyebrow>
-      <View style={[styles.row, { flexWrap: 'nowrap' }]}>
-        {(['walking', 'running'] as const).map(kind => <Pressable key={kind} accessibilityRole="radio" accessibilityState={{ checked: activity === kind }}
-          accessibilityLabel={kind === 'walking' ? 'Walking' : 'Running'}
-          onPress={() => setActivity(kind)} style={({ pressed }) => [adventure.choice, activity === kind && adventure.chosen, { opacity: pressed ? 0.8 : 1 }]}>
-          <Icon name={kind === 'walking' ? 'walk' : 'run'} size={30} color={activity === kind ? colors.edge : colors.muted} />
-          <Text style={[adventure.choiceText, activity === kind && { color: colors.edge }]}>{kind === 'walking' ? 'Walking' : 'Running'}</Text>
-        </Pressable>)}
+    </MapSheet>
+    <MapSheet visible={sheet === 'location'} title="Location" onClose={() => setSheet(null)} reduced={reduced}>
+      <LocationDetails issue={issue} />
+      <Copy small>Recording keeps going with the screen off; Android shows a notification while Zepimon uses your location. Elapsed time includes stops, like on the watch.{session && linked ? ' Your watch and Zepp show the same adventure, and either device can continue it. One started on your watch shows here live, without the map.' : ''}</Copy>
+    </MapSheet>
+  </>
+}
+
+// What a milestone reached shows in its tip on the map: the adventure that took you past it (its Pokemon, when, walk or
+// run, and how far), how long after the milestone before it that was, and a link to that adventure's details.
+const DAY = 86400000
+function MilestoneTip({ meters, adventures }: { meters: number, adventures: Adventure[] }) {
+  const reached = reachedBy(meters, adventures)
+  if (!reached) return null
+  const { run } = reached
+  const form = recordForm(run.family, run.record)
+  const finished = new Date(run.record.finishedAt)
+  const year = finished.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } as const : {}
+  const previous = meters > 0 ? reachedBy(meters - 5000, adventures) : undefined
+  const days = previous ? Math.round((finished.getTime() - Date.parse(previous.run.record.finishedAt)) / DAY) : null
+  const since = !previous ? 'Where it all began' : previous.run === run ? `Same adventure as ${meters / 1000 - 5} km`
+    : days === 0 ? `Same day as ${meters / 1000 - 5} km` : `${days} day${days === 1 ? '' : 's'} after ${meters / 1000 - 5} km`
+  return <>
+    <View style={adventure.tipRow}>
+      <View style={[adventure.tipArt, { backgroundColor: typeTints[pokemonType(form === 'Egg' ? run.family[0] : form)] }]}>
+        <PixelSprite name={form} shiny={run.record.shiny} size={40} />
       </View>
-    </Panel>
-    {watch && <Panel style={{ borderColor: colors.star, borderWidth: 1.5 }}>
-      <View style={[styles.row, { flexWrap: 'nowrap' }]}>
-        <IconBubble name="walk" />
-        <View style={{ flex: 1 }}><Eyebrow>ON YOUR WATCH</Eyebrow>
-          <Title>{watchFamily ? (watch.shiny ? 'Shiny ' : '') + (recordForm(watchFamily, watch) === 'Egg' ? `${watchFamily[0]} egg` : recordForm(watchFamily, watch)) : 'An adventure'}</Title></View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text numberOfLines={1} style={adventure.tipDate}>{finished.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', ...year })}</Text>
+        <View style={adventure.tipFact}>
+          <Icon name={run.record.activity === 'running' ? 'run' : 'walk'} size={15} color={colors.muted} />
+          <Text numberOfLines={1} style={adventure.tipFactText}>{km(run.record.meters)} · {form === 'Egg' ? `${run.family[0]} egg` : form}</Text>
+        </View>
       </View>
-      <Copy small>{km(watch.meters)} as of {new Date(journal!.snapshot.capturedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Finish it on your watch first, so the same steps are not counted twice.</Copy>
-    </Panel>}
-    {!!error && <Copy color={colors.danger}>{error}</Copy>}
-    {watchConfirmed && <Copy color={colors.gold}>Your watch is recording too. Tap again to record on the phone anyway.</Copy>}
-    <Button title={watchConfirmed ? `Start ${activity} on the phone too` : `Start ${activity}`} loading={busy} onPress={() => { void start() }} />
-    <Copy small>Recording keeps going with the screen off; Android shows a notification while Zepimon uses your location. Elapsed time includes stops, like on the watch.{session && linked ? ' Your watch and Zepp show the same adventure, and either device can continue it. One started on your watch shows here live, without the map.' : ''}</Copy>
-    <Heading>Missions & expeditions</Heading>
-    <QuestTiles />
-    <LegendaryGate variant="strip" />
-    {phoneRuns.length > 0 && <>
-      <Heading>Your routes</Heading>
-      {[...phoneRuns].sort((a, b) => Date.parse(b.record.finishedAt) - Date.parse(a.record.finishedAt)).slice(0, 10)
-        .map(run => <AdventureCard key={run.id} adventure={{ ...run, device: 'phone' }} />)}
-      <Button title="View all adventures" secondary onPress={() => router.push('/adventures')} />
-    </>}
+    </View>
+    <View style={adventure.tipFact}>
+      <Icon name="calendar" size={15} color={colors.edge} />
+      <Text numberOfLines={1} style={[adventure.tipFactText, { color: colors.ink }]}>{since}</Text>
+    </View>
+    <Pressable accessibilityRole="button" accessibilityLabel="Open this adventure" hitSlop={4}
+      onPress={() => router.push({ pathname: '/adventure-details', params: { id: run.id } })}
+      style={({ pressed }) => [adventure.tipLink, { opacity: pressed ? 0.7 : 1 }]}>
+      <Text style={adventure.tipLinkText}>View adventure</Text>
+      <Icon name="chevron" size={18} color={colors.edge} />
+    </Pressable>
+  </>
+}
+
+// The buttons on the right of the map: whether location is on (tap for details), Missions with this week's 10 km as a
+// ring, and Legendary Expeditions with a gold dot when an encounter or permit is waiting.
+function Rail({ issue, onLocation, reduced }: { issue: LocationIssue | null, onLocation: () => void, reduced: boolean }) {
+  const { journal, progress } = useJournal()
+  const gate = useGateStatus()
+  const week = missions(journal, progress).find(mission => mission.id === 'week-distance')
+  const share = week ? Math.min(1, week.value / week.goal) : 0
+  const on = issue === null
+  const state = on ? 'Ready' : issue === 'approximate' ? 'Rough' : 'Off'
+  const ready = gate.state === 'waiting' || gate.state === 'permit'
+  return <>
+    <Squish reduced={reduced} onPress={onLocation} accessibilityLabel={`Location ${state}`} accessibilityHint="Shows how Zepimon uses your location"
+      style={adventure.location}>
+      <View style={[adventure.locationIcon, { backgroundColor: on ? colors.mint : colors.goldTint }]}>
+        <Icon name="location" size={18} color={on ? colors.edge : colors.gold} />
+      </View>
+      <View>
+        <Text style={adventure.railLabel}>Location</Text>
+        <Text style={[adventure.locationState, { color: on ? colors.edge : colors.gold }]}>{state}</Text>
+      </View>
+      <View style={[adventure.switch, on && { backgroundColor: colors.edge }]}><View style={[adventure.knob, on && { alignSelf: 'flex-end' }]} /></View>
+    </Squish>
+    <Squish reduced={reduced} onPress={() => router.push('/missions')} style={adventure.tile}
+      accessibilityLabel={`Missions${week ? `. This week ${Math.min(week.value, week.goal).toFixed(1)} of ${week.goal} km` : ''}`}>
+      <View style={adventure.ring}>
+        <Svg width={40} height={40} style={{ position: 'absolute' }}>
+          <Circle cx={20} cy={20} r={17} stroke={colors.line} strokeWidth={4} fill="none" />
+          {share > 0 && <Circle cx={20} cy={20} r={17} stroke={colors.edge} strokeWidth={4} fill="none" strokeLinecap="round"
+            strokeDasharray={`${2 * Math.PI * 17 * share} ${2 * Math.PI * 17}`} transform="rotate(-90 20 20)" />}
+        </Svg>
+        <Icon name="missions" size={20} color={colors.edge} />
+      </View>
+      <Text style={adventure.railLabel}>Missions</Text>
+    </Squish>
+    <Squish reduced={reduced} onPress={() => router.push('/expeditions')} style={adventure.tile}
+      accessibilityLabel={`Expeditions. ${gate.line}`}>
+      <View style={[adventure.ring, { backgroundColor: ready ? colors.goldTint : colors.altTint }]}>
+        <Icon name="explore" size={22} color={ready ? colors.gold : colors.alt} />
+        {ready && <View style={adventure.alert} />}
+      </View>
+      <Text style={adventure.railLabel}>Expeditions</Text>
+    </Squish>
   </>
 }
 
@@ -319,27 +466,77 @@ function Following({ shared, trail, handedOver }: { shared: SharedAdventure, tra
   </>
 }
 
+// The adventure in progress as a live Pokemon adventure, saved or not, would look in its details: whatever the pace log
+// says for splits and the fastest kilometre (src/running.ts).
+const liveAdventure = (active: ActiveAdventure, now: number): Adventure => ({ id: 'live', family: active.family, device: 'phone',
+  record: { meters: active.meters, steps: 0, shiny: active.shiny, activity: active.activity, finishedAt: new Date(now).toISOString(),
+    startedAt: active.startedAt, elapsedSeconds: Math.max(0, (now - active.startedAt) / 1000) },
+  ...(active.movingSeconds !== null ? { movingSeconds: active.movingSeconds } : {}), pace: active.pace })
+
+// When the adventure reached a distance, in seconds from its start: the time to hatch, or the pace log's 100 m mark.
+// null where it went unrecorded, as for the part an adventure continued from the watch walked there.
+function secondsAt(active: ActiveAdventure, meters: number): number | null {
+  if (meters === 5000 && active.hatchSeconds) return active.hatchSeconds
+  const mark = meters / 100 - active.pace.start
+  return mark >= 0 && mark < active.pace.at.length ? active.pace.at[mark] : null
+}
+
+// The egg's stages in one adventure, in order: hatching at 5 km, each evolution 5 km on, and the Mega form at 21 km.
+function stagesOf(active: ActiveAdventure) {
+  return earnedForms(active.family, Infinity, active.mega)
+    .map((name, i) => ({ name, meters: i < active.family.length ? (i + 1) * 5000 : 21000, verb: i === 0 ? 'Hatched' : i < active.family.length ? 'Evolved' : 'Mega Evolved' }))
+    .sort((a, b) => a.meters - b.meters)
+}
+
+const BAR = 56
+
+// An adventure recording on this phone, laid out like a saved adventure's details (src/app/adventure-details.tsx): the
+// route so far on a live street map fills the top, with whether it is recording and the GPS over it, and the details
+// drag up over it (src/BottomSheet.tsx): the Pokemon and its next hatch or evolution, distance, time and pace, when the
+// egg hatched and each form was reached, and the splits so far. Finish & save and Discard stay at the bottom; each asks
+// first, in a sheet.
 function Recording({ active, recording, screenOnly, shareError, onSaved }: {
   active: ActiveAdventure, recording: boolean, screenOnly: boolean, shareError: string | null, onSaved: (summary: Summary) => void
 }) {
+  useTheme()
   const { session, linked } = useCloud()
   const { phoneRuns, savePhoneRun, setPhoneAdventure } = useJournal()
+  const insets = useSafeAreaInsets()
+  const reduced = useReducedMotion()
+  const { height: screen } = useWindowDimensions()
   const [now, setNow] = useState(Date.now)
   const [confirm, setConfirm] = useState<'finish' | 'discard' | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // The tab's own height: the tab bar sits below it, over the bottom of the sheet.
+  const [box, setBox] = useState(screen)
   useFocusEffect(useCallback(() => {
     setNow(Date.now())
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, []))
   const form = currentForm(active.family, active.meters, active.mega)
+  const type = pokemonType(form === 'Egg' ? active.family[0] : form)
+  const ink = typeInks[type] || colors.edge
   const elapsed = Math.max(0, (now - active.startedAt) / 1000)
   const pace = currentPace(active, now)
   const lost = !active.last || now - active.last.at > 30000
+  const weak = !lost && active.last!.accuracy !== null && active.last!.accuracy > 35
   const gps = !active.last ? 'Searching for GPS…' : lost ? 'GPS signal lost' :
-    active.last.accuracy !== null && active.last.accuracy > 35 ? `Weak GPS (±${Math.round(active.last.accuracy)} m)` : `GPS ±${Math.round(active.last.accuracy ?? 0)} m`
+    weak ? `Weak GPS ±${Math.round(active.last.accuracy!)} m` : `GPS ±${Math.round(active.last.accuracy ?? 0)} m`
   const path = useMemo(() => encodePath(active.points), [active.points])
+  const live = liveAdventure(active, now)
+  const kilometres = splits(live)
+  const next = nextMilestone(active.family, active.meters)
+  const previous = next === null ? 0 : next === 21000 ? active.family.length * 5000 : next - 5000
+  const progress = next === null ? 1 : Math.max(0, Math.min(1, (active.meters - previous) / (next - previous)))
+  const stages = stagesOf(active)
+  const started = new Date(active.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const name = (active.shiny ? 'Shiny ' : '') + (form === 'Egg' ? `${active.family[0]} egg` : form)
+  const FOOTER = 84
+  const edge = Math.round(box * 0.5)
+  const high = insets.top + BAR + 8
+  const [y] = useState(() => new Animated.Value(edge))
 
   async function save() {
     setBusy(true); setError('')
@@ -369,51 +566,175 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
     try { await setScreenOnly(false) } catch { setError('Could not switch recording. Resume to keep going.') }
     setBusy(false)
   }
-  return <>
-    <Stage family={active.family} meters={active.meters} mega={active.mega} shiny={active.shiny} activity={active.activity}
-      status={recording ? 'RECORDING' : 'PAUSED'} live={recording} />
-    <View style={adventure.stats}>
-      <Stat label="DISTANCE" value={km(active.meters).replace(' km', '')} unit="km" />
-      <Stat label="TIME" value={duration(elapsed)} />
-      <Stat label="PACE NOW" value={(pace === null ? '--:-- /km' : averagePace(pace, 1000)).replace(' /km', '')} unit="/km" />
-      {/* Over moving time, as the saved adventure's details show it. */}
-      <Stat label="AVERAGE PACE" value={averagePace(active.movingSeconds ?? elapsed, active.meters).replace(' /km', '')} unit="/km" />
+  const keepGoing = active.activity === 'running' ? 'Keep running' : 'Keep walking'
+  return <View style={{ flex: 1, backgroundColor: colors.panel }} onLayout={event => setBox(event.nativeEvent.layout.height)}>
+    {/* The map stays put and keeps its gestures above the details, which drag up over it and then scroll. */}
+    <View style={[adventure.liveMap, { height: edge + 28 }]}>
+      <RouteMap path={path} here={active.last} stale={lost} live height={edge + 28} bare top={insets.top + BAR} bottom={28} zoomAt="bottomright"
+        label={`Map of your route so far, ${km(active.meters)}`} />
     </View>
-    <View style={{ gap: 6 }}>
-      <RouteMap path={path} here={active.last} stale={lost} live height={300} label={`Map of your route so far, ${km(active.meters)}`} />
-      <Text style={adventure.gps}>{gps}</Text>
+    <Svg pointerEvents="none" width="100%" height={insets.top + BAR + 30} style={adventure.shade}>
+      <Defs>
+        <LinearGradient id="liveShade" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#000000" stopOpacity="0.38" />
+          <Stop offset="1" stopColor="#000000" stopOpacity="0" />
+        </LinearGradient>
+      </Defs>
+      <Rect width="100%" height={insets.top + BAR + 30} fill="url(#liveShade)" />
+    </Svg>
+    <View pointerEvents="box-none" style={[adventure.liveBar, { top: insets.top + 8 }]}>
+      <View accessible accessibilityLabel={`${recording ? 'Recording' : 'Recording stopped'}, ${active.activity}`} style={adventure.livePill}>
+        <View style={[adventure.dot, !recording && { backgroundColor: colors.muted }]} />
+        <Icon name={active.activity === 'running' ? 'run' : 'walk'} size={16} color={colors.ink} />
+        <Text style={adventure.liveText}>{recording ? 'RECORDING' : 'STOPPED'}</Text>
+      </View>
+      <View accessible accessibilityLabel={gps} style={[adventure.livePill, (lost || weak) && { backgroundColor: colors.goldTint }]}>
+        <Icon name="location" size={15} color={lost || weak ? colors.gold : colors.edge} />
+        <Text style={[adventure.gpsPill, (lost || weak) && { color: colors.gold }]}>{gps}</Text>
+      </View>
+    </View>
+
+    <BottomSheet low={edge} high={high} y={y} contentStyle={[adventure.liveContent, { paddingBottom: FOOTER + screen - box + insets.bottom + 24 }]}
+      header={<View style={adventure.liveTop}><View style={adventure.grabber} /></View>}>
+      {!recording && <View style={[adventure.alertCard, { backgroundColor: colors.goldTint }]}>
+        <Text style={[adventure.alertTitle, { color: colors.gold }]}>Recording stopped</Text>
+        <Text style={adventure.note}>Your phone stopped sending locations. Distance so far is kept.</Text>
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}><Button title="Resume" loading={busy && !confirm} onPress={() => { void resume() }} /></View>
+          <View style={{ flex: 1 }}><Button title="Settings" secondary onPress={() => { void openLocationSettings(null) }} /></View>
+        </View>
+      </View>}
+      {screenOnly && <View style={[adventure.alertCard, { backgroundColor: colors.sunken }]}>
+        <Text style={adventure.alertTitle}>Keep Zepimon open</Text>
+        <Text style={adventure.note}>For now it records only while on screen.</Text>
+        <Button title="Record with the screen off" secondary disabled={busy} onPress={() => { void recordInBackground() }} />
+      </View>}
+      {!!error && <Text style={[adventure.note, { color: colors.danger }]}>{error}</Text>}
+
+      <View style={adventure.hero}>
+        <View style={[adventure.heroArt, { backgroundColor: typeTints[type] || colors.sunken }]}>
+          <Walker name={form} shiny={active.shiny} activity={active.activity} size={72} />
+        </View>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text numberOfLines={1} style={adventure.heroName}>{name}</Text>
+          <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }} style={adventure.heroTrack}>
+            <View style={[adventure.heroFill, { width: `${progress * 100}%`, backgroundColor: ink }]} />
+          </View>
+          <Text style={adventure.heroNext}>{next === null ? 'Final form reached' : `${km(next - active.meters)} to ${next === 21000 ? 'Mega' : form === 'Egg' ? 'hatch' : 'evolve'}`}</Text>
+        </View>
+      </View>
+
+      <View style={adventure.liveStats}>
+        <View accessible accessibilityLabel={`Distance ${km(active.meters)}`} style={adventure.distance}>
+          <Text style={adventure.distanceValue}>{(Math.max(0, active.meters) / 1000).toFixed(2)}</Text>
+          <Text style={adventure.distanceUnit}>km</Text>
+        </View>
+        <View style={adventure.statRow}>
+          <LiveStat value={clock(elapsed)} label="Time" />
+          <LiveStat value={paceText(pace)} label="Pace /km" divided />
+          {/* Over moving time, as the saved adventure's details show it. */}
+          <LiveStat value={paceText(runPace(live))} label="Avg /km" divided />
+        </View>
+        <View style={[adventure.statRow, adventure.statRowDivided]}>
+          <LiveStat value={clock(active.movingSeconds)} label="Moving" />
+          <LiveStat value={paceText(fastestPace(live))} label="Fastest /km" divided />
+          <LiveStat value={started} label="Started" divided />
+        </View>
+      </View>
+
+      <View style={{ gap: 4 }}>
+        <Text accessibilityRole="header" style={adventure.heading}>Your egg</Text>
+        <TimelineRow sprite="Egg" shiny={active.shiny} title={`${active.family[0]} egg`} detail={`Started ${started}`} done first last={!stages.length} ink={ink} />
+        {stages.map((stage, i) => {
+          const done = active.meters >= stage.meters
+          const at = done ? secondsAt(active, stage.meters) : null
+          return <TimelineRow key={stage.name} sprite={stage.name} shiny={active.shiny} done={done} last={i === stages.length - 1} ink={ink}
+            title={done ? `${stage.verb} into ${stage.name}` : stage.name}
+            detail={done ? `${stage.meters / 1000} km${at !== null ? ` · ${clock(at)}` : ''}` : `At ${stage.meters / 1000} km · ${km(stage.meters - active.meters)} to go`} />
+        })}
+      </View>
+
+      {kilometres.length > 0 && <View style={{ gap: 6 }}>
+        <Text accessibilityRole="header" style={adventure.heading}>Splits</Text>
+        {kilometres.map(split => <View key={split.km} accessible style={adventure.split}
+          accessibilityLabel={`${split.meters === 1000 ? `Kilometre ${split.km}` : `Last ${km(split.meters)}`}: ${paceText(split.pace)} per kilometre`}>
+          <Text style={adventure.splitKm}>{split.meters === 1000 ? split.km : (split.meters / 1000).toFixed(1)}</Text>
+          <Text style={adventure.splitPace}>{paceText(split.pace)}</Text>
+          <View style={adventure.splitTrack}>
+            <View style={[adventure.splitBar, { backgroundColor: ink,
+              width: `${Math.round(100 * (0.35 + 0.65 * splitShare(split.pace, kilometres.map(item => item.pace))))}%` }]} />
+          </View>
+        </View>)}
+      </View>}
+
       {/* Whether your watch and Zepp can see this adventure: they follow it through your account. */}
-      {session && linked && shareError !== null && <Text style={[adventure.gps, shareError ? { color: colors.gold } : null]}>
-        {shareError ? `Not shared with your watch yet: ${shareError}` : 'Shared with your watch and Zepp'}</Text>}
+      {session && linked && shareError !== null && <View style={adventure.noteRow}>
+        <Icon name="watch" size={16} color={shareError ? colors.gold : colors.muted} />
+        <Text style={[adventure.note, { flex: 1 }, shareError ? { color: colors.gold } : null]}>
+          {shareError ? `Not shared with your watch yet: ${shareError}` : 'Shared with your watch and Zepp'}</Text>
+      </View>}
+    </BottomSheet>
+
+    <View style={[adventure.liveFooter, { height: FOOTER }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Discard" onPress={() => setConfirm('discard')}
+        style={({ pressed }) => [adventure.discard, { opacity: pressed ? 0.7 : 1 }]}>
+        <Icon name="close" size={24} color={colors.danger} />
+      </Pressable>
+      <View style={{ flex: 1 }}><Button title="Finish & save" onPress={() => setConfirm('finish')} /></View>
     </View>
-    {screenOnly && <Panel>
-      <Title>Keep Zepimon open</Title>
-      <Copy small>Zepimon closed during an adventure, so for now it records only while it is open on screen. Distance pauses while the screen is off.</Copy>
-      <Button title="Record with the screen off again" secondary disabled={busy} onPress={() => { void recordInBackground() }} />
-    </Panel>}
-    {!recording && <Panel style={{ borderColor: colors.star, borderWidth: 1.5 }}>
-      <Title>Recording stopped</Title>
-      <Copy small>Your phone stopped sending locations, maybe after a restart. Distance so far is kept.</Copy>
-      <Button title="Resume recording" loading={busy && !confirm} onPress={() => { void resume() }} />
-      <Button title="Open location settings" secondary onPress={() => { void openLocationSettings(null) }} />
-    </Panel>}
-    {!!error && <Copy color={colors.danger}>{error}</Copy>}
-    {confirm === 'finish' ? <Panel>
-      <Title>Save this adventure?</Title>
-      <Text style={styles.stat}>{km(active.meters)}</Text>
-      <Copy small>It becomes the latest record for the {active.family[0]} family, as on the watch.{form === 'Egg' ? ' Your egg hatches at 5 km in one adventure, so this one ends as an egg.' : ''}</Copy>
+
+    <MapSheet visible={confirm === 'finish'} title="Save this adventure?" onClose={() => { if (!busy) setConfirm(null) }} reduced={reduced}>
+      <View style={[styles.row, { flexWrap: 'nowrap' }]}>
+        <View style={[adventure.tipArt, { backgroundColor: typeTints[type] || colors.sunken }]}><PixelSprite name={form} shiny={active.shiny} size={40} /></View>
+        <View style={{ flex: 1 }}>
+          <Text style={adventure.heroName}>{km(active.meters)}</Text>
+          <Text style={adventure.note}>{clock(elapsed)} · {name}</Text>
+        </View>
+      </View>
+      {form === 'Egg' && <Text style={adventure.note}>Under 5 km, so this one ends as an egg.</Text>}
+      {!!error && <Text style={[adventure.note, { color: colors.danger }]}>{error}</Text>}
       <Button title="Save & finish" loading={busy} onPress={() => { void save() }} />
-      <Button title={active.activity === 'running' ? 'Keep running' : 'Keep walking'} secondary disabled={busy} onPress={() => setConfirm(null)} />
-    </Panel> : confirm === 'discard' ? <Panel>
-      <Title>Discard this adventure?</Title>
-      <Copy small>The distance and route are deleted and nothing is saved.</Copy>
-      <Button title="Discard adventure" secondary onPress={() => { void clearAdventure().then(() => setPhoneAdventure(null)).catch(() => {}) }} />
-      <Button title={active.activity === 'running' ? 'Keep running' : 'Keep walking'} onPress={() => setConfirm(null)} />
-    </Panel> : <>
-      <Button title="Finish & save" onPress={() => setConfirm('finish')} />
-      <Button title="Discard" secondary onPress={() => setConfirm('discard')} />
-    </>}
-  </>
+      <Button title={keepGoing} secondary disabled={busy} onPress={() => setConfirm(null)} />
+    </MapSheet>
+    <MapSheet visible={confirm === 'discard'} title="Discard this adventure?" onClose={() => setConfirm(null)} reduced={reduced}>
+      <Text style={adventure.note}>The distance and route are deleted. Nothing is saved.</Text>
+      <Button title="Discard" secondary onPress={() => { void clearAdventure().then(() => setPhoneAdventure(null)).catch(() => {}) }} />
+      <Button title={keepGoing} onPress={() => setConfirm(null)} />
+    </MapSheet>
+  </View>
+}
+
+// How fast a split was among the others, from 0 for the slowest to 1 for the fastest.
+function splitShare(pace: number, paces: number[]) {
+  const slowest = Math.max(...paces), quickest = Math.min(...paces)
+  return slowest === quickest ? 1 : (slowest - pace) / (slowest - quickest)
+}
+
+// One cell of the live stats: a big value over a small label, split from its neighbour by a hairline.
+function LiveStat({ value, label, divided = false }: { value: string, label: string, divided?: boolean }) {
+  return <View accessible accessibilityLabel={`${label}: ${value}`} style={[adventure.liveStat, divided && adventure.liveStatDivided]}>
+    <Text style={adventure.liveStatValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+    <Text style={adventure.liveStatLabel} numberOfLines={1}>{label}</Text>
+  </View>
+}
+
+// A step of the egg's journey: the form, then when it was reached, or how far it is. A line joins the steps, coloured
+// up to the latest one reached.
+function TimelineRow({ sprite, shiny, title, detail, done, first = false, last, ink }: {
+  sprite: string, shiny: boolean, title: string, detail: string, done: boolean, first?: boolean, last: boolean, ink: string
+}) {
+  return <View accessible accessibilityLabel={`${title}. ${detail}`} style={adventure.step}>
+    <View style={adventure.stepRail}>
+      {!first && <View style={[adventure.stepLine, { top: 0, height: 10, backgroundColor: done ? ink : colors.line }]} />}
+      <View style={[adventure.stepArt, done ? { borderColor: ink } : { opacity: 0.45 }]}><PixelSprite name={sprite} shiny={shiny} size={34} /></View>
+      {!last && <View style={[adventure.stepLine, { bottom: 0, height: 10, backgroundColor: colors.line }]} />}
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text numberOfLines={1} style={[adventure.stepTitle, !done && { color: colors.muted }]}>{title}</Text>
+      <Text numberOfLines={1} style={adventure.stepDetail}>{detail}</Text>
+    </View>
+    {done ? <Icon name="check" size={20} color={ink} /> : <Icon name="lock" size={18} color={colors.muted} />}
+  </View>
 }
 
 function Stat({ label, value, unit }: { label: string, value: string, unit?: string }) {
@@ -453,10 +774,91 @@ function Saved({ summary: { run, news }, onDone }: { summary: Summary, onDone: (
 
 const adventure = themedStyles(() => ({
   art: { width: 84, height: 84, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  choice: { flex: 1, minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 18, borderWidth: 1.5,
-    borderColor: colors.line, backgroundColor: colors.panel },
-  chosen: { borderColor: colors.edge, borderWidth: 2.5, backgroundColor: colors.mint },
-  choiceText: { fontFamily: fonts.heavy, fontSize: 15, color: colors.muted },
+  egg: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
+  eggArt: { alignItems: 'center', justifyContent: 'center' },
+  eggName: { flex: 1, fontFamily: displayFont(fonts.black), fontSize: retro() ? 15 : 17, lineHeight: 22, color: colors.ink },
+  // The change-egg button: the sync arrows on the accent's tint, ringed so it reads as a button.
+  change: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.mint,
+    borderWidth: 1.5, borderColor: colors.mintLine },
+  round: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sunken },
+  // Walk and Run: two cards side by side, the chosen one lit in the accent with a tick.
+  modes: { flexDirection: 'row', gap: 8 },
+  mode: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 52, borderRadius: retro() ? 10 : 16,
+    borderWidth: 2, borderColor: colors.line, backgroundColor: colors.sunken },
+  modeOn: { borderColor: colors.edge, backgroundColor: colors.mint },
+  modeIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.panel },
+  modeText: { fontFamily: fonts.heavy, fontSize: 15, color: colors.muted },
+  modeCheck: { position: 'absolute', top: 6, right: 6, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.edge },
+  // Folded, Walk and Run are two icons in a pill.
+  mini: { flexDirection: 'row', padding: 3, gap: 2, borderRadius: 999, backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line },
+  miniOption: { width: 40, height: 38, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  note: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: colors.muted },
+  noteRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // A milestone's tip on the map.
+  tipRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tipArt: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  tipDate: { fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20, color: colors.ink },
+  tipFact: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tipFactText: { flexShrink: 1, fontFamily: fonts.bold, fontSize: 13, lineHeight: 18, color: colors.muted },
+  tipLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, minHeight: 40, borderRadius: 999, backgroundColor: colors.mint },
+  tipLinkText: { fontFamily: fonts.heavy, fontSize: 14, color: colors.edge },
+  // The live adventure: map, the bar over it, the details sheet and the footer.
+  liveMap: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden', backgroundColor: colors.sunken },
+  shade: { position: 'absolute', top: 0, left: 0 },
+  liveBar: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  livePill: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.panel,
+    boxShadow: `0px 4px 12px ${colors.shadow}` },
+  gpsPill: { fontFamily: fonts.heavy, fontSize: 12, color: colors.ink },
+  liveTop: { height: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.panel, borderTopLeftRadius: retro() ? 12 : 28,
+    borderTopRightRadius: retro() ? 12 : 28, boxShadow: `0px -6px 18px ${colors.shadow}` },
+  grabber: { width: 40, height: 5, borderRadius: 3, backgroundColor: colors.line },
+  liveContent: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 4, gap: 18 },
+  alertCard: { borderRadius: 18, padding: 14, gap: 8 },
+  alertTitle: { fontFamily: fonts.heavy, fontSize: 15, color: colors.ink },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  heroArt: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' },
+  heroName: { fontFamily: displayFont(fonts.black), fontSize: retro() ? 18 : 21, lineHeight: 27, color: colors.ink },
+  heroTrack: { height: 10, borderRadius: 5, overflow: 'hidden', backgroundColor: colors.sunken },
+  heroFill: { height: 10, borderRadius: 5 },
+  heroNext: { fontFamily: fonts.bold, fontSize: 13, color: colors.muted },
+  liveStats: { backgroundColor: colors.sunken, borderRadius: 18 },
+  distance: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 6, paddingTop: 16 },
+  distanceValue: { fontFamily: fonts.black, fontSize: 52, lineHeight: 60, color: colors.ink, fontVariant: ['tabular-nums'] },
+  distanceUnit: { fontFamily: fonts.heavy, fontSize: 18, color: colors.muted },
+  statRow: { flexDirection: 'row', paddingVertical: 14 },
+  statRowDivided: { borderTopWidth: 1, borderTopColor: colors.line },
+  liveStat: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 6 },
+  liveStatDivided: { borderLeftWidth: 1, borderLeftColor: colors.line },
+  liveStatValue: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 18, lineHeight: 24, fontVariant: ['tabular-nums'] },
+  liveStatLabel: { fontFamily: fonts.bold, color: colors.muted, fontSize: 12, lineHeight: 16 },
+  heading: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 17, lineHeight: 23, marginBottom: 4 },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60 },
+  stepRail: { width: 48, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
+  stepLine: { position: 'absolute', width: 3, borderRadius: 2 },
+  stepArt: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.sunken,
+    borderWidth: 2, borderColor: colors.line },
+  stepTitle: { fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20, color: colors.ink },
+  stepDetail: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 18, color: colors.muted },
+  split: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 32 },
+  splitKm: { width: 30, fontFamily: fonts.bold, color: colors.ink, fontSize: 15, fontVariant: ['tabular-nums'] },
+  splitPace: { width: 48, fontFamily: fonts.heavy, color: colors.ink, fontSize: 15, fontVariant: ['tabular-nums'] },
+  splitTrack: { flex: 1, height: 22, justifyContent: 'center' },
+  splitBar: { height: 22, borderRadius: 4 },
+  liveFooter: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20,
+    backgroundColor: colors.panel, borderTopWidth: 1, borderTopColor: colors.line },
+  discard: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line,
+    backgroundColor: colors.dangerTint },
+  location: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 6, paddingRight: 10, paddingVertical: 6, borderRadius: retro() ? 12 : 999,
+    backgroundColor: colors.panel, ...railShadow() },
+  locationIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  locationState: { fontFamily: fonts.black, fontSize: 13, lineHeight: 16 },
+  switch: { width: 30, height: 18, borderRadius: 9, padding: 2, backgroundColor: colors.line },
+  knob: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#FFFFFF' },
+  tile: { width: 80, alignItems: 'center', gap: 4, paddingVertical: 8, borderRadius: retro() ? 12 : 22, backgroundColor: colors.panel, ...railShadow() },
+  ring: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  railLabel: { fontFamily: fonts.heavy, fontSize: 11, lineHeight: 14, color: colors.ink },
+  alert: { position: 'absolute', top: 1, right: 1, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.gold, borderWidth: 2, borderColor: colors.panel },
   stage: { borderRadius: 24, padding: 18, gap: 8, borderWidth: 1, borderColor: colors.line },
   live: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: glass(0.8) },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
@@ -467,3 +869,8 @@ const adventure = themedStyles(() => ({
   statUnit: { fontFamily: fonts.heavy, color: colors.muted, fontSize: 15 },
   gps: { fontFamily: fonts.bold, fontSize: 13, color: colors.muted, textAlign: 'center' }
 }))
+
+// Raised off the map: a soft shadow, or Emerald's hard frame.
+function railShadow() {
+  return retro() ? { borderWidth: 2, borderColor: colors.frameOuter, boxShadow: `0px 3px 0px ${colors.frameOuter}` } : { boxShadow: `0px 6px 16px ${colors.shadow}` }
+}

@@ -80,8 +80,10 @@ BATTLES = {'battleGrass': 'long_grass', 'battlePond': 'pond_water'}
 FILES = {'safariBall': 'safari-ball', 'battleGrass': 'battle-grass', 'battlePond': 'battle-pond'}
 
 
-def trainer(name):
-    sheet = indexed(f'graphics/object_events/pics/people/{name}/walking.png', (144, 32))
+def trainer(name, sheet='walking'):
+    """A trainer's strip from one of Emerald's 144 x 32 sheets: walking here, running for the Adventure tab's route map
+    (scripts/build-adventure-route.py), which lays its frames out the same way."""
+    sheet = indexed(f'graphics/object_events/pics/people/{name}/{sheet}.png', (144, 32))
     palette = sheet.getpalette()
 
     def colour(index, x, y):
