@@ -39,7 +39,13 @@ export function canRevisit(dex: Record<string, DexRecord>, name: string, shiny: 
   return species.includes(name) && Object.hasOwn(dex, revisitKey(name, shiny))
 }
 
-export const roomName = (id: string) => id === 'star' ? 'The island' : id.endsWith('-tutorial') ? 'Tutorial' : `Room ${id.split('-').pop()}`
+// How far a shrine has been explored: its rooms with a best moves count, out of all of them (the ring on its standee).
+export function roomsExplored(name: string, records: TrialRecords): { explored: number, rooms: number } {
+  const rooms = revisitRooms(name)
+  return { explored: rooms.filter(id => Object.hasOwn(records, id)).length, rooms: rooms.length }
+}
+
+export const roomName =(id: string) => id === 'star' ? 'The island' : id.endsWith('-tutorial') ? 'Tutorial' : `Room ${id.split('-').pop()}`
 
 // "Room 2 · best 64 · par 58", leaving out what isn't known yet.
 export function roomLine(id: string, records: TrialRecords): string {

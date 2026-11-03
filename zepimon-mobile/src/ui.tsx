@@ -124,7 +124,9 @@ const icons = {
   logout: ['rectangle.portrait.and.arrow.right', 'logout'], info: ['info.circle', 'info'], doc: ['doc.text', 'description'],
   download: ['square.and.arrow.down', 'download'], sun: ['sun.max', 'light_mode'], moon: ['moon', 'dark_mode'],
   contrast: ['circle.lefthalf.filled', 'contrast'], edit: ['pencil', 'edit'], calendar: ['calendar', 'calendar_month'], plus: ['plus', 'add'],
-  chevronDown: ['chevron.down', 'expand_more'], rotate: ['rectangle.portrait.rotate', 'screen_rotation'], locate: ['scope', 'my_location']
+  chevronDown: ['chevron.down', 'expand_more'], rotate: ['rectangle.portrait.rotate', 'screen_rotation'], locate: ['scope', 'my_location'],
+  chart: ['chart.bar.fill', 'bar_chart'], flame: ['flame', 'local_fire_department'], trendUp: ['arrow.up.right', 'trending_up'],
+  trendDown: ['arrow.down.right', 'trending_down'], swap: ['arrow.up.arrow.down', 'swap_vert'], sort: ['line.3.horizontal.decrease', 'sort']
 } satisfies Record<string, [SFSymbol, AndroidSymbol]>
 export type IconName = keyof typeof icons
 const symbolBox = { alignItems: 'center', justifyContent: 'center' } as const

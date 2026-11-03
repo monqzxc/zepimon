@@ -72,6 +72,56 @@ test('the egg hatches at 5 km and saving produces a valid watch-style record', (
   assert.deepEqual(restorePhoneRuns([{ ...run, id: 'oops' }, { ...run, path: '\u0001' }, null]), [], 'Damaged adventures are dropped')
 })
 
+test('moving time leaves out stops, and every 100 m is timed for pacing', () => {
+  let active = newAdventure(bulbasaur, 'running', null, start, () => 0.5)
+  active = addFix(active, { lat: 14.5, lng: 121, accuracy: 4, at: start })
+  active = walk(active, 25, 10, 3)
+  assert.deepEqual(active.pace.at.slice(0, 3), [0, 30, 60], 'Ten 10 m steps every 3 s: a mark each 30 s')
+  // Waiting two minutes at a crossing, then on again: the first step back counts only the time it would take to walk it.
+  active = walk(active, 1, 10, 120)
+  active = walk(active, 24, 10, 3)
+  assert.ok(Math.abs(active.meters - 500) < 1)
+  assert.equal(active.pace.at.length, 6)
+  assert.equal(active.pace.at[3] - active.pace.at[2], 147, 'The clock keeps the stop')
+  assert.ok(active.pace.moving[3] - active.pace.moving[2] < 45, 'Moving time does not')
+  assert.ok(Math.abs(active.movingSeconds - (49 * 3 + 10 / 0.6)) < 0.01, "49 steps of 3 s and the step after the stop")
+  const run = finishAdventure(active, active.last.at)
+  assert.equal(run.movingSeconds, Math.floor(active.movingSeconds))
+  assert.deepEqual(run.pace, active.pace)
+  assert.deepEqual(restorePhoneRuns(JSON.parse(JSON.stringify([run]))), [run])
+  const [damaged] = restorePhoneRuns([{ ...run, pace: { start: 0, at: [0, 30, 20], moving: [0, 30, 20] }, movingSeconds: -1 }])
+  assert.deepEqual([damaged.id, damaged.pace, damaged.movingSeconds], [run.id, undefined, undefined], 'A damaged pace log is dropped, the adventure kept')
+  const restored = restoreActive(saveActive(active))
+  assert.deepEqual([restored.movingSeconds, restored.pace], [active.movingSeconds, active.pace])
+  const older = JSON.parse(saveActive(active)); delete older.pace; delete older.movingSeconds
+  const resumed = restoreActive(JSON.stringify(older))
+  assert.deepEqual([resumed.movingSeconds, resumed.pace], [null, { start: Math.floor(active.meters / 100) + 1, at: [], moving: [], elev: [] }], 'An adventure from before pacing logs from here on')
+})
+
+test('altitude is smoothed and kept at every 100 m for the splits', () => {
+  let active = newAdventure(bulbasaur, 'running', null, start, () => 0.5)
+  const metersPerDegree = 111195
+  // 10 m steps every 3 s, climbing a metre a step, with a wild altitude the GPS is unsure of half way.
+  for (let i = 0; i <= 60; i++) {
+    const unsure = i === 30
+    active = addFix(active, { lat: 14.5 + i * 10 / metersPerDegree, lng: 121, accuracy: 4, at: start + i * 3000,
+      altitude: unsure ? 900 : 20 + i, altitudeAccuracy: unsure ? 60 : 4 })
+  }
+  assert.equal(active.pace.elev.length, active.pace.at.length)
+  assert.equal(active.pace.elev[0], 20, 'The start mark takes the first altitude')
+  const climbs = active.pace.elev.slice(1).map((height, i) => height - active.pace.elev[i])
+  // Smoothing lags a few metres behind a steady climb, so the first 100 m reads a little low.
+  assert.ok(climbs.every(climb => climb > 5 && climb < 12), `Each 100 m climbs about 10 m, got ${climbs}`)
+  const total = active.pace.elev.at(-1) - active.pace.elev[0]
+  assert.ok(total > 50 && total <= 60, `60 m climbed in all, less the lag, got ${total}`)
+  assert.ok(active.pace.elev.at(-1) < 80, 'The unsure 900 m fix is ignored')
+  const run = finishAdventure(active, active.last.at)
+  assert.deepEqual(restorePhoneRuns(JSON.parse(JSON.stringify([run])))[0].pace, run.pace)
+  assert.equal(restorePhoneRuns([{ ...run, pace: { ...run.pace, elev: [1] } }])[0].pace, undefined, 'A mismatched elevation log is dropped')
+  const flat = walk(newAdventure(bulbasaur, 'walking', null, start, () => 0.5), 30)
+  assert.ok(flat.pace.elev.every(height => height === null), 'Without altitude the marks have none')
+})
+
 test('routes are compressed for storage and simplified to a bounded size', () => {
   const points = [[14.5, 121], [14.50123, 121.00456], [14.49877, 120.99544], [-33.86882, 151.20929]]
   assert.deepEqual(decodePath(encodePath(points)), points)

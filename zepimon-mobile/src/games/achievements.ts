@@ -6,9 +6,14 @@ import { trialStages as generatedStages } from '../generated/trial-maps.js'
 import type { Stage } from './trial.ts'
 import { KIND_NAMES } from './trials.ts'
 import type { TrialRecords } from './trials.ts'
+import { allAdventures } from '../adventures.ts'
+import { achievements, runningPoints } from '../running.ts'
+import type { Progress } from '../progress.ts'
+import type { PhoneRun } from '../phone-adventure.ts'
 
 // Arcade achievements: the third way to a Legendary encounter, beside the 25 km distance route and the Expedition
-// Quest. Each achievement is worth points, and every ARCADE_PERMIT_POINTS of them can be traded for an Expedition Permit
+// Quest. Running achievements add to the same points (legendaryPoints, below). Each achievement is worth points, and
+// every ARCADE_PERMIT_POINTS of them can be traded for an Expedition Permit
 // (src/expedition-quest.ts), which opens the next encounter: the trial, lair, battle and catch still decide whether
 // the Legendary joins you. Achievements are read from what the games already save (best scores, Memory Match moves,
 // Adventure Map and Trail Defense stars, Safari catches), which only ever improve, so replaying a game, restarting the
@@ -67,3 +72,13 @@ export function arcadeAchievements(records: ArcadeRecords): Achievement[] {
 
 export const achieved = (achievement: Achievement) => achievement.value >= achievement.goal
 export const arcadePoints = (records: ArcadeRecords) => arcadeAchievements(records).reduce((sum, item) => sum + (achieved(item) ? item.points : 0), 0)
+
+// The Legendary points gauge: arcade achievements and running achievements (feats and milestones, src/running.ts)
+// together. Permits traded so far (quest.arcade) are counted against this total, so adding running points never takes
+// one back.
+export type LegendaryRecords = ArcadeRecords & { progress: Progress, phoneRuns: PhoneRun[] }
+export function legendaryPoints(records: LegendaryRecords, now = Date.now()) {
+  const arcade = arcadePoints(records)
+  const running = runningPoints(achievements(allAdventures(records.progress, records.phoneRuns, now)))
+  return { arcade, running, total: arcade + running }
+}

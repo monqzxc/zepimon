@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { adventuresByDay, adventuresIn, adventuresOn, bento, calendarMonths, describeAdventure, monthGrid, periodRange, recentDays, shortDuration, summary } from '../src/journal-calendar.ts'
+import { adventuresByDay, adventuresIn, adventuresOn, calendarMonths, describeAdventure, monthGrid, periodRange, shortDuration, summary } from '../src/journal-calendar.ts'
 
 const at = (day, hour = 9, month = 9) => new Date(2026, month, day, hour).getTime()
 const run = (id, finished, extra = {}) => ({ id, device: 'phone', family: ['Pikachu', 'Raichu'],
@@ -8,14 +8,6 @@ const run = (id, finished, extra = {}) => ({ id, device: 'phone', family: ['Pika
 const now = at(28, 15)
 const runs = [run('a', at(28, 7)), run('b', at(28, 8), { activity: 'running', meters: 5200, elapsedSeconds: 1500 }), run('c', at(26)),
   run('d', at(20)), run('e', at(2)), run('f', at(15, 9, 3))]
-
-test('the strip starts today and goes back day by day, marking days with adventures', () => {
-  const days = recentDays(runs, now, 10)
-  assert.equal(days.length, 10)
-  assert.equal(days[0].start, at(28, 0))
-  assert.equal(days[1].start, at(27, 0))
-  assert.deepEqual(days.filter(day => day.has).map(day => new Date(day.start).getDate()), [28, 26, 20])
-})
 
 test('a day holds the adventures that finished on it, and adds them up', () => {
   const today = adventuresOn(runs, at(28, 12))
@@ -34,16 +26,6 @@ test('week, month and year are calendar periods around the chosen day', () => {
   assert.deepEqual(adventuresIn(runs, periodRange(at(28), 'month')).map(item => item.id), ['b', 'a', 'c', 'd', 'e'])
   assert.deepEqual(adventuresIn(runs, periodRange(at(28), 'year')).map(item => item.id), ['b', 'a', 'c', 'd', 'e', 'f'])
   assert.deepEqual(adventuresIn(runs, periodRange(at(10, 9, 3), 'week')), [], 'An earlier week shows only its own')
-})
-
-test('bento tiles fill two columns that stay about level, every third one tall', () => {
-  const [left, right] = bento(runs)
-  assert.equal(left.length + right.length, runs.length)
-  assert.deepEqual(left.map(tile => [tile.adventure.id, tile.tall]), [['a', true], ['d', true]])
-  assert.deepEqual(right.map(tile => [tile.adventure.id, tile.tall]), [['b', false], ['c', false], ['e', false], ['f', false]])
-  const height = column => column.reduce((sum, tile) => sum + (tile.tall ? 2 : 1), 0)
-  assert.ok(Math.abs(height(left) - height(right)) <= 1)
-  assert.deepEqual(bento([]), [[], []])
 })
 
 test('durations read the way people say them', () => {

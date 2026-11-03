@@ -1,12 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { claimExpedition, emptyExpeditions, importExpeditions, restoreExpeditions } from '../src/expeditions.ts'
-import { QUEST_SESSIONS, arcadePointsLeft, completeChallenge, distanceLeg, earnArcadePermit, earnPermit, emptyQuest, encounterReady, questSessions, restoreQuest, spendPermit,
+import { QUEST_SESSIONS, arcadePointsLeft, claimTickets, ticketsLeft, completeChallenge, distanceLeg, earnArcadePermit, earnPermit, emptyQuest, encounterReady, questSessions, restoreQuest, spendPermit,
   trailUnlocked } from '../src/expedition-quest.ts'
 import { RESONANCE_SEALS, activateSeal, catchEncounter, enterLair, finishTrial, stabilizeResonance } from '../src/expedition-encounter.ts'
 import { emptyProgress, importProgress } from '../src/progress.ts'
 import { parseJournal } from '../src/journal.ts'
-import { ARCADE_PERMIT_POINTS, achieved, arcadeAchievements, arcadePoints } from '../src/games/achievements.ts'
+import { ARCADE_PERMIT_POINTS, achieved, arcadeAchievements, arcadePoints, legendaryPoints } from '../src/games/achievements.ts'
 import { saveBestScore } from '../src/games/scores.ts'
 import { saveStars } from '../src/games/adventure.ts'
 import { addSafariCatch } from '../src/games/safari.ts'
@@ -157,6 +157,35 @@ test('arcade achievements add up to points, and every 100 points buys exactly on
   assert.equal(ARCADE_PERMIT_POINTS, 100)
   const all = arcadeAchievements(blank).reduce((sum, item) => sum + item.points, 0)
   assert.ok(all >= 5 * ARCADE_PERMIT_POINTS, `Every game together is worth several permits (${all} points)`)
+})
+
+test('running achievements fill the same points gauge as the arcade', () => {
+  const blank = { arcadeScores: {}, bestMoves: {}, adventure: {}, trailLevels: {}, trialRecords: {}, safari: {}, progress: emptyProgress(), phoneRuns: [] }
+  assert.deepEqual(legendaryPoints(blank, NOW), { arcade: 0, running: 0, total: 0 })
+  // Quiz 5/8/10 (60), memory win and six pairs (30): 90, short of a permit.
+  const arcade = { ...blank, arcadeScores: saveBestScore({}, 'quiz', 10), bestMoves: { 6: 20 } }
+  assert.equal(legendaryPoints(arcade, NOW).total, 90)
+  assert.throws(() => earnArcadePermit(emptyQuest(), legendaryPoints(arcade, NOW).total))
+  // A first 5 km from the watch is worth 10 more.
+  const progress = importProgress(emptyProgress(), journalOf([[day(2), 5200]]), NOW)
+  const points = legendaryPoints({ ...arcade, progress }, NOW)
+  assert.deepEqual(points, { arcade: 90, running: 10, total: 100 })
+  const quest = earnArcadePermit(emptyQuest(), points.total)
+  assert.deepEqual([quest.permits, quest.arcade, arcadePointsLeft(quest, points.total)], [1, 1, 0])
+  const again = importProgress(progress, journalOf([[day(2), 5200]]), NOW)
+  assert.equal(legendaryPoints({ ...arcade, progress: again }, NOW).running, 10, 'Importing the same adventure again adds nothing')
+})
+
+test('running tickets are claimed once each as permits, and kept in a backup', () => {
+  assert.throws(() => claimTickets(emptyQuest(), 0), /No running ticket/)
+  let quest = claimTickets(emptyQuest(), 2)
+  assert.deepEqual([quest.permits, quest.running, ticketsLeft(quest, 2)], [2, 2, 0])
+  assert.throws(() => claimTickets(quest, 2), /No running ticket/, 'The same tickets cannot be claimed twice')
+  quest = claimTickets(quest, 3)
+  assert.deepEqual([quest.permits, quest.running, quest.arcade, quest.number], [3, 3, 0, 0])
+  assert.deepEqual(restoreQuest(JSON.parse(JSON.stringify(quest))), quest)
+  assert.equal(restoreQuest({ running: -1 }).running, 0)
+  assert.equal(ticketsLeft(quest, 1), 0, 'Fewer tickets than claimed never goes below zero')
 })
 
 test('trial achievements read the records', () => {

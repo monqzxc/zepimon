@@ -41,6 +41,8 @@ export function sharedFrom(active: ActiveAdventure, now: number, ended = false):
 export function fromShared(shared: SharedAdventure, now: number): ActiveAdventure {
   return { family: [...shared.family], activity: shared.activity, startedAt: shared.startedAt, shiny: shared.shiny, mega: shared.mega,
     meters: shared.meters, hatchSeconds: shared.hatchSeconds, points: [], anchor: null, last: null, recent: [],
+    // The watch's part has no moving time or marks: pace is logged from the next 100 m on.
+    movingSeconds: null, altitude: null, pace: { start: Math.floor(shared.meters / 100) + 1, at: [], moving: [], elev: [] },
     shareId: shared.id, deviceAt: Math.max(now, shared.deviceAt + 1) }
 }
 

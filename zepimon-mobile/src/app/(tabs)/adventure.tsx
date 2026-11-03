@@ -376,7 +376,8 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
       <Stat label="DISTANCE" value={km(active.meters).replace(' km', '')} unit="km" />
       <Stat label="TIME" value={duration(elapsed)} />
       <Stat label="PACE NOW" value={(pace === null ? '--:-- /km' : averagePace(pace, 1000)).replace(' /km', '')} unit="/km" />
-      <Stat label="AVERAGE PACE" value={averagePace(elapsed, active.meters).replace(' /km', '')} unit="/km" />
+      {/* Over moving time, as the saved adventure's details show it. */}
+      <Stat label="AVERAGE PACE" value={averagePace(active.movingSeconds ?? elapsed, active.meters).replace(' /km', '')} unit="/km" />
     </View>
     <View style={{ gap: 6 }}>
       <RouteMap path={path} here={active.last} stale={lost} live height={300} label={`Map of your route so far, ${km(active.meters)}`} />
@@ -431,7 +432,8 @@ function Saved({ summary: { run, news }, onDone }: { summary: Summary, onDone: (
       <Eyebrow>ADVENTURE SAVED</Eyebrow>
       <PixelSprite name={form} shiny={run.record.shiny} size={120} />
       <Heading>{run.record.shiny ? 'Shiny ' : ''}{form === 'Egg' ? `${run.family[0]} egg` : form}</Heading>
-      <Copy color={colors.ink}>{km(run.record.meters)} · {duration(run.record.elapsedSeconds)} · {averagePace(run.record.elapsedSeconds, run.record.meters)}</Copy>
+      <Copy color={colors.ink}>{km(run.record.meters)} · {duration(run.record.elapsedSeconds)} · {averagePace(run.movingSeconds ?? run.record.elapsedSeconds, run.record.meters)}</Copy>
+      {run.movingSeconds !== undefined && <Copy small>Moving time {duration(run.movingSeconds)}</Copy>}
     </Panel>
     <RouteMap path={run.path} height={260} label={`Map of the route, ${km(run.record.meters)}`} />
     <Panel>

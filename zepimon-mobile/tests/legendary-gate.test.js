@@ -59,6 +59,7 @@ test('permit: a permit in hand, or a finished quest ready to claim one, opens th
   assert.equal(gateStatus(expeditions, done, progress, NOW).state, 'permit', 'Three sessions and the shrine challenge earn one')
   assert.equal(gateStatus(expeditions, done, { ...emptyProgress(), runs: [run(10), run(11)] }, NOW).state, 'walking', 'Two sessions are not enough')
   assert.equal(gateStatus(expeditions, emptyQuest(), progress, NOW).state, 'walking', 'Nor sessions without the challenge')
+  assert.equal(gateStatus(expeditions, emptyQuest(), emptyProgress(), NOW, 1).state, 'permit', 'A running ticket to claim is one too')
 })
 
 test('walking: the distance left to the next encounter, from the newest trail', () => {

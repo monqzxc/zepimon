@@ -9,8 +9,10 @@ import { restoreScores, saveBestScore } from './games/scores'
 import type { ArcadeGame, ArcadeScores } from './games/scores'
 import { emptyExpeditions, expeditionJournal, importExpeditions, restoreExpeditions } from './expeditions'
 import type { ExpeditionProgress } from './expeditions'
-import { completeChallenge, earnArcadePermit, earnPermit, emptyQuest, questSessions, restoreQuest, spendPermit } from './expedition-quest'
-import { arcadePoints } from './games/achievements'
+import { claimTickets, completeChallenge, earnArcadePermit, earnPermit, emptyQuest, questSessions, restoreQuest, spendPermit } from './expedition-quest'
+import { legendaryPoints } from './games/achievements'
+import { allAdventures } from './adventures'
+import { runningTickets } from './running'
 import type { Quest } from './expedition-quest'
 import { activateSeal, catchEncounter, enterLair, finishTrial, leaveLair, legacyEncounters, restoreEncounters, saveCheckpoint,
   stabilizeResonance } from './expedition-encounter'
@@ -36,7 +38,7 @@ type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRec
   recordPracticeClear: (name: string, shiny: boolean, results: Record<string, number>) => Promise<void>, recordRematchWin: (name: string, shiny: boolean) => Promise<void>, saveTrialCheckpoint: (key: string, index: number, run: TrialRun) => Promise<void>, enterLair: (key: string, index: number) => Promise<void>,
   leaveLair: (key: string, index: number, discardShiny: boolean) => Promise<void>, activateSeal: (key: string, index: number, seal: SealId) => Promise<void>,
   stabilizeResonance: (key: string, index: number) => Promise<void>,
-  completeQuestChallenge: () => Promise<void>, earnPermit: () => Promise<void>, earnArcadePermit: () => Promise<void>, unlockWithPermit: (key: string) => Promise<void>, recordSafariCatch: (name: string, shiny: boolean) => Promise<void>, recordStars: (stop: string, stars: number) => Promise<void>,
+  completeQuestChallenge: () => Promise<void>, earnPermit: () => Promise<void>, earnArcadePermit: () => Promise<void>, claimRunningTickets: () => Promise<void>, unlockWithPermit: (key: string) => Promise<void>, recordSafariCatch: (name: string, shiny: boolean) => Promise<void>, recordStars: (stop: string, stars: number) => Promise<void>,
   recordLevelStars: (level: string, stars: number) => Promise<void>, savePhoneRun: (run: PhoneRun) => Promise<void>, chooseEgg: (family: string[], mega: string | null) => Promise<void>,
   setPhoneAdventure: (phone: Plan['phone']) => Promise<void>, dropEgg: () => Promise<void>, receivePlan: (plan: unknown) => Promise<void>, makeBackup: () => string, backupInfo: ReturnType<typeof backupSummary> }
 const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), quest: emptyQuest(), encounters: {}, safari: {}, adventure: {}, trailLevels: {}, trialRecords: {}, rematchWins: {}, phoneRuns: [], plan: null }
@@ -156,7 +158,9 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   // The Expedition Quest (src/expedition-quest.ts): the shrine challenge, the permit it earns and spending it on a trail.
   const completeQuestChallenge = () => persist(current => ({ ...current, quest: completeChallenge(current.quest) }))
   const earnQuestPermit = () => persist(current => ({ ...current, quest: earnPermit(current.quest, questSessions(current.quest, current.progress, current.expeditions)) }))
-  const earnPointsPermit = () => persist(current => ({ ...current, quest: earnArcadePermit(current.quest, arcadePoints(current)) }))
+  const earnPointsPermit = () => persist(current => ({ ...current, quest: earnArcadePermit(current.quest, legendaryPoints(current).total) }))
+  const claimRunningTickets = () => persist(current => ({ ...current,
+    quest: claimTickets(current.quest, runningTickets(allAdventures(current.progress, current.phoneRuns)).length) }))
   const unlockWithPermit = (key: string) => persist(current => ({ ...current, quest: spendPermit(current.quest, current.expeditions, key) }))
   // A phone adventure is saved like a watch one: it joins the journal, missions and the phone's Expedition trail.
   const savePhoneRun = (run: PhoneRun) => persist(current => {
@@ -182,7 +186,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   return <Context.Provider value={{ ...saved, ...collectionOf(saved), ready, error, importText, importCloud, chooseBuddy, recordWin, recordArcadeScore,
     befriend, finishTrial: finishEncounterTrial, recordPracticeClear, recordRematchWin, saveTrialCheckpoint, enterLair: enterEncounterLair, leaveLair: leaveEncounterLair,
     activateSeal: switchOnSeal, stabilizeResonance: steadyResonance,
-    completeQuestChallenge, earnPermit: earnQuestPermit, earnArcadePermit: earnPointsPermit, unlockWithPermit, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
+    completeQuestChallenge, earnPermit: earnQuestPermit, earnArcadePermit: earnPointsPermit, claimRunningTickets, unlockWithPermit, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
     backupInfo: backupSummary(saved) }}>{children}</Context.Provider>
 }
 

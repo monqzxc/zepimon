@@ -51,6 +51,8 @@ function Navigator() {
       <Stack.Screen name="pokemon" options={{ title: 'Pokemon record' }} />
       <Stack.Screen name="expeditions" options={{ title: 'Legendary Expeditions' }} />
       <Stack.Screen name="missions" options={{ title: 'Missions' }} />
+      <Stack.Screen name="achievements" options={{ title: 'Achievements' }} />
+      <Stack.Screen name="compare" options={{ title: 'Compare' }} />
       <Stack.Screen name="eggs" options={{ title: 'Choose an egg' }} />
       <Stack.Screen name="share" options={{ title: 'Share adventure' }} />
       <Stack.Screen name="adventures" options={{ title: 'All adventures' }} />

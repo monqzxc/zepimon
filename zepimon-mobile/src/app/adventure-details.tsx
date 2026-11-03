@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Animated, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
 import { StatusBar } from 'expo-status-bar'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useJournal } from '../store'
-import { averagePace, km, recordForm } from '../journal'
-import { adventureFacts, bestLabels, findAdventure } from '../adventures'
+import { km, recordForm } from '../journal'
+import { adventureFacts, allAdventures, bestLabels, findAdventure } from '../adventures'
 import type { Adventure } from '../adventures'
+import { averagePace, clock, earnedBy, fastestPace, movingTime, paceText, splits } from '../running'
+import type { Split } from '../running'
 import { pokemonType } from '../catalog'
 import { describeAdventure, shortDuration } from '../journal-calendar'
 import { RouteMap } from '../RouteMap'
@@ -19,7 +21,8 @@ import type { IconName } from '../ui'
 
 // One saved adventure, opened from a Journal tile. The route's live map fills the top of the screen and stays put; the
 // details below it (src/BottomSheet.tsx) drag up over it until they cover the screen, then scroll: what the adventure
-// earned, the Pokemon it reached, when it happened, its stats and a description. The details'
+// earned (records, feats and milestones from src/running.ts too), when it happened, its stats, its pace per km, a
+// description and the Pokemon it reached. The details'
 // white panel meets the map with a stepped edge, its right side higher; what the adventure earned leads the details.
 // Watch adventures have no route, so the map's place shows the Pokemon on its type's tint. Dex and Share close the screen. id is a Journal run's id or a phone adventure's own id.
 export default function AdventureDetailsScreen() {
@@ -57,7 +60,8 @@ function panelTop(width: number, step: number): string {
 function Details({ adventure }: { adventure: Adventure }) {
   const { dark } = useTheme()
   const { id, family, record, device, path } = adventure
-  const { journal } = useJournal()
+  const { journal, progress, phoneRuns } = useJournal()
+  const everyone = useMemo(() => allAdventures(progress, phoneRuns), [progress, phoneRuns])
   const insets = useSafeAreaInsets()
   const { width, height } = useWindowDimensions()
   const [fit, setFit] = useState(0)
@@ -81,18 +85,25 @@ function Details({ adventure }: { adventure: Adventure }) {
   const uncovered = y.interpolate({ inputRange: [high, high + 80], outputRange: [0, 1], extrapolate: 'clamp' })
   const reached = facts.evolution.at(-1)
   const share = () => router.push({ pathname: '/share', params: { id } })
-  // What this adventure earned, each with the number behind it.
+  // What this adventure earned, each with the number behind it: records first, then the egg, then feats and milestones.
+  // A long list shows its first few until opened, so the stats stay in reach.
   const bestValues = { distance: km(record.meters), elapsed: shortDuration(record.elapsedSeconds), hatch: shortDuration(facts.hatchSeconds) }
+  const running = earnedBy(adventure, everyone)
   const achievements: { icon: IconName, title: string, detail: string }[] = [
     ...facts.bests.map(metric => ({ icon: 'trophy' as const, title: bestLabels[metric], detail: `Personal best · ${bestValues[metric]}` })),
+    ...running.filter(item => item.id.startsWith('record-')),
     ...record.shiny ? [{ icon: 'sparkle' as const, title: 'Shiny', detail: 'A rare colour variant' }] : [],
     ...facts.evolution.length ? [{ icon: 'egg' as const, title: 'Hatched',
-      detail: facts.hatchSeconds ? `Into ${facts.evolution[0]} after ${shortDuration(facts.hatchSeconds)}` : `Into ${facts.evolution[0]}` }] : []
+      detail: facts.hatchSeconds ? `Into ${facts.evolution[0]} after ${shortDuration(facts.hatchSeconds)}` : `Into ${facts.evolution[0]}` }] : [],
+    ...running.filter(item => !item.id.startsWith('record-'))
   ]
+  const [allEarned, setAllEarned] = useState(false)
+  const FEW = 4
+  const listed = allEarned ? achievements : achievements.slice(0, FEW)
   const year = finished.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } as const : {}
   const when = `${finished.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', ...year })} · `
     + (started ? `${time(started)} – ${time(finished)}` : time(finished))
-  const pace = averagePace(record.elapsedSeconds, record.meters).replace(' /km', '')
+  const kilometres = splits(adventure)
   const distance = Number.isFinite(record.meters) && record.meters >= 0 ? (record.meters / 1000).toFixed(2) : '--'
 
   return <View style={{ flex: 1, backgroundColor: colors.panel }}>
@@ -142,7 +153,7 @@ function Details({ adventure }: { adventure: Adventure }) {
 
         {achievements.length > 0 && <View style={{ gap: 8 }}>
           <Text accessibilityRole="header" style={page.heading}>Achievements</Text>
-          {achievements.map(({ icon, title, detail }) => <View key={title} accessible accessibilityLabel={`${title}. ${detail}`}
+          {listed.map(({ icon, title, detail }) => <View key={title} accessible accessibilityLabel={`${title}. ${detail}`}
             style={[page.achievement, { backgroundColor: typeTints[type] || colors.sunken }]}>
             <View style={[page.medal, { backgroundColor: ink }]}><Icon name={icon} size={20} color={onInk} /></View>
             <View style={{ flex: 1 }}>
@@ -150,14 +161,27 @@ function Details({ adventure }: { adventure: Adventure }) {
               <Text style={page.achievementDetail}>{detail}</Text>
             </View>
           </View>)}
+          {achievements.length > FEW && <Pressable accessibilityRole="button" onPress={() => setAllEarned(shown => !shown)}
+            style={({ pressed }) => [page.more, { opacity: pressed ? 0.7 : 1 }]}>
+            <Text style={[page.moreText, { color: ink }]}>{allEarned ? 'Show fewer' : `Show ${achievements.length - FEW} more`}</Text>
+            <View style={allEarned && { transform: [{ rotate: '180deg' }] }}><Icon name="chevronDown" size={18} color={ink} /></View>
+          </Pressable>}
         </View>}
 
         <View style={page.stats}>
-          <Stat value={distance} label="Km" />
-          <Stat value={shortDuration(record.elapsedSeconds)} label="Time" divided />
-          <Stat value={pace} label="Pace /km" divided />
-          <Stat value={facts.steps ? facts.steps.toLocaleString() : '--'} label="Steps" divided />
+          <View style={page.statRow}>
+            <Stat value={distance} label="Km" />
+            <Stat value={clock(movingTime(adventure))} label="Moving time" divided />
+            <Stat value={clock(record.elapsedSeconds ?? null)} label="Elapsed" divided />
+          </View>
+          <View style={[page.statRow, page.statRowDivided]}>
+            <Stat value={paceText(averagePace(adventure))} label="Avg pace /km" />
+            <Stat value={paceText(fastestPace(adventure))} label="Fastest /km" divided />
+            <Stat value={facts.steps ? facts.steps.toLocaleString() : '--'} label="Steps" divided />
+          </View>
         </View>
+
+        {kilometres.length > 0 && <Splits splits={kilometres} ink={ink} />}
 
         <View style={{ gap: 6 }}>
           <Text accessibilityRole="header" style={page.heading}>Description</Text>
@@ -212,6 +236,47 @@ function Details({ adventure }: { adventure: Adventure }) {
   </View>
 }
 
+// The splits, as a runner's table: each kilometre's number, its pace, a bar as long as it was fast and, when the GPS
+// gave altitude, its climb in metres (below zero for a drop). The fastest whole kilometre's pace is in the type's ink.
+// A part kilometre at the end shows its distance.
+function Splits({ splits, ink }: { splits: Split[], ink: string }) {
+  const whole = splits.filter(split => split.meters === 1000)
+  const fastest = whole.length > 1 ? Math.min(...whole.map(split => split.pace)) : null
+  const slowest = Math.max(...splits.map(split => split.pace))
+  const quickest = Math.min(...splits.map(split => split.pace))
+  const elevation = splits.some(split => split.elev !== null)
+  return <View style={{ gap: 8 }}>
+    <Text accessibilityRole="header" style={page.heading}>Splits</Text>
+    <View>
+      <View style={[page.split, page.splitHead]} accessible={false} importantForAccessibility="no-hide-descendants">
+        <Text style={[page.splitKm, page.splitLabel]}>Km</Text>
+        <Text style={[page.splitPace, page.splitLabel]}>Pace</Text>
+        <View style={{ flex: 1 }} />
+        {elevation && <Text style={[page.splitElev, page.splitLabel]}>Elev</Text>}
+      </View>
+      {splits.map(split => {
+        const best = split.pace === fastest
+        // Bars run from a third of the width for the slowest kilometre to all of it for the fastest.
+        const share = slowest === quickest ? 1 : 0.35 + 0.65 * (slowest - split.pace) / (slowest - quickest)
+        const label = split.meters === 1000 ? String(split.km) : (split.meters / 1000).toFixed(1)
+        const climb = split.elev === null ? null : Math.round(split.elev)
+        return <View key={split.km} accessible style={page.split}
+          accessibilityLabel={`${split.meters === 1000 ? `Kilometre ${split.km}` : `Last ${km(split.meters)}`}: ${paceText(split.pace)} per kilometre${best ? ', fastest' : ''}`
+            + (climb === null ? '' : climb === 0 ? ', flat' : `, ${Math.abs(climb)} metres ${climb > 0 ? 'up' : 'down'}`)}>
+          <Text style={page.splitKm}>{label}</Text>
+          <Text style={[page.splitPace, best && { color: ink }]}>{paceText(split.pace)}</Text>
+          <View style={page.splitTrack}>
+            <View style={[page.splitBar, { width: `${Math.round(share * 100)}%`, backgroundColor: ink }]} />
+          </View>
+          {elevation && <Text style={page.splitElev}>{climb === null ? '--' : String(climb)}</Text>}
+        </View>
+      })}
+    </View>
+    <Copy small>{`Pace in moving time, so stops do not count${elevation ? '; elevation in metres gained or lost over each split, from GPS' : ''}.`
+      + (fastest !== null ? ' Your fastest kilometre is in colour.' : '')}</Copy>
+  </View>
+}
+
 // One cell of the stats strip: a big value over a small label, split from its neighbour by a hairline.
 function Stat({ value, label, divided = false }: { value: string, label: string, divided?: boolean }) {
   return <View accessible accessibilityLabel={`${label}: ${value}`} style={[page.stat, divided && page.statDivided]}>
@@ -238,6 +303,8 @@ const page = themedStyles(() => ({
   medal: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   achievementTitle: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 15, lineHeight: 20 },
   achievementDetail: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18 },
+  more: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 44 },
+  moreText: { fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20 },
   // Type and device stand on the raised right, like the reference's rating and delivery fee.
   aside: { position: 'absolute', top: 18, right: 20, alignItems: 'flex-end', gap: 2 },
   typeLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -248,7 +315,17 @@ const page = themedStyles(() => ({
   title: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 20, lineHeight: 26 },
   when: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   whenText: { flex: 1, fontFamily: fonts.body, color: colors.muted, fontSize: 13, lineHeight: 18 },
-  stats: { flexDirection: 'row', backgroundColor: colors.sunken, borderRadius: 18, paddingVertical: 14 },
+  stats: { backgroundColor: colors.sunken, borderRadius: 18 },
+  statRow: { flexDirection: 'row', paddingVertical: 14 },
+  statRowDivided: { borderTopWidth: 1, borderTopColor: colors.line },
+  split: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 34 },
+  splitHead: { minHeight: 32, borderBottomWidth: 1, borderBottomColor: colors.line, marginBottom: 6 },
+  splitLabel: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13 },
+  splitKm: { width: 30, fontFamily: fonts.bold, color: colors.ink, fontSize: 15, lineHeight: 20, fontVariant: ['tabular-nums'] },
+  splitTrack: { flex: 1, height: 26, justifyContent: 'center' },
+  splitBar: { height: 26, borderRadius: 4 },
+  splitElev: { width: 40, textAlign: 'right', fontFamily: fonts.bold, color: colors.ink, fontSize: 15, lineHeight: 20, fontVariant: ['tabular-nums'] },
+  splitPace: { width: 48, fontFamily: fonts.heavy, color: colors.ink, fontSize: 15, lineHeight: 20, fontVariant: ['tabular-nums'] },
   stat: { flex: 1, alignItems: 'center', gap: 2, paddingHorizontal: 6 },
   statDivided: { borderLeftWidth: 1, borderLeftColor: colors.line },
   statValue: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 16, lineHeight: 21 },

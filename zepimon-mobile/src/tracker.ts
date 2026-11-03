@@ -75,7 +75,8 @@ async function receive(locations: Location.LocationObject[]) {
   let active = state.active
   if (!active) return
   for (const { coords, timestamp } of [...locations].sort((a, b) => a.timestamp - b.timestamp)) {
-    active = addFix(active, { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy, at: timestamp })
+    active = addFix(active, { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy, at: timestamp,
+      altitude: coords.altitude, altitudeAccuracy: coords.altitudeAccuracy })
   }
   update({ active })
   live()

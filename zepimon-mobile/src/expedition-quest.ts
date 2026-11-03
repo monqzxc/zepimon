@@ -14,10 +14,11 @@ export const QUEST_SESSION_METERS = 1000
 
 // number: permits earned so far. since: sessions finished at or after it count toward this quest; null means since the
 // first trail began, so the first quest counts the same saved adventures as the distance route. challenge: this quest's
-// shrine challenge is done. arcade: permits traded for arcade achievement points (src/games/achievements.ts).
-// permits: earned either way and not yet used. unlocks: per trail key, encounters opened with a permit.
-export type Quest = { number: number, since: number | null, challenge: boolean, arcade: number, permits: number, unlocks: Record<string, number> }
-export const emptyQuest = (): Quest => ({ number: 0, since: null, challenge: false, arcade: 0, permits: 0, unlocks: {} })
+// shrine challenge is done. arcade: permits traded for arcade achievement points (src/games/achievements.ts). running:
+// permits claimed with running tickets (src/running.ts runningTickets). permits: earned any way and not yet used.
+// unlocks: per trail key, encounters opened with a permit.
+export type Quest = { number: number, since: number | null, challenge: boolean, arcade: number, running: number, permits: number, unlocks: Record<string, number> }
+export const emptyQuest = (): Quest => ({ number: 0, since: null, challenge: false, arcade: 0, running: 0, permits: 0, unlocks: {} })
 
 // The saved sessions counting toward this quest, oldest first. Only completed, saved adventures are in progress.runs,
 // keyed by a stable id, and completedRuns counts one adventure saved by both devices once, so importing the same
@@ -45,6 +46,16 @@ export const arcadePointsLeft = (quest: Quest, points: number) => Math.max(0, po
 export function earnArcadePermit(quest: Quest, points: number): Quest {
   if (arcadePointsLeft(quest, points) < ARCADE_PERMIT_POINTS) throw new Error(`Collect ${ARCADE_PERMIT_POINTS} achievement points for a permit.`)
   return { ...quest, arcade: quest.arcade + 1, permits: quest.permits + 1 }
+}
+
+// Running tickets are earned once each, like arcade points, so they are counted against the permits already claimed.
+// Claiming takes every ticket waiting.
+export const ticketsLeft = (quest: Quest, tickets: number) => Math.max(0, tickets - quest.running)
+
+export function claimTickets(quest: Quest, tickets: number): Quest {
+  const left = ticketsLeft(quest, tickets)
+  if (!left) throw new Error('No running ticket to claim yet.')
+  return { ...quest, running: quest.running + left, permits: quest.permits + left }
 }
 
 export const trailPermits = (quest: Quest, key: string) => quest.unlocks[key] || 0
@@ -75,6 +86,7 @@ export function restoreQuest(raw: unknown): Quest {
   quest.since = typeof value.since === 'number' && Number.isFinite(value.since) && value.since >= 0 && value.since <= 8.64e15 ? value.since : null
   quest.challenge = value.challenge === true
   quest.arcade = count(value.arcade, 1000)
+  quest.running = count(value.running, 4000)
   quest.permits = count(value.permits, 4000)
   if (value.unlocks && typeof value.unlocks === 'object' && !Array.isArray(value.unlocks)) {
     for (const [key, permits] of Object.entries(value.unlocks)) {

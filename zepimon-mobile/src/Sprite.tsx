@@ -7,7 +7,9 @@ import { walkingFrames } from './generated/walking.js'
 
 const poses = walkingFrames as Record<string, ImageSourcePropType[]>
 
-export function Sprite({ name, shiny = false, size = 88 }: { name: string, shiny?: boolean, size?: number }) {
+// The front-facing overworld pose (the battle sprite where there is none), which hops and shows a heart when tapped.
+// onLongPress adds a second action, like opening the Pokemon's record.
+export function Sprite({ name, shiny = false, size = 88, onLongPress }: { name: string, shiny?: boolean, size?: number, onLongPress?: () => void }) {
   const isShiny = shiny || name.startsWith('Shiny ')
   const base = name.replace(/^Shiny /, '')
   const label = (isShiny ? 'Shiny ' : '') + base
@@ -45,7 +47,9 @@ export function Sprite({ name, shiny = false, size = 88 }: { name: string, shiny
   }, [supported, label]))
 
   return <Pressable accessibilityRole="button" accessibilityLabel={`Say hello to ${label}`}
-    accessibilityHint="Tap for a reaction" onPress={() => react.current()}
+    accessibilityHint={onLongPress ? 'Tap for a reaction. Hold to open its record' : 'Tap for a reaction'} onPress={() => react.current()}
+    onLongPress={onLongPress} accessibilityActions={onLongPress ? [{ name: 'longpress', label: 'Open its record' }] : undefined}
+    onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'longpress') onLongPress?.() }}
     style={{ width: size, height: size, alignSelf: 'center' }}>
     <Image source={supported ? frames[frame] : spriteSource(base, isShiny)}
       accessibilityLabel={label} resizeMode="contain" fadeDuration={0} onError={() => setFailed(label)}

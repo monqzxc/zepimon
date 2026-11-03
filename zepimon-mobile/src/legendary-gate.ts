@@ -8,7 +8,8 @@ import { trialFor } from './games/trials.ts'
 // The Legendary Gate (src/LegendaryGate.tsx), the way into Legendary Expeditions on Home, Adventure and the Expeditions
 // header. This works out what it shows from the saved progress, and only reads it:
 // - waiting: an encounter is open. The next one's Legendary is named and shown in full; its Shiny is for its lair to reveal.
-// - permit: nothing is open, but a permit is in hand, or the Expedition Quest is done and one is ready to claim.
+// - permit: nothing is open, but a permit is in hand, or the Expedition Quest is done or a running ticket earned and one
+//   is ready to claim.
 // - walking: the distance left to the next encounter on the newest trail.
 // - none: no trail yet; saving an adventure starts one.
 // Away from waiting, the gate shows the last Legendary caught as a dark silhouette, or none if nothing is caught yet.
@@ -29,7 +30,8 @@ function lastCaught(expeditions: ExpeditionProgress): { name: string, shiny: boo
 // Kilometres to one decimal, rounded up so a few metres left never reads as 0 km.
 const kmLeft = (meters: number) => `${Math.max(0.1, Math.ceil(meters / 100) / 10)} km`
 
-export function gateStatus(expeditions: ExpeditionProgress, quest: Quest, progress: Progress, now = Date.now()): GateStatus {
+// tickets: running tickets earned and not yet claimed (src/running.ts runningTickets), each a permit to claim.
+export function gateStatus(expeditions: ExpeditionProgress, quest: Quest, progress: Progress, now = Date.now(), tickets = 0): GateStatus {
   const trails = Object.entries(expeditions.trails).sort((a, b) => b[1].startedAt - a[1].startedAt)
   const waiting = waitingEncounters(expeditions, quest)
   const open = trails.find(([key, trail]) => encounterReady(quest, key, trail))
@@ -44,7 +46,7 @@ export function gateStatus(expeditions: ExpeditionProgress, quest: Quest, progre
   const spendable = trails.some(([key, trail]) => trailUnlocked(quest, key, trail) < 4000)
   if (!trails.length || !spendable) return { state: 'none', ...shown, line: 'Save an adventure to find the gate’s first clue', waiting: 0, remaining: 0 }
   const claimable = quest.challenge && questSessions(quest, progress, expeditions, now).length >= QUEST_SESSIONS
-  if (quest.permits > 0 || claimable) return { state: 'permit', ...shown, line: 'Permit ready — open the gate', waiting: 0, remaining: 0 }
+  if (quest.permits > 0 || claimable || tickets > 0) return { state: 'permit', ...shown, line: 'Permit ready — open the gate', waiting: 0, remaining: 0 }
   const [key, newest] = trails[0]
   const remaining = Math.max(0, expeditionGoal - distanceLeg(quest, key, newest))
   return { state: 'walking', ...shown, line: `${kmLeft(remaining)} to your next encounter`, waiting: 0, remaining }

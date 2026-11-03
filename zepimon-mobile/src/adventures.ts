@@ -1,13 +1,18 @@
 import { completedRuns } from './progress.ts'
 import type { Progress, SavedRun } from './progress.ts'
 import { earnedForms } from './phone-adventure.ts'
-import type { PhoneRun } from './phone-adventure.ts'
+import type { PaceLog, PhoneRun } from './phone-adventure.ts'
 import { personalBests } from './journal.ts'
 import type { Journal, Metric } from './journal.ts'
 
 // Every saved adventure in one list, from the watch and this phone, for the Journal, All adventures and the
-// details and share screens. Only phone adventures have a route (path); watches count steps instead.
-export type Adventure = SavedRun & { device: 'phone' | 'watch', path?: string }
+// details and share screens. Only phone adventures have a route (path), and those recorded since pacing was added
+// their moving time and pace log (src/running.ts); watches count steps instead.
+export type Adventure = SavedRun & { device: 'phone' | 'watch', path?: string, movingSeconds?: number, pace?: PaceLog }
+
+// What a phone run adds to its record.
+const fromPhone = ({ path, movingSeconds, pace }: PhoneRun) => ({ device: 'phone' as const, path,
+  ...movingSeconds !== undefined ? { movingSeconds } : {}, ...pace ? { pace } : {} })
 
 // A phone adventure reaches the Journal's runs (progress) with the same family and finish time, under another id.
 const key = ({ family, record }: { family: string[], record: { finishedAt: string } }) => `${family.join('>')}@${record.finishedAt}`
@@ -21,7 +26,7 @@ export function allAdventures(progress: Progress, phoneRuns: PhoneRun[], now = D
     .sort((a, b) => Date.parse(b.record.finishedAt) - Date.parse(a.record.finishedAt))
   return completedRuns({ ...progress, runs }, now).map((run): Adventure => {
     const phone = phones.get(key(run))
-    return phone ? { ...run, device: 'phone', path: phone.path } : { ...run, device: 'watch' }
+    return phone ? { ...run, ...fromPhone(phone) } : { ...run, device: 'watch' }
   })
 }
 
@@ -50,9 +55,9 @@ export function adventureFacts({ family, record }: SavedRun, journal: Journal | 
 // The adventure a link names: a phone adventure's own id (the Adventure tab links those) or a Journal run's id.
 export function findAdventure(id: string | undefined, progress: Progress, phoneRuns: PhoneRun[]): Adventure | undefined {
   const phone = phoneRuns.find(run => run.id === id)
-  if (phone) return { id: phone.id, family: phone.family, record: phone.record, device: 'phone', path: phone.path }
+  if (phone) return { id: phone.id, family: phone.family, record: phone.record, ...fromPhone(phone) }
   const run = progress.runs.find(item => item.id === id)
   if (!run) return undefined
   const match = phoneRuns.find(item => key(item) === key(run))
-  return match ? { ...run, device: 'phone', path: match.path } : { ...run, device: 'watch' }
+  return match ? { ...run, ...fromPhone(match) } : { ...run, device: 'watch' }
 }

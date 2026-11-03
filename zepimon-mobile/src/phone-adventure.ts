@@ -13,7 +13,14 @@ export { decodePath, encodePath }
 // both devices grow Pokemon the same way.
 
 export type Activity = 'walking' | 'running'
-export type Fix = { lat: number, lng: number, accuracy: number | null, at: number }
+// altitude is metres above sea level and altitudeAccuracy its error, when the GPS reports them.
+export type Fix = { lat: number, lng: number, accuracy: number | null, at: number, altitude?: number | null, altitudeAccuracy?: number | null }
+// When each 100 m was reached, in seconds from the start: by the clock (at) and in moving time (moving), for the
+// splits, the fastest pace and best efforts (src/running.ts). start is the first mark's distance in 100 m: 0 from the
+// start, or the first 100 m after this phone took the adventure over from the watch, which keeps no marks. elev is
+// the smoothed altitude in metres at each mark (null where the GPS gave none), for each split's climb; adventures
+// recorded before it was kept have none.
+export type PaceLog = { start: number, at: number[], moving: number[], elev?: (number | null)[] }
 export type ActiveAdventure = {
   family: string[], activity: Activity, startedAt: number, shiny: boolean, mega: string | null,
   meters: number, hatchSeconds: number | null,
@@ -21,11 +28,15 @@ export type ActiveAdventure = {
   anchor: Fix | null,           // the last accepted fix: the next distance is measured from here
   last: Fix | null,             // the latest fix of any quality, for the GPS status
   recent: [number, number][],   // [time, meters] over the last minute, for the current pace
+  movingSeconds: number | null, // time spent moving, without stops; null when part of it went unrecorded
+  altitude: number | null,      // the smoothed altitude so far, null until the GPS gives one
+  pace: PaceLog,
   shareId: string,              // the adventure shared with the watch (see src/shared-adventure.ts)
   deviceAt: number              // when this phone started it or took it over
 }
 // A saved phone adventure. record has the same shape the watch saves; path is the route as an encoded polyline.
-export type PhoneRun = { id: string, family: string[], record: DexRecord, path: string }
+// movingSeconds and pace are kept beside the record, which the watch's format has no room for; older adventures have neither.
+export type PhoneRun = { id: string, family: string[], record: DexRecord, path: string, movingSeconds?: number, pace?: PaceLog }
 
 const families = catalogRoutes as string[][]
 const megas = megaForms as Record<string, string[]>
@@ -62,7 +73,9 @@ export function liveText(active: ActiveAdventure): { activity: string, distance:
 export function newAdventure(family: string[], activity: Activity, mega: string | null, now: number, random = Math.random): ActiveAdventure {
   const choices = megaChoices(family)
   return { family: [...family], activity, startedAt: now, shiny: rollShiny(random), mega: mega && choices.includes(mega) ? mega : choices[0] ?? null,
-    meters: 0, hatchSeconds: null, points: [], anchor: null, last: null, recent: [], shareId: `adv-${now}`, deviceAt: now }
+    meters: 0, hatchSeconds: null, points: [], anchor: null, last: null, recent: [], movingSeconds: 0, altitude: null,
+    pace: { start: 0, at: [0], moving: [0], elev: [null] },
+    shareId: `adv-${now}`, deviceAt: now }
 }
 
 const EARTH_RADIUS = 6371008.8
@@ -81,11 +94,47 @@ const MIN_STEP = 5
 const MAX_SPEED: Record<Activity, number> = { walking: 7, running: 12 }
 const PACE_WINDOW = 60000
 const round = (value: number) => Math.round(value * 1e5) / 1e5
+// Slower than this (about 28 min/km) is standing about, not moving: a step after a stop counts only the time it would
+// take at this speed, so waiting at a crossing stays out of the moving time.
+const MOVING_SPEED = 0.6
+// A pace log holds up to 500 km.
+const MAX_MARKS = 5000
+const tenth = (value: number) => Math.round(value * 10) / 10
+// GPS altitude wanders by several metres from fix to fix, so it is smoothed: each fix moves it a fifth of the way.
+// Fixes whose altitude is less certain than ALTITUDE_ACCURACY leave it alone.
+const ALTITUDE_SMOOTHING = 0.2
+const ALTITUDE_ACCURACY = 25
+function smoothAltitude(previous: number | null, fix: Fix): number | null {
+  const { altitude, altitudeAccuracy } = fix
+  if (typeof altitude !== 'number' || !Number.isFinite(altitude) || Math.abs(altitude) > 10000 ||
+      (typeof altitudeAccuracy === 'number' && !(altitudeAccuracy <= ALTITUDE_ACCURACY))) return previous
+  return previous === null ? altitude : previous + (altitude - previous) * ALTITUDE_SMOOTHING
+}
+
+// Adds the 100 m marks passed between two points of the adventure ([meters, clock, moving, altitude]), each timed and
+// placed by interpolating along the step.
+function addMarks(pace: PaceLog, from: [number, number, number, number | null], to: [number, number, number, number | null]): PaceLog {
+  const [m0, t0, v0, a0] = from, [m1, t1, v1, a1] = to
+  let next = pace.start + pace.at.length
+  if (next * 100 > m1 || m1 <= m0 || pace.at.length >= MAX_MARKS) return pace
+  const at = [...pace.at], moving = [...pace.moving], elev = pace.elev && [...pace.elev]
+  for (; next * 100 <= m1 && at.length < MAX_MARKS; next++) {
+    const f = Math.max(0, (next * 100 - m0) / (m1 - m0))
+    at.push(tenth(t0 + f * (t1 - t0)))
+    moving.push(tenth(v0 + f * (v1 - v0)))
+    elev?.push(a0 !== null && a1 !== null ? tenth(a0 + f * (a1 - a0)) : a1 ?? a0)
+  }
+  return { start: pace.start, at, moving, ...elev ? { elev } : {} }
+}
 
 export function addFix(active: ActiveAdventure, fix: Fix): ActiveAdventure {
   if (![fix.lat, fix.lng, fix.at].every(Number.isFinite) || Math.abs(fix.lat) > 90 || Math.abs(fix.lng) > 180) return active
-  const next = { ...active, last: fix }
-  if (fix.accuracy !== null && !(fix.accuracy <= MAX_ACCURACY)) return next
+  const seen = { ...active, last: fix }
+  if (fix.accuracy !== null && !(fix.accuracy <= MAX_ACCURACY)) return seen
+  // Accurate fixes smooth the altitude even while standing still; the start mark takes the first one.
+  const altitude = smoothAltitude(active.altitude, fix)
+  const startElev = active.pace.start === 0 && active.pace.at.length === 1 && active.pace.elev?.[0] === null && altitude !== null
+  const next = { ...seen, altitude, ...startElev ? { pace: { ...active.pace, elev: [tenth(altitude)] } } : {} }
   const anchor = active.anchor
   if (!anchor) return { ...next, anchor: fix, points: [...active.points, [round(fix.lat), round(fix.lng)]], recent: [[fix.at, active.meters]] }
   const step = distanceBetween(anchor, fix)
@@ -96,7 +145,12 @@ export function addFix(active: ActiveAdventure, fix: Fix): ActiveAdventure {
   const hatchSeconds = active.hatchSeconds === null && active.meters < 5000 && meters >= 5000
     ? Math.max(1, Math.floor((fix.at - active.startedAt) / 1000)) : active.hatchSeconds
   const recent = [...active.recent.filter(([at]) => fix.at - at <= PACE_WINDOW), [fix.at, meters] as [number, number]]
-  return { ...next, meters, hatchSeconds, anchor: fix, points: [...active.points, [round(fix.lat), round(fix.lng)]], recent }
+  const moved = Math.min(seconds, step / MOVING_SPEED)
+  const movingBefore = active.movingSeconds ?? 0
+  const movingSeconds = active.movingSeconds === null ? null : movingBefore + moved
+  const pace = addMarks(next.pace, [active.meters, (anchor.at - active.startedAt) / 1000, movingBefore, active.altitude ?? altitude],
+    [meters, (fix.at - active.startedAt) / 1000, movingBefore + moved, altitude])
+  return { ...next, meters, hatchSeconds, anchor: fix, points: [...active.points, [round(fix.lat), round(fix.lng)]], recent, movingSeconds, pace }
 }
 
 // Seconds per km over the last minute, or null until there is enough recent movement to tell.
@@ -115,7 +169,9 @@ export function finishAdventure(active: ActiveAdventure, finishedAt: number): Ph
   const record: DexRecord = { meters, steps: 0, shiny: active.shiny, activity: active.activity, finishedAt: new Date(finishedAt).toISOString(),
     startedAt: active.startedAt, elapsedSeconds, ...(hatchSeconds ? { hatchSeconds } : {}), ...(active.mega ? { mega: active.mega } : {}),
     form: currentForm(active.family, meters, active.mega) }
-  return { id: `phone-${active.startedAt}`, family: [...active.family], record, path: encodePath(simplifyPath(active.points)) }
+  const moving = active.movingSeconds === null ? {} : { movingSeconds: Math.min(elapsedSeconds, Math.floor(active.movingSeconds)) }
+  const pace = active.pace.at.length > 1 ? { pace: active.pace } : {}
+  return { id: `phone-${active.startedAt}`, family: [...active.family], record, path: encodePath(simplifyPath(active.points)), ...moving, ...pace }
 }
 
 // Douglas-Peucker on a flat local projection, loosened until the route has at most maxPoints points.
@@ -229,10 +285,26 @@ export function restorePhoneRuns(raw: unknown): PhoneRun[] {
       decodePath(item.path)
       const journal = parseJournal(JSON.stringify({ exportVersion: 1, app: 'Zepimon', exportedAt: new Date(0).toISOString(), receivedAt: null,
         routes: [item.family], snapshot: { schemaVersion: 1, capturedAt: 0, dex: {}, records: { 0: item.record }, active: null } }))
-      runs.set(item.id, { id: item.id, family: journal.routes[0], record: journal.snapshot.records[0], path: item.path })
+      const record = journal.snapshot.records[0]
+      const moving = Number.isFinite(item.movingSeconds) && item.movingSeconds >= 0 && item.movingSeconds <= (record.elapsedSeconds ?? Infinity)
+        ? { movingSeconds: item.movingSeconds } : {}
+      const pace = validPace(item.pace) ? { pace: item.pace as PaceLog } : {}
+      runs.set(item.id, { id: item.id, family: journal.routes[0], record, path: item.path, ...moving, ...pace })
     } catch { /* skip a damaged adventure, keep the rest */ }
   }
   return [...runs.values()]
+}
+
+// A pace log as addMarks writes it: marks in step, never going back in time, moving time never ahead of the clock.
+// A damaged one is dropped, keeping the adventure.
+function validPace(value: unknown): value is PaceLog {
+  if (!value || typeof value !== 'object') return false
+  const { start, at, moving, elev } = value as PaceLog
+  if (elev !== undefined && !(Array.isArray(elev) && elev.length === at?.length &&
+    elev.every(height => height === null || (Number.isFinite(height) && Math.abs(height) <= 10000)))) return false
+  return Number.isSafeInteger(start) && start >= 0 && Array.isArray(at) && Array.isArray(moving) && at.length === moving.length &&
+    at.length <= MAX_MARKS && at.every((time, i) => Number.isFinite(time) && time >= (i ? at[i - 1] : 0) &&
+      Number.isFinite(moving[i]) && moving[i] >= (i ? moving[i - 1] : 0) && moving[i] <= time + 0.1)
 }
 
 // The adventure in progress is saved on every GPS batch, with its route encoded to keep each write small.
@@ -251,6 +323,10 @@ export function restoreActive(text: string): ActiveAdventure | null {
       hatchSeconds: Number.isFinite(value.hatchSeconds) ? value.hatchSeconds : null,
       points: typeof value.points === 'string' ? decodePath(value.points) : [], anchor: fix(value.anchor), last: fix(value.last),
       recent: Array.isArray(value.recent) ? value.recent.filter((pair: unknown) => Array.isArray(pair) && pair.length === 2 && pair.every(Number.isFinite)) : [],
+      // Adventures saved before moving time and pace were kept go on without them from here.
+      movingSeconds: value.movingSeconds === null || Number.isFinite(value.movingSeconds) ? value.movingSeconds : null,
+      altitude: Number.isFinite(value.altitude) ? value.altitude : null,
+      pace: validPace(value.pace) ? value.pace : { start: Math.floor(value.meters / 100) + 1, at: [], moving: [], elev: [] },
       // Adventures saved before sharing existed get the id they would have had.
       shareId: typeof value.shareId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value.shareId) ? value.shareId : `adv-${value.startedAt}`,
       deviceAt: Number.isFinite(value.deviceAt) ? value.deviceAt : value.startedAt }

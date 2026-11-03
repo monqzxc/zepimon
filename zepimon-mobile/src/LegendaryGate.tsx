@@ -7,6 +7,9 @@ import { useJournal } from './store'
 import { usePreferences } from './preferences'
 import { gateStatus } from './legendary-gate'
 import type { GateState, GateStatus } from './legendary-gate'
+import { ticketsLeft } from './expedition-quest'
+import { allAdventures } from './adventures'
+import { runningTickets } from './running'
 import { Parallax } from './Parallax'
 import { OverworldSprite } from './games/OverworldSprite'
 import { Frame } from './games/TileWorld'
@@ -33,24 +36,30 @@ const HEADLINES: Record<GateState, string> = {
 const BADGES: Record<GateState, string> = { waiting: '✦ ENCOUNTER WAITING', permit: '◆ PERMIT READY', walking: 'ON THE TRAIL', none: 'NO TRAIL YET' }
 
 export function useGateStatus(): GateStatus {
-  const { expeditions, quest, progress } = useJournal()
-  return useMemo(() => gateStatus(expeditions, quest, progress), [expeditions, quest, progress])
+  const { expeditions, quest, progress, phoneRuns } = useJournal()
+  const tickets = useMemo(() => runningTickets(allAdventures(progress, phoneRuns)).length, [progress, phoneRuns])
+  return useMemo(() => gateStatus(expeditions, quest, progress, Date.now(), ticketsLeft(quest, tickets)), [expeditions, quest, progress, tickets])
 }
 
 const enter = () => router.push('/expeditions')
 
-export function LegendaryGate({ variant, title, children }: { variant: 'hero' | 'strip' | 'banner', title?: string, children?: ReactNode }) {
+// pulse (the Journal's strip): a gold halo breathes out from the card and the scene inside moves, so the gate catches
+// the eye among the cards around it. With reduced motion the halo holds still as a gold border.
+export function LegendaryGate({ variant, title, pulse = false, children }: { variant: 'hero' | 'strip' | 'banner', title?: string, pulse?: boolean, children?: ReactNode }) {
   const status = useGateStatus()
   const label = `Legendary Gate. ${HEADLINES[status.state]}. ${status.line}.`
-  if (variant === 'strip') return <Pressable accessibilityRole="button" accessibilityLabel={`${label} Enter the Gate.`} onPress={enter}
-    style={({ pressed }) => [retro() ? styles.frame : styles.panel, look.strip, { opacity: pressed ? 0.9 : 1 }, pressDepth(pressed)]}>
-    <View style={look.stripScene}><GateScene status={status} framing="front" still /></View>
-    <View style={{ flex: 1, gap: 2 }}>
-      <Eyebrow>LEGENDARY GATE</Eyebrow>
-      <Text style={look.stripLine}>{status.line}</Text>
-    </View>
-    <Icon name="chevron" size={22} color={colors.muted} />
-  </Pressable>
+  if (variant === 'strip') {
+    const strip = <Pressable accessibilityRole="button" accessibilityLabel={`${label} Enter the Gate.`} onPress={enter}
+      style={({ pressed }) => [retro() ? styles.frame : styles.panel, look.strip, pulse && look.stripLit, { opacity: pressed ? 0.9 : 1 }, pressDepth(pressed)]}>
+      <View style={look.stripScene}><GateScene status={status} framing="front" still={!pulse} /></View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Eyebrow>LEGENDARY GATE</Eyebrow>
+        <Text style={look.stripLine}>{status.line}</Text>
+      </View>
+      <Icon name="chevron" size={22} color={pulse ? colors.gold : colors.muted} />
+    </Pressable>
+    return pulse ? <Halo>{strip}</Halo> : strip
+  }
 
   if (variant === 'banner') return <View style={[look.banner, gradient(), shadows.raised]}>
     <View accessible accessibilityRole="image" accessibilityLabel={label} style={look.bannerScene}>
@@ -148,6 +157,29 @@ function GateScene({ status, framing, trainer = false, still = false }: { status
   </View>
 }
 
+// The pulse around the Journal's strip: two gold rings swell out from the card's edge and fade, one after the other,
+// every 2.4 seconds. Native-driven, so it costs the JS thread nothing; reduced motion keeps one steady ring.
+function Halo({ children }: { children: ReactNode }) {
+  const reduced = useReducedMotion()
+  const [wave] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    if (reduced) { wave.setValue(0); return }
+    const loop = Animated.loop(Animated.timing(wave, { toValue: 1, duration: 2400, easing: Easing.out(Easing.quad), useNativeDriver: native }))
+    loop.start()
+    return () => loop.stop()
+  }, [reduced, wave])
+  const ring = (offset: number) => {
+    const t = Animated.modulo(Animated.add(wave, offset), 1)
+    return { opacity: t.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.85, 0] }),
+      transform: [{ scaleX: t.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) }, { scaleY: t.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] }) }] }
+  }
+  return <View>
+    {reduced ? <View pointerEvents="none" style={[look.halo, { opacity: 0.9 }]} />
+      : <><Animated.View pointerEvents="none" style={[look.halo, ring(0)]} /><Animated.View pointerEvents="none" style={[look.halo, ring(0.5)]} /></>}
+    {children}
+  </View>
+}
+
 // Stone blocks in three shades with a dark outline: lit face, mid and the shadow side.
 const STONE = { light: '#C3CDBF', mid: '#93A196', dark: '#5D6B62', line: '#2C3833' }
 function Pillar({ x, y, width, height }: { x: number, y: number, width: number, height: number }) {
@@ -200,6 +232,8 @@ const look = themedStyles(() => ({
   strip: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, minHeight: 88 },
   stripScene: { width: 72, height: 72, borderRadius: retro() ? 6 : 14, overflow: 'hidden' },
   stripLine: { fontFamily: fonts.bold, color: colors.ink, fontSize: 15, lineHeight: 20 },
+  stripLit: { borderColor: colors.gold, borderWidth: retro() ? 2 : 1.5 },
+  halo: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: retro() ? 10 : 20, borderWidth: 3, borderColor: colors.star },
   banner: { borderRadius: retro() ? 12 : 24, overflow: 'hidden' },
   bannerScene: { height: 150 },
   bannerText: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 20, gap: 8 },

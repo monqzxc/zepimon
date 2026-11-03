@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { legendarySpecies } from '../src/generated/expedition.js'
 import { trialStages } from '../src/generated/trial-maps.js'
 import { emptyQuest } from '../src/expedition-quest.ts'
-import { caughtLegendaries, canRevisit, practiceClear, rematchWin, restoreRematchWins, revisitKey, revisitRooms, roomLine } from '../src/games/revisits.ts'
+import { caughtLegendaries, canRevisit, practiceClear, rematchWin, restoreRematchWins, revisitKey, revisitRooms, roomLine, roomsExplored } from '../src/games/revisits.ts'
 
 const record = shiny => ({ meters: 25000, steps: 0, shiny, form: '', source: 'expedition', finishedAt: '2026-10-01T00:00:00.000Z' })
 // A player mid-way through an expedition: a trail with claims, two friends (one Shiny), a permit and a waiting encounter
@@ -48,6 +48,14 @@ test('a Legendary revisits every room of its kind, and Deoxys only the island', 
     assert.ok(rooms.length > 0, name)
     for (const id of rooms) assert.ok(Object.hasOwn(trialStages, id), `${name}: ${id} is a room`)
   }
+})
+
+test('rooms explored counts the rooms of its own shrine that have a best', () => {
+  const { trialRecords } = saved()
+  assert.deepEqual(roomsExplored('Zapdos', trialRecords), { explored: 1, rooms: 4 })
+  assert.deepEqual(roomsExplored('Articuno', trialRecords), { explored: 0, rooms: 4 }, 'Another kind’s rooms do not count')
+  assert.deepEqual(roomsExplored('Deoxys', trialRecords), { explored: 1, rooms: 1 })
+  assert.deepEqual(roomsExplored('Zapdos', {}), { explored: 0, rooms: 4 })
 })
 
 test('only caught Legendaries can be revisited, in the form they were caught', () => {
