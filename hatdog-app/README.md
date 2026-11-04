@@ -1,6 +1,6 @@
 # Zepimon
 
-Pixel-sprite Gen 1-4 walking companion for Amazfit Bip 5 Unity (320 x 380).
+Pixel-sprite walking companion with Pokemon from every generation (Gen 1-9) for Amazfit Bip 5 Unity (320 x 380).
 
 The app icon is the Gengar sprite from [PokéAPI sprites](https://github.com/PokeAPI/sprites/blob/master/sprites/pokemon/94.png).
 
@@ -219,7 +219,7 @@ One-tap start above). While an adventure is active, it shows **Continue
 adventure** and **History** instead. The screen is refreshed from the saved
 state whenever it opens. Change egg opens generation selection, whose **Back to title** button returns
 directly to the title screen. **Random Egg** (v1.10.1) picks an evolution route
-with equal odds from eligible egg routes, including Extra Mega families, and
+with equal odds from eligible egg routes, from every generation, and
 opens its preview. You can choose its Mega form before tapping
 **Start**, then **Walking** or **Running**. Back from activity selection keeps
 the same egg; Back from the random preview returns to the hub. Previewing or
@@ -351,16 +351,29 @@ At 5 km the egg hatches, at 10 km it reaches its second form, and at 15 km
 its third form. Shorter families stop at their final normal form.
 This game uses distance milestones even for stone and trade evolutions.
 
-The catalog includes all 493 Gen 1-4 species and the later-generation families
-needed for the requested Mega list: 552 species total. **Extra Mega families**
-contains routes starting after Gen 4. Cross-generation babies appear under
-the generation of the first species in the route. Legacy route indices and
-acquired names are preserved for existing saves.
+The catalog includes every species through Gen 9: 1,025 species on 580 routes.
+**Change egg** offers **Gen 1** to **Gen 9**, three to a row. Cross-generation
+babies appear under the generation of the first species in the route. Legacy
+route indices and acquired names are preserved for existing saves: a route that
+gained a later evolution (Ursaring into Ursaluna, Mr. Mime into Mr. Rime) keeps
+its index, and new lines and branches are added after the existing routes. A
+route ending in a Mega species is never extended (Flabébé > Floette keeps Mega
+Floette; Flabébé > Floette > Florges is its own egg). Gen 5-9 Legendaries and
+Mythicals that Expeditions do not offer yet hatch from ordinary eggs.
 
 Tap **Mega ... @21km** to cycle variants before starting an eligible route.
 The chosen variant unlocks at exactly 21,000 meters. All 87 requested species
 are supported with 97 Mega variants. Save and finish adds that Mega form to
 the Pokedex. Mega entries count separately from the normal species total.
+
+At 42 km (a marathon) every family's final form Dynamaxes: **Dynamax Charizard**
+uses Charizard's sprite. At 50 km the 32 families that can Gigantamax do so, as
+the latest stage of the family that has a Gigantamax form (a Pichu egg becomes
+**Gigantamax Pikachu**, every Eevee egg **Gigantamax Eevee**). Urshifu (Single
+Strike, Rapid Strike) and Toxtricity (Amped, Low Key) have two each, chosen
+with **G-Max ... @50km** like a Mega. Dynamax and Gigantamax entries also count
+separately. The distance rules live in shared/forms.js, which Zepimon mobile
+copies, so both devices grow Pokemon the same way.
 
 Watch sprites appear in egg selection, active sessions and History.
 Supported species use the compact overworld sheets described above; fallback

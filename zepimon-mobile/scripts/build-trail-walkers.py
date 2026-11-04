@@ -23,8 +23,8 @@ def frames(directory, palette_name):
     count = sheet.width // side
     assert sheet.mode == 'P' and count in (6, 8), directory
     palette = (directory / f'overworld_{palette_name}.pal').read_text().splitlines()
-    assert palette[:2] == ['JASC-PAL', '0100'] and int(palette[2]) == 16, directory
-    sheet.putpalette([int(c) for row in palette[3:19] for c in row.split()])
+    assert palette[:2] == ['JASC-PAL', '0100'] and int(palette[2]) in (15, 16), directory
+    sheet.putpalette([int(c) for row in palette[3:3 + int(palette[2])] for c in row.split()])
     sheet.info['transparency'] = 0
     poses = [sheet.crop((i * side, 0, (i + 1) * side, side)).convert('RGBA') for i in range(count)]
     if count == 6:

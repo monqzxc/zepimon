@@ -1,27 +1,34 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
 import type { ImageSourcePropType, NativeScrollEvent, NativeSyntheticEvent } from 'react-native'
-import Svg, { Circle, Path } from 'react-native-svg'
+import Svg, { Circle, Path, Polyline } from 'react-native-svg'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import Reanimated, { Easing as Ease, cancelAnimation, interpolate, useAnimatedStyle, useSharedValue, withDecay, withTiming } from 'react-native-reanimated'
+import type { SharedValue } from 'react-native-reanimated'
+import { scheduleOnRN } from 'react-native-worklets'
 import { routeCols, routeRunners, routeStrips } from './generated/adventure-route.js'
 import { safariSprites } from './generated/safari-assets.js'
 import { MILESTONE, metersAt, placeAt, placeFor, pointAt, regions, routeLayout, tourLength } from './adventure-route'
 import type { Place, StripKind, StripShape } from './adventure-route'
 import type { Activity } from './phone-adventure'
+import { KANTO_HEIGHT, KANTO_WIDTH, cameraBounds, clampCamera, kantoPoint, kantoStops, kantoTrail, nearestStop } from './kanto-map'
+import type { Camera, Point } from './kanto-map'
 import { Frame } from './games/TileWorld'
 import type { Strip } from './games/TileWorld'
 import { trainerFrame } from './games/safari-view'
 import { OverworldSprite } from './games/OverworldSprite'
-import { Icon, colors, displayFont, fonts, gradient, retro, shadows, themedStyles, useTheme } from './ui'
+import { Icon, colors, displayFont, fonts, gradient, retro, themedStyles, useTheme } from './ui'
 
 // The Adventure tab's map: your distance as a place on one long route (src/adventure-route.ts). A stone pad marks every
 // 5 km, named for a town, city or route of Kanto, Johto, Hoenn, Sinnoh and Unova, ticked once you have walked that far
 // and locked ahead; tapping one shows what happened there (`tip`, for milestones reached) or how far it still is. You
 // stand on a glowing pad of your own at your total, walking or running in place as `activity` says, your buddy beside
-// you; `card` (what to do next) floats a fifth of the way up from the bottom, with `notice` above it. The place in view
-// floats at the top left, the journey's mini-map button at the top right and `rail` under it; when you scroll your
-// trainer out of view a button brings them back. The map is daylight pixel art in every theme, dimmed a little in dark
+// you; `card` (what to do next) floats just above the bottom, with `notice` above it. `folded` shrinks the card into its
+// bottom right corner, where `bubble` pops up in its place, and back. The place in view floats at the top left, the
+// journey's mini-map button at the top right and `rail` under it; when you scroll your trainer out of view a button
+// brings them back. The map is daylight pixel art in every theme, dimmed a little in dark
 // mode; everything floating over it follows the theme.
 const strips = routeStrips as Record<StripKind, StripShape & { source: ImageSourcePropType }>
 const trainers = safariSprites as Record<'brendan' | 'may', Strip>
@@ -39,13 +46,33 @@ const ZOOM = 0.95
 const NAMED = 3500
 // Room above the farthest route for its sign, below the floating header.
 const AHEAD = 150
-// How far up from the bottom the card floats, as a share of the map's height: near the middle, the route still showing
-// below it.
-const LIFT = 0.2
+// How far up from the bottom the card floats: clear of where the map fades into the tab bar.
+const LIFT = 24
+// The folded card's bubble, and how the card folds into it and opens again.
+const BUBBLE = 58
+const FOLD = { duration: 340, easing: Ease.bezier(0.2, 0, 0, 1) }
+// Kanto is drawn on its own town map (src/kanto-map.ts) until the Indigo Plateau; the regions after it walk the strips.
+// The road still ahead is part of the art (scripts/build-kanto-map.py); only the stretch walked is drawn here.
+const kantoArt = require('../assets/route/kanto.jpg') as ImageSourcePropType
+// The map's own open sea, a seamless tile laid out 4 x 4 into one block (scripts/build-kanto-map.py), for around its edges.
+const kantoSea = require('../assets/route/kanto-sea.jpg') as ImageSourcePropType
+const SEA_BLOCK = { width: 1520, height: 1280 }
+const KANTO_END = (kantoStops.length - 1) * MILESTONE
+const SEA = '#0E62DC'
+// The Kanto map is drawn this many times the screen's height, so a few stops are in view at once.
+const KANTO_ZOOM = 1.45
+// Pinching zooms in up to this many times that, and out until the whole of Kanto is in view.
+const KANTO_MAX_ZOOM = 2
+// Zoomed out further than this, only towns and cities keep their names, as on the games' Town Map.
+const ROUTE_NAMES = 0.7
+const GLIDE = { duration: 380, easing: Ease.out(Ease.cubic) }
+// About how tall a milestone's tip stands, to keep it in view above its marker.
+const TIP_ROOM = 230
 
-export function RouteTrail({ meters, trainer, activity, buddy, reduced, card, cardWidth, rail, notice, tip }: {
+export function RouteTrail({ meters, trainer, activity, buddy, reduced, card, cardWidth, folded = false, bubble, rail, notice, tip }: {
   meters: number, trainer: 'brendan' | 'may', activity: Activity, buddy: string | null, reduced: boolean,
-  card: ReactNode, cardWidth: number, rail: ReactNode, notice?: ReactNode, tip?: (meters: number) => ReactNode
+  card: ReactNode, cardWidth: number, folded?: boolean, bubble?: ReactNode, rail: ReactNode, notice?: ReactNode,
+  tip?: (meters: number) => ReactNode
 }) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
@@ -59,6 +86,10 @@ export function RouteTrail({ meters, trainer, activity, buddy, reduced, card, ca
   const [away, setAway] = useState(false)
   const [picked, setPicked] = useState<number | null>(null)
   const [journey, setJourney] = useState(false)
+  const [recenter, setRecenter] = useState(0)
+  const kanto = meters <= KANTO_END
+  const fold = useSharedValue(folded ? 1 : 0)
+  useEffect(() => { fold.set(reduced ? (folded ? 1 : 0) : withTiming(folded ? 1 : 0, FOLD)) }, [folded, reduced, fold])
 
   const width = size?.width ?? screen
   const height = size?.height ?? 0
@@ -69,20 +100,22 @@ export function RouteTrail({ meters, trainer, activity, buddy, reduced, card, ca
   const here = { x: left + spot.x * tile, y: top + spot.y * tile }
   const pad = { width: tile * 3, height: tile * 1.5 }
   const mapBottom = top + layout.rows * tile
-  // The card floats over the map, so the map scrolls on far enough to bring the trailhead above it.
-  const lift = Math.round(height * LIFT)
-  const content = mapBottom + lift + dockHeight + 24
+  // The card floats over the map, so the map scrolls on far enough to bring the trailhead above it. Folded, only its
+  // bubble does.
+  const lift = LIFT
+  const room = folded && bubble ? BUBBLE : dockHeight
+  const content = mapBottom + lift + room + 24
   // The map in view runs from under the place's name to the top of the card; your trainer stands a little below its
   // middle, with the milestones on either side in view.
-  const viewTop = insets.top + 70, viewBottom = height - lift - dockHeight - 12
+  const viewTop = insets.top + 60, viewBottom = height - lift - room - 12
   const focus = Math.max(0, Math.min(content - height, here.y - (viewTop + (viewBottom - viewTop) * 0.55)))
 
   // Place the map on your trainer once it has a size, and again when your distance moves them.
   useEffect(() => {
-    if (!size) return
+    if (!size || kanto) return
     scroll.current?.scrollTo({ y: focus, animated: placed.current && !reduced })
     placed.current = true
-  }, [size?.height, meters, dockHeight]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size?.height, meters, room]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const y = event.nativeEvent.contentOffset.y
@@ -97,9 +130,20 @@ export function RouteTrail({ meters, trainer, activity, buddy, reduced, card, ca
   const reached = Math.floor(meters / MILESTONE) * MILESTONE
   const milestones = layout.milestones.filter(mark => mark.y * tile + top < mapBottom && Math.abs(mark.meters - meters) >= 1200)
   const tapped = milestones.find(mark => mark.meters === picked)
+  // Folding, the card shrinks towards its bottom right corner as it fades, ending where the bubble grows in.
+  const cardSize = Math.min(cardWidth, width - 24)
+  const shift = (width - 24 - cardSize) / 2
+  const cardMotion = useAnimatedStyle(() => ({ opacity: interpolate(fold.get(), [0, 0.7], [1, 0], 'clamp'),
+    transform: [{ translateX: shift * fold.get() }, { scale: 1 - 0.82 * fold.get() }] }), [shift])
+  const bubbleMotion = useAnimatedStyle(() => ({ opacity: interpolate(fold.get(), [0.4, 0.85], [0, 1], 'clamp'),
+    transform: [{ scale: interpolate(fold.get(), [0.4, 1], [0.4, 1], 'clamp') }] }))
 
-  return <View style={look.screen} onLayout={event => setSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}>
-    {size && <ScrollView ref={scroll} style={look.map} contentContainerStyle={{ height: content }} showsVerticalScrollIndicator={false}
+  return <View style={[look.screen, kanto && { backgroundColor: SEA }]}
+    onLayout={event => setSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}>
+    {size && kanto && <KantoBody meters={meters} width={width} height={height} viewTop={viewTop} viewBottom={viewBottom} trainer={trainer}
+      activity={activity} buddy={buddy} reduced={reduced} dark={theme.dark} picked={picked} onPick={setPicked} tip={tip} recenter={recenter}
+      onPlace={setInView} onAway={setAway} />}
+    {size && !kanto && <ScrollView ref={scroll} style={look.map} contentContainerStyle={{ height: content }} showsVerticalScrollIndicator={false}
       scrollEventThrottle={32} onScroll={onScroll}>
       {left > 0 && <>
         <View style={[look.side, { left: 0, width: left, backgroundColor: WATER }]} />
@@ -130,8 +174,9 @@ export function RouteTrail({ meters, trainer, activity, buddy, reduced, card, ca
     </ScrollView>}
     <View pointerEvents="box-none" style={[look.top, { top: insets.top + 8 }]}>
       <View accessible accessibilityRole="header" accessibilityLabel={`${place.name}, ${place.region}, ${stretch(place)} kilometres`}
-        style={[look.header, gradient(), shadows.raised]}>
-        <View style={look.headerIcon}><Icon name="location" size={20} color={colors.onBrand} /></View>
+        style={look.header}>
+        <View pointerEvents="none" style={look.rule} />
+        <View style={look.headerIcon}><Icon name="location" size={16} color={colors.edge} /></View>
         <View style={look.headerRule} />
         <View style={{ flexShrink: 1 }}>
           <Text numberOfLines={1} style={look.headerEyebrow}>{place.region.toUpperCase()}{place.tour > 1 ? ` ${place.tour}` : ''} · {stretch(place)} KM</Text>
@@ -141,20 +186,32 @@ export function RouteTrail({ meters, trainer, activity, buddy, reduced, card, ca
       <View style={{ flex: 1, minWidth: 10 }} />
       <Pressable accessibilityRole="button" accessibilityLabel="Journey map" accessibilityHint="Shows every region and how far you have come"
         hitSlop={4} onPress={() => setJourney(true)} style={({ pressed }) => [look.mini, { transform: [{ scale: pressed ? 0.94 : 1 }] }]}>
-        <Icon name="map" size={24} color={colors.edge} />
+        <Icon name="map" size={20} color={colors.edge} />
       </Pressable>
     </View>
     {/* Out of the way while a milestone's tip is open, which it would cover. */}
-    <View pointerEvents={picked === null ? 'box-none' : 'none'} style={[look.rail, { top: insets.top + 76, opacity: picked === null ? 1 : 0 }]}>{rail}</View>
+    <View pointerEvents={picked === null ? 'box-none' : 'none'} style={[look.rail, { top: insets.top + 62, opacity: picked === null ? 1 : 0 }]}>{rail}</View>
     {away && size && <Pressable accessibilityRole="button" accessibilityLabel="Back to your trainer" hitSlop={6}
-      onPress={() => scroll.current?.scrollTo({ y: focus, animated: !reduced })}
-      style={({ pressed }) => [look.recenter, { bottom: lift + dockHeight + 24, transform: [{ scale: pressed ? 0.94 : 1 }] }]}>
-      <Icon name="locate" size={24} color={colors.edge} />
+      onPress={() => {
+        if (!kanto) { scroll.current?.scrollTo({ y: focus, animated: !reduced }); return }
+        setPicked(null)
+        setRecenter(count => count + 1)
+      }}
+      style={({ pressed }) => [look.recenter, { bottom: lift + room + 14, transform: [{ scale: pressed ? 0.94 : 1 }] }]}>
+      <Icon name="locate" size={20} color={colors.edge} />
     </Pressable>}
     <View pointerEvents="box-none" style={[look.dock, { bottom: lift }]} onLayout={event => setDockHeight(event.nativeEvent.layout.height)}>
       {notice}
-      <View style={[look.card, { width: Math.min(cardWidth, width - 24) }]}>{card}</View>
+      <Reanimated.View pointerEvents={folded ? 'none' : 'auto'} aria-hidden={folded} importantForAccessibility={folded ? 'no-hide-descendants' : 'auto'}
+        style={[look.card, { width: cardSize }, cardMotion]}>
+        <View pointerEvents="none" style={look.rule} />
+        {card}
+      </Reanimated.View>
     </View>
+    {bubble && <Reanimated.View pointerEvents={folded ? 'box-none' : 'none'} aria-hidden={!folded}
+      importantForAccessibility={folded ? 'auto' : 'no-hide-descendants'} style={[look.bubble, { bottom: lift }, bubbleMotion]}>
+      {bubble}
+    </Reanimated.View>}
     <MapSheet visible={journey} title="Journey" onClose={() => setJourney(false)} reduced={reduced}>
       <JourneyMap meters={meters} />
     </MapSheet>
@@ -165,13 +222,16 @@ export function RouteTrail({ meters, trainer, activity, buddy, reduced, card, ca
 const stretch = (place: Place) => place.meters ? `${place.meters / 1000 - 5}–${place.meters / 1000}` : '0'
 
 // A tapped milestone's tip: its place, region and distance, then what happened there (children) or, ahead, how far it
-// still is. The latest milestone reached says so. x is the pad's centre; bottom places the tip above it in the map.
-function Tip({ place, latest, togo, x, width, bottom, children }: {
-  place: Place, latest: boolean, togo: number | null, x: number, width: number, bottom: number, children?: ReactNode
+// still is. The latest milestone reached says so. x is the pad's centre; bottom places the tip above it, or top below it,
+// pointing at it either way.
+function Tip({ place, latest, togo, x, width, bottom, top, children }: {
+  place: Place, latest: boolean, togo: number | null, x: number, width: number, bottom?: number, top?: number, children?: ReactNode
 }) {
   const tipWidth = Math.min(264, width - 24)
   const left = Math.max(12, Math.min(width - tipWidth - 12, x - tipWidth / 2))
-  return <View style={[look.tip, { left, width: tipWidth, bottom }]}>
+  const below = top !== undefined
+  return <View style={[look.tip, below ? { left, width: tipWidth, top } : { left, width: tipWidth, bottom }]}>
+    <View pointerEvents="none" style={look.rule} />
     <View style={look.tipHead}>
       <View style={{ flex: 1 }}>
         <Text numberOfLines={1} style={look.tipRegion}>{place.region.toUpperCase()} · {place.meters / 1000} KM</Text>
@@ -181,7 +241,245 @@ function Tip({ place, latest, togo, x, width, bottom, children }: {
         : togo !== null && <Icon name="lock" size={18} color={colors.muted} />}
     </View>
     {togo !== null ? <Text style={look.tipLine}>{(togo / 1000).toFixed(1)} km to go</Text> : children}
-    <View style={[look.tipArrow, { left: Math.max(14, Math.min(tipWidth - 28, x - left - 7)) }]} />
+    <View style={[look.tipArrow, below && look.tipArrowUp, { left: Math.max(14, Math.min(tipWidth - 28, x - left - 7)) }]} />
+  </View>
+}
+
+// Kanto on its town map: drag it about and pinch to zoom, like the games' Town Map. The road ahead is part of the art;
+// the stretch walked is drawn over it in gold, with a marker at every stop: a square for a town or city, a dot for a
+// route, lit once reached. Your trainer stands on the road at your total. Markers and your trainer keep their size at any
+// zoom, and zoomed out only towns and cities keep their names. The camera moves on the UI thread, so nothing here renders
+// again while you drag or pinch: it starts on your trainer and comes back with `recenter`; a gesture closes a tip, and
+// where it settles names the place in view (onPlace; null is where you are) and says whether you are out of view
+// (onAway). The art is the map's own; dark mode dims it a little.
+type Shot = Camera & { zoom: number }
+const KantoBody = memo(function KantoBody({ meters, width, height, viewTop, viewBottom, trainer, activity, buddy, reduced, dark, picked, onPick, tip, recenter, onPlace, onAway }: {
+  meters: number, width: number, height: number, viewTop: number, viewBottom: number, trainer: 'brendan' | 'may', activity: Activity,
+  buddy: string | null, reduced: boolean, dark: boolean, picked: number | null, onPick: (meters: number | null) => void,
+  tip?: (meters: number) => ReactNode, recenter: number, onPlace: (index: number | null) => void, onAway: (away: boolean) => void
+}) {
+  const scale = Math.max(width / KANTO_WIDTH, height * KANTO_ZOOM / KANTO_HEIGHT)
+  const W = KANTO_WIDTH * scale, H = KANTO_HEIGHT * scale
+  const [hx, hy] = kantoPoint(meters, MILESTONE)
+  // The map may be dragged until its edges meet the screen's, its top below the place's name and its bottom above the
+  // card, and zoomed out until all of it fits between them.
+  const view = { width, top: viewTop - 24, bottom: viewBottom }
+  const least = Math.min(1, width / W, (view.bottom - view.top) / H)
+  const bounds = (zoom: number) => cameraBounds(zoom, { width: W, height: H }, view)
+  const focus = (zoom: number): Shot => ({ ...clampCamera({ x: width / 2 - hx * scale * zoom,
+    y: viewTop + (viewBottom - viewTop) * 0.55 - hy * scale * zoom }, bounds(zoom)), zoom })
+  const start = focus(1)
+  const x = useSharedValue(start.x), y = useSharedValue(start.y), zoom = useSharedValue(1)
+  // Where the camera was headed when a tip opened, so the tip stands by its marker while the map glides there.
+  const [shot, setShot] = useState(start)
+  const placed = useRef(false)
+  const tile = 14 * scale
+  // A pill a little deeper than the strips', so the total reads below your trainer's feet.
+  const pad = { width: 72, height: 32, labelTop: 15 }
+  const walked = useMemo(() => kantoTrail(meters, MILESTONE).walked, [meters])
+  const reached = Math.floor(meters / MILESTONE) * MILESTONE
+
+  // Where the camera came to rest: a drag names the stop nearest the middle of the view; on your trainer, it is yours.
+  function report(at: Shot, dragged: boolean) {
+    const s = scale * at.zoom
+    onPlace(dragged ? nearestStop([(width / 2 - at.x) / s, ((viewTop + viewBottom) / 2 - at.y) / s]) : null)
+    const px = hx * s + at.x, py = hy * s + at.y
+    onAway(dragged && (px < 0 || px > width || py < viewTop || py > viewBottom))
+  }
+  // Gestures, glides and the markers (memos) reach the latest render through these.
+  const latest = useRef<{ report: (at: Shot, dragged: boolean) => void, open: (at: number) => void }>(null)
+  const [settled] = useState(() => (cx: number, cy: number, z: number, dragged: boolean) => latest.current?.report({ x: cx, y: cy, zoom: z }, dragged))
+  const [onOpen] = useState(() => (at: number) => latest.current?.open(at))
+
+  function glide(to: Shot, animated: boolean, dragged: boolean) {
+    cancelAnimation(x); cancelAnimation(y); cancelAnimation(zoom)
+    if (!animated) { x.set(to.x); y.set(to.y); zoom.set(to.zoom); report(to, dragged); return }
+    zoom.set(withTiming(to.zoom, GLIDE))
+    y.set(withTiming(to.y, GLIDE))
+    x.set(withTiming(to.x, GLIDE, finished => {
+      'worklet'
+      if (finished) scheduleOnRN(settled, to.x, to.y, to.zoom, dragged)
+    }))
+  }
+  // Tapping a marker opens its tip, or closes it again. One too near the top or the sides for its tip glides into view
+  // first, the tip's height below the place's name.
+  function open(at: number) {
+    if (picked === at) { onPick(null); return }
+    const item = kantoStops[at / MILESTONE]
+    cancelAnimation(x); cancelAnimation(y); cancelAnimation(zoom)
+    const now = { x: x.get(), y: y.get(), zoom: zoom.get() }, s = scale * now.zoom
+    const px = item.at[0] * s + now.x, py = item.at[1] * s + now.y
+    const fits = py - viewTop - 20 > TIP_ROOM && px > 60 && px < width - 60
+    const to = fits ? now : { ...clampCamera({ x: width / 2 - item.at[0] * s, y: viewTop + TIP_ROOM + 40 - item.at[1] * s }, bounds(now.zoom)), zoom: now.zoom }
+    setShot(to)
+    if (!fits) glide(to, !reduced, true)
+    onPick(at)
+  }
+  useEffect(() => { latest.current = { report, open } })
+  // Onto your trainer when the map first has its size, and again when your distance or the room for it changes, at the
+  // zoom you left; an open tip closes, as its marker moves away.
+  useEffect(() => {
+    const z = Math.max(least, zoom.get())
+    glide(focus(z), placed.current && !reduced, false)
+    if (placed.current && picked !== null) onPick(null)
+    placed.current = true
+  }, [meters, width, height, viewTop, viewBottom]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Back to your trainer at the map's own zoom (RouteTrail closes any tip).
+  useEffect(() => {
+    if (recenter) glide(focus(1), !reduced, false)
+  }, [recenter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // One finger drags and flings the map, two pinch it about the point between them; a gesture closes a tip.
+  const gesture = useMemo(() => {
+    const map = { width: W, height: H }, frame = { width, top: viewTop - 24, bottom: viewBottom }
+    const move = (cx: number, cy: number, z: number) => {
+      'worklet'
+      const at = clampCamera({ x: cx, y: cy }, cameraBounds(z, map, frame))
+      x.set(at.x); y.set(at.y); zoom.set(z)
+    }
+    const grab = () => {
+      'worklet'
+      cancelAnimation(x); cancelAnimation(y); cancelAnimation(zoom)
+      scheduleOnRN(onPick, null)
+    }
+    const rest = (finished?: boolean) => {
+      'worklet'
+      if (finished !== false) scheduleOnRN(settled, x.get(), y.get(), zoom.get(), true)
+    }
+    const pan = Gesture.Pan().minDistance(6).averageTouches(true)
+      .onStart(grab)
+      .onChange(event => { move(x.get() + event.changeX, y.get() + event.changeY, zoom.get()) })
+      .onEnd(event => {
+        if (reduced) { rest(); return }
+        const limits = cameraBounds(zoom.get(), map, frame)
+        x.set(withDecay({ velocity: event.velocityX, clamp: [limits.minX, limits.maxX] }, rest))
+        y.set(withDecay({ velocity: event.velocityY, clamp: [limits.minY, limits.maxY] }, rest))
+      })
+    const pinch = Gesture.Pinch()
+      .onStart(grab)
+      .onChange(event => {
+        const z = Math.max(least, Math.min(KANTO_MAX_ZOOM, zoom.get() * event.scaleChange)), k = z / zoom.get()
+        move(event.focalX - (event.focalX - x.get()) * k, event.focalY - (event.focalY - y.get()) * k, z)
+      })
+      .onEnd(() => rest())
+    return Gesture.Simultaneous(pan, pinch)
+  }, [W, H, width, viewTop, viewBottom, least, reduced, onPick, settled, x, y, zoom])
+  const camera = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }, { translateY: y.get() }, { scale: zoom.get() }] }))
+
+  // The sea in whole blocks from the map's corner, as far as the screen reaches zoomed all the way out, leaving out the
+  // blocks the map covers.
+  const sea = useMemo(() => {
+    const far = cameraBounds(least, { width: W, height: H }, { width, top: viewTop - 24, bottom: viewBottom })
+    const blocks: { left: number, top: number }[] = []
+    for (let row = Math.floor(-far.maxY / least / SEA_BLOCK.height); row * SEA_BLOCK.height < (height - far.minY) / least; row++) {
+      for (let col = Math.floor(-far.maxX / least / SEA_BLOCK.width); col * SEA_BLOCK.width < (width - far.minX) / least; col++) {
+        const left = col * SEA_BLOCK.width, top = row * SEA_BLOCK.height
+        if (left >= 0 && top >= 0 && left + SEA_BLOCK.width <= W && top + SEA_BLOCK.height <= H) continue
+        blocks.push({ left, top })
+      }
+    }
+    return blocks
+  }, [W, H, width, height, viewTop, viewBottom, least])
+
+  const tapped = picked === null ? null : kantoStops[picked / MILESTONE] ?? null
+  const tipAt = tapped ? { x: tapped.at[0] * scale * shot.zoom + shot.x, y: tapped.at[1] * scale * shot.zoom + shot.y } : null
+  // Above the marker if there is room under the place's name, else below it (only at the very top of the map).
+  const roomAbove = tipAt ? tipAt.y - 20 - viewTop > TIP_ROOM : true
+  const close = picked !== null && <Pressable accessibilityLabel="Close" style={look.fill} onPress={() => onPick(null)} />
+  return <GestureDetector gesture={gesture}>
+    <View style={look.fill}>
+      {close}
+      <Reanimated.View style={[{ position: 'absolute', left: 0, top: 0, width: W, height: H, transformOrigin: 'left top' }, camera]}>
+        {sea.map(block => <Image key={`${block.left},${block.top}`} source={kantoSea} resizeMode="stretch" fadeDuration={0} accessible={false}
+          style={{ position: 'absolute', left: block.left, top: block.top, ...SEA_BLOCK }} />)}
+        <Image source={kantoArt} fadeDuration={0} resizeMode="stretch" accessible={false} style={{ width: W, height: H }} />
+        {dark && <View pointerEvents="none" style={[look.fill, { backgroundColor: 'rgba(8, 14, 32, 0.3)' }]} />}
+        <Road points={walked} scale={scale} />
+        {close}
+        {kantoStops.map((item, i) => {
+          const at = i * MILESTONE
+          // The stop you stand on is under your trainer; one close by keeps its marker but not its name.
+          if (Math.abs(at - meters) < 400) return null
+          return <KantoMarker key={item.name} name={item.name} city={item.city} at={at} done={at <= meters} picked={picked === at}
+            named={Math.abs(at - meters) >= 1500} x={item.at[0] * scale} y={item.at[1] * scale} zoom={zoom} onOpen={onOpen} />
+        })}
+        <Upright x={hx * scale} y={hy * scale} zoom={zoom}>
+          <Here meters={meters} x={0} y={0} tile={tile} pad={pad} trainer={trainer} activity={activity} buddy={buddy} reduced={reduced} />
+        </Upright>
+      </Reanimated.View>
+      {tapped && tipAt && <Tip place={placeFor(picked! / MILESTONE)} latest={picked === reached && picked! > 0}
+        togo={picked! > meters ? picked! - meters : null} x={tipAt.x} width={width}
+        {...roomAbove ? { bottom: height - tipAt.y + 18 } : { top: tipAt.y + 22 }}>
+        {picked! <= meters ? tip?.(picked!) : null}
+      </Tip>}
+    </View>
+  </GestureDetector>
+})
+
+// Keeps what it holds at its own size on the zoomed map, standing at x, y.
+function Upright({ x, y, zoom, children }: { x: number, y: number, zoom: SharedValue<number>, children: ReactNode }) {
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: 1 / zoom.get() }] }))
+  return <Reanimated.View pointerEvents="box-none" style={[{ position: 'absolute', left: x, top: y, width: 0, height: 0 }, style]}>{children}</Reanimated.View>
+}
+
+// The road walked, gold on a dark edge: a View per stretch, whose rounded ends make round joins where they meet.
+const ROAD = [[9, '#283040'], [5, '#F8D030']] as const
+const Road = memo(function Road({ points, scale }: { points: Point[], scale: number }) {
+  return <View pointerEvents="none" style={look.fill}>
+    {ROAD.map(([size, color]) => points.slice(1).map((to, i) => {
+      const [ax, ay] = [points[i][0] * scale, points[i][1] * scale], [bx, by] = [to[0] * scale, to[1] * scale]
+      const length = Math.hypot(bx - ax, by - ay), thick = size * scale
+      return <View key={`${size}-${i}`} style={{ position: 'absolute', left: (ax + bx - length - thick) / 2, top: (ay + by - thick) / 2,
+        width: length + thick, height: thick, borderRadius: thick / 2, backgroundColor: color,
+        transform: [{ rotate: `${Math.atan2(by - ay, bx - ax)}rad` }] }} />
+    }))}
+  </View>
+})
+
+// A stop on the Kanto map, like the Town Map's: a square for a town or city, a dot for a route, lit once reached (red
+// for a town, gold for a route) and grey ahead, with its name on a dark plate below; zoomed out, a route's name hides.
+// Tap it for its tip.
+const KantoMarker = memo(function KantoMarker({ name, city, at, done, picked, named, x, y, zoom, onOpen }: {
+  name: string, city: boolean, at: number, done: boolean, picked: boolean, named: boolean, x: number, y: number,
+  zoom: SharedValue<number>, onOpen: (meters: number) => void
+}) {
+  const size = city ? 18 : 14
+  // The marker's reach for a finger, wider than the marker.
+  const reach = size + 24
+  const upright = useAnimatedStyle(() => ({ transform: [{ scale: 1 / zoom.get() }] }))
+  const label = useAnimatedStyle(() => ({ opacity: city || zoom.get() >= ROUTE_NAMES ? 1 : 0 }))
+  return <Reanimated.View style={[{ position: 'absolute', left: x - reach / 2, top: y - reach / 2, width: reach, height: reach }, upright]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${name}, ${at / 1000} km milestone, ${done ? 'reached' : 'still ahead'}`}
+      accessibilityState={{ expanded: picked }} onPress={() => onOpen(at)}
+      style={({ pressed }) => ({ flex: 1, alignItems: 'center', justifyContent: 'center', transform: [{ scale: pressed || picked ? 1.25 : 1 }] })}>
+      <View style={[look.stop, { width: size, height: size, borderRadius: city ? 3 : size / 2,
+        backgroundColor: done ? (city ? '#E8483C' : '#F8C830') : '#9AA4AE' }, picked && { borderColor: '#F8D030' }]}>
+        {!done && <Icon name="lock" size={city ? 10 : 8} color="#FFFFFF" />}
+      </View>
+      {named && <Reanimated.View pointerEvents="none" style={[look.placeTag, { top: (reach + size) / 2 + 3, width: 120, left: reach / 2 - 60 }, label]}>
+        <Text numberOfLines={1} style={[look.placeText, !done && look.placeTextLocked]}>{name}</Text>
+      </Reanimated.View>}
+    </Pressable>
+  </Reanimated.View>
+})
+
+const line = (points: Point[]) => points.map(([x, y]) => `${x},${y}`).join(' ')
+
+// The Kanto map in small for the journey sheet: the walkthrough (the road ahead is in the art), gold as far as you have
+// walked, and you on it.
+function KantoThumb({ meters, width }: { meters: number, width: number }) {
+  const height = width * KANTO_HEIGHT / KANTO_WIDTH
+  const trail = kantoTrail(meters, MILESTONE)
+  const [x, y] = kantoPoint(meters, MILESTONE)
+  return <View accessible={false} style={[look.thumb, { width, height }]}>
+    <Image source={kantoArt} fadeDuration={0} resizeMode="stretch" style={{ width, height }} />
+    <View pointerEvents="none" style={look.fill}>
+      <Svg width={width} height={height} viewBox={`0 0 ${KANTO_WIDTH} ${KANTO_HEIGHT}`}>
+        <Polyline points={line(trail.walked)} fill="none" stroke="#283040" strokeWidth={16} strokeLinejoin="round" />
+        <Polyline points={line(trail.walked)} fill="none" stroke="#F8D030" strokeWidth={9} strokeLinejoin="round" />
+        <Circle cx={x} cy={y} r={26} fill={colors.edge} stroke="#FFFFFF" strokeWidth={8} />
+      </Svg>
+    </View>
   </View>
 }
 
@@ -218,6 +516,7 @@ function JourneyMap({ meters }: { meters: number }) {
       </View>
       <Text style={look.journeyKm}>{(Math.floor(meters / 100) / 10).toFixed(1)}<Text style={look.journeyUnit}> km</Text></Text>
     </View>
+    {meters <= KANTO_END && <KantoThumb meters={meters} width={width} />}
     <View accessible accessibilityLabel={`Journey map: ${here + 1} of ${tourLength} places reached. Next, ${next.name} in ${togo} km`} style={{ alignSelf: 'center' }}>
       <Svg width={width} height={28 + (rows - 1) * gapY}>
         {Array.from({ length: tourLength - 1 }, (_, i) => {
@@ -280,7 +579,7 @@ function Milestone({ meters, done, picked, x, y, tile, named, onPress }: {
 
 // You: your total on a glowing pad, the trainer standing on it with your buddy at their side, and a bobbing "You" tag.
 function Here({ meters, x, y, tile, pad, trainer, activity, buddy, reduced }: {
-  meters: number, x: number, y: number, tile: number, pad: { width: number, height: number }, trainer: 'brendan' | 'may', activity: Activity,
+  meters: number, x: number, y: number, tile: number, pad: { width: number, height: number, labelTop?: number }, trainer: 'brendan' | 'may', activity: Activity,
   buddy: string | null, reduced: boolean
 }) {
   const [pulse] = useState(() => new Animated.Value(0))
@@ -308,8 +607,8 @@ function Here({ meters, x, y, tile, pad, trainer, activity, buddy, reduced }: {
       transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }) }] }]} />
     <View accessible accessibilityLabel={`You are here: ${label} walked and run in all`}
       style={[look.here, gradient(), { left: x - pad.width / 2, top: y - pad.height / 2, width: pad.width, height: pad.height, borderRadius: pad.height / 2,
-        paddingTop: pad.height * 0.42 }]}>
-      <Text numberOfLines={1} style={[look.hereText, { fontSize: Math.round(tile * 0.5) }]}>{label}</Text>
+        paddingTop: pad.labelTop ?? pad.height * 0.42 }]}>
+      <Text numberOfLines={1} style={[look.hereText, { fontSize: Math.max(11, Math.round(tile * 0.5)) }]}>{label}</Text>
     </View>
     {species && <View pointerEvents="none" style={{ position: 'absolute', left: x - person.width / 2 - friend * 0.92, top: feet - friend * 0.88 }}>
       <OverworldSprite name={species} shiny={buddy!.startsWith('Shiny ')} size={friend} />
@@ -398,39 +697,50 @@ export function MapSheet({ visible, title, onClose, reduced, children }: {
   </Modal>
 }
 
+// The GBA look for everything over the map, in every theme, like the games' text boxes: a hard frame (Emerald's own
+// colour, else the theme's ink), a light rule inside it (look.rule), small corners and a hard drop shadow. Words on
+// the map are in the pixel face. Exported for the buttons the Adventure tab lays over it.
+export function gbaBox(radius = 8) {
+  const frame = colors.frameOuter ?? colors.ink
+  return { backgroundColor: colors.panel, borderWidth: 2, borderColor: frame, borderRadius: radius,
+    boxShadow: `0px 3px 0px ${colors.frameOuter ?? 'rgba(16, 24, 40, 0.45)'}` }
+}
+
 const look = themedStyles(() => ({
   screen: { flex: 1, backgroundColor: GROUND, overflow: 'hidden' },
+  rule: { position: 'absolute', left: 2, top: 2, right: 2, bottom: 2, borderRadius: 5, borderWidth: 1.5, borderColor: colors.frameInner ?? colors.line },
+  stop: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF', boxShadow: '0px 2px 0px #283040' },
+  thumb: { alignSelf: 'center', overflow: 'hidden', ...gbaBox(6) },
   map: { flex: 1 },
   side: { position: 'absolute', top: 0, bottom: 0, backgroundColor: GROUND },
   dim: { position: 'absolute', left: 0, right: 0, backgroundColor: 'rgba(8, 14, 32, 0.3)' },
   ahead: { position: 'absolute', top: 0, left: 0, right: 0, paddingLeft: 12, alignItems: 'flex-start' },
   behind: { position: 'absolute', left: 0, right: 0 },
-  sign: { gap: 2, paddingHorizontal: 16, paddingVertical: 10, borderRadius: retro() ? 8 : 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.82)', borderWidth: 2, borderColor: 'rgba(60, 120, 95, 0.35)' },
-  signText: { fontFamily: displayFont(fonts.black), fontSize: 13, letterSpacing: 1, color: '#2D5444' },
+  sign: { gap: 2, paddingHorizontal: 14, paddingVertical: 8, ...gbaBox(6) },
+  signText: { fontFamily: fonts.pixel, fontSize: 13, letterSpacing: 1, color: colors.ink },
   pad: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderBottomWidth: 5, boxShadow: '0px 3px 0px rgba(30, 60, 45, 0.28)' },
   padDone: { backgroundColor: '#F3F6F9', borderColor: '#C3CDD8' },
   padLocked: { backgroundColor: '#AEB7C1', borderColor: '#808B97' },
   padPicked: { borderColor: colors.brandFrom },
   placeTag: { position: 'absolute', alignItems: 'center' },
-  placeText: { fontFamily: fonts.heavy, color: '#24402F', backgroundColor: 'rgba(255, 255, 255, 0.85)', overflow: 'hidden', paddingHorizontal: 7,
-    paddingVertical: 1, borderRadius: retro() ? 4 : 999 },
-  placeTextLocked: { color: '#4D5A66', backgroundColor: 'rgba(255, 255, 255, 0.62)' },
+  // A place's name on the map: white pixel letters on a dark plate, dimmer ahead.
+  placeText: { fontFamily: fonts.pixel, fontSize: 11, lineHeight: 15, color: '#FFFFFF', backgroundColor: 'rgba(24, 32, 48, 0.82)', overflow: 'hidden',
+    paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 },
+  placeTextLocked: { color: '#D8DEE6', backgroundColor: 'rgba(24, 32, 48, 0.55)' },
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  tip: { position: 'absolute', backgroundColor: colors.panel, borderRadius: retro() ? 10 : 20, padding: 12, gap: 10,
-    ...(retro() ? { borderWidth: 2, borderColor: colors.frameOuter, boxShadow: `0px 3px 0px ${colors.frameOuter}` } : { boxShadow: `0px 10px 28px ${colors.shadow}` }) },
+  tip: { position: 'absolute', padding: 12, gap: 10, ...gbaBox() },
   tipHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  tipRegion: { fontFamily: fonts.heavy, fontSize: 11, letterSpacing: 1, color: colors.muted },
-  tipName: { fontFamily: displayFont(fonts.black), fontSize: retro() ? 16 : 18, lineHeight: 23, color: colors.ink },
+  tipRegion: { fontFamily: fonts.pixel, fontSize: 11, letterSpacing: 1, color: colors.muted },
+  tipName: { fontFamily: fonts.pixel, fontSize: 17, lineHeight: 22, color: colors.ink },
   tipLine: { fontFamily: fonts.bold, fontSize: 13, color: colors.muted },
-  tipArrow: { position: 'absolute', bottom: -7, width: 14, height: 14, backgroundColor: colors.panel, transform: [{ rotate: '45deg' }],
-    ...(retro() ? { borderRightWidth: 2, borderBottomWidth: 2, borderColor: colors.frameOuter } : null) },
-  latest: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.goldTint },
-  latestText: { fontFamily: fonts.black, fontSize: 11, color: colors.gold },
-  mini: { width: 52, height: 52, borderRadius: retro() ? 12 : 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.panel,
-    ...(retro() ? { borderWidth: 2, borderColor: colors.frameOuter, boxShadow: `0px 3px 0px ${colors.frameOuter}` } : { boxShadow: `0px 6px 16px ${colors.shadow}` }) },
+  tipArrow: { position: 'absolute', bottom: -8, width: 14, height: 14, backgroundColor: colors.panel, transform: [{ rotate: '45deg' }],
+    borderRightWidth: 2, borderBottomWidth: 2, borderColor: colors.frameOuter ?? colors.ink },
+  tipArrowUp: { bottom: undefined, top: -8, borderRightWidth: 0, borderBottomWidth: 0, borderLeftWidth: 2, borderTopWidth: 2 },
+  latest: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4, backgroundColor: colors.goldTint },
+  latestText: { fontFamily: fonts.pixel, fontSize: 11, color: colors.gold },
+  mini: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', ...gbaBox(8) },
   journeyHead: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
-  journeyPlace: { fontFamily: displayFont(fonts.black), fontSize: retro() ? 18 : 21, lineHeight: 27, color: colors.ink },
+  journeyPlace: { fontFamily: fonts.pixel, fontSize: 20, lineHeight: 26, color: colors.ink },
   journeyKm: { fontFamily: fonts.black, fontSize: 24, lineHeight: 30, color: colors.ink },
   journeyUnit: { fontFamily: fonts.heavy, fontSize: 14, color: colors.muted },
   nextRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, minHeight: 44, borderRadius: 14, backgroundColor: colors.mint },
@@ -441,33 +751,33 @@ const look = themedStyles(() => ({
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendName: { fontFamily: fonts.heavy, fontSize: 12, color: colors.ink },
   legendCount: { fontFamily: fonts.bold, fontSize: 12, color: colors.muted },
-  padText: { fontFamily: fonts.black, color: '#2E3B48' },
+  padText: { fontFamily: fonts.pixel, color: '#2E3B48' },
   padTextLocked: { color: '#F5F7FA' },
   badge: { position: 'absolute', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF',
     boxShadow: '0px 2px 4px rgba(20, 40, 60, 0.3)' },
   badgeDone: { backgroundColor: '#2F8BEA' },
   badgeLocked: { backgroundColor: '#6D7884' },
   ring: { position: 'absolute', borderWidth: 4, borderColor: colors.brandFrom },
-  here: { position: 'absolute', alignItems: 'center', borderWidth: 3, borderColor: '#FFFFFF', boxShadow: `0px 4px 14px ${colors.glow}` },
-  hereText: { fontFamily: fonts.black, color: colors.onBrand, letterSpacing: 0.2 },
+  here: { position: 'absolute', alignItems: 'center', borderWidth: 3, borderColor: '#FFFFFF', boxShadow: `0px 3px 0px ${colors.frameOuter ?? 'rgba(16, 24, 40, 0.45)'}` },
+  hereText: { fontFamily: fonts.pixel, color: colors.onBrand, letterSpacing: 0.2 },
   tag: { position: 'absolute', width: 80, alignItems: 'center' },
-  tagText: { fontFamily: displayFont(fonts.black), fontSize: 13, color: colors.onEdge, backgroundColor: colors.edge, overflow: 'hidden',
-    paddingHorizontal: 12, paddingVertical: 4, borderRadius: retro() ? 6 : 999 },
+  tagText: { fontFamily: fonts.pixel, fontSize: 13, color: colors.onEdge, backgroundColor: colors.edge, overflow: 'hidden',
+    paddingHorizontal: 10, paddingVertical: 3, borderRadius: 4 },
   tagTail: { width: 10, height: 10, marginTop: -6, backgroundColor: colors.edge, transform: [{ rotate: '45deg' }] },
-  // The notice, if any, and the card, floating over the map (bottom is set by LIFT).
+  // The notice, if any, and the card, floating over the map (bottom is set by LIFT); folded, the card's bubble.
   dock: { position: 'absolute', left: 12, right: 12, alignItems: 'center', gap: 10 },
-  card: { alignSelf: 'center', backgroundColor: colors.panel, borderRadius: retro() ? 12 : 22, padding: 12, gap: 10,
-    ...(retro() ? { borderWidth: 2, borderColor: colors.frameOuter, boxShadow: `0px 3px 0px ${colors.frameOuter}` } : { boxShadow: `0px 10px 28px ${colors.shadow}` }) },
+  card: { alignSelf: 'center', padding: 10, gap: 8, transformOrigin: 'right bottom', ...gbaBox(10) },
+  bubble: { position: 'absolute', right: 12, width: BUBBLE, height: BUBBLE },
   top: { position: 'absolute', left: 12, right: 12, flexDirection: 'row' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1, minHeight: 58, paddingLeft: 12, paddingRight: 18, paddingVertical: 8,
-    borderRadius: retro() ? 12 : 20, borderWidth: 2, borderColor: 'rgba(255, 255, 255, 0.55)' },
-  headerIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255, 255, 255, 0.18)' },
-  headerRule: { width: 1.5, alignSelf: 'stretch', marginVertical: 4, backgroundColor: 'rgba(255, 255, 255, 0.4)' },
-  headerEyebrow: { fontFamily: fonts.heavy, fontSize: 11, letterSpacing: 1, color: colors.onBrand, opacity: 0.88 },
-  headerTitle: { fontFamily: displayFont(fonts.black), fontSize: retro() ? 17 : 19, lineHeight: 24, color: colors.onBrand },
-  rail: { position: 'absolute', right: 12, alignItems: 'flex-end', gap: 10 },
-  recenter: { position: 'absolute', right: 16, bottom: 16, width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: colors.panel, boxShadow: `0px 6px 16px ${colors.shadow}`, ...(retro() ? { borderWidth: 2, borderColor: colors.frameOuter } : null) },
+  // The place's name, like the sign that pops up as you enter a town in the games.
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minHeight: 46, paddingLeft: 8, paddingRight: 14, paddingVertical: 5,
+    ...gbaBox(8) },
+  headerIcon: { width: 26, height: 26, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.mint },
+  headerRule: { width: 2, alignSelf: 'stretch', marginVertical: 3, backgroundColor: colors.line },
+  headerEyebrow: { fontFamily: fonts.pixel, fontSize: 10, lineHeight: 13, letterSpacing: 1, color: colors.edge },
+  headerTitle: { fontFamily: fonts.pixel, fontSize: 15, lineHeight: 19, color: colors.ink },
+  rail: { position: 'absolute', right: 12, alignItems: 'flex-end', gap: 8 },
+  recenter: { position: 'absolute', right: 12, bottom: 16, width: 42, height: 42, alignItems: 'center', justifyContent: 'center', ...gbaBox(8) },
   scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.scrim },
   sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.panel, paddingHorizontal: 18, paddingTop: 10, gap: 12,
     borderTopLeftRadius: retro() ? 12 : 28, borderTopRightRadius: retro() ? 12 : 28, boxShadow: `0px -10px 30px ${colors.shadow}`,

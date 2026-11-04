@@ -1,5 +1,5 @@
 import { validatePlan } from './generated/companion.js'
-import { eggs, megaChoices } from './phone-adventure.ts'
+import { eggs, formChoices, formStages } from './phone-adventure.ts'
 import type { Activity } from './phone-adventure.ts'
 
 // The plan this phone shares with the watch through the cloud: the egg chosen here (eggAt is when) and the adventure
@@ -20,7 +20,7 @@ const empty: Plan = { egg: null, eggAt: 0, phone: null, updatedAt: 0 }
 
 export function withEgg(plan: Plan | null, family: string[], mega: string | null, now = Date.now()): Plan {
   const at = stamp(plan, now)
-  return { ...(plan ?? empty), egg: { family: [...family], mega: mega && megaChoices(family).includes(mega) ? mega : null }, eggAt: at, updatedAt: at }
+  return { ...(plan ?? empty), egg: { family: [...family], mega: mega && formChoices(family).includes(mega) ? mega : null }, eggAt: at, updatedAt: at }
 }
 
 // The chosen egg was started (on the watch, or taken over from it), so neither device offers it again.
@@ -37,10 +37,12 @@ export function withPhone(plan: Plan | null, phone: Plan['phone'], now = Date.no
     : { ...(plan ?? empty), phone: null, updatedAt: at }
 }
 
-// The egg family a Pokemon hatches from, for "Hatch this next" in the Dex. Mega forms come from their family's egg
-// with that Mega chosen. Expedition Legendaries have no egg.
-export function eggOf(name: string): { family: string[], mega: string | null } | null {
+// The egg family a Pokemon hatches from, for "Hatch this next" in the Dex. Mega, Dynamax and Gigantamax forms come
+// from their family's egg, with the form chosen where there is a choice. opened is the eggs on offer (openEggs): an
+// Expedition Legendary has one once it is caught there.
+export function eggOf(name: string, opened = eggs): { family: string[], mega: string | null } | null {
   const plain = name.replace(/^Shiny /, '')
-  const family = eggs.find(item => item.includes(plain)) ?? eggs.find(item => megaChoices(item).includes(plain))
-  return family ? { family, mega: megaChoices(family).includes(plain) ? plain : null } : null
+  const family = opened.find(item => item.includes(plain)) ??
+    opened.find(item => formStages(item, plain).some(stage => stage.name === plain))
+  return family ? { family, mega: formChoices(family).includes(plain) ? plain : null } : null
 }

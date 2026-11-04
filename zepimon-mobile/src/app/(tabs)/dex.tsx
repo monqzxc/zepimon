@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { router } from 'expo-router'
 import { Animated, Platform, Pressable, Text, View } from 'react-native'
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useJournal } from '../../store'
 import { entriesFromDex } from '../../journal'
 import type { DexEntry } from '../../journal'
@@ -37,7 +37,6 @@ export default function DexScreen() {
   const { journal, dex } = useJournal()
   const [filter, setFilter] = useState<DexFilter>(defaultDexFilter)
   const [sheet, setSheet] = useState<Sheet>(null)
-  const insets = useSafeAreaInsets()
   const [scroll] = useState(() => new Animated.Value(0))
   const change = (next: Partial<DexFilter>) => setFilter(value => ({ ...value, ...next }))
   const entries = entriesFromDex(dex)
@@ -61,27 +60,26 @@ export default function DexScreen() {
     ...typesOf(names).map(type => ({ value: type, label: typeLabel(type), count: countWith({ type }), color: typeColors[type], tint: typeTints[type] }))]
   const sorts: PickerOption<string>[] = sortOrders.map(([sort, label]) => ({ value: sort, label }))
 
-  // The header card runs up under the status bar, so the safe area is its top padding rather than the screen's.
-  return <SafeAreaView edges={['left', 'right']} style={styles.screen}>
+  // The header card floats below the status bar, in line with the search and pills.
+  return <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
     <View style={look.top}>
-      <View pointerEvents="none" accessible={false} style={look.watermark}><PokeballIcon size={150} color={colors.ink} stroke={12} /></View>
-      <View style={[look.banner, { paddingTop: insets.top }]}>
+      <View pointerEvents="none" accessible={false} style={look.watermark}><PokeballIcon size={120} color={colors.ink} stroke={10} /></View>
+      <View style={look.banner}>
         <View pointerEvents="none" accessible={false} style={look.stripe} />
         <View pointerEvents="none" accessible={false} style={[look.fill, gradient()]} />
         <View style={look.bannerRow}>
-          <View style={look.ball}><PokeballIcon size={22} color={colors.brandFrom} stroke={3} /></View>
+          <View style={look.ball}><PokeballIcon size={20} color={colors.brandFrom} stroke={3} /></View>
           <Text accessibilityRole="header" numberOfLines={1} style={look.title}>Pokédex</Text>
         </View>
       </View>
-      <View style={[look.actions, { paddingTop: insets.top }]}>
+      <View style={look.actions}>
         <View accessible accessibilityLabel={`${entries.length} Pokemon in your Dex`} style={look.tally}>
           <Text style={look.tallyText}>{entries.length}</Text>
-          <PokeballIcon size={16} color={colors.muted} />
+          <PokeballIcon size={14} color={colors.muted} />
         </View>
-        <View style={look.divider} />
         <Squish reduced={reduced} onPress={() => setSheet('sort')} accessibilityLabel={`Sort: ${sortOrders.find(([sort]) => sort === filter.sort)?.[1]}`}
           style={look.sort}>
-          <Icon name="sort" size={24} color={colors.ink} />
+          <Icon name="sort" size={22} color={colors.edge} />
         </Squish>
       </View>
     </View>
@@ -173,25 +171,22 @@ function DexCard({ entry, index, shinyView, reduced }: { entry: DexEntry, index:
 }
 
 const look = themedStyles(() => ({
-  // A Pokedex lid: a card across the top with rounded lower corners. The banner takes 70% of it and ends in a slant,
-  // with a thin second slant beside it; a faint Poke Ball sits behind the count and sort button.
-  top: { flexDirection: 'row', alignItems: 'stretch', zIndex: 3, overflow: 'hidden', backgroundColor: colors.panel,
-    borderBottomLeftRadius: retro() ? 12 : 26, borderBottomRightRadius: retro() ? 12 : 26,
-    ...(retro() ? { borderBottomWidth: 2, borderColor: colors.frameOuter, boxShadow: `0px 3px 0px ${colors.frameOuter}` }
-      : { boxShadow: `0px 6px 18px ${colors.shadow}` }) },
-  watermark: { position: 'absolute', right: -34, bottom: -58, opacity: 0.05 },
-  banner: { width: '70%', flexShrink: 1, paddingLeft: 16, paddingRight: 52 },
-  bannerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64 },
-  fill: { position: 'absolute', top: 0, bottom: 0, left: -40, right: 20, transform: [{ skewX: '-20deg' }],
-    borderBottomRightRadius: retro() ? 4 : 12 },
-  stripe: { position: 'absolute', top: 0, bottom: 0, right: 2, width: 10, transform: [{ skewX: '-20deg' }], backgroundColor: colors.line },
+  // A Pokedex lid: a card below the status bar, inset to the same 16 as the search. The banner fills the left of it and
+  // ends in a slant, with a thin second slant beside it; a faint Poke Ball sits behind the count and sort button.
+  top: { flexDirection: 'row', alignItems: 'stretch', zIndex: 3, overflow: 'hidden', marginHorizontal: 16, marginTop: 8,
+    backgroundColor: colors.panel, borderRadius: retro() ? 12 : 16,
+    ...(retro() ? { borderWidth: 2, borderColor: colors.frameOuter, boxShadow: `0px 3px 0px ${colors.frameOuter}` } : shadows.card) },
+  watermark: { position: 'absolute', right: -46, top: -30, opacity: 0.06 },
+  banner: { flex: 1, paddingLeft: 12, paddingRight: 44 },
+  bannerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 60 },
+  fill: { position: 'absolute', top: 0, bottom: 0, left: -40, right: 18, transform: [{ skewX: '-20deg' }] },
+  stripe: { position: 'absolute', top: 0, bottom: 0, right: 2, width: 8, transform: [{ skewX: '-20deg' }], backgroundColor: colors.line },
   ball: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.onBrand },
-  title: { flexShrink: 1, fontFamily: displayFont(fonts.black), color: colors.onBrand, fontSize: retro() ? 22 : 24, lineHeight: 30 },
-  actions: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, paddingRight: 8 },
+  title: { flexShrink: 1, fontFamily: displayFont(fonts.black), color: colors.onBrand, fontSize: retro() ? 20 : 22, lineHeight: 28 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingRight: 8 },
   tally: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  tallyText: { fontFamily: fonts.black, color: colors.ink, fontSize: 18, lineHeight: 24, fontVariant: ['tabular-nums'] },
-  divider: { width: 1.5, height: 24, borderRadius: 1, backgroundColor: colors.line },
-  sort: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  tallyText: { fontFamily: fonts.black, color: colors.ink, fontSize: 17, lineHeight: 22, fontVariant: ['tabular-nums'] },
+  sort: { width: 44, height: 44, borderRadius: retro() ? 10 : 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.mint },
   controls: { zIndex: 2, gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
   shade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.bg, boxShadow: `0px 8px 12px -8px ${colors.shadow}` },
   note: { marginBottom: 10, paddingHorizontal: GAP },

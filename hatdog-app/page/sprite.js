@@ -1,5 +1,6 @@
 import { createWidget, widget } from '@zos/ui'
 import { spritePath } from './pokemon'
+import { spriteForm } from '../shared/forms'
 import { walkSprites } from './walk-sprites'
 
 // Image files that hold two walking poses side by side. Built on first use, not while the page loads.
@@ -18,7 +19,8 @@ function isSheet(path) {
 export function drawSprite(canvas, name, shiny, size, frame = 0) {
   const path = spritePath(name, shiny)
   const sheet = isSheet(path)
-  const pose = walkSprites[name.replace(/^Shiny /, '')] ? frame : 0
+  // A Dynamax form walks in its species' poses.
+  const pose = walkSprites[spriteForm(name).replace(/^Shiny /, '')] ? frame : 0
   canvas.clear({ x: 0, y: 0, w: size, h: size })
   // The canvas clips the other pose; both frames share one installed image file.
   canvas.drawImage({ x: sheet ? -pose * size : 0, y: 0, w: sheet ? size * 2 : size, h: size, image: path })

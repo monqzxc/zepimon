@@ -1,11 +1,20 @@
 import { useCallback, useRef, useState } from 'react'
-import { AccessibilityInfo, AppState, Image, Platform, Pressable, Text } from 'react-native'
+import { AccessibilityInfo, AppState, Image, Platform, Pressable, Text, View } from 'react-native'
 import type { ImageSourcePropType } from 'react-native'
 import { useFocusEffect } from 'expo-router'
-import { spriteSource } from './catalog'
+import { isDynamax, spriteSource } from './catalog'
+import { spriteForm } from './generated/forms.js'
 import { walkingFrames } from './generated/walking.js'
 
 const poses = walkingFrames as Record<string, ImageSourcePropType[]>
+
+// The red glow of a Dynamax form, which otherwise looks like its species. Goes first inside a box of this size.
+export function DynamaxAura({ size }: { size: number }) {
+  return <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: 'rgba(230, 30, 80, 0.16)' }} />
+    <View style={{ position: 'absolute', width: size * 0.72, height: size * 0.72, borderRadius: size * 0.36, backgroundColor: 'rgba(255, 60, 110, 0.24)' }} />
+  </View>
+}
 
 // The front-facing overworld pose (the battle sprite where there is none), which hops and shows a heart when tapped.
 // onLongPress adds a second action, like opening the Pokemon's record.
@@ -13,7 +22,7 @@ export function Sprite({ name, shiny = false, size = 88, onLongPress }: { name: 
   const isShiny = shiny || name.startsWith('Shiny ')
   const base = name.replace(/^Shiny /, '')
   const label = (isShiny ? 'Shiny ' : '') + base
-  const frames = poses[label]
+  const frames = poses[(isShiny ? 'Shiny ' : '') + spriteForm(base)]
   const [frame, setFrame] = useState(0)
   const [happy, setHappy] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
@@ -51,6 +60,7 @@ export function Sprite({ name, shiny = false, size = 88, onLongPress }: { name: 
     onLongPress={onLongPress} accessibilityActions={onLongPress ? [{ name: 'longpress', label: 'Open its record' }] : undefined}
     onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'longpress') onLongPress?.() }}
     style={{ width: size, height: size, alignSelf: 'center' }}>
+    {isDynamax(base) && <DynamaxAura size={size} />}
     <Image source={supported ? frames[frame] : spriteSource(base, isShiny)}
       accessibilityLabel={label} resizeMode="contain" fadeDuration={0} onError={() => setFailed(label)}
       style={{ width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }} />

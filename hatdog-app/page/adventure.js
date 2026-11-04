@@ -6,6 +6,7 @@ import { back } from '@zos/router'
 import { createSprite, drawSprite } from './sprite'
 import { JOURNAL_KEY, ACTIVE_KEY, NEXT_KEY, PHONE_RUNS_KEY, companionApp, readKey, readActive, readNext, readPhoneRuns, phoneAdventure } from './saved'
 import { legendarySpecies, ensureExpedition, expeditionGoal, clueMilestones } from '../shared/expedition'
+import { formDistance, milestoneLabel, GIGANTAMAX_AT } from '../shared/forms'
 import { routes, speciesCount, generation, megaChoices, rollShiny, collectionCount, primaryType, spritePath, nextMilestone, currentForm, elapsedSeconds, elapsedLabel, currentPace, updateSession, finishSession, refreshPersonalBests, repairDexRecords, applyPhoneRun } from './pokemon'
 
 const ink = 0xFFFFFF
@@ -18,6 +19,8 @@ const contentTop = 64
 const historyTitles = { distance: 'Highest distance', elapsed: 'Longest elapsed time', hatch: 'Fastest 5 km hatch' }
 const letterGroups = ['A-F', 'G-L', 'M-R', 'S-Z']
 const eggLabels = routes.map(route => route.length > 1 ? route[0] + ' > ' + route[route.length - 1] : route[0])
+// Expedition Legendary and Mythical eggs are the phone's to offer, once caught on an Expedition (see routeFor). Those
+// Expeditions do not offer yet (Gen 5-9) hatch from ordinary eggs for now.
 const eggRoutes = routes.map((_, i) => i).filter(i => !legendarySpecies.includes(routes[i][0]))
 // Sort display indices only: stored journeys keep their original catalog route IDs.
 const eggOrder = eggRoutes.slice().sort((a, b) => eggLabels[a] < eggLabels[b] ? -1 : eggLabels[a] > eggLabels[b] ? 1 : a - b)
@@ -31,6 +34,8 @@ const themes = {
 }
 
 const km = (meters) => (meters / 1000).toFixed(2) + ' km'
+// A Mega or Gigantamax choice on its button, with the distance it waits at.
+const choiceLabel = (name) => formDistance(name) === GIGANTAMAX_AT ? name.replace('Gigantamax ', 'G-Max ') + ' @50km' : name + ' @21km'
 // While the numbers change, the walk in progress is saved at most this often (and whenever the screen closes).
 const ACTIVE_SAVE_MS = 20000
 // The adventure is shared with the phone and Zepp about this often while it records.
@@ -181,12 +186,14 @@ Page({
   },
 
   // The catalog route for a family named by the phone or the title screen; a fresh egg if it is missing or unknown.
+  // The watch never offers a Legendary or Mythical egg itself, but takes one the phone chose: the phone opens them
+  // once they are caught on a Legendary Expedition.
   routeFor(family) {
     if (Array.isArray(family) && family.length) {
       const key = family.join('>')
       let route = routes.findIndex(item => item.join('>') === key)
       if (route < 0) route = routes.findIndex(item => item[0] === family[0])
-      if (route >= 0 && eggRoutes.includes(route)) return route
+      if (route >= 0) return route
     }
     return this.freshRoute()
   },
@@ -361,33 +368,26 @@ Page({
     this.rect(0, contentTop, 320, 380 - contentTop, 0x031A2C)
     this.panel(14, 68, 292, 42)
     this.text(74, 'Choose a generation', 21, 0xF2E4B5, 30)
-    for (let gen = 1; gen <= 6; gen++) {
-      const y = 116 + (gen - 1) * 43
-      const selected = gen <= 5 && this.selectedGeneration === gen
-      const title = gen === 6 ? 'Back to title' : gen <= 4 ? 'Generation ' + gen : 'Extra Mega families'
-      this.button(y, title, () => this.load(() => {
-        if (gen === 6) { back(); return }
+    // Nine generations, three to a row.
+    for (let gen = 1; gen <= 9; gen++) {
+      this.button(116 + Math.floor((gen - 1) / 3) * 48, 'Gen ' + gen, () => this.load(() => {
         this.selectedGeneration = gen
         this.show('letters')
-      }), 24, 272, selected, 38)
-      if (selected) {
-        this.rect(36, y + 10, 4, 18, 0xF4EAC7)
-        this.rect(40, y + 13, 4, 12, 0xF4EAC7)
-        this.rect(44, y + 16, 4, 6, 0xF4EAC7)
-      }
+      }), 24 + (gen - 1) % 3 * 92, 88, this.selectedGeneration === gen, 42)
     }
+    this.button(332, 'Back to title', () => this.load(() => back()), 24, 272)
   },
 
   renderLetterPicker() {
     this.background()
     this.text(70, 'Choose letters', 22, ink, 28)
-    this.text(104, this.selectedGeneration === 5 ? 'Extra Mega families' : 'Generation ' + this.selectedGeneration, 17, muted, 24)
+    this.text(104, 'Generation ' + this.selectedGeneration, 17, muted, 24)
     letterGroups.forEach((group, i) => this.button(136 + i * 46, group, () => this.load(() => {
       this.letterGroup = group
       this.listItems = eggOrder.filter(route => {
         const first = routes[route][0][0].toUpperCase()
         return first >= group[0] && first <= group[2] &&
-          (this.selectedGeneration === 5 ? generation(route) > 4 : generation(route) === this.selectedGeneration)
+          generation(route) === this.selectedGeneration
       })
       this.listPage = 0
       this.show('choose')
@@ -397,7 +397,7 @@ Page({
 
   renderEggList() {
     this.background()
-    this.text(70, (this.selectedGeneration === 5 ? 'Extra Mega' : 'Gen ' + this.selectedGeneration) + ' / ' + this.letterGroup, 22, ink, 28)
+    this.text(70, 'Gen ' + this.selectedGeneration + ' / ' + this.letterGroup, 22, ink, 28)
     if (!this.listItems.length) {
       this.text(160, 'No eggs in this group', 20, muted, 56)
       this.button(332, 'Back', () => this.open('letters'))
@@ -594,11 +594,11 @@ Page({
     this.text(236, routes[item].join(' > '), 15, muted, 40)
     const choices = megaChoices(item)
     if (choices.length) {
-      const megaButton = this.button(280, choices[this.megaIndex % choices.length] + ' @21km', () => {
+      const megaButton = this.button(280, choiceLabel(choices[this.megaIndex % choices.length]), () => {
         this.megaIndex = (this.megaIndex + 1) % choices.length
-        const label = choices[this.megaIndex] + ' @21km'
+        const label = choiceLabel(choices[this.megaIndex])
         megaButton.setProperty(prop.MORE, { x: 23, y: 283, w: 274, h: 36,
-          text: label, text_size: label.length > 23 ? 16 : 19 })
+          text: label, text_size: label.length > 28 ? 14 : label.length > 23 ? 16 : 19 })
       })
     } else this.text(286, this.state.records[item] ? 'Last: ' + km(this.state.records[item].meters) : 'No Mega form', 17, muted)
     this.button(332, 'Start', () => this.load(() => {
@@ -664,7 +664,7 @@ Page({
     const next = nextMilestone(session.route, session.meters)
     const values = [(session.shiny ? 'Shiny ' : '') + (form === 'Egg' ? routes[session.route][0] + ' egg' : form),
       'Distance ' + km(session.meters), (session.activity === 'running' ? 'Run: ' : 'Walk: ') + session.steps + ' steps',
-      next === null ? 'Final form reached!' : km(next - session.meters) + ' to ' + (next === 21000 ? 'Mega' : form === 'Egg' ? 'hatch' : 'evolve')]
+      next === null ? 'Final form reached!' : km(next - session.meters) + ' to ' + milestoneLabel(next)]
     this.stats.forEach((item, i) => this.setShown('stat' + i, item, prop.TEXT, values[i]))
     this.setShown('nameSize', this.stats[0], prop.MORE, { text_size: values[0].length > 30 ? 14 : 18 })
     this.refreshSprite()

@@ -14,7 +14,9 @@ lifting, push-ups, sit-ups and worn out, the next pose every 3 seconds or as soo
 as you tap the ball again. Choose an egg, or take a
 random one, pick a Mega form where the family has one, choose **Walking** or
 **Running** and start. The phone measures distance by GPS: every 5 km in one
-adventure hatches or evolves the egg, with the Mega form at 21 km, and 1 in 50
+adventure hatches or evolves the egg, with the Mega form at 21 km, Dynamax at
+42 km (in a red glow) and, for the 32 families that have one, Gigantamax at 50 km
+(Urshifu and Toxtricity pick theirs like a Mega). 1 in 50
 eggs is Shiny, as on the watch. While recording you see the walking Pokemon,
 distance, time (including stops), current and average pace, the distance to the
 next hatch or evolution, and the route drawn live on a street map. **Finish & save** adds the
@@ -566,10 +568,10 @@ Turning the phone needs the native `expo-screen-orientation` module, so this rel
 
 ### Collection and games
 
-- Gen 1–4 Pokémon and the extra Mega families, with bundled sprites and type-themed habitats.
+- All 1,025 Pokémon through Gen 9, plus Mega, Dynamax and Gigantamax forms, with bundled sprites and type-themed habitats. Gen 5–9 Legendaries hatch from ordinary eggs until Expeditions offer them.
 - Separate Normal and Shiny Dex entries, saved run details, and a selectable buddy.
 - The Dex sorts and filters like the egg picker: **Lowest No.**, **Highest No.**,
-  **A–Z** or **Z–A** (Mega forms sit beside their species), generation with
+  **A–Z** or **Z–A** (Mega, Dynamax and Gigantamax forms sit beside their species), generation with
   region names, type, and **Show** All, Normal, Shiny or Safari. Search takes a
   name, a type or a Dex number, and the count shows how many of your Pokemon
   match. Both screens share `src/pokedex.ts` and `src/PokedexFilters.tsx`.
@@ -682,7 +684,7 @@ npx expo-doctor
 
 The mobile app uses [PokeAPI/sprites](https://github.com/PokeAPI/sprites) for the Dex, buddy habitats, Memory Match and Who's That Pokemon. Normal and Shiny variants are bundled locally, so these views work offline on Android and iPhone.
 
-Gen 1-4 Pokemon use the Platinum pixel sprites; later species and Mega forms use the repository's default sprites. The mobile bundle uses the preserved 96 x 96 source canvases, rather than the watch's reduced 48 x 48 assets. Eggs are locally drawn. Mega Zygarde currently uses its base-form sprite as a fallback.
+Gen 1-4 Pokemon use the Platinum pixel sprites; later species, Mega and Gigantamax forms use the repository's default sprites. Dynamax forms use their species' sprite. The mobile bundle uses the preserved 96 x 96 source canvases, rather than the watch's reduced 48 x 48 assets. Eggs are locally drawn. Mega Zygarde currently uses its base-form sprite as a fallback.
 
 Images are copied from `hatdog-app/data/original-sprites` by `npm run sync:watch`, with static asset references generated in `src/generated/sprites.js`. The shared `spriteSource` function in `src/catalog.ts` selects the Normal or Shiny image across the app.
 

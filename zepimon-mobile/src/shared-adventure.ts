@@ -1,4 +1,5 @@
 import { sharedName, validateAdventure } from './generated/companion.js'
+import { gigantamaxChoices } from './generated/forms.js'
 import type { ActiveAdventure, Activity } from './phone-adventure.ts'
 
 // The one adventure this phone and the watch share through the cloud, whichever started it: who records it now
@@ -51,8 +52,9 @@ export function takenOver(active: ActiveAdventure | null, shared: SharedAdventur
   return !!active && !!shared && shared.id === active.shareId && shared.device !== 'phone' && shared.deviceAt > active.deviceAt
 }
 
-// The Pokemon so far, as the watch names it: the egg, a form every 5 km, then the chosen Mega at 21 km.
-export const sharedPokemon = (shared: SharedAdventure): string => sharedName(shared)
+// The Pokemon so far, as the watch names it: the egg, a form every 5 km, then the chosen Mega at 21 km, Dynamax at
+// 42 km and Gigantamax at 50 km.
+export const sharedPokemon = (shared: SharedAdventure): string => sharedName(shared, gigantamaxChoices(shared.family))
 
 // The watch's adventure as this phone heard it, for its current pace: [at, meters] of each share, oldest first, over
 // the last few minutes. The watch shares about every half minute and the open app checks every 15 seconds, so a

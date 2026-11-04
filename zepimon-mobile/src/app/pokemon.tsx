@@ -5,6 +5,7 @@ import { averagePace, duration, hasAcquisitionDistance, km } from '../journal'
 import { eggMovesOf } from '../games/roster'
 import { dexNumber, pokemonType } from '../catalog'
 import { eggOf } from '../plan'
+import { formDistance, openEggs } from '../phone-adventure'
 import { useCloud } from '../cloud'
 import { Button, Copy, Eyebrow, Habitat, Heading, Panel, Screen, TypeBadge, colors, useTheme } from '../ui'
 
@@ -12,15 +13,16 @@ export default function PokemonScreen() {
   useTheme()
   const { name: param } = useLocalSearchParams<{ name: string }>()
   const name = typeof param === 'string' ? param : ''
-  const { journal, dex, buddy, chooseBuddy, chooseEgg } = useJournal()
+  const { journal, dex, buddy, expeditions, chooseBuddy, chooseEgg } = useJournal()
   const { session, linked } = useCloud()
   const [message, setMessage] = useState('')
-  const egg = eggOf(name)
+  // A Legendary has an egg once caught on an Expedition.
+  const egg = eggOf(name, openEggs(expeditions.dex))
   // Makes this Pokemon's egg the next one, in the Adventure tab and, through the cloud, on the watch.
   function hatchNext() {
     if (!egg) return
     chooseEgg(egg.family, egg.mega)
-      .then(() => setMessage(`Next egg: ${egg.family[0]}${egg.mega ? `, with ${egg.mega} at 21 km` : ''}. It waits in the Adventure tab` +
+      .then(() => setMessage(`Next egg: ${egg.family[0]}${egg.mega ? `, with ${egg.mega} at ${formDistance(egg.mega) / 1000} km` : ''}. It waits in the Adventure tab` +
         (session && linked ? ' and on your watch.' : '. Link your watch in Settings to see it there too.')))
       .catch(() => setMessage('Could not choose this egg. Please try again.'))
   }

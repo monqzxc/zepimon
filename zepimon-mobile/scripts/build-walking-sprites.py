@@ -35,9 +35,9 @@ def build(entry):
     variants = []
     for palette_name in ['normal', 'shiny']:
         palette = fetch(directory + 'overworld_' + palette_name + '.pal').decode().splitlines()
-        assert palette[:2] == ['JASC-PAL', '0100'] and int(palette[2]) == 16
+        assert palette[:2] == ['JASC-PAL', '0100'] and int(palette[2]) in (15, 16)
         colored = source.copy()
-        colored.putpalette([int(c) for row in palette[3:19] for c in row.split()])
+        colored.putpalette([int(c) for row in palette[3:3 + int(palette[2])] for c in row.split()])
         colored.info['transparency'] = 0
         variants.append([colored.crop((i * side, 0, (i + 1) * side, side)).convert('RGBA') for i in (0, 1)])
     boxes = [image.getbbox() for frames in variants for image in frames]

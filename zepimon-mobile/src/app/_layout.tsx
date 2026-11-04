@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { View } from 'react-native'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useFonts } from 'expo-font'
 import { Nunito_600SemiBold } from '@expo-google-fonts/nunito/600SemiBold'
 import { Nunito_700Bold } from '@expo-google-fonts/nunito/700Bold'
@@ -23,8 +24,11 @@ export const ErrorBoundary = CrashScreen
 // starts, before any screen draws (iOS also starts portrait through the expo-screen-orientation plugin).
 lockPortrait()
 
+// The gesture handler's root, for the Adventure tab's map (src/RouteTrail.tsx), which pans and pinches on the UI thread.
 export default function Layout() {
-  return <JournalProvider><CloudProvider><Navigator /></CloudProvider></JournalProvider>
+  return <GestureHandlerRootView style={{ flex: 1 }}>
+    <JournalProvider><CloudProvider><Navigator /></CloudProvider></JournalProvider>
+  </GestureHandlerRootView>
 }
 
 function Navigator() {

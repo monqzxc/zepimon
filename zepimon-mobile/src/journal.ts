@@ -1,5 +1,5 @@
 import { validateSnapshot } from './generated/companion.js';
-import { megaForms } from './generated/catalog.js';
+import { baseSpecies, earnedForms, formChoices, formDistance } from './generated/forms.js';
 
 export type DexRecord = {
   meters: number;
@@ -53,12 +53,8 @@ const pokemonName = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 80 &&
   value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value) &&
   !['__proto__', 'prototype', 'constructor'].includes(value);
-const knownMegas = megaForms as Record<string, string[]>;
-
-export function speciesName(name: string): string {
-  const normal = name.replace(/^Shiny /, '');
-  return Object.keys(knownMegas).find(base => knownMegas[base].includes(normal)) || normal;
-}
+// The species a Pokemon or its Mega, Dynamax or Gigantamax form belongs to.
+export const speciesName = (name: string): string => baseSpecies(name);
 
 export function parseJournal(text: string, current?: Journal | null): Journal {
   if (typeof text !== 'string' || text.length > MAX_BYTES) throw new Error('Choose a JSON export smaller than 2 MB.');
@@ -75,7 +71,7 @@ export function parseJournal(text: string, current?: Journal | null): Journal {
       !date(value.exportedAt) || (value.receivedAt !== null && !timestamp(value.receivedAt))) {
     throw new Error('Choose a Zepimon Export JSON file.');
   }
-  if (!Array.isArray(value.routes) || !value.routes.length || value.routes.length > 512 ||
+  if (!Array.isArray(value.routes) || !value.routes.length || value.routes.length > 1024 ||
       value.routes.some((route) => !Array.isArray(route) || !route.length || route.length > 3 ||
         route.some((name) => !pokemonName(name)) || new Set(route).size !== route.length)) {
     throw new Error('This export has invalid Pokemon routes.');
@@ -149,22 +145,26 @@ export function entriesFromDex(dex: Record<string, DexRecord>): DexEntry[] {
   return [...entries.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// The forms a saved adventure reached, in order. A form picked before setting off (a Mega, or Urshifu's Gigantamax)
+// counts only when the record names it, as its form or mega: an old save never implies the first choice.
+export function recordForms(route: string[], record: { meters: number; form?: string; mega?: string }): string[] {
+  if (!route.length || !Number.isFinite(record.meters)) return [];
+  const choices = formChoices(route) as string[];
+  const chosen = [record.form, record.mega].find(name => name && choices.includes(name)) ?? null;
+  return (earnedForms(route, record.meters, chosen) as string[]).filter(name => !choices.includes(name) || name === chosen);
+}
+
+// The Pokemon a saved adventure ended as. A saved form it reached wins, so an adventure keeps the name it was saved
+// with after its family grows (Ursaring before Ursaluna joined the catalog) or new forms arrive (Dynamax at 42 km).
 export function recordForm(route: string[], record: { meters: number; form?: string; mega?: string }): string {
-  if (!route.length || !Number.isFinite(record.meters) || record.meters < 5000) return 'Egg';
-  const earned = route.slice(0, Math.min(route.length, Math.floor(record.meters / 5000)));
-  if (record.meters >= 21000) {
-    const variants = knownMegas[route[route.length - 1]] || [];
-    if (record.form && variants.includes(record.form)) return record.form;
-    if (record.mega && variants.includes(record.mega)) return record.mega;
-  }
-  if (record.form && earned.includes(record.form)) return record.form;
-  return earned[earned.length - 1];
+  const earned = recordForms(route, record);
+  if (!earned.length) return 'Egg';
+  return record.form && earned.includes(record.form) ? record.form : earned[earned.length - 1];
 }
 
 export function hasAcquisitionDistance(name: string, record: DexRecord | undefined, routes: string[][]): boolean {
   const species = name.replace(/^Shiny /, '');
-  const isMega = Object.values(knownMegas).some((forms) => forms.includes(species));
-  const minimum = isMega ? 21000 : routes.reduce((lowest, route) => {
+  const minimum = formDistance(species) || routes.reduce((lowest, route) => {
     const stage = route.indexOf(species);
     return stage < 0 ? lowest : Math.min(lowest, (stage + 1) * 5000);
   }, Infinity);

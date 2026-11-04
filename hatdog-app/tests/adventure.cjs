@@ -4,9 +4,15 @@ const vm = require('node:vm')
 
 const context = vm.createContext({})
 vm.runInContext('(function(){' + fs.readFileSync('page/catalog.js', 'utf8').replace(/export /g, '') +
-  '\nglobalThis.catalog = { routes, species, megaForms, sprites, shinySprites, legacyRoutes } })()', context)
-Object.assign(context, { catalogRoutes: context.catalog.routes, species: context.catalog.species,
-  megaForms: context.catalog.megaForms, sprites: context.catalog.sprites, shinySprites: context.catalog.shinySprites })
+  '\nglobalThis.catalog = { routes, species, megaForms, gigantamaxForms, sprites, shinySprites, legacyRoutes } })()', context)
+Object.assign(context, { catalogRoutes: context.catalog.routes, species: context.catalog.species, megaForms: context.catalog.megaForms,
+  gigantamaxForms: context.catalog.gigantamaxForms, sprites: context.catalog.sprites, shinySprites: context.catalog.shinySprites })
+// In its own scope: forms.js and pokemon.js both name a megaChoices and a nextMilestone, by family and by route.
+vm.runInContext('(function(){' + fs.readFileSync('shared/forms.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
+  '\nglobalThis.forms = { MEGA_AT, DYNAMAX_AT, GIGANTAMAX_AT, megaChoices, gigantamaxChoices, formChoices, formStages, earnedForms, nextMilestone, previousMilestone, milestoneLabel, formDistance, baseSpecies, spriteForm } })()', context)
+const forms = context.forms
+Object.assign(context, { formChoices: forms.formChoices, earnedForms: forms.earnedForms, nextFormMilestone: forms.nextMilestone,
+  formDistance: forms.formDistance, spriteForm: forms.spriteForm, milestoneLabel: forms.milestoneLabel, GIGANTAMAX_AT: forms.GIGANTAMAX_AT })
 vm.runInContext(fs.readFileSync('page/types.js', 'utf8').replace(/export /g, '') , context)
 vm.runInContext(fs.readFileSync('shared/expedition.js', 'utf8').replace(/export /g, '') +
   '\nglobalThis.expeditionTools = { legendarySpecies, ensureExpedition, expeditionGoal, clueMilestones, expeditionEncounter, validateExpedition }', context)
@@ -144,8 +150,8 @@ assert.equal(context.logic.rollShiny(() => 0.02), false)
 // The catalog builds its sprite paths from Dex numbers; every one must be a real file.
 for (const path of Object.values(context.catalog.sprites)) assert.ok(fs.existsSync('assets/bip-5-unity/' + path), path)
 for (const path of Object.values(context.catalog.shinySprites)) assert.ok(fs.existsSync('assets/bip-5-unity/' + path))
-assert.equal(new Set(routes.flat()).size, 552)
-for (let id = 1; id <= 493; id++) assert.ok(Object.values(context.catalog.species).some(s => s.id === id))
+assert.equal(new Set(routes.flat()).size, 1025)
+for (let id = 1; id <= 1025; id++) assert.ok(Object.values(context.catalog.species).some(s => s.id === id))
 assert.equal(Object.keys(context.catalog.megaForms).length, 87)
 for (const [base, variants] of Object.entries(context.catalog.megaForms)) {
   const route = routes.findIndex(r => r[r.length - 1] === base)
@@ -154,9 +160,37 @@ for (const [base, variants] of Object.entries(context.catalog.megaForms)) {
     assert.equal(currentForm(route, 20999, form), base)
     assert.equal(currentForm(route, 21000, form), form)
     assert.equal(context.logic.nextMilestone(route, 20000), 21000)
-    assert.equal(context.logic.nextMilestone(route, 21000), null)
+    assert.equal(context.logic.nextMilestone(route, 21000), 42000)
     assert.ok(fs.existsSync('assets/bip-5-unity/' + context.logic.spritePath(form)))
   }
+}
+// Every family Dynamaxes at 42 km; the 32 that can Gigantamax do so at 50 km, as their latest stage that has it.
+assert.equal(Object.keys(context.catalog.gigantamaxForms).length, 32)
+for (const [base, variants] of Object.entries(context.catalog.gigantamaxForms)) {
+  const route = routes.findIndex(r => r.includes(base))
+  assert.ok(route >= 0, 'Missing Gigantamax route: ' + base)
+  const last = routes[route][routes[route].length - 1]
+  assert.equal(currentForm(route, 49999, variants[0]), 'Dynamax ' + last)
+  assert.equal(currentForm(route, 50000, variants[variants.length - 1]), variants[variants.length - 1])
+  assert.equal(context.logic.nextMilestone(route, 42000), 50000)
+  assert.equal(context.logic.nextMilestone(route, 50000), null)
+  for (const form of variants) assert.ok(fs.existsSync('assets/bip-5-unity/' + context.logic.spritePath(form)))
+}
+const pichu = routes.findIndex(r => r.join('>') === 'Pichu>Pikachu>Raichu')
+assert.deepEqual(Array.from(context.logic.acquiredForms(pichu, 50000, 'Mega Raichu Y')),
+  ['Pichu', 'Pikachu', 'Raichu', 'Mega Raichu Y', 'Dynamax Raichu', 'Gigantamax Pikachu'])
+const kubfu = routes.findIndex(r => r[0] === 'Kubfu')
+assert.deepEqual(Array.from(context.logic.megaChoices(kubfu)), ['Gigantamax Urshifu Single Strike', 'Gigantamax Urshifu Rapid Strike'])
+assert.equal(currentForm(kubfu, 21000, 'Gigantamax Urshifu Rapid Strike'), 'Urshifu', 'A Gigantamax choice waits for 50 km')
+assert.equal(currentForm(kubfu, 50000, 'Gigantamax Urshifu Rapid Strike'), 'Gigantamax Urshifu Rapid Strike')
+assert.equal(context.logic.spritePath('Dynamax Charizard'), context.logic.spritePath('Charizard'))
+assert.equal(context.logic.spritePath('Shiny Dynamax Charizard'), context.logic.spritePath('Shiny Charizard'))
+assert.equal(context.logic.primaryType('Dynamax Gengar'), 'ghost')
+assert.equal(context.logic.collectionCount({ Charizard: {}, 'Dynamax Charizard': {}, 'Gigantamax Charizard': {}, 'Mega Charizard X': {} }), 1)
+assert.ok(context.logic.hasDexDistance('Gigantamax Lapras', { meters: 50000 }))
+assert.ok(!context.logic.hasDexDistance('Dynamax Lapras', { meters: 41999 }))
+for (const [meters, label] of [[5000, 'hatch'], [10000, 'evolve'], [21000, 'Mega'], [42000, 'Dynamax'], [50000, 'Gigantamax']]) {
+  assert.equal(context.milestoneLabel(meters), label)
 }
 context.catalog.legacyRoutes.forEach((old, i) => {
   assert.equal(routes[i].slice(0, old.length).join(','), old.join(','), 'Legacy route changed: ' + i)
@@ -198,7 +232,8 @@ finishSession(state, '2026-10-17T00:00:00Z')
 assert.ok(state.dex['Mega Venusaur'])
 assert.equal(state.dex['Mega Venusaur'].meters, 21000, 'An unhatched repeat must preserve the Mega record')
 assert.equal(state.records[0].meters, 1000)
-assert.equal(context.logic.nextMilestone(routes.findIndex(r => r[0] === 'Mew'), 15000), null)
+assert.equal(context.logic.nextMilestone(routes.findIndex(r => r[0] === 'Mew'), 15000), 42000)
+assert.equal(context.logic.nextMilestone(routes.findIndex(r => r[0] === 'Mew'), 42000), null)
 assert.equal(currentForm(0, 21000, 'Mega Mewtwo X'), 'Venusaur')
 state.active = { ...active, meters: 21000, mega: 'Mega Venusaur', shiny: true }
 finishSession(state, '2026-10-18T00:00:00Z')
@@ -466,7 +501,7 @@ const catalogBeforePicking = JSON.stringify(routes)
 const savedBeforePicking = stored
 const rollsBeforePicking = context.shinyRolls
 const reachableRoutes = new Set()
-for (const generation of ['Generation 1', 'Generation 2', 'Generation 3', 'Generation 4', 'Extra Mega families']) {
+for (const generation of ['Gen 1', 'Gen 2', 'Gen 3', 'Gen 4', 'Gen 5', 'Gen 6', 'Gen 7', 'Gen 8', 'Gen 9']) {
   const imagesBeforeMenus = imageUpdates.length
   click(generation)
   assert.equal(page.view, 'letters')
@@ -502,7 +537,7 @@ for (const generation of ['Generation 1', 'Generation 2', 'Generation 3', 'Gener
           const names = routes[route]
           assert.equal(label, names.length > 1 ? names[0] + ' > ' + names[names.length - 1] : names[0])
           assert.ok(names[0][0] >= group[0] && names[0][0] <= group[2])
-          assert.ok(page.selectedGeneration === 5 ? context.logic.generation(route) > 4 : context.logic.generation(route) === page.selectedGeneration)
+          assert.equal(context.logic.generation(route), page.selectedGeneration)
           assert.ok(page.widgets.some(item => item.text === names[0] + ' egg'), 'Tapped name must open its own preview')
           assert.equal(imageUpdates.at(-1).image, context.logic.spritePath(names[0]), 'Preview loads the selected Pokemon sprite')
           click('Back')
@@ -574,7 +609,7 @@ for (const value of [0, 1.5 / selectableEggs.length, 0.5, 1 - Number.EPSILON]) {
 }
 context.randomValue = 0.5
 click('New Egg')
-click('Generation 1')
+click('Gen 1')
 click('A-F')
 const chooseNamedEgg = label => {
   while (!page.listRows.some(row => row.text === label)) {
@@ -933,6 +968,14 @@ page.onInit({ start: { activity: 'walking', family: ['Missingno'] } })
 page.build()
 assert.ok(page.state.active, 'An unknown egg falls back to a fresh egg')
 assert.ok(!context.legendarySpecies.includes(routes[page.state.active.route][0]), 'Fallback eggs are never Expedition Legendaries')
+click('Finish')
+click('Save & finish')
+page.onDestroy()
+// A Legendary egg the phone chose (it opens them once caught on an Expedition) starts as itself.
+context.testNow += 1000
+page.onInit({ start: { activity: 'walking', family: ['Mewtwo'] } })
+page.build()
+assert.equal(JSON.stringify(routes[page.state.active.route]), '["Mewtwo"]', 'The watch takes a Legendary egg from the phone')
 click('Finish')
 click('Save & finish')
 page.onDestroy()

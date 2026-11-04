@@ -6,7 +6,12 @@ import { eggMoveData } from '../generated/egg-moves.js'
 const types = pokemonTypes as Record<string, string>
 const megas = megaForms as Record<string, string[]>
 const catalog = species as Record<string, { id: number, gen: number }>
-const families = routes as string[][]
+// A line that starts in Gen 1-4 stops before a later evolution (Farfetch'd, not Sirfetch'd), as the games' moves and
+// foes are Gen 1-4.
+const families = (routes as string[][]).map(route => {
+  const later = route.findIndex(name => (catalog[name]?.gen ?? 99) > 4)
+  return later > 0 ? route.slice(0, later) : route
+})
 const eggData = eggMoveData as unknown as { moves: Record<string, [string, string, number]>, lists: string[][], species: Record<string, number> }
 
 // family is the evolution route a card follows: Route Guard places the owned form directly, Trail Defense starts at

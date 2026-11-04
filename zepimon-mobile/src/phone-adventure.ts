@@ -1,16 +1,29 @@
-import { megaForms, routes as catalogRoutes } from './generated/catalog.js'
+import { routes as catalogRoutes } from './generated/catalog.js'
 import { clueMilestones, expeditionGoal, expeditionKey, legendarySpecies } from './generated/expedition.js'
+import * as forms from './generated/forms.js'
 import { bestRecords, parseJournal } from './journal.ts'
 import type { BestRecord, DexRecord, Journal } from './journal.ts'
 import type { Expedition, ExpeditionProgress } from './expeditions.ts'
 import { decodePath, encodePath } from './polyline.ts'
 
 export { decodePath, encodePath }
+// How an egg grows with distance: hatch at 5 km, evolve every 5 km, Mega at 21 km, Dynamax at 42 km and Gigantamax
+// at 50 km. The rules are the watch's own (hatdog-app/shared/forms.js), so both devices grow Pokemon the same way.
+// formChoices are the forms picked before setting off and kept as the adventure's mega: Mega forms, or for a family
+// without any, its two Gigantamax forms (Toxtricity, Urshifu). A stage's name is null for a choice not on offer.
+export const earnedForms: (family: string[], meters: number, mega: string | null) => string[] = forms.earnedForms
+export const formStages: (family: string[], mega: string | null) => { name: string | null, meters: number }[] = forms.formStages
+export const formChoices: (family: string[]) => string[] = forms.formChoices
+export const megaChoices: (family: string[]) => string[] = forms.megaChoices
+export const gigantamaxChoices: (family: string[]) => string[] = forms.gigantamaxChoices
+export const nextMilestone: (family: string[], meters: number) => number | null = forms.nextMilestone
+export const previousMilestone: (family: string[], meters: number) => number = forms.previousMilestone
+export const milestoneLabel: (meters: number) => string = forms.milestoneLabel
+export const formDistance: (name: string) => number = forms.formDistance
 
-// Adventures recorded on this phone, the phone version of the watch's walk: carry an egg, and every 5 km it hatches
-// or evolves, with a Mega form at 21 km. Distance comes from GPS instead of the watch's sensors, and the route is
-// kept as a line of GPS points, drawn on a map (src/RouteMap.tsx). The rules mirror hatdog-app/page/pokemon.js so
-// both devices grow Pokemon the same way.
+// Adventures recorded on this phone, the phone version of the watch's walk: carry an egg as it grows. Distance comes
+// from GPS instead of the watch's sensors, and the route is kept as a line of GPS points, drawn on a map
+// (src/RouteMap.tsx).
 
 export type Activity = 'walking' | 'running'
 // altitude is metres above sea level and altitudeAccuracy its error, when the GPS reports them.
@@ -39,26 +52,18 @@ export type ActiveAdventure = {
 export type PhoneRun = { id: string, family: string[], record: DexRecord, path: string, movingSeconds?: number, pace?: PaceLog }
 
 const families = catalogRoutes as string[][]
-const megas = megaForms as Record<string, string[]>
-// The eggs the watch offers: every family except the Legendary and Mythical ones met on Expeditions.
-export const eggs = families.filter(family => !legendarySpecies.includes(family[0]))
-export const megaChoices = (family: string[]) => megas[family[family.length - 1]] || []
+// Every egg, Expedition Legendaries and Mythicals included. Those open once one of the family is caught on a Legendary
+// Expedition, Normal or Shiny (expeditionDex is ExpeditionProgress.dex); the phone chooses them and the watch follows.
+// Legendaries and Mythicals that Expeditions do not offer yet (Gen 5-9) hatch from ordinary eggs for now.
+export const allEggs = families
+// The eggs the watch offers: every family except the Expedition Legendary and Mythical ones.
+export const eggs = allEggs.filter(family => !legendarySpecies.includes(family[0]))
+export const eggOpen = (family: string[], expeditionDex: Record<string, unknown>) => !legendarySpecies.includes(family[0]) ||
+  family.some(name => Object.hasOwn(expeditionDex, name) || Object.hasOwn(expeditionDex, `Shiny ${name}`))
+export const openEggs = (expeditionDex: Record<string, unknown>) => allEggs.filter(family => eggOpen(family, expeditionDex))
 export const rollShiny = (random = Math.random) => Math.floor(random() * 50) === 0
 
-export function earnedForms(family: string[], meters: number, mega: string | null): string[] {
-  const earned = family.slice(0, Math.min(family.length, Math.floor(meters / 5000)))
-  const choices = megaChoices(family)
-  const chosen = mega || choices[0]
-  if (meters >= 21000 && chosen && choices.includes(chosen)) earned.push(chosen)
-  return earned
-}
 export const currentForm = (family: string[], meters: number, mega: string | null) => earnedForms(family, meters, mega).at(-1) ?? 'Egg'
-
-// The distance of the next hatch, evolution or Mega form, or null once the final form is reached.
-export function nextMilestone(family: string[], meters: number): number | null {
-  if (meters < family.length * 5000) return (Math.floor(meters / 5000) + 1) * 5000
-  return megaChoices(family).length && meters < 21000 ? 21000 : null
-}
 
 // What the live notification shows while an adventure records (modules/zepimon-live): the kind of workout, the
 // distance and the Pokemon being raised, named as on the Adventure tab ("Shiny Bulbasaur egg", "Ivysaur"). sprite is
@@ -71,7 +76,7 @@ export function liveText(active: ActiveAdventure): { activity: string, distance:
 }
 
 export function newAdventure(family: string[], activity: Activity, mega: string | null, now: number, random = Math.random): ActiveAdventure {
-  const choices = megaChoices(family)
+  const choices = formChoices(family)
   return { family: [...family], activity, startedAt: now, shiny: rollShiny(random), mega: mega && choices.includes(mega) ? mega : choices[0] ?? null,
     meters: 0, hatchSeconds: null, points: [], anchor: null, last: null, recent: [], movingSeconds: 0, altitude: null,
     pace: { start: 0, at: [0], moving: [0], elev: [null] },

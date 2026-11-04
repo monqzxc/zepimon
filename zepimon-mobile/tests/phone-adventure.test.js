@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { addFix, currentForm, currentPace, decodePath, distanceBetween, earnedForms, eggs, encodePath, expeditionNews, finishAdventure, liveText, megaChoices,
-  newAdventure, nextMilestone, phoneTrail, restoreActive, restorePhoneRuns, runsToShare, saveActive, simplifyPath, withPhoneRuns, withPhoneTrail } from '../src/phone-adventure.ts'
+import { addFix, allEggs, currentForm, currentPace, decodePath, distanceBetween, earnedForms, eggOpen, eggs, encodePath, expeditionNews, finishAdventure, liveText, megaChoices,
+  newAdventure, nextMilestone, openEggs, phoneTrail, restoreActive, restorePhoneRuns, runsToShare, saveActive, simplifyPath, withPhoneRuns, withPhoneTrail } from '../src/phone-adventure.ts'
 import { parseJournal, personalBests } from '../src/journal.ts'
 import { emptyExpeditions } from '../src/expeditions.ts'
 import { mergeRuns } from '../src/progress.ts'
@@ -30,8 +30,27 @@ test('eggs, forms and milestones follow the watch rules', () => {
   assert.equal(currentForm(bulbasaur, 15000, null), 'Venusaur')
   assert.deepEqual(megaChoices(bulbasaur), ['Mega Venusaur'])
   assert.equal(currentForm(bulbasaur, 21000, null), 'Mega Venusaur')
-  assert.deepEqual([0, 5000, 14999, 15000, 21000].map(m => nextMilestone(bulbasaur, m)), [5000, 10000, 15000, 21000, null])
-  assert.equal(nextMilestone(['Rattata', 'Raticate'], 10000), null)
+})
+
+test('a Legendary or Mythical egg opens once it is caught on a Legendary Expedition', () => {
+  const caught = (key, shiny = key.startsWith('Shiny ')) => ({ [key]: { meters: 25000, steps: 0, shiny, form: key.replace(/^Shiny /, ''),
+    source: 'expedition', finishedAt: '2026-11-01T08:00:00.000Z' } })
+  const mewtwo = allEggs.find(family => family[0] === 'Mewtwo')
+  assert.ok(mewtwo, 'Every Legendary family has an egg in the full list')
+  assert.equal(allEggs.length, eggs.length + 39)
+  assert.ok(!eggOpen(mewtwo, {}), 'Locked before the catch')
+  assert.ok(!eggOpen(mewtwo, caught('Mew')), 'Catching another Legendary does not open it')
+  assert.ok(eggOpen(mewtwo, caught('Mewtwo')))
+  assert.ok(eggOpen(mewtwo, caught('Shiny Mewtwo')), 'A Shiny catch opens it too')
+  assert.ok(eggOpen(bulbasaur, {}), 'Other eggs are always open')
+  assert.deepEqual(openEggs({}), eggs)
+  const opened = openEggs({ ...caught('Mewtwo'), ...caught('Zeraora') })
+  assert.equal(opened.length, eggs.length + 2)
+  assert.ok(opened.includes(mewtwo))
+  assert.deepEqual(opened, allEggs.filter(family => opened.includes(family)), 'Kept in catalog order')
+  assert.deepEqual([0, 5000, 14999, 15000, 21000, 42000, 50000].map(m => nextMilestone(bulbasaur, m)), [5000, 10000, 15000, 21000, 42000, 50000, null])
+  assert.equal(nextMilestone(['Rattata', 'Raticate'], 10000), 42000)
+  assert.equal(nextMilestone(['Rattata', 'Raticate'], 42000), null)
 })
 
 test('GPS fixes add distance only when they are accurate, real moves', () => {

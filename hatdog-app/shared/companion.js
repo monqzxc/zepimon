@@ -12,7 +12,9 @@ export const SHARED_REQUEST_KEY = 'zepimon-shared-request'
 
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 const number = (value) => Number.isFinite(value) && value >= 0
-const route = (value) => Number.isInteger(value) && value >= 0 && value < 512
+// Route ids and record counts leave room for the catalog to grow past its 580 routes (every generation, see
+// tools/build_catalog.py); a full Dex is about 3,500 entries with Shiny ones. zepimon-sync/schema.sql checks the same.
+const route = (value) => Number.isInteger(value) && value >= 0 && value < 1024
 const date = (value) => typeof value === 'string' && value.length <= 32 && Number.isFinite(Date.parse(value))
 const name = (value) => typeof value === 'string' && value.length > 0 && value.length <= 80 &&
   !['__proto__', 'prototype', 'constructor'].includes(value)
@@ -54,7 +56,7 @@ function record(value, active = false) {
 export function validateSnapshot(value) {
   if (!object(value) || value.schemaVersion !== 1 || !number(value.capturedAt) ||
       !object(value.dex) || !object(value.records) ||
-      Object.keys(value.dex).length > 1400 || Object.keys(value.records).length > 512) {
+      Object.keys(value.dex).length > 4000 || Object.keys(value.records).length > 1024) {
     throw new Error('Invalid Zepimon snapshot')
   }
   const clean = { schemaVersion: 1, capturedAt: value.capturedAt, dex: {}, records: {}, active: null }
@@ -64,7 +66,7 @@ export function validateSnapshot(value) {
     clean.dex[key].shiny = key.indexOf('Shiny ') === 0
   })
   Object.keys(value.records).forEach((key) => {
-    if (!/^(0|[1-9][0-9]{0,2})$/.test(key) || Number(key) >= 512) throw new Error('Invalid route')
+    if (!/^(0|[1-9][0-9]{0,3})$/.test(key) || Number(key) >= 1024) throw new Error('Invalid route')
     clean.records[key] = record(value.records[key])
   })
   if (value.active !== null) {
@@ -145,10 +147,14 @@ export function validateAdventure(value) {
 }
 
 // The Pokemon of a shared adventure so far, from its distance alone (no catalog): the egg, then a form every 5 km,
-// then the chosen Mega at 21 km.
-export function sharedName(adventure) {
+// the chosen Mega at 21 km, Dynamax at 42 km and Gigantamax at 50 km (see shared/forms.js). gigantamax is the
+// family's Gigantamax forms, when the caller has the catalog; without it the name stays Dynamax.
+export function sharedName(adventure, gigantamax = []) {
   const hatched = Math.min(adventure.family.length, Math.floor(adventure.meters / 5000))
-  const name = adventure.meters >= 21000 && adventure.mega ? adventure.mega : hatched ? adventure.family[hatched - 1] : adventure.family[0] + ' egg'
+  const mega = adventure.mega && adventure.mega.indexOf('Mega ') === 0 ? adventure.mega : null
+  const name = adventure.meters >= 50000 && gigantamax.length ? (gigantamax.indexOf(adventure.mega) >= 0 ? adventure.mega : gigantamax[0])
+    : adventure.meters >= 42000 ? 'Dynamax ' + adventure.family[adventure.family.length - 1]
+    : adventure.meters >= 21000 && mega ? mega : hatched ? adventure.family[hatched - 1] : adventure.family[0] + ' egg'
   return (adventure.shiny ? 'Shiny ' : '') + name
 }
 

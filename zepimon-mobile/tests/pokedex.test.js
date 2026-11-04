@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultDexFilter, defaultEggFilter, filterDex, filterEggs, generationsOf, isFiltered, regionName, speciesNumber, typesOf } from '../src/pokedex.ts'
+import { defaultDexFilter, defaultEggFilter, filterDex, filterEggs, generationsOf, isFiltered, mysteryLine, regionName, speciesNumber, typesOf } from '../src/pokedex.ts'
 import { eggs } from '../src/phone-adventure.ts'
 
 const none = () => false
@@ -21,7 +21,8 @@ test('sorts eggs by National Dex number either way, and by name', () => {
 
 test('searches names (ignoring case and accents), types and Dex numbers in any family member', () => {
   assert.deepEqual(firsts(find({ query: 'pikachu' })), ['Pikachu', 'Pichu'])
-  assert.deepEqual(firsts(find({ query: 'flabebe' })), ['Flabébé'])
+  // Two Flabébé eggs: Floette keeps its Mega at 21 km; the other evolves on into Florges.
+  assert.deepEqual(firsts(find({ query: 'flabebe' })), ['Flabébé', 'Flabébé'])
   for (const query of ['25', '#25', 'No. 025', 'no 25']) assert.deepEqual(firsts(find({ query })), ['Pikachu', 'Pichu'], query)
   assert.deepEqual(find({ query: 'fire' }), find({ type: 'fire' }))
   assert.deepEqual(find({ query: '9999' }), [])
@@ -92,4 +93,11 @@ test('knows when a filter is on', () => {
   assert.equal(isFiltered({ ...defaultEggFilter, query: '  ' }), false)
   assert.equal(isFiltered(defaultDexFilter), false)
   assert.equal(isFiltered({ ...defaultDexFilter, variant: 'shiny' }), true)
+})
+
+test('hides the forms of an egg not in your Dex yet, never the egg itself', () => {
+  const family = ['Bulbasaur', 'Ivysaur', 'Venusaur']
+  assert.deepEqual(mysteryLine(family, none), ['Bulbasaur', '???', '???'])
+  assert.deepEqual(mysteryLine(family, name => name === 'Ivysaur'), ['Bulbasaur', 'Ivysaur', '???'])
+  assert.deepEqual(mysteryLine(family, () => true), family)
 })

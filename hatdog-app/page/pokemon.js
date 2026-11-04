@@ -1,7 +1,8 @@
-import { routes as catalogRoutes, species, megaForms, sprites, shinySprites } from './catalog'
+import { routes as catalogRoutes, species, sprites, shinySprites } from './catalog'
 import { pokemonTypes } from './types'
 import { ensureExpedition } from '../shared/expedition'
-export function primaryType(name) { return pokemonTypes[name.replace(/^Shiny /, '')] || 'normal' }
+import { formChoices, earnedForms, nextMilestone as nextFormMilestone, formDistance, spriteForm } from '../shared/forms'
+export function primaryType(name) { return pokemonTypes[spriteForm(name).replace(/^Shiny /, '')] || 'normal' }
 export function dexPokemon(dex) {
   const names = {}
   Object.keys(dex).forEach((key) => { names[key.replace(/^Shiny /, '')] = true })
@@ -10,7 +11,8 @@ export function dexPokemon(dex) {
 export const routes = catalogRoutes
 export const speciesCount = Object.keys(species).length
 export function generation(route) { return species[routes[route][0]].gen }
-export function megaChoices(route) { return megaForms[routes[route][routes[route].length - 1]] || [] }
+// The forms picked before setting off, kept as the adventure's mega: its Mega forms, or two Gigantamax forms.
+export function megaChoices(route) { return formChoices(routes[route]) }
 export function rollShiny(random = Math.random) { return Math.floor(random() * 50) === 0 }
 export function elapsedSeconds(session, now = Date.now()) {
   if (!Number.isFinite(session.startedAt)) return null
@@ -107,6 +109,7 @@ function currentSpeed(tracker, meters, now, activity) {
   return last.at - first.at >= 5000 ? (last.meters - first.meters) * 1000 / (last.at - first.at) : blank
 }
 export function spritePath(name, shiny = false) {
+  name = spriteForm(name)
   if (name.indexOf('Shiny ') === 0) { name = name.slice(6); shiny = true }
   return (shiny ? shinySprites[name] : sprites[name]) || sprites[name] || sprites.Egg
 }
@@ -114,22 +117,14 @@ export function collectionCount(dex) {
   const acquired = {}
   Object.keys(dex).forEach((key) => {
     const name = key.indexOf('Shiny ') === 0 ? key.slice(6) : key
-    if (name.indexOf('Mega ') !== 0) acquired[name] = true
+    if (!formDistance(name)) acquired[name] = true
   })
   return Object.keys(acquired).length
 }
-export function nextMilestone(route, meters) {
-  const normal = routes[route].length * 5000
-  if (meters < normal) return (Math.floor(meters / 5000) + 1) * 5000
-  return megaChoices(route).length && meters < 21000 ? 21000 : null
-}
+// Hatching, evolving, Mega, Dynamax and Gigantamax distances are in shared/forms.js, which the phone shares.
+export function nextMilestone(route, meters) { return nextFormMilestone(routes[route], meters) }
 
-export function acquiredForms(route, meters, mega) {
-  const earned = routes[route].slice(0, Math.min(routes[route].length, Math.floor(meters / 5000)))
-  const chosen = mega || (megaForms[routes[route][routes[route].length - 1]] || [])[0]
-  if (meters >= 21000 && chosen && (megaForms[routes[route][routes[route].length - 1]] || []).includes(chosen)) earned.push(chosen)
-  return earned
-}
+export function acquiredForms(route, meters, mega) { return earnedForms(routes[route], meters, mega) }
 
 export function currentForm(route, meters, mega) {
   const forms = acquiredForms(route, meters, mega)
@@ -192,7 +187,7 @@ function dexMinimum(name) {
       if (!(earliest[form] <= (index + 1) * 5000)) earliest[form] = (index + 1) * 5000
     }))
   }
-  return name.indexOf('Mega ') === 0 ? 21000 : earliest[name] || Infinity
+  return formDistance(name) || earliest[name] || Infinity
 }
 
 export function hasDexDistance(name, record) {
@@ -240,9 +235,10 @@ export function repairDexRecords(state) {
         !Number.isSafeInteger(record.steps) || record.steps < 0 ||
         typeof record.finishedAt !== 'string' || !Number.isFinite(Date.parse(record.finishedAt)) ||
         (record.shiny !== undefined && typeof record.shiny !== 'boolean')) return
-    // Old saves may identify a Mega only by their final form; never guess its variant.
-    const mega = record.mega || (megaChoices(record.route).includes(record.form) ? record.form : '')
-    const earned = acquiredForms(record.route, record.meters, mega).filter((name) => name.indexOf('Mega ') !== 0 || name === mega)
+    // Old saves may identify a Mega only by their final form; never guess a chosen form.
+    const choices = megaChoices(record.route)
+    const mega = record.mega || (choices.includes(record.form) ? record.form : '')
+    const earned = acquiredForms(record.route, record.meters, mega).filter((name) => !choices.includes(name) || name === mega)
     earned.forEach((name) => {
       const key = (record.shiny ? 'Shiny ' : '') + name
       const previous = state.dex[key]

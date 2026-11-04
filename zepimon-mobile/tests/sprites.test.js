@@ -10,7 +10,7 @@ test('offline front-facing assets contain paired normal/shiny frames and no watc
   const manifest = vm.runInNewContext(fs.readFileSync('src/generated/walking.js', 'utf8').replace('export const', 'const') + '\nwalkingFrames', {
     require(path) { assert.ok(path.startsWith('../../assets/walking/')); files.push(path); return path }
   })
-  assert.equal(Object.keys(manifest).length, 1200)
+  assert.equal(Object.keys(manifest).length, 2144)
   for (const name of Object.keys(manifest).filter(name => !name.startsWith('Shiny '))) {
     assert.equal(manifest[name].length, 2)
     assert.equal(manifest['Shiny ' + name].length, 2)
@@ -49,7 +49,8 @@ test('tap reactions finish, restart safely, pause on blur/background, and respec
       AppState: { currentState: 'active', addEventListener: (event, fn) => listen(event, fn) },
       AccessibilityInfo: { isReduceMotionEnabled: async () => false, addEventListener: (event, fn) => listen(event, fn) }
     },
-    './catalog': { spriteSource: (name, shiny) => (shiny ? 'shiny-' : '') + name + '.png' },
+    './catalog': { spriteSource: (name, shiny) => (shiny ? 'shiny-' : '') + name + '.png', isDynamax: () => false },
+    './generated/forms.js': { spriteForm: name => name },
     './generated/walking.js': { walkingFrames: { Gible: ['g0', 'g1'], 'Shiny Gible': ['s0', 's1'] } }
   }
   function listen(event, fn) { listeners.set(event, fn); return { remove: () => listeners.delete(event) } }
@@ -59,8 +60,9 @@ test('tap reactions finish, restart safely, pause on blur/background, and respec
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX }
   }).outputText, context)
   const render = (props = { name: 'Gible' }) => { stateIndex = 0; return context.exports.Sprite(props) }
-  const source = tree => tree.props.children[0].props.source
-  const heart = tree => !!tree.props.children[1]
+  // Children: the Dynamax glow (false when there is none), the Image, the heart.
+  const source = tree => tree.props.children.find(child => child && child.props?.source).props.source
+  const heart = tree => !!tree.props.children[2]
   const tick = () => [...timers.values()].forEach(fn => fn())
   assert.equal(source(render()), 'g0')
   let cleanup = focus()
@@ -95,7 +97,7 @@ test('tap reactions finish, restart safely, pause on blur/background, and respec
   assert.equal(source(render({ name: 'Gible', shiny: true })), 's1')
   cleanup()
   assert.equal(timers.size, 0)
-  render({ name: 'Gible', shiny: true }).props.children[0].props.onError()
+  render({ name: 'Gible', shiny: true }).props.children[1].props.onError()
   assert.equal(source(render({ name: 'Gible', shiny: true })), 'shiny-Gible.png')
   assert.equal(source(render({ name: 'Egg' })), 'Egg.png')
   cleanup = focus(); await Promise.resolve()

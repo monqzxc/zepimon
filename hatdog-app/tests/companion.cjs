@@ -95,7 +95,8 @@ async function main() {
   compiled('node_modules/@zeppos/zml/dist/3.0/module/messaging/plugin/app.js', watch)
   compiled('node_modules/@zeppos/zml/dist/base/base-side.js', phone)
   compiled('node_modules/@zeppos/zml/dist/3.0/module/messaging/plugin/side.js', phone)
-  source('page/catalog.js', watch, ['routes', 'species', 'megaForms', 'sprites', 'shinySprites'])
+  source('page/catalog.js', watch, ['routes', 'species', 'megaForms', 'gigantamaxForms', 'sprites', 'shinySprites'])
+  source('shared/forms.js', watch, ['formChoices', 'earnedForms', 'nextFormMilestone: nextMilestone', 'formDistance', 'spriteForm'])
   watch.catalogRoutes = watch.routes
   source('page/types.js', watch, ['pokemonTypes'])
   source('page/pokemon.js', watch, ['repairDexRecords'])
@@ -183,7 +184,8 @@ async function main() {
 
   const ui = vm.createContext({ console, AppSettingsPage: definition => { settingsPage = definition } })
   for (const component of ['View', 'Text', 'Image', 'Button', 'TextInput']) ui[component] = (props, children = []) => ({ component, props, children: Array.isArray(children) ? children : [children] })
-  source('page/catalog.js', ui, ['routes', 'species', 'megaForms', 'sprites', 'shinySprites'])
+  source('page/catalog.js', ui, ['routes', 'species', 'megaForms', 'gigantamaxForms', 'sprites', 'shinySprites'])
+  source('shared/forms.js', ui, ['formChoices', 'earnedForms', 'nextFormMilestone: nextMilestone', 'formDistance', 'spriteForm'])
   ui.catalogRoutes = ui.routes
   source('page/types.js', ui, ['pokemonTypes'])
   source('page/pokemon.js', ui, ['routes', 'speciesCount', 'collectionCount', 'dexPokemon', 'currentForm', 'spritePath', 'primaryType', 'elapsedSeconds', 'elapsedLabel', 'paceLabel', 'nextMilestone', 'hasDexDistance'])

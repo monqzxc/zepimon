@@ -100,7 +100,7 @@ begin
     or (value->>'receivedAt')::numeric not between 0 and 8640000000000000) then return false; end if;
   if jsonb_typeof(value->'routes') is distinct from 'array' then return false; end if;
   route_count := jsonb_array_length(value->'routes');
-  if route_count not between 1 and 512 then return false; end if;
+  if route_count not between 1 and 1024 then return false; end if;
   for route in select * from jsonb_array_elements(value->'routes') loop
     if jsonb_typeof(route) <> 'array' or jsonb_array_length(route) not between 1 and 3 then return false; end if;
     if (select count(distinct v) from jsonb_array_elements(route) as t(v)) <> jsonb_array_length(route) then return false; end if;
@@ -114,14 +114,14 @@ begin
     or (snapshot->>'capturedAt')::numeric not between 0 and 8640000000000000
     or jsonb_typeof(snapshot->'dex') is distinct from 'object'
     or jsonb_typeof(snapshot->'records') is distinct from 'object' or not (snapshot ? 'active') then return false; end if;
-  if (select count(*) from jsonb_object_keys(snapshot->'dex')) > 1400
-    or (select count(*) from jsonb_object_keys(snapshot->'records')) > 512 then return false; end if;
+  if (select count(*) from jsonb_object_keys(snapshot->'dex')) > 4000
+    or (select count(*) from jsonb_object_keys(snapshot->'records')) > 1024 then return false; end if;
   for entry in select * from jsonb_each(snapshot->'dex') loop
     if not zepimon_private.valid_name(entry.key) or not zepimon_private.valid_name(regexp_replace(entry.key, '^Shiny ', ''))
       or not zepimon_private.valid_record(entry.value) then return false; end if;
   end loop;
   for entry in select * from jsonb_each(snapshot->'records') loop
-    if entry.key !~ '^(0|[1-9][0-9]{0,2})$' or entry.key::integer >= route_count
+    if entry.key !~ '^(0|[1-9][0-9]{0,3})$' or entry.key::integer >= route_count
       or not zepimon_private.valid_record(entry.value) then return false; end if;
   end loop;
   if snapshot->'active' <> 'null'::jsonb then

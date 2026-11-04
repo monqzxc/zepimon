@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { eggOf, restorePlan, withEgg, withPhone } from '../src/plan.ts'
 import { validatePlan } from '../src/generated/companion.js'
+import { openEggs } from '../src/phone-adventure.ts'
 
 const charmander = ['Charmander', 'Charmeleon', 'Charizard']
 
@@ -30,5 +31,8 @@ test('saved plans are checked, and the Dex finds the egg a Pokemon hatches from'
   assert.equal(restorePlan({ updatedAt: 1, egg: { family: [] }, eggAt: 1 }), null, 'A damaged plan is dropped')
   assert.deepEqual(eggOf('Charmeleon'), { family: charmander, mega: null })
   assert.deepEqual(eggOf('Shiny Mega Charizard X'), { family: charmander, mega: 'Mega Charizard X' })
-  assert.equal(eggOf('Mewtwo'), null, 'Expedition Legendaries do not come from eggs')
+  assert.equal(eggOf('Mewtwo'), null, 'Expedition Legendaries have no egg until they are caught there')
+  const opened = openEggs({ Mewtwo: { meters: 25000, steps: 0, shiny: false, form: 'Mewtwo', source: 'expedition', finishedAt: '2026-11-01T08:00:00.000Z' } })
+  assert.deepEqual(eggOf('Shiny Mega Mewtwo X', opened), { family: ['Mewtwo'], mega: 'Mega Mewtwo X' })
+  assert.equal(eggOf('Mew', opened), null)
 })

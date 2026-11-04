@@ -1,4 +1,4 @@
-import { dexEntries, parseJournal, recordForm, speciesName } from './journal.ts'
+import { dexEntries, parseJournal, recordForms, speciesName } from './journal.ts'
 import type { DexRecord, Journal } from './journal.ts'
 
 export type SavedRun = { id: string, family: string[], record: DexRecord }
@@ -63,6 +63,8 @@ export function missions(journal: Journal | null, progress: Progress, now = Date
   const total = runs.reduce((sum, run) => sum + run.record.meters, 0)
   const hasStart = (hour: (h: number) => boolean) => runs.some(({ record }) => record.meters >= 1000 &&
     record.startedAt != null && record.startedAt <= Date.parse(record.finishedAt) && hour(new Date(record.startedAt).getHours()))
+  // Whether a saved adventure reached a form of this kind ("Mega ", "Dynamax ", "Gigantamax "), not only ended as one.
+  const reached = (kind: string) => runs.some(run => recordForms(run.family, run.record).some(name => name.startsWith(kind)))
   return [
     { id: 'week-distance', title: 'This week: explore 10 km', description: 'Complete a total of 10 km this Monday–Sunday.', value: weekly.reduce((sum, run) => sum + run.record.meters, 0) / 1000, goal: 10, unit: 'km', weekly: true },
     { id: 'week-days', title: 'This week: show up three times', description: 'Save an adventure on three different days.', value: new Set(weekly.map(run => dayKey(Date.parse(run.record.finishedAt)))).size, goal: 3, unit: 'days', weekly: true },
@@ -76,7 +78,9 @@ export function missions(journal: Journal | null, progress: Progress, now = Date
     { id: 'night-owl', title: 'Moonlit trail', description: 'Start at or after 8 PM, then finish at least 1 km.', value: Number(hasStart(hour => hour >= 20)), goal: 1, unit: 'badge', hidden: true },
     { id: 'shiny-friend', title: 'A little sparkle', description: 'Acquire your first Shiny Pokemon.', value: Number(entries.some(entry => entry.shiny)), goal: 1, unit: 'badge', hidden: true },
     { id: 'both-variants', title: 'Two of a kind', description: 'Keep both Normal and Shiny versions of the same Pokemon.', value: Number(entries.some(entry => entry.normal && entry.shiny)), goal: 1, unit: 'badge', hidden: true },
-    { id: 'mega-friend', title: 'Beyond evolution', description: 'Save an adventure that reached a Mega form at 21 km.', value: Number(runs.some(run => recordForm(run.family, run.record).startsWith('Mega '))), goal: 1, unit: 'badge', hidden: true },
+    { id: 'mega-friend', title: 'Beyond evolution', description: 'Save an adventure that reached a Mega form at 21 km.', value: Number(reached('Mega ')), goal: 1, unit: 'badge', hidden: true },
+    { id: 'dynamax-friend', title: 'Marathon power', description: 'Save an adventure that reached a Dynamax form at 42 km.', value: Number(reached('Dynamax ')), goal: 1, unit: 'badge', hidden: true },
+    { id: 'gigantamax-friend', title: 'Larger than life', description: 'Save an adventure that reached a Gigantamax form at 50 km.', value: Number(reached('Gigantamax ')), goal: 1, unit: 'badge', hidden: true },
     { id: 'patient-explorer', title: 'The scenic route', description: 'Finish an adventure lasting an hour, with at least 1 km recorded.', value: Number(runs.some(({ record }) => record.meters >= 1000 && (record.elapsedSeconds || 0) >= 3600)), goal: 1, unit: 'badge', hidden: true },
   ]
 }

@@ -14,11 +14,8 @@ names[29], names[32] = 'Nidoran F', 'Nidoran M'
 requested = '''Venusaur Charizard Blastoise Alakazam Gengar Kangaskhan Pinsir Gyarados Aerodactyl Mewtwo Ampharos Scizor Heracross Houndoom Tyranitar Blaziken Gardevoir Mawile Aggron Medicham Manectric Banette Absol Latias Latios Garchomp Lucario Abomasnow Beedrill Pidgeot Slowbro Steelix Sceptile Swampert Sableye Sharpedo Camerupt Altaria Glalie Salamence Metagross Rayquaza Lopunny Gallade Audino Diancie Clefable Victreebel Starmie Dragonite Meganium Feraligatr Skarmory Froslass Emboar Excadrill Scolipede Scrafty Eelektross Chandelure Chesnaught Delphox Greninja Pyroar Floette Malamar Barbaracle Dragalge Hawlucha Zygarde Drampa Falinks Raichu Chimecho Staraptor Heatran Darkrai Golurk Meowstic Crabominable Golisopod Magearna Zeraora Scovillain Glimmora Tatsugiri Baxcalibur'''.split()
 requested_ids = {i for i,n in names.items() if n in requested}
 assert len(requested_ids) == 87
-allowed = set(range(1,494)) | requested_ids
-for ident in list(allowed):
-    while species[ident]['evolves_from_species_id']:
-        ident = int(species[ident]['evolves_from_species_id'])
-        allowed.add(ident)
+# Every species through Gen 9. Gen 5+ Legendaries and Mythicals hatch from eggs until Expeditions offer them.
+allowed = set(range(1,1026))
 children = {i:[] for i in allowed}
 for ident in allowed:
     parent = species[ident]['evolves_from_species_id']
@@ -33,12 +30,20 @@ if not legacy_file.exists():
     legacy = [match[1].split(',') for match in re.findall(r"(['\"])(.*?)\1", source)]
     legacy_file.write_text(json.dumps(legacy), encoding='utf-8')
 legacy = json.loads(legacy_file.read_text())
+# Saved watch records are keyed by route index, so the routes already shipped keep their order. A route grows only
+# where exactly one longer line continues it (Ursaring into Ursaluna), and never past a Mega species, whose Mega waits at
+# the end of its route (Floette keeps its route; Florges gets its own). New lines and branches go after them.
+shipped = legacy
+catalog_file = ROOT / 'page/catalog.js'
+if catalog_file.exists():
+    line = next((l for l in catalog_file.read_text(encoding='utf-8').splitlines() if l.startswith('export const routes = ')), None)
+    if line: shipped = json.loads(line.removeprefix('export const routes = '))
 lookup = {n:i for i,n in names.items()}
 route_ids = []
-for route in legacy:
+for route in shipped:
     ids = [lookup[n] for n in route]
     matches = [p for p in all_paths if p[:len(ids)] == ids]
-    route_ids.append(matches[0] if len(matches) == 1 else ids)
+    route_ids.append(matches[0] if len(matches) == 1 and route[-1] not in requested else ids)
 for path in all_paths:
     if path not in route_ids: route_ids.append(path)
 catalog = [[names[i] for i in path] for path in route_ids]
@@ -58,6 +63,21 @@ for row in pokemon:
     megaf.setdefault(base,[]).append(name)
     sprite_ids[name] = int(row['id'])
 assert set(megaf) == set(requested)
+# Gigantamax forms, reached at 50 km. Toxtricity and Urshifu have two each, chosen like Mega X and Y.
+gmaxf = {}
+for row in pokemon:
+    if '-gmax' not in row['identifier']: continue
+    sid = int(row['species_id'])
+    base = names[sid]
+    detail = row['identifier'].split('-gmax')[0].removeprefix(species[sid]['identifier']).strip('-').replace('-', ' ').title()
+    name = 'Gigantamax ' + base + (' ' + detail if detail else '')
+    gmaxf.setdefault(base,[]).append(name)
+    sprite_ids[name] = int(row['id'])
+assert len(gmaxf) == 32 and sum(map(len, gmaxf.values())) == 34
+assert all(any(base in route for route in catalog) for base in gmaxf), 'A Gigantamax species has no egg'
+unfinished = [base for base in megaf if not any(route[-1] == base for route in catalog)]
+assert not unfinished, 'Mega species no longer a final form: ' + ', '.join(unfinished)
+base_of = {form:base for forms in (megaf, gmaxf) for base,group in forms.items() for form in group}
 
 def fetch_sprite(pair, shiny=False):
     name, ident = pair
@@ -92,7 +112,7 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
         if path: sprites[name] = path
         else: missing.append(name)
 for name in missing:
-    base = next((base for base,forms in megaf.items() if name in forms),None)
+    base = base_of.get(name)
     if base: sprites[name] = sprites[base]
     else: raise RuntimeError('Missing base sprite: '+name)
 # A small original pixel egg, drawn on a pixel grid and enlarged without smoothing.
@@ -108,7 +128,7 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
         if path: shinySprites[name] = path
         else: shinyMissing.append(name)
 for name in shinyMissing:
-    base = next((base for base,forms in megaf.items() if name in forms),None)
+    base = base_of.get(name)
     shinySprites[name] = shinySprites.get(base,sprites[name])
 for box in [(8,6,10,8),(14,11,17,14),(6,15,9,17)]: draw.rectangle(box,fill='#efbd43')
 egg.resize((48,48),Image.Resampling.NEAREST).save(ASSETS/'egg-shiny.png')
@@ -131,6 +151,7 @@ export const routes = {dumps(catalog)}
 // Each species by National Dex number; its generation and sprite files follow from the number.
 const speciesIds = {dumps(species_ids)}
 export const megaForms = {dumps(megaf)}
+export const gigantamaxForms = {dumps(gmaxf)}
 // Forms with their own sprite file (PokeAPI form ids), and shiny files that do not just add -shiny.
 const spriteFiles = {dumps(sprite_files)}
 const shinyFiles = {dumps(shiny_files)}
@@ -155,7 +176,7 @@ type_names = {row['id']:row['identifier'] for row in rows('types.csv')}
 primary_types = {row['pokemon_id']:type_names[row['type_id']] for row in rows('pokemon_types.csv') if row['slot'] == '1'}
 type_map = {name:primary_types.get(re.search(r'/(\d+)',src).group(1),'normal') for name,src in sprites.items() if name != 'Egg'}
 (ROOT / 'page/types.js').write_text('export const pokemonTypes = '+json.dumps(type_map,separators=(',',':'))+'\n',encoding='utf-8')
-print(f'Catalog: {len(meta)} species, {len(catalog)} routes, {sum(map(len,megaf.values()))} Mega variants, {len(missing)} sprite fallbacks',flush=True)
+print(f'Catalog: {len(meta)} species, {len(catalog)} routes, {sum(map(len,megaf.values()))} Mega variants, {sum(map(len,gmaxf.values()))} Gigantamax forms, {len(missing)} sprite fallbacks',flush=True)
 
 # The legacy default targets share the same bundled sprites.
 import shutil

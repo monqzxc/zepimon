@@ -23,9 +23,14 @@ def fetch(path):
 
 catalog = {}
 for line in (ROOT / 'page/catalog.js').read_text(encoding='utf-8').splitlines():
-    if line.startswith('export const '):
-        key, value = line.removeprefix('export const ').split(' = ', 1)
+    if line.startswith(('export const ', 'const ')):
+        key, value = line.removeprefix('export ').removeprefix('const ').split(' = ', 1)
         catalog[key] = json.loads(value)
+# catalog.js stores Dex numbers and builds species and sprite paths when it loads; rebuild them by the same rules.
+catalog['species'] = {name: {'id': ident} for name, ident in catalog['speciesIds'].items()}
+catalog['sprites'] = {name: f'pokemon/{ident}.png' for name, ident in catalog['speciesIds'].items()}
+catalog['sprites'].update({name: f'pokemon/{file}.png' for name, file in catalog['spriteFiles'].items()})
+catalog['shinySprites'] = {name: catalog['shinyFiles'].get(name, path[:-4] + '-shiny.png') for name, path in catalog['sprites'].items()}
 species = {int(row['id']): row['identifier'].replace('-', '_') for row in
            csv.DictReader((ROOT / 'data/pokemon_species.csv').open())}
 tree = CACHE / 'tree.json'
@@ -60,9 +65,10 @@ def build(job):
     images = []
     for palette_path in required[1:]:
         palette = fetch(palette_path).decode().splitlines()
-        assert palette[:2] == ['JASC-PAL', '0100'] and int(palette[2]) == 16, name
+        # Most palettes list 16 colors; a few later sources list 15.
+        assert palette[:2] == ['JASC-PAL', '0100'] and int(palette[2]) in (15, 16), name
         colored = source.copy()
-        colored.putpalette([int(channel) for row in palette[3:19] for channel in row.split()])
+        colored.putpalette([int(channel) for row in palette[3:3 + int(palette[2])] for channel in row.split()])
         colored.info['transparency'] = 0
         frames = [ImageOps.mirror(colored.crop((i * side, 0, (i + 1) * side, side)).convert('RGBA')) for i in (4, 5)]
         images.append(frames)

@@ -7,10 +7,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const watch = resolve(root, '../hatdog-app')
 const generated = resolve(root, 'src/generated')
 mkdirSync(generated, { recursive: true })
-for (const [from, to] of [['page/catalog.js', 'catalog.js'], ['page/types.js', 'types.js'], ['shared/companion.js', 'companion.js'], ['shared/expedition.js', 'expedition.js']]) {
+for (const [from, to] of [['page/catalog.js', 'catalog.js'], ['page/types.js', 'types.js'], ['shared/companion.js', 'companion.js'], ['shared/expedition.js', 'expedition.js'], ['shared/forms.js', 'forms.js']]) {
   copyFileSync(resolve(watch, from), resolve(generated, to))
 }
 writeFileSync(resolve(generated, 'companion.js'), readFileSync(resolve(generated, 'companion.js'), 'utf8').replace("from './expedition'", "from './expedition.js'"))
+writeFileSync(resolve(generated, 'forms.js'), readFileSync(resolve(generated, 'forms.js'), 'utf8').replace("from '../page/catalog'", "from './catalog.js'"))
 const source = readFileSync(resolve(generated, 'catalog.js'), 'utf8')
 const catalog = vm.runInNewContext(source.replace(/export /g, '') + '\n;({sprites, shinySprites})')
 const paths = [...new Set([...Object.values(catalog.sprites), ...Object.values(catalog.shinySprites)])]

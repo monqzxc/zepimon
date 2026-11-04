@@ -1,4 +1,5 @@
-import { megaForms, species } from './generated/catalog.js'
+import { species } from './generated/catalog.js'
+import { baseSpecies, spriteForm } from './generated/forms.js'
 import { pokemonTypes } from './generated/types.js'
 import type { DexEntry } from './journal.ts'
 
@@ -15,16 +16,16 @@ const typeOrder = ['normal', 'fire', 'water', 'grass', 'electric', 'ice', 'fight
 
 const catalog = species as Record<string, { id: number, gen: number }>
 const types = pokemonTypes as Record<string, string>
-const megaBase = new Map(Object.entries(megaForms as Record<string, string[]>).flatMap(([base, forms]) => forms.map(form => [form, base])))
 
-// The species a Pokemon belongs to, with its National Dex number and generation; a Mega form counts as its base.
+// The species a Pokemon belongs to, with its National Dex number and generation; a Mega, Dynamax or Gigantamax form
+// counts as its base, so it sorts and filters beside it.
 export function speciesOf(name: string): { id: number, gen: number } | undefined {
-  const plain = name.replace(/^Shiny /, '')
-  return catalog[plain] ?? catalog[megaBase.get(plain) ?? '']
+  return catalog[baseSpecies(name)]
 }
 export const speciesNumber = (name: string) => speciesOf(name)?.id ?? 0
 export const generationOf = (name: string) => speciesOf(name)?.gen ?? 0
-export const typeOf = (name: string) => types[name.replace(/^Shiny /, '')] || 'normal'
+// A Gigantamax form has its own type in the catalog; a Dynamax form keeps its species' type.
+export const typeOf = (name: string) => types[spriteForm(name).replace(/^Shiny /, '')] || 'normal'
 export const regionName = (generation: number) => regions[generation] || `Gen ${generation}`
 
 // The generations among these Pokemon, with region names, in order.
@@ -73,6 +74,12 @@ export type EggStatus = 'all' | 'missing' | 'caught'
 export type EggFilter = Filter & { status: EggStatus }
 export const defaultEggFilter: EggFilter = { query: '', sort: 'number', generation: 0, type: null, status: 'all' }
 export const caughtCount = (family: string[], caught: (name: string) => boolean) => family.filter(caught).length
+// An egg's family as you know it: what it hatches into or evolves into is ??? until that Pokemon is in your Dex. The
+// first is always named, since the egg is named after it.
+export const mysteryLine = (family: string[], caught: (name: string) => boolean) =>
+  family.map((name, i) => i === 0 || caught(name) ? name : '???')
+// The same, as a screen reader should say it, rather than "question mark" three times.
+export const spokenLine = (line: string[]) => line.map(name => name === '???' ? 'unknown' : name).join(', ')
 
 // A family matches when any of its Pokemon does, so the Pichu egg shows under Kanto (Pikachu) and Electric. Families
 // that start alike (the Eevee branches) are ordered by the whole family, so every order is exact both ways.

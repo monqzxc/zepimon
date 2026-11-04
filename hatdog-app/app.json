@@ -10,7 +10,7 @@
     },
     "icon": "icon.png",
     "vender": "zepp",
-    "description": "Walk, collect Gen 1-4 Pokemon and Mega evolve at 21 km"
+    "description": "Walk, collect Pokemon from every generation, Mega evolve at 21 km, Dynamax at 42 km and Gigantamax at 50 km"
   },
   "permissions": ["data:user.hd.step", "data:user.hd.distance", "device:os.local_storage"],
   "runtime": {

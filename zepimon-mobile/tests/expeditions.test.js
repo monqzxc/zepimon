@@ -18,6 +18,9 @@ test('watch credits only completed distance, survives replacement, and does not 
     vm.runInContext(fs.readFileSync('../hatdog-app/' + file, 'utf8').replace(/export /g, ''), context)
   }
   vm.runInContext('const catalogRoutes = routes', context)
+  // The watch's form rules, under the names page/pokemon.js imports them by.
+  vm.runInContext('(function(){' + fs.readFileSync('../hatdog-app/shared/forms.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
+    '\nObject.assign(globalThis, { formChoices, earnedForms, nextFormMilestone: nextMilestone, formDistance, spriteForm }) })()', context)
   // Isolate the re-exported routes declaration from catalog bindings.
   vm.runInContext('(function(){' + fs.readFileSync('../hatdog-app/page/pokemon.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
     '\nglobalThis.finish = finishSession; globalThis.init = ensureExpedition; })()', context)

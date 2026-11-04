@@ -1,6 +1,8 @@
 // The Adventure tab's route: every kilometre you have walked or run, laid along one endless Hoenn-style path with a
 // milestone every 5 km. The trailhead (0 km, by a Pokemon Center) is at the bottom; above it two strips of route take
 // turns, 20 km each (scripts/build-adventure-route.py). Positions here are in tiles, from the top of what is drawn.
+import { kantoPlaces } from './kanto-map.ts'
+
 export const MILESTONE = 5000
 export const STRIP_METERS = 20000
 
@@ -12,12 +14,10 @@ export type RouteLayout = { strips: PlacedStrip[], rows: number, milestones: Mil
 
 // Every milestone is a town, city or route, in the order the games visit them: Kanto, then Johto, Hoenn, Sinnoh and
 // Unova. 0 km is Pallet Town; the 5 km leading up to a milestone are that place, so you walk Route 1 to reach 5 km.
-// After Unova the journey starts over in Pallet Town, one tour further on.
+// Kanto follows the story's walkthrough across its own map (src/kanto-map.ts). After Unova the journey starts over in
+// Pallet Town, one tour further on.
 export const regions: { name: string, places: string[] }[] = [
-  { name: 'Kanto', places: ['Pallet Town', 'Route 1', 'Viridian City', 'Route 2', 'Pewter City', 'Route 3', 'Route 4', 'Cerulean City',
-    'Route 24', 'Route 25', 'Route 5', 'Route 6', 'Vermilion City', 'Route 11', 'Route 9', 'Route 10', 'Lavender Town', 'Route 8',
-    'Route 7', 'Celadon City', 'Route 16', 'Route 17', 'Route 18', 'Fuchsia City', 'Route 15', 'Route 14', 'Route 13', 'Route 12',
-    'Saffron City', 'Route 19', 'Route 20', 'Cinnabar Island', 'Route 21', 'Route 22', 'Route 23', 'Indigo Plateau'] },
+  { name: 'Kanto', places: kantoPlaces },
   { name: 'Johto', places: ['New Bark Town', 'Route 29', 'Cherrygrove City', 'Route 30', 'Route 31', 'Violet City', 'Route 32',
     'Route 33', 'Azalea Town', 'Route 34', 'Goldenrod City', 'Route 35', 'Route 36', 'Route 37', 'Ecruteak City', 'Route 38',
     'Route 39', 'Olivine City', 'Route 40', 'Route 41', 'Cianwood City', 'Route 42', 'Mahogany Town', 'Route 43', 'Route 44',
