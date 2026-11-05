@@ -1,10 +1,12 @@
 // The Adventure tab's route: every kilometre you have walked or run, laid along one endless Hoenn-style path with a
-// milestone every 5 km. The trailhead (0 km, by a Pokemon Center) is at the bottom; above it two strips of route take
-// turns, 20 km each (scripts/build-adventure-route.py). Positions here are in tiles, from the top of what is drawn.
+// milestone every 2 km. The trailhead (0 km, by a Pokemon Center) is at the bottom; above it two strips of route take
+// turns, four milestones each (scripts/build-adventure-route.py). Positions here are in tiles, from the top of what is
+// drawn.
 import { kantoPlaces } from './kanto-map.ts'
+import { johtoPlaces } from './johto-map.ts'
 
-export const MILESTONE = 5000
-export const STRIP_METERS = 20000
+export const MILESTONE = 2000
+export const STRIP_METERS = 4 * MILESTONE
 
 export type StripKind = 'start' | 'a' | 'b'
 export type StripShape = { rows: number, pads: { x: number, y: number }[] }
@@ -13,15 +15,12 @@ export type Milestone = { meters: number, x: number, y: number }
 export type RouteLayout = { strips: PlacedStrip[], rows: number, milestones: Milestone[] }
 
 // Every milestone is a town, city or route, in the order the games visit them: Kanto, then Johto, Hoenn, Sinnoh and
-// Unova. 0 km is Pallet Town; the 5 km leading up to a milestone are that place, so you walk Route 1 to reach 5 km.
-// Kanto follows the story's walkthrough across its own map (src/kanto-map.ts). After Unova the journey starts over in
-// Pallet Town, one tour further on.
+// Unova. 0 km is Pallet Town; the 2 km leading up to a milestone are that place, so you walk Route 1 to reach 2 km.
+// Kanto and Johto follow the story's walkthrough across their own maps (src/kanto-map.ts, src/johto-map.ts). After
+// Unova the journey starts over in Pallet Town, one tour further on.
 export const regions: { name: string, places: string[] }[] = [
   { name: 'Kanto', places: kantoPlaces },
-  { name: 'Johto', places: ['New Bark Town', 'Route 29', 'Cherrygrove City', 'Route 30', 'Route 31', 'Violet City', 'Route 32',
-    'Route 33', 'Azalea Town', 'Route 34', 'Goldenrod City', 'Route 35', 'Route 36', 'Route 37', 'Ecruteak City', 'Route 38',
-    'Route 39', 'Olivine City', 'Route 40', 'Route 41', 'Cianwood City', 'Route 42', 'Mahogany Town', 'Route 43', 'Route 44',
-    'Blackthorn City', 'Route 45', 'Route 46', 'Route 27', 'Route 26'] },
+  { name: 'Johto', places: johtoPlaces },
   { name: 'Hoenn', places: ['Littleroot Town', 'Route 101', 'Oldale Town', 'Route 103', 'Route 102', 'Petalburg City', 'Route 104',
     'Rustboro City', 'Route 116', 'Route 105', 'Route 106', 'Dewford Town', 'Route 107', 'Route 108', 'Route 109', 'Slateport City',
     'Route 110', 'Mauville City', 'Route 117', 'Verdanturf Town', 'Route 111', 'Route 112', 'Route 113', 'Fallarbor Town', 'Route 114',
@@ -58,7 +57,7 @@ export const stripOf = (meters: number) => Math.floor(Math.max(0, meters) / STRI
 const kindOf = (index: number): StripKind => index % 2 ? 'b' : 'a'
 
 // The strips around your distance, top to bottom: the next route ahead, yours, and the one behind you (or the
-// trailhead). Milestones come bottom to top, with the 5 km step before the lowest strip when the trailhead isn't drawn,
+// trailhead). Milestones come bottom to top, with the milestone before the lowest strip when the trailhead isn't drawn,
 // just below the bottom edge, so the trainer always has a stretch of path on both sides.
 export function routeLayout(meters: number, shapes: Record<StripKind, StripShape>): RouteLayout {
   const here = stripOf(meters)
@@ -76,7 +75,7 @@ export function routeLayout(meters: number, shapes: Record<StripKind, StripShape
   const milestones: Milestone[] = []
   for (const strip of [...strips].reverse()) {
     shapes[strip.kind].pads.forEach((pad, i) => milestones.push({
-      meters: strip.kind === 'start' ? 0 : (strip.index * 4 + i + 1) * MILESTONE, x: pad.x, y: strip.top + pad.y
+      meters: strip.kind === 'start' ? 0 : strip.index * STRIP_METERS + (i + 1) * MILESTONE, x: pad.x, y: strip.top + pad.y
     }))
   }
   if (low > 0) {
@@ -121,4 +120,29 @@ export function reachedBy<T extends { record: { meters: number, finishedAt: stri
     total += run.record.meters
   }
   return undefined
+}
+
+// The route log: every stretch walked, from Route 1 on, with the adventures that walked it, oldest first. A stretch is
+// the milestone's distance leading up to its place (Route 1 is 0 to 2 km); one adventure can walk several stretches,
+// and one stretch can take several adventures, each with how far of it they walked. The last stretch may be under
+// way (walked short of the whole of it).
+export type Stretch<T> = { place: Place, from: number, to: number, walked: number, runs: { run: T, meters: number }[] }
+export function routeLog<T extends { record: { meters: number, finishedAt: string } }>(adventures: T[]): Stretch<T>[] {
+  const oldest = [...adventures].sort((a, b) => Date.parse(a.record.finishedAt) - Date.parse(b.record.finishedAt))
+  const stretches: Stretch<T>[] = []
+  let total = 0
+  for (const run of oldest) {
+    const end = total + Math.max(0, run.record.meters)
+    while (total < end) {
+      const index = Math.floor(total / MILESTONE) + 1
+      const to = index * MILESTONE
+      const stop = Math.min(end, to), meters = stop - total
+      if (!stretches.length || stretches.at(-1)!.to !== to) stretches.push({ place: placeFor(index), from: to - MILESTONE, to, walked: 0, runs: [] })
+      const stretch = stretches.at(-1)!
+      stretch.walked += meters
+      stretch.runs.push({ run, meters })
+      total = stop
+    }
+  }
+  return stretches
 }

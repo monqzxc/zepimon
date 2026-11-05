@@ -27,7 +27,7 @@ import { MapSheet, RouteTrail, gbaBox } from '../../RouteTrail'
 import { Squish } from '../../JournalDashboard'
 import { allAdventures } from '../../adventures'
 import type { Adventure } from '../../adventures'
-import { reachedBy } from '../../adventure-route'
+import { MILESTONE, reachedBy } from '../../adventure-route'
 import { mysteryLine, spokenLine } from '../../pokedex'
 import { averagePace as runPace, clock, fastestPace, paceText, splits } from '../../running'
 import { BottomSheet } from '../../BottomSheet'
@@ -284,10 +284,11 @@ function MilestoneTip({ meters, adventures }: { meters: number, adventures: Adve
   const form = recordForm(run.family, run.record)
   const finished = new Date(run.record.finishedAt)
   const year = finished.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } as const : {}
-  const previous = meters > 0 ? reachedBy(meters - 5000, adventures) : undefined
+  const previous = meters > 0 ? reachedBy(meters - MILESTONE, adventures) : undefined
   const days = previous ? Math.round((finished.getTime() - Date.parse(previous.run.record.finishedAt)) / DAY) : null
-  const since = !previous ? 'Where it all began' : previous.run === run ? `Same adventure as ${meters / 1000 - 5} km`
-    : days === 0 ? `Same day as ${meters / 1000 - 5} km` : `${days} day${days === 1 ? '' : 's'} after ${meters / 1000 - 5} km`
+  const before = (meters - MILESTONE) / 1000
+  const since = !previous ? 'Where it all began' : previous.run === run ? `Same adventure as ${before} km`
+    : days === 0 ? `Same day as ${before} km` : `${days} day${days === 1 ? '' : 's'} after ${before} km`
   return <>
     <View style={adventure.tipRow}>
       <View style={[adventure.tipArt, { backgroundColor: typeTints[pokemonType(form === 'Egg' ? run.family[0] : form)] }]}>
@@ -315,7 +316,8 @@ function MilestoneTip({ meters, adventures }: { meters: number, adventures: Adve
 }
 
 // The buttons on the right of the map: whether location is on (tap for details), Missions with this week's 10 km as a
-// ring, and Legendary Expeditions with a gold dot when an encounter or permit is waiting.
+// ring, Legendary Expeditions with a gold dot when an encounter or permit is waiting, and Routes, the log of every
+// place walked and the Pokemon that walked it.
 function Rail({ issue, onLocation, reduced }: { issue: LocationIssue | null, onLocation: () => void, reduced: boolean }) {
   const { journal, progress } = useJournal()
   const gate = useGateStatus()
@@ -355,6 +357,13 @@ function Rail({ issue, onLocation, reduced }: { issue: LocationIssue | null, onL
         {ready && <View style={adventure.alert} />}
       </View>
       <Text style={adventure.railLabel}>Expeditions</Text>
+    </Squish>
+    <Squish reduced={reduced} onPress={() => router.push('/route-log')} style={adventure.tile}
+      accessibilityLabel="Routes. Every place you have walked and the Pokemon that walked it">
+      <View style={[adventure.ring, { backgroundColor: colors.mint }]}>
+        <Icon name="list" size={18} color={colors.edge} />
+      </View>
+      <Text style={adventure.railLabel}>Routes</Text>
     </Squish>
   </>
 }

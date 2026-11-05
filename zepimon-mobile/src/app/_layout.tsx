@@ -60,6 +60,7 @@ function Navigator() {
       <Stack.Screen name="eggs" options={{ title: 'Choose an egg' }} />
       <Stack.Screen name="share" options={{ title: 'Share adventure' }} />
       <Stack.Screen name="adventures" options={{ title: 'All adventures' }} />
+      <Stack.Screen name="route-log" options={{ title: 'Route log' }} />
       {/* Its pastel header has its own Back button. */}
       <Stack.Screen name="adventure-details" options={{ title: 'Adventure', headerShown: false }} />
       {/* Its big title row has its own Back button too. */}

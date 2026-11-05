@@ -1,15 +1,17 @@
-// Kanto on the Adventure tab: the town map art (assets/route/kanto.jpg) and the walkthrough across it, one milestone
-// every 5 km at each town, city and route in the order the story visits them, from Pallet Town to the Indigo Plateau
+// Kanto on the Adventure tab: the town map art (assets/route/kanto.jpg) and the walkthrough across it (src/town-map.ts),
+// one milestone at each town, city and route in the order the story visits them, from Pallet Town to the Indigo Plateau
 // (FireRed and LeafGreen: Brock, Misty, Lt. Surge, Erika, Koga, Sabrina, Blaine, Giovanni, then Victory Road). Places
 // a later leg passes through again are walked over, not counted twice. Points are pixels on the map art.
+import { cameraBounds, clampCamera, nearestOf, roadPoint, roadTrail, townRoad, townStop } from './town-map.ts'
+import type { Point, TownStop } from './town-map.ts'
+export { cameraBounds, clampCamera }
+export type { Camera, CameraBounds, Point } from './town-map.ts'
+export type KantoStop = TownStop
+
 export const KANTO_WIDTH = 1472
 export const KANTO_HEIGHT = 1069
 
-export type Point = [number, number]
-// A stop: where its marker stands, the roads walked from the stop before (via), and whether it is a town or city.
-export type KantoStop = { name: string, at: Point, via: Point[], city: boolean }
-
-const stop = (name: string, at: Point, via: Point[] = []): KantoStop => ({ name, at, via, city: !name.startsWith('Route ') })
+const stop = townStop
 
 // Roads that later legs walk again, named for the stretch they cover.
 const viridianToRoute22: Point[] = [[300, 482]]
@@ -64,71 +66,12 @@ export const kantoStops: KantoStop[] = [
 ]
 
 export const kantoPlaces = kantoStops.map(item => item.name)
-
-const length = ([ax, ay]: Point, [bx, by]: Point) => Math.hypot(bx - ax, by - ay)
-const lerp = ([ax, ay]: Point, [bx, by]: Point, share: number): Point => [ax + (bx - ax) * share, ay + (by - ay) * share]
-
-// Each leg's road from the stop before to the next, as points; legs[i] ends at stop i + 1.
-const legs: Point[][] = kantoStops.slice(1).map((item, i) => [kantoStops[i].at, ...item.via, item.at])
-
-// The point a share of the way along a road, by length walked.
-function along(road: Point[], share: number): Point {
-  const total = road.slice(1).reduce((sum, point, i) => sum + length(road[i], point), 0)
-  let left = Math.max(0, Math.min(1, share)) * total
-  for (let i = 1; i < road.length; i++) {
-    const step = length(road[i - 1], road[i])
-    if (left <= step) return step ? lerp(road[i - 1], road[i], left / step) : road[i]
-    left -= step
-  }
-  return road[road.length - 1]
-}
+export const kantoRoad = townRoad(kantoStops)
 
 // Where a distance stands on the map: at a stop, or the share of the way along the road to the next one. Past the
 // Indigo Plateau it stays there.
-export function kantoPoint(meters: number, milestone: number): Point {
-  const leg = Math.floor(Math.max(0, meters) / milestone)
-  if (leg >= legs.length) return kantoStops[kantoStops.length - 1].at
-  return along(legs[leg], (Math.max(0, meters) - leg * milestone) / milestone)
-}
-
+export const kantoPoint = (meters: number, milestone: number) => roadPoint(kantoRoad, meters, milestone)
 // The walkthrough split at a distance: the roads walked so far, and the roads still ahead, each one line of points.
-export function kantoTrail(meters: number, milestone: number): { walked: Point[], ahead: Point[] } {
-  const leg = Math.floor(Math.max(0, meters) / milestone)
-  const here = kantoPoint(meters, milestone)
-  const before = legs.slice(0, leg).flatMap((road, i) => i ? road.slice(1) : road)
-  if (leg >= legs.length) return { walked: before, ahead: [] }
-  const road = legs[leg]
-  const share = (Math.max(0, meters) - leg * milestone) / milestone
-  // The current leg's points already passed, by how far along they lie.
-  const lengths = road.map((point, i) => road.slice(1, i + 1).reduce((sum, next, j) => sum + length(road[j], next), 0))
-  const total = lengths[lengths.length - 1]
-  const passed = road.filter((_, i) => lengths[i] < share * total)
-  const walked = [...before, ...(before.length ? passed.slice(1) : passed), here]
-  const ahead = [here, ...road.filter((_, i) => lengths[i] > share * total),
-    ...legs.slice(leg + 1).flatMap(next => next.slice(1))]
-  return { walked, ahead }
-}
-
-// How far the map may be dragged at a zoom: its edges no further in than the screen's, its top no lower than `top` and
-// its bottom no higher than `bottom`; a map smaller than the screen that way is centred instead. The map is drawn at
-// `map` size at zoom 1, from its top left corner. A worklet, as the camera moves on the UI thread.
-export type Camera = { x: number, y: number }
-export type CameraBounds = { minX: number, maxX: number, minY: number, maxY: number }
-export function cameraBounds(zoom: number, map: { width: number, height: number }, view: { width: number, top: number, bottom: number }): CameraBounds {
-  'worklet'
-  const lowX = view.width - map.width * zoom, lowY = view.bottom - map.height * zoom
-  const [minX, maxX] = lowX > 0 ? [lowX / 2, lowX / 2] : [lowX, 0]
-  const [minY, maxY] = lowY > view.top ? [(lowY + view.top) / 2, (lowY + view.top) / 2] : [lowY, view.top]
-  return { minX, maxX, minY, maxY }
-}
-export function clampCamera(at: Camera, bounds: CameraBounds): Camera {
-  'worklet'
-  return { x: Math.max(bounds.minX, Math.min(bounds.maxX, at.x)), y: Math.max(bounds.minY, Math.min(bounds.maxY, at.y)) }
-}
-
+export const kantoTrail = (meters: number, milestone: number) => roadTrail(kantoRoad, meters, milestone)
 // The stop nearest a point on the map, for naming the place in view.
-export function nearestStop([x, y]: Point): number {
-  let best = 0
-  kantoStops.forEach((item, i) => { if (length(item.at, [x, y]) < length(kantoStops[best].at, [x, y])) best = i })
-  return best
-}
+export const nearestStop = (point: Point) => nearestOf(kantoStops, point)
