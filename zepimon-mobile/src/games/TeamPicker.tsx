@@ -1,16 +1,14 @@
 import { useState } from 'react'
 import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native'
-import { spriteSource, typeColors } from '../catalog'
-import { Button, Copy, Eyebrow, colors, fonts, styles, themedStyles } from '../ui'
-import { WEATHER, WEATHER_POWER, WEATHER_WEAK, eggPerk, kitFor, placedForm, unitWeather } from './battle'
+import { spriteSource } from '../catalog'
+import { Copy, Eyebrow, colors, fonts, styles, themedStyles } from '../ui'
+import { WEATHER, eggPerk, kitFor, placedForm, unitWeather } from './battle'
 import type { Layout, Weather } from './battle'
 import { TEAM_SIZE, autoTeam, battleType, cardKey } from './roster'
 import type { TeamCard } from './roster'
 import type { Suggestion } from './suggest'
-import { TILE_MARKS } from './TrailTerrain'
 
 const SHOWN = 24
-
 // A still sprite for busy game boards; the Dex keeps the interactive Sprite.
 // tint paints the sprite one solid color, as a silhouette (the Legendary Gate's sealed Legendary).
 export function PixelSprite({ name, shiny = false, size, tint }: { name: string, shiny?: boolean, size: number, tint?: string }) {
@@ -18,12 +16,13 @@ export function PixelSprite({ name, shiny = false, size, tint }: { name: string,
     style={{ width: size, height: size, ...(tint ? { tintColor: tint } : {}), ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }} />
 }
 
-// suggestion: a team suggested for this level (src/games/suggest.ts), with why, shown above the picker; tiles: the map's
-// element tiles by type, with how many of each; weather: the level's, marked on the Pokemon it powers up or weakens.
-export function TeamPicker({ layout, choices, team, onChange, suggestion, tiles, weather }: {
-  layout: Layout, choices: TeamCard[], team: TeamCard[], onChange: (team: TeamCard[]) => void, suggestion?: Suggestion, tiles?: [string, number][],
-  weather?: Weather
+// The team before a battle: six slots, the level's suggested team a tap away (with why, on request), and the full list
+// of your Pokemon only while editing. weather marks the Pokemon it powers up (▲) or weakens (▼).
+export function TeamPicker({ layout, choices, team, onChange, suggestion, weather }: {
+  layout: Layout, choices: TeamCard[], team: TeamCard[], onChange: (team: TeamCard[]) => void, suggestion?: Suggestion, weather?: Weather
 }) {
+  const [editing, setEditing] = useState(false)
+  const [why, setWhy] = useState(false)
   const [query, setQuery] = useState('')
   const chosen = new Set(team.map(cardKey))
   const search = query.trim().toLowerCase()
@@ -33,76 +32,127 @@ export function TeamPicker({ layout, choices, team, onChange, suggestion, tiles,
     if (chosen.has(cardKey(card))) onChange(team.filter(item => cardKey(item) !== cardKey(card)))
     else if (team.length < TEAM_SIZE) onChange([...team, card])
   }
-  const suggested = suggestion && suggestion.team.length === team.length && suggestion.team.every(card => chosen.has(cardKey(card)))
-  return <View style={{ gap: 12 }}>
+  const suggested = !!suggestion && suggestion.team.length === team.length && suggestion.team.every(card => chosen.has(cardKey(card)))
+  return <View style={{ gap: 10 }}>
+    <View style={picker.head}>
+      <Eyebrow>TEAM · {team.length}/{TEAM_SIZE}</Eyebrow>
+      <TextButton label={editing ? 'Done' : 'Edit team'} onPress={() => { setEditing(!editing); setQuery('') }} />
+    </View>
     {suggestion && <View style={picker.suggest}>
-      <Eyebrow>SUGGESTED FOR THIS LEVEL</Eyebrow>
-      {!!tiles?.length && <View style={picker.tiles}>{tiles.map(([type, count]) =>
-        <View key={type} style={[picker.tile, { backgroundColor: typeColors[type] ?? colors.sunken }]}>
-          <Text style={picker.tileText}>{TILE_MARKS[type] ?? '○'} {type[0].toUpperCase() + type.slice(1)} ×{count}</Text>
-        </View>)}</View>}
-      {suggestion.notes.map(note => <Copy key={note} small color={colors.ink}>• {note}</Copy>)}
-      {suggestion.missing.length > 0 && <Copy small>{`No ${suggestion.missing.map(type => type[0].toUpperCase() + type.slice(1)).join(' or ')} Pokemon yet, so those tiles stay empty. Hatch or catch one (the Safari Zone) to use them.`}</Copy>}
-      <Button title={suggested ? 'Using the suggested team ✓' : 'Use the suggested team'} disabled={suggested} onPress={() => onChange(suggestion.team)} />
+      <Text style={picker.suggestText}>{suggested ? '✓ Suggested team' : 'Suggested team ready'}</Text>
+      {suggestion.notes.length > 0 && <TextButton label={why ? 'Hide' : 'Why?'} onPress={() => setWhy(!why)} />}
+      {!suggested && <TextButton label="Use" strong onPress={() => onChange(suggestion.team)} />}
     </View>}
-    <Eyebrow>YOUR TEAM · {team.length} / {TEAM_SIZE}</Eyebrow>
-    {team.length ? <View style={picker.grid}>{team.map(card =>
-      <TeamChip key={cardKey(card)} card={card} layout={layout} weather={weather} selected onPress={() => toggle(card)} />)}</View> :
-      <Copy>Choose up to six Pokemon below, or let the auto-pick build a balanced team.</Copy>}
-    <Button title="Auto-pick a balanced team" secondary onPress={() => onChange(autoTeam(choices))} />
-    <Eyebrow>AVAILABLE · {choices.length}</Eyebrow>
-    {team.length >= TEAM_SIZE && <Copy small>Your team is full. Tap a chosen Pokemon to make room for another.</Copy>}
-    <TextInput accessibilityLabel="Search team choices by name, type or role" placeholder="Search name, type or role…" placeholderTextColor={colors.muted}
-      value={query} onChangeText={setQuery} style={styles.input} autoCorrect={false} />
-    <View style={picker.grid}>{matches.slice(0, SHOWN).map(card =>
-      <TeamChip key={cardKey(card)} card={card} layout={layout} weather={weather} selected={chosen.has(cardKey(card))}
-        disabled={!chosen.has(cardKey(card)) && team.length >= TEAM_SIZE} onPress={() => toggle(card)} />)}</View>
-    {matches.length > SHOWN && <Copy small>Showing {SHOWN} of {matches.length}. Search to find the rest.</Copy>}
-    {!matches.length && <Copy small>No Pokemon match “{query}”.</Copy>}
+    {suggestion && why && <View style={{ gap: 2 }}>
+      {suggestion.notes.map(note => <Copy key={note} small>• {note}</Copy>)}
+    </View>}
+    {!!suggestion?.missing.length && <Copy small>{`No ${suggestion.missing.map(type => type[0].toUpperCase() + type.slice(1)).join(' or ')} Pokemon yet: those tiles stay empty.`}</Copy>}
+    <View style={picker.slots}>{Array.from({ length: TEAM_SIZE }, (_, i) => {
+      const card = team[i]
+      return card ? <Slot key={cardKey(card)} card={card} layout={layout} weather={weather} editing={editing}
+        onPress={() => editing ? toggle(card) : setEditing(true)} />
+        : <Pressable key={`empty-${i}`} accessibilityRole="button" accessibilityLabel="Empty slot: add a Pokemon" onPress={() => setEditing(true)}
+          style={[picker.slot, picker.empty]}><Text style={picker.plus}>+</Text></Pressable>
+    })}</View>
+    {editing && <>
+      <View style={picker.head}>
+        <TextInput accessibilityLabel="Search your Pokemon by name, type or role" placeholder={`Search ${choices.length} Pokemon`}
+          placeholderTextColor={colors.muted} value={query} onChangeText={setQuery} autoCorrect={false} style={[styles.input, { flex: 1, minHeight: 44 }]} />
+        <TextButton label="Auto-pick" onPress={() => onChange(autoTeam(choices))} />
+      </View>
+      <View style={picker.grid}>{matches.slice(0, SHOWN).map(card =>
+        <TeamChip key={cardKey(card)} card={card} layout={layout} weather={weather} selected={chosen.has(cardKey(card))}
+          disabled={!chosen.has(cardKey(card)) && team.length >= TEAM_SIZE} onPress={() => toggle(card)} />)}</View>
+      {matches.length > SHOWN && <Copy small>{SHOWN} of {matches.length} shown</Copy>}
+      {!matches.length && <Copy small>No match for “{query}”.</Copy>}
+    </>}
   </View>
+}
+
+function TextButton({ label, onPress, strong = false }: { label: string, onPress: () => void, strong?: boolean }) {
+  return <Pressable accessibilityRole="button" hitSlop={10} onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+    <Text style={[picker.link, strong && picker.linkStrong]}>{label}</Text>
+  </Pressable>
+}
+
+// What one card is, in words for a screen reader: its form, type, role and cost, and what the eye reads off its badges.
+function cardWords(card: TeamCard, layout: Layout, weather?: Weather) {
+  const form = placedForm({ layout }, card)
+  const kit = kitFor(form, layout)
+  const perk = card.hatched ? eggPerk(form, layout) : null
+  const sky = unitWeather(weather, form, layout)
+  const evolves = layout === 'trail' && card.family.length > 1 ? card.family[card.family.length - 1] : ''
+  return `${card.shiny ? 'Shiny ' : ''}${form}, ${battleType(form)} type, ${kit.label}, costs ${kit.cost} berries` +
+    `${sky && weather ? `, ${sky === 'boosted' ? 'powered up' : 'weakened'} by ${WEATHER[weather].name.toLowerCase()}` : ''}` +
+    `${perk ? `, egg move ${perk.move}: ${perk.text}` : ''}${evolves ? `, evolves to ${evolves}` : ''}${card.loaner ? ', loaner' : ''}`
+}
+
+// The small marks a card carries: EGG for an egg move, ▲ / ▼ for the weather.
+function Badges({ card, layout, weather }: { card: TeamCard, layout: Layout, weather?: Weather }) {
+  const form = placedForm({ layout }, card)
+  const egg = card.hatched && !!eggPerk(form, layout)
+  const sky = unitWeather(weather, form, layout)
+  if (!egg && !sky) return null
+  return <View style={picker.badges}>
+    {egg && <Text style={[picker.badge, picker.egg]}>EGG</Text>}
+    {sky && <Text style={[picker.badge, sky === 'boosted' ? picker.up : picker.down]}>{sky === 'boosted' ? '▲' : '▼'}</Text>}
+  </View>
+}
+
+// A chosen Pokemon in the team's slots: tap to edit the team, or while editing, to take it out.
+function Slot({ card, layout, weather, editing, onPress }: { card: TeamCard, layout: Layout, weather?: Weather, editing: boolean, onPress: () => void }) {
+  const form = placedForm({ layout }, card)
+  const kit = kitFor(form, layout)
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${cardWords(card, layout, weather)}${editing ? '. Tap to remove' : ''}`}
+    onPress={onPress} style={({ pressed }) => [picker.slot, { opacity: pressed ? 0.7 : 1 }]}>
+    <PixelSprite name={form} shiny={card.shiny} size={44} />
+    <Text numberOfLines={1} style={picker.slotName}>{form}</Text>
+    <Text numberOfLines={1} style={picker.detail}>◉ {kit.cost}</Text>
+    <Badges card={card} layout={layout} weather={weather} />
+    {editing && <Text style={picker.remove}>×</Text>}
+  </Pressable>
 }
 
 function TeamChip({ card, layout, weather, selected, disabled = false, onPress }: {
   card: TeamCard, layout: Layout, weather?: Weather, selected: boolean, disabled?: boolean, onPress: () => void
 }) {
   const form = placedForm({ layout }, card)
-  const sky = unitWeather(weather, form, layout)
-  const skyText = !weather || !sky ? '' : sky === 'boosted' ? `${WEATHER[weather].mark} ▲ +${Math.round((WEATHER_POWER - 1) * 100)}% damage`
-    : `${WEATHER[weather].mark} ▼ −${Math.round((1 - WEATHER_WEAK) * 100)}% damage`
   const kit = kitFor(form, layout)
-  const evolves = layout === 'trail' && card.family.length > 1 ? card.family[card.family.length - 1] : ''
-  const perk = card.hatched ? eggPerk(form, layout) : null
-  const label = `${card.shiny ? 'Shiny ' : ''}${form}, ${battleType(form)} type, ${kit.label}, costs ${kit.cost} berries` +
-    `${sky && weather ? `, ${sky === 'boosted' ? 'powered up' : 'weakened'} by ${WEATHER[weather].name.toLowerCase()}` : ''}` +
-    `${perk ? `, hatched, egg move ${perk.move}: ${perk.text}` : card.hatched ? ', hatched, no egg moves' : ''}${evolves ? `, can evolve to ${evolves}` : ''}${card.loaner ? ', loaner' : card.hatched ? '' : ', Safari catch'}`
-  return <Pressable accessibilityRole="checkbox" accessibilityLabel={label} accessibilityState={{ checked: selected, disabled }}
+  return <Pressable accessibilityRole="checkbox" accessibilityLabel={cardWords(card, layout, weather)} accessibilityState={{ checked: selected, disabled }}
     disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [picker.chip, selected && picker.selected, { opacity: disabled ? 0.45 : pressed ? 0.7 : 1 }]}>
-    <PixelSprite name={form} shiny={card.shiny} size={40} />
-    <View style={{ flex: 1, gap: 1 }}>
+    style={({ pressed }) => [picker.chip, selected && picker.selected, { opacity: disabled ? 0.4 : pressed ? 0.7 : 1 }]}>
+    <PixelSprite name={form} shiny={card.shiny} size={36} />
+    <View style={{ flex: 1 }}>
       <Text numberOfLines={1} style={picker.name}>{form}{card.shiny ? ' ✦' : ''}</Text>
-      <Text numberOfLines={2} style={picker.detail}>{kit.label} · ◉ {kit.cost}</Text>
-      {!!skyText && <Text numberOfLines={1} style={[picker.detail, picker.sky, sky === 'weakened' && picker.weak]}>{skyText}</Text>}
-      {perk && <Text numberOfLines={2} style={[picker.detail, { color: colors.gold }]}>Egg move: {perk.move}</Text>}
-      {!!evolves && <Text numberOfLines={1} style={[picker.detail, { color: colors.gold }]}>Evolves to {evolves}</Text>}
-      {(card.loaner || !card.hatched) && <Text style={picker.detail}>{card.loaner ? 'Loaner' : '◎ Safari · no egg move'}</Text>}
+      <Text numberOfLines={1} style={picker.detail}>{kit.label} · ◉ {kit.cost}</Text>
     </View>
-    {selected && <Text accessible={false} style={picker.check}>✓</Text>}
+    <Badges card={card} layout={layout} weather={weather} />
   </Pressable>
 }
 
 const picker = themedStyles(() => ({
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  link: { color: colors.edge, fontFamily: fonts.heavy, fontSize: 14, lineHeight: 20 },
+  linkStrong: { fontFamily: fonts.black },
+  suggest: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12,
+    backgroundColor: colors.goldTint },
+  suggestText: { flex: 1, color: colors.ink, fontFamily: fonts.heavy, fontSize: 13, lineHeight: 18 },
+  slots: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  slot: { width: '31.5%', flexGrow: 1, alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, borderRadius: 14, borderWidth: 1,
+    borderColor: colors.line, backgroundColor: colors.panel },
+  empty: { justifyContent: 'center', minHeight: 92, borderStyle: 'dashed' },
+  plus: { color: colors.muted, fontSize: 24, fontFamily: fonts.heavy },
+  slotName: { color: colors.ink, fontSize: 13, lineHeight: 17, fontFamily: fonts.heavy, marginTop: 2 },
+  remove: { position: 'absolute', top: 2, right: 8, color: colors.muted, fontSize: 16, fontFamily: fonts.black },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  suggest: { gap: 8, padding: 12, borderRadius: 18, borderWidth: 1.5, borderColor: colors.gold, backgroundColor: colors.goldTint },
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  tile: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  tileText: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontFamily: fonts.heavy },
-  chip: { flexBasis: '48%', flexGrow: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, paddingRight: 14,
-    borderWidth: 1.5, borderColor: colors.line, borderRadius: 16, backgroundColor: colors.panel },
-  selected: { borderColor: colors.edge, backgroundColor: colors.mint },
+  chip: { flexBasis: '48%', flexGrow: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 8,
+    borderWidth: 1, borderColor: colors.line, borderRadius: 14, backgroundColor: colors.panel },
+  selected: { borderColor: colors.edge, borderWidth: 1.5, backgroundColor: colors.mint },
   name: { color: colors.ink, fontSize: 14, lineHeight: 19, fontFamily: fonts.heavy },
   detail: { color: colors.muted, fontSize: 12, lineHeight: 16, fontFamily: fonts.body },
-  sky: { color: colors.gold, fontFamily: fonts.heavy },
-  weak: { color: colors.danger },
-  check: { position: 'absolute', top: 3, right: 7, color: colors.edge, fontSize: 14, fontFamily: fonts.black }
+  badges: { flexDirection: 'row', gap: 3, marginTop: 2 },
+  badge: { fontSize: 10, lineHeight: 14, fontFamily: fonts.black, paddingHorizontal: 5, borderRadius: 999, overflow: 'hidden' },
+  egg: { color: colors.ink, backgroundColor: colors.goldTint },
+  up: { color: colors.gold },
+  down: { color: colors.danger }
 }))
