@@ -100,6 +100,15 @@ THEMES = {
     # The Sealed Chamber's inner room (Regigigas): its own purple stone, with the braille-carved faces as the walls.
     'sealed': dict(map='SealedChamber_InnerRoom', primary='general', secondary='cave', ground=0x201, path=0x201, grass=0x201,
                    water=None, shore=0x201, rock=0x2D5, cap=0x2E9, face=0x237, fill=0x2F9, pond=True),
+    # Southern Island (the Eon duo): its clearing's grass and flowers, the pond, and the Soul Dew's stone as the rock. Its
+    # trees are 2 x 2 metatiles, so walls follow `wall_pattern` (rows of the tree, by tile parity) instead of cap/face/fill.
+    # Latios's dusk is the same island washed toward evening violet.
+    'south-day': dict(map='SouthernIsland_Interior', primary='general', secondary='rustboro', ground=0x001, path=0x204, grass=0x004,
+                      water=None, shore=0x001, rock=0x2C1, cap=0x1D4, face=0x1DC, fill=0x1D4, pond=True,
+                      wall_pattern=((0x1D4, 0x1D5), (0x1DC, 0x1DD))),
+    'south-dusk': dict(map='SouthernIsland_Interior', primary='general', secondary='rustboro', ground=0x001, path=0x204, grass=0x004,
+                       water=None, shore=0x001, rock=0x2C1, cap=0x1D4, face=0x1DC, fill=0x1D4, pond=True,
+                       wall_pattern=((0x1D4, 0x1D5), (0x1DC, 0x1DD)), tint=((150, 90, 170), 0.4)),
 }
 FLAVOR_KEYS = {'relic', 'relics', 'water', 'clear'}
 # The General tileset's pond by which sides are land: (north, south, west, east); other shapes use the middle.
@@ -241,6 +250,8 @@ def map_metatile(theme, tiles, x, y):
     at = lambda px, py: tiles[py][px] if 0 <= px < cols and 0 <= py < rows else '#'
     char = at(x, y)
     if char in WALLS:
+        if 'wall_pattern' in theme:
+            return theme['wall_pattern'][y % 2][x % 2]
         if at(x, y + 1) not in WALLS:
             return theme['face']
         return theme['fill'] if at(x, y - 1) in WALLS else theme['cap']

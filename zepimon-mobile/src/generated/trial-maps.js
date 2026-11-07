@@ -663,5 +663,43 @@ export const trialStages = {
     warps: {}, open: "", crackAll: false, dark: false, par: 48, hint: "One key in each wing: thin ice to the north, a sealed pocket to the east, and a boulder to the west for the great door.",
     star: null, legendary: "Regigigas", flavor: {"relic": "key", "relics": "keys", "clear": "Three keys turn. The colossus stirs!"},
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false } }
+  },
+  "sig-latias": {
+    id: "sig-latias", kind: "crumble",
+    tiles: [
+      "###############",
+      "#@.....A.....*#",
+      "#.#####.#####.#",
+      "#.#~~~~c~~~~#.#",
+      "#.#~~~~:~~~~#.#",
+      "#b..:..*..:..a#",
+      "#.#~~~~:~~~~#.#",
+      "#.#~~~~.~~~~#C#",
+      "#.#####.#####.#",
+      "#*.....B.....X#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 58, hint: "Every stepping stone holds only once, and each gate’s switch waits across the island. Plan which stones you will need.",
+    star: null, legendary: "Latias", flavor: {"relic": "red plume", "relics": "red plumes", "water": "The pond is deep. Look for the stepping stones.", "clear": "A warm breeze sweeps the island. Latias appears!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-latios": {
+    id: "sig-latios", kind: "crumble",
+    tiles: [
+      "###############",
+      "#*....!.#....@#",
+      "#.#####.#####.#",
+      "#.#~~~~.~~~~#.#",
+      "#.#~~~~:~~~~#.#",
+      "#...:..*..:...#",
+      "#.#~~~~:~~~~#.#",
+      "#.#~~~~.~~~~#.#",
+      "#.X####.#######",
+      "#....1#.!2...*#",
+      "###############"
+    ],
+    warps: { "1": "2", "2": "1" }, open: "", crackAll: false, dark: true, par: 52, hint: "At dusk the island is split in two. Cross by the stones or the paired pads, and remember each stone holds only once.",
+    star: null, legendary: "Latios", flavor: {"relic": "blue plume", "relics": "blue plumes", "water": "The pond is deep. Look for the stepping stones.", "clear": "Dusk settles on the island. Latios appears!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
   }
 }
