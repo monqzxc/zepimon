@@ -106,6 +106,17 @@ several times a second; each refresh used to rewrite about ten on-screen
 values. Now it rewrites only the ones that changed, so a new step redraws just
 the step count.
 
+Fix (1.24): with every generation in the catalog, the adventure screen needed
+more JS memory than the watch could give it. It opened to a black screen,
+whether to continue an adventure, take over the phone's, or start one. Three
+tables of every Pokemon took most of the extra memory: `species`, `sprites` and
+`shinySprites` in `page/catalog.js`, a table of every walking sprite file in
+`page/sprite.js`, and folder names in `page/walk-sprites.js` that the watch
+never read. Now the watch looks each Pokemon and sprite file up when it needs
+one. The catalog's tables are still there for Zepimon mobile, marked pure so
+the watch's bundle leaves them out. Measured in QuickJS, a running adventure
+needs about 460 KB instead of 750 KB (1.20 to 1.23 needed about 500 KB).
+
 ### Legendary Expeditions (v1.11.0)
 
 Legendary and Mythical Pokemon now come from phone expeditions rather than new

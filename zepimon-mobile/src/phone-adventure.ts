@@ -117,7 +117,9 @@ function smoothAltitude(previous: number | null, fix: Fix): number | null {
 }
 
 // Adds the 100 m marks passed between two points of the adventure ([meters, clock, moving, altitude]), each timed and
-// placed by interpolating along the step.
+// placed by interpolating along the step. The clock is the GPS's (fixes carry its timestamps), which can run behind
+// the phone's that started the adventure, and the first fix can be an old one, so a mark's clock is kept from running
+// back or below zero and its moving time from passing it: otherwise the log would fail validPace and be lost.
 function addMarks(pace: PaceLog, from: [number, number, number, number | null], to: [number, number, number, number | null]): PaceLog {
   const [m0, t0, v0, a0] = from, [m1, t1, v1, a1] = to
   let next = pace.start + pace.at.length
@@ -125,8 +127,9 @@ function addMarks(pace: PaceLog, from: [number, number, number, number | null], 
   const at = [...pace.at], moving = [...pace.moving], elev = pace.elev && [...pace.elev]
   for (; next * 100 <= m1 && at.length < MAX_MARKS; next++) {
     const f = Math.max(0, (next * 100 - m0) / (m1 - m0))
-    at.push(tenth(t0 + f * (t1 - t0)))
-    moving.push(tenth(v0 + f * (v1 - v0)))
+    const clock = Math.max(at.at(-1) ?? 0, tenth(t0 + f * (t1 - t0)))
+    at.push(clock)
+    moving.push(Math.min(clock, Math.max(moving.at(-1) ?? 0, tenth(v0 + f * (v1 - v0)))))
     elev?.push(a0 !== null && a1 !== null ? tenth(a0 + f * (a1 - a0)) : a1 ?? a0)
   }
   return { start: pace.start, at, moving, ...elev ? { elev } : {} }
@@ -293,11 +296,22 @@ export function restorePhoneRuns(raw: unknown): PhoneRun[] {
       const record = journal.snapshot.records[0]
       const moving = Number.isFinite(item.movingSeconds) && item.movingSeconds >= 0 && item.movingSeconds <= (record.elapsedSeconds ?? Infinity)
         ? { movingSeconds: item.movingSeconds } : {}
-      const pace = validPace(item.pace) ? { pace: item.pace as PaceLog } : {}
+      const mended = mendPace(item.pace)
+      const pace = validPace(mended) ? { pace: mended } : {}
       runs.set(item.id, { id: item.id, family: journal.routes[0], record, path: item.path, ...moving, ...pace })
     } catch { /* skip a damaged adventure, keep the rest */ }
   }
   return [...runs.values()]
+}
+
+// Logs written before addMarks kept moving time behind the clock can have it a little ahead, where the GPS clock ran
+// behind the phone's; that is pulled back to the clock rather than losing the splits. Anything else is left for
+// validPace to judge.
+function mendPace(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value
+  const { at, moving } = value as PaceLog
+  if (!Array.isArray(at) || !Array.isArray(moving) || at.length !== moving.length) return value
+  return { ...value, moving: moving.map((time, i) => Number.isFinite(time) && Number.isFinite(at[i]) ? Math.min(time, at[i]) : time) }
 }
 
 // A pace log as addMarks writes it: marks in step, never going back in time, moving time never ahead of the clock.
@@ -323,6 +337,7 @@ export function restoreActive(text: string): ActiveAdventure | null {
     const fix = (item: unknown) => item && typeof item === 'object' && [(item as Fix).lat, (item as Fix).lng, (item as Fix).at].every(Number.isFinite) ? item as Fix : null
     if (!Array.isArray(value.family) || !value.family.length || !value.family.every((name: unknown) => typeof name === 'string') ||
         !['walking', 'running'].includes(value.activity) || !Number.isFinite(value.startedAt) || !Number.isFinite(value.meters) || value.meters < 0) return null
+    const pace = mendPace(value.pace)
     return { family: value.family, activity: value.activity, startedAt: value.startedAt, shiny: value.shiny === true,
       mega: typeof value.mega === 'string' ? value.mega : null, meters: value.meters,
       hatchSeconds: Number.isFinite(value.hatchSeconds) ? value.hatchSeconds : null,
@@ -331,7 +346,7 @@ export function restoreActive(text: string): ActiveAdventure | null {
       // Adventures saved before moving time and pace were kept go on without them from here.
       movingSeconds: value.movingSeconds === null || Number.isFinite(value.movingSeconds) ? value.movingSeconds : null,
       altitude: Number.isFinite(value.altitude) ? value.altitude : null,
-      pace: validPace(value.pace) ? value.pace : { start: Math.floor(value.meters / 100) + 1, at: [], moving: [], elev: [] },
+      pace: validPace(pace) ? pace : { start: Math.floor(value.meters / 100) + 1, at: [], moving: [], elev: [] },
       // Adventures saved before sharing existed get the id they would have had.
       shareId: typeof value.shareId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value.shareId) ? value.shareId : `adv-${value.startedAt}`,
       deviceAt: Number.isFinite(value.deviceAt) ? value.deviceAt : value.startedAt }

@@ -5,7 +5,7 @@
 import { kantoPlaces } from './kanto-map.ts'
 import { johtoPlaces } from './johto-map.ts'
 
-export const MILESTONE = 2000
+export const MILESTONE = 3000
 export const STRIP_METERS = 4 * MILESTONE
 
 export type StripKind = 'start' | 'a' | 'b'

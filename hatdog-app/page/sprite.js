@@ -3,24 +3,26 @@ import { spritePath } from './pokemon'
 import { spriteForm } from '../shared/forms'
 import { walkSprites } from './walk-sprites'
 
-// Image files that hold two walking poses side by side. Built on first use, not while the page loads.
-let sheets = null
+// Whether an image file holds two walking poses side by side. A walking form's own file always does; another form's
+// file does when a walking form shares it (Mega Zygarde draws Zygarde's), which is looked up the first time that file
+// is drawn. A table of every sheet's path cost the watch about 70 KB of memory.
+const sheets = {}
 function isSheet(path) {
-  if (!sheets) {
-    sheets = {}
-    Object.keys(walkSprites).forEach(name => {
-      sheets[spritePath(name)] = true
-      sheets[spritePath(name, true)] = true
-    })
+  if (sheets[path] === undefined) {
+    sheets[path] = false
+    for (const name in walkSprites) {
+      if (spritePath(name) === path || spritePath(name, true) === path) { sheets[path] = true; break }
+    }
   }
-  return !!sheets[path]
+  return sheets[path]
 }
 
 export function drawSprite(canvas, name, shiny, size, frame = 0) {
   const path = spritePath(name, shiny)
-  const sheet = isSheet(path)
   // A Dynamax form walks in its species' poses.
-  const pose = walkSprites[spriteForm(name).replace(/^Shiny /, '')] ? frame : 0
+  const walks = !!walkSprites[spriteForm(name).replace(/^Shiny /, '')]
+  const sheet = walks || isSheet(path)
+  const pose = walks ? frame : 0
   canvas.clear({ x: 0, y: 0, w: size, h: size })
   // The canvas clips the other pose; both frames share one installed image file.
   canvas.drawImage({ x: sheet ? -pose * size : 0, y: 0, w: sheet ? size * 2 : size, h: size, image: path })

@@ -1,14 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, Image, Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import type { ImageSourcePropType, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg'
+import { BottomTabBarHeightCallbackContext } from 'expo-router/tabs'
 import type { BottomTabBarProps } from 'expo-router/tabs'
 import { useReducedMotion } from './games/hooks'
 import { useTracker } from './tracker'
 import { onWatch } from './shared-adventure'
 import type { Activity } from './phone-adventure'
 import { walkingFrames } from './generated/walking.js'
-import { colors, fonts, gradient, themedStyles, useTheme } from './ui'
+import { colors, fonts, themedStyles, useTheme } from './ui'
 import type { ThemeName } from './palettes'
 import { useJournal } from './store'
 import { waitingEncounters } from './legendary-gate'
@@ -26,6 +27,9 @@ import { waitingEncounters } from './legendary-gate'
 // leaves its perch and steps on top of the ball as its pixel sprite while the ball rolls (twice as fast when running);
 // on the ball's tab it steps in place of the floating art. With reduced motion everything holds still and jumps, and
 // the poses change only on a tap.
+// The bar floats over the page: the screen runs on behind the Pokemon and the ball, down past the bottom of the
+// notch, and the page color fills in only below that, where the bar hides the edge. That overlap is reported as the
+// tab bar's height (useBottomTabBarHeight), which the screens add to their bottom padding.
 type Mascot = {
   walker: string,
   art: Record<'grin' | 'blink' | 'boo' | 'paws', ImageSourcePropType>,
@@ -112,6 +116,9 @@ const FLOAT_Y = -10
 const AURA = 98          // the shadow aura around it
 const WISPS = [{ x: -20, size: 14, delay: 0 }, { x: 17, size: 12, delay: 900 }, { x: -2, size: 10, delay: 1700 }]
 const STRIDER = 46       // the stepping Pokemon on the ball during an adventure
+// How far above the end of the page (the bottom of the notch) the floating Pokemon reaches at the top of its bob and
+// hop, for what floats over the ball's tab to keep clear of it.
+export const FLOAT_REACH = NOTCH + FLOAT / 2 - FLOAT_Y + 5 + 6
 const useNativeDriver = Platform.OS !== 'web'
 const strides = walkingFrames as Record<string, ImageSourcePropType[]>
 
@@ -311,6 +318,12 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   const count = state.routes.length
   // With an odd number of tabs the middle one is the ball; otherwise every tab is a plain slot.
   const middle = count % 2 ? (count - 1) / 2 : -1
+  // The room above the bar, and how far the page runs on behind it: past the notch, or to the bar's middle, where its
+  // rounded ends reach out to the sides.
+  const above = middle >= 0 ? TOP_ROOM : 6
+  const overlap = above + (middle >= 0 ? BUTTON_Y + NOTCH : BAR / 2)
+  const reportHeight = useContext(BottomTabBarHeightCallbackContext)
+  useEffect(() => { reportHeight?.(barHidden ? 0 : overlap) }, [reportHeight, barHidden, overlap])
   const rowWidth = width - 2 * INSET
   // At least 1 even before the bar is measured, so the tab positions the animations interpolate between stay in order.
   const side = Math.max(1, middle < 0 ? rowWidth / count : (rowWidth - CENTER_SLOT) / (count - 1))
@@ -459,10 +472,10 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   })
   const middleTab = middle >= 0 ? tabs[middle] : null
 
-  return <View style={[styles.wrap, { paddingTop: middle >= 0 ? TOP_ROOM : 6, paddingBottom: Math.max(insets.bottom, 10),
+  return <View pointerEvents="box-none" style={[{ marginTop: -overlap, paddingTop: above, paddingBottom: Math.max(insets.bottom, 10),
     paddingHorizontal: 14 + Math.max(insets.left, insets.right) }, barHidden && { display: 'none' }]}>
-    {/* Page content fades into the page color just above the bar instead of ending on a hard edge. */}
-    <View pointerEvents="none" style={[styles.fade, gradient(`linear-gradient(180deg, ${colors.bg}00 0%, ${colors.bg} 100%)`, 'transparent')]} />
+    {/* The page color from where the page ends, behind the bar, to the bottom of the screen. Above it the page shows. */}
+    <View style={[styles.floor, { top: overlap }]} />
     <View style={styles.bar} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
       {width > 0 && sides.length > 0 && !moving && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
         style={[styles.perch, { width: side, transform: perch }]}>
@@ -541,8 +554,7 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
 }
 
 const styles = themedStyles(() => ({
-  wrap: { backgroundColor: colors.bg },
-  fade: { position: 'absolute', left: 0, right: 0, top: -16, height: 16 },
+  floor: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.bg },
   bar: { width: '100%', maxWidth: 520, alignSelf: 'center', height: BAR, borderRadius: BAR / 2,
     boxShadow: `0px 10px 20px ${colors.tabShadow}` },
   row: { position: 'absolute', left: INSET, top: INSET, height: ROW, flexDirection: 'row' },

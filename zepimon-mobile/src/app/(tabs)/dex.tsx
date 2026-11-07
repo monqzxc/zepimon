@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { router } from 'expo-router'
+import { useBottomTabBarHeight } from 'expo-router/tabs'
 import { Animated, Platform, Pressable, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useJournal } from '../../store'
@@ -34,6 +35,8 @@ function VariantMark({ variant, color }: { variant: DexVariant, color: string })
 export default function DexScreen() {
   useTheme()
   const reduced = useReducedMotion()
+  // The list runs on behind the floating tab bar, so its end is padded clear of it.
+  const tabBar = useBottomTabBarHeight()
   const { journal, dex } = useJournal()
   const [filter, setFilter] = useState<DexFilter>(defaultDexFilter)
   const [sheet, setSheet] = useState<Sheet>(null)
@@ -102,7 +105,7 @@ export default function DexScreen() {
       windowSize={5} initialNumToRender={12} maxToRenderPerBatch={12}
       keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" scrollEventThrottle={16}
       onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scroll } } }], { useNativeDriver: native })}
-      contentContainerStyle={[styles.content, { gap: 0, paddingTop: 4, paddingHorizontal: 16 - GAP }]}
+      contentContainerStyle={[styles.content, { gap: 0, paddingTop: 4, paddingBottom: 40 + tabBar, paddingHorizontal: 16 - GAP }]}
       ListHeaderComponent={entries.length > 0 ? <View style={look.note}>
         {filtering ? <ResultLine text={`${filtered.length} of ${entries.length} Pokemon`} onClear={clear} />
           : <Copy small>Tap a Pokemon to say hello. Tap its card to view its record.</Copy>}

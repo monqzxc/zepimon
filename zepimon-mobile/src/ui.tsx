@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useContext, useEffect, useRef } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { ColorValue, StyleProp, ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { BottomTabBarHeightContext } from 'expo-router/tabs'
 import { SymbolView } from 'expo-symbols'
 import type { AndroidSymbol, SFSymbol } from 'expo-symbols'
 import { pokemonType, typeColors } from './catalog'
@@ -170,13 +171,16 @@ export function PokeballIcon({ size = 22, color = colors.ink, stroke = Math.max(
 // fill stops the page scrolling so a child with flex: 1 takes the rest of the screen, like a running battle.
 // full is for full-screen games with the tab bar hidden: it keeps clear of the bottom safe area and trims the padding.
 // fill: lay out to the screen instead of scrolling. full: full-screen play, inside every safe-area edge. edge: full
-// screen with no padding at all, for a map that fills the safe area (PlayOverlay).
+// screen with no padding at all, for a map that fills the safe area (PlayOverlay). On a tab the page runs on behind the
+// floating tab bar, so its end is padded clear of it.
 export function Screen({ children, fill = false, full = false, edge = false }: React.PropsWithChildren<{ fill?: boolean, full?: boolean, edge?: boolean }>) {
   const scroll = useRef<ScrollView>(null)
+  const tabBar = useContext(BottomTabBarHeightContext) ?? 0
   useEffect(() => { if (fill) scroll.current?.scrollTo({ y: 0, animated: false }) }, [fill])
+  const content = [styles.content, fill && styles.contentFill, full && styles.contentFull, edge && styles.contentEdge]
   return <SafeAreaView style={styles.screen} edges={full || edge ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
     <ScrollView ref={scroll} scrollEnabled={!fill && !edge} keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.content, fill && styles.contentFill, full && styles.contentFull, edge && styles.contentEdge]}>
+      contentContainerStyle={[content, tabBar > 0 && { paddingBottom: Number(StyleSheet.flatten(content).paddingBottom ?? 0) + tabBar }]}>
       {children}
     </ScrollView>
   </SafeAreaView>
@@ -193,7 +197,7 @@ export function Habitat({ name, shiny = false, children }: React.PropsWithChildr
 export const styles = themedStyles(() => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 16 },
-  // The bottom padding keeps the end of the screen clear of the Gengar peeking over the tab bar (src/TabBar.tsx).
+  // On a tab, Screen adds the tab bar's height to these bottom paddings (src/TabBar.tsx).
   contentFill: { flexGrow: 1, paddingBottom: 16 },
   contentFull: { paddingHorizontal: 10, paddingTop: 6, paddingBottom: 8 },
   contentEdge: { flexGrow: 1, maxWidth: '100%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0 },

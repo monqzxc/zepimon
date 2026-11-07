@@ -4,9 +4,9 @@ const vm = require('node:vm')
 
 const context = vm.createContext({})
 vm.runInContext('(function(){' + fs.readFileSync('page/catalog.js', 'utf8').replace(/export /g, '') +
-  '\nglobalThis.catalog = { routes, species, megaForms, gigantamaxForms, sprites, shinySprites, legacyRoutes } })()', context)
-Object.assign(context, { catalogRoutes: context.catalog.routes, species: context.catalog.species, megaForms: context.catalog.megaForms,
-  gigantamaxForms: context.catalog.gigantamaxForms, sprites: context.catalog.sprites, shinySprites: context.catalog.shinySprites })
+  '\nglobalThis.catalog = { routes, species, megaForms, gigantamaxForms, sprites, shinySprites, legacyRoutes, speciesIds, speciesGeneration, spriteFile } })()', context)
+Object.assign(context, { catalogRoutes: context.catalog.routes, megaForms: context.catalog.megaForms, gigantamaxForms: context.catalog.gigantamaxForms,
+  speciesIds: context.catalog.speciesIds, speciesGeneration: context.catalog.speciesGeneration, spriteFile: context.catalog.spriteFile })
 // In its own scope: forms.js and pokemon.js both name a megaChoices and a nextMilestone, by family and by route.
 vm.runInContext('(function(){' + fs.readFileSync('shared/forms.js', 'utf8').replace(/^import .*\r?\n/gm, '').replace(/export /g, '') +
   '\nglobalThis.forms = { MEGA_AT, DYNAMAX_AT, GIGANTAMAX_AT, megaChoices, gigantamaxChoices, formChoices, formStages, earnedForms, nextMilestone, previousMilestone, milestoneLabel, formDistance, baseSpecies, spriteForm } })()', context)
@@ -150,6 +150,23 @@ assert.equal(context.logic.rollShiny(() => 0.02), false)
 // The catalog builds its sprite paths from Dex numbers; every one must be a real file.
 for (const path of Object.values(context.catalog.sprites)) assert.ok(fs.existsSync('assets/bip-5-unity/' + path), path)
 for (const path of Object.values(context.catalog.shinySprites)) assert.ok(fs.existsSync('assets/bip-5-unity/' + path))
+// The watch looks sprites up instead of keeping the tables, with the same answers.
+for (const name of Object.keys(context.catalog.sprites)) {
+  assert.equal(context.logic.spritePath(name), context.catalog.sprites[name])
+  assert.equal(context.logic.spritePath(name, true), context.catalog.shinySprites[name])
+}
+assert.equal(context.logic.spritePath('Not a Pokemon'), 'pokemon/egg.png')
+assert.equal(context.logic.speciesCount, Object.keys(context.catalog.species).length)
+// The tables cost the adventure screen about 200 KB of the watch's JS memory, enough that it opened to a black
+// screen: no watch file imports them, and they stay marked pure so the watch's bundler leaves them out.
+const watchFiles = ['page', 'shared'].flatMap(dir => fs.readdirSync(dir).filter(file => file.endsWith('.js')).map(file => dir + '/' + file))
+for (const file of watchFiles) {
+  const catalogImports = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(line => /^import .*\/catalog'/.test(line)).join('\n')
+  assert.ok(!/\b(species|sprites|shinySprites)\b/.test(catalogImports), file + ' must not import the catalog tables')
+}
+for (const name of ['species', 'sprites', 'shinySprites']) {
+  assert.match(fs.readFileSync('page/catalog.js', 'utf8'), new RegExp('^export const ' + name + ' = /\\*#__PURE__\\*/ \\(\\(\\) => \\{$', 'm'))
+}
 assert.equal(new Set(routes.flat()).size, 1025)
 for (let id = 1; id <= 1025; id++) assert.ok(Object.values(context.catalog.species).some(s => s.id === id))
 assert.equal(Object.keys(context.catalog.megaForms).length, 87)
@@ -453,6 +470,7 @@ vm.runInContext('Math.random = () => { shinyRolls++; return randomValue }', cont
 context.testNow = 100000
 vm.runInContext('Date.now = () => testNow', context)
 vm.runInContext(fs.readFileSync('page/walk-sprites.js', 'utf8').replace(/export /g, '') + '\nglobalThis.walkSprites = walkSprites', context)
+assert.ok(Object.values(context.walkSprites).every(value => value === 1), 'The walking table holds no text for the watch to keep')
 for (const name of Object.keys(context.walkSprites)) {
   for (const shiny of [false, true]) {
     const png = fs.readFileSync('assets/bip-5-unity/' + context.logic.spritePath(name, shiny))

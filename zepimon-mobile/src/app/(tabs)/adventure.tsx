@@ -3,6 +3,7 @@ import { Animated, Easing, Image, Platform, Pressable, Text, View, useWindowDime
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
 import type { ImageSourcePropType } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
+import { useBottomTabBarHeight } from 'expo-router/tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useJournal } from '../../store'
 import { averagePace, duration, km, recordForm } from '../../journal'
@@ -14,7 +15,7 @@ import { DynamaxAura } from '../../Sprite'
 import { spriteForm } from '../../generated/forms.js'
 import { walkingFrames } from '../../generated/walking.js'
 import { currentForm, currentPace, earnedForms, encodePath, expeditionNews, finishAdventure, formChoices, formStages, gigantamaxChoices, megaChoices,
-  milestoneLabel, nextMilestone, openEggs, phoneTrail, previousMilestone } from '../../phone-adventure'
+  nextMilestone, openEggs, phoneTrail } from '../../phone-adventure'
 import type { ActiveAdventure, Activity, PhoneRun } from '../../phone-adventure'
 import { clearAdventure, checkLocation, continueAdventure, currentAdventure, dismissHandOver, openLocationSettings, resumeAdventure, setScreenOnly, startAdventure, stopAdventure, useTracker } from '../../tracker'
 import { onWatch, sharedPace, sharedPokemon } from '../../shared-adventure'
@@ -405,15 +406,21 @@ function Walker({ name, shiny, activity, size }: { name: string, shiny: boolean,
   </Animated.View>
 }
 
-// The adventure's Pokemon stepping along, with the distance to its next hatch, evolution, Mega, Dynamax or Gigantamax
-// form. status is the pill in the corner, with a red dot while live.
+// What waits for the adventure's Pokemon, kept a mystery: no distance to its next hatch or form, only a nudge to keep
+// going, until its final form.
+function mystery(form: string, activity: Activity, final: boolean) {
+  if (final) return 'Final form reached!'
+  const verb = activity === 'running' ? 'running' : 'walking'
+  return form === 'Egg' ? `Something stirs inside… keep ${verb} to see what hatches` : `Keep ${verb}. Who knows what happens next?`
+}
+
+// The adventure's Pokemon stepping along, and a hint of what may come (mystery). status is the pill in the corner, with
+// a red dot while live.
 function Stage({ family, meters, mega, shiny, activity, status, live }: {
   family: string[], meters: number, mega: string | null, shiny: boolean, activity: Activity, status: string, live: boolean
 }) {
   const form = currentForm(family, meters, mega)
   const next = nextMilestone(family, meters)
-  const previous = previousMilestone(family, meters)
-  const progress = next === null ? 1 : Math.max(0, Math.min(1, (meters - previous) / (next - previous)))
   return <View style={[adventure.stage, { backgroundColor: typeTints[pokemonType(form === 'Egg' ? family[0] : form)] }]}>
     <View style={[styles.row, { justifyContent: 'space-between' }]}>
       <Eyebrow>{activity === 'running' ? 'RUNNING' : 'WALKING'}</Eyebrow>
@@ -422,11 +429,7 @@ function Stage({ family, meters, mega, shiny, activity, status, live }: {
     </View>
     <View style={{ alignItems: 'center' }}><Walker name={form} shiny={shiny} activity={activity} size={132} /></View>
     <Heading>{(shiny ? 'Shiny ' : '') + (form === 'Egg' ? `${family[0]} egg` : form)}</Heading>
-    <Copy small color={colors.ink}>{next === null ? 'Final form reached!' : `${km(next - meters)} to ${milestoneLabel(next)}`}</Copy>
-    <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
-      style={[styles.track, { backgroundColor: glass(0.7) }]}>
-      <View style={[styles.fill, { width: `${progress * 100}%`, backgroundColor: colors.edge }]} />
-    </View>
+    <Copy small color={colors.ink}>{mystery(form, activity, next === null)}</Copy>
   </View>
 }
 
@@ -538,8 +541,10 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
   const [confirm, setConfirm] = useState<'finish' | 'discard' | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  // The tab's own height: the tab bar sits below it, over the bottom of the sheet.
+  // The tab's own height: the tab bar sits below it, over the bottom of the sheet. Its top part floats over the tab
+  // (tabBar), so the footer stands on it and the map and sheet split what is left.
   const [box, setBox] = useState(screen)
+  const tabBar = useBottomTabBarHeight()
   useFocusEffect(useCallback(() => {
     setNow(Date.now())
     const timer = setInterval(() => setNow(Date.now()), 1000)
@@ -558,13 +563,11 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
   const live = liveAdventure(active, now)
   const kilometres = splits(live)
   const next = nextMilestone(active.family, active.meters)
-  const previous = previousMilestone(active.family, active.meters)
-  const progress = next === null ? 1 : Math.max(0, Math.min(1, (active.meters - previous) / (next - previous)))
   const stages = stagesOf(active)
   const started = new Date(active.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
   const name = (active.shiny ? 'Shiny ' : '') + (form === 'Egg' ? `${active.family[0]} egg` : form)
   const FOOTER = 84
-  const edge = Math.round(box * 0.5)
+  const edge = Math.round((box - tabBar) * 0.5)
   const high = insets.top + BAR + 8
   const [y] = useState(() => new Animated.Value(edge))
 
@@ -624,7 +627,7 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
       </View>
     </View>
 
-    <BottomSheet low={edge} high={high} y={y} contentStyle={[adventure.liveContent, { paddingBottom: FOOTER + screen - box + insets.bottom + 24 }]}
+    <BottomSheet low={edge} high={high} y={y} contentStyle={[adventure.liveContent, { paddingBottom: FOOTER + tabBar + screen - box + insets.bottom + 24 }]}
       header={<View style={adventure.liveTop}><View style={adventure.grabber} /></View>}>
       {!recording && <View style={[adventure.alertCard, { backgroundColor: colors.goldTint }]}>
         <Text style={[adventure.alertTitle, { color: colors.gold }]}>Recording stopped</Text>
@@ -647,10 +650,7 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
         </View>
         <View style={{ flex: 1, gap: 6 }}>
           <Text numberOfLines={1} style={adventure.heroName}>{name}</Text>
-          <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }} style={adventure.heroTrack}>
-            <View style={[adventure.heroFill, { width: `${progress * 100}%`, backgroundColor: ink }]} />
-          </View>
-          <Text style={adventure.heroNext}>{next === null ? 'Final form reached' : `${km(next - active.meters)} to ${milestoneLabel(next)}`}</Text>
+          <Text style={adventure.heroNext}>{mystery(form, active.activity, next === null)}</Text>
         </View>
       </View>
 
@@ -680,7 +680,7 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
           const at = done ? secondsAt(active, stage.meters) : null
           return <TimelineRow key={stage.name} sprite={stage.name} shiny={active.shiny} done={done} last={i === stages.length - 1} ink={ink}
             title={`${stage.verb} into ${stage.name}`}
-            detail={done ? `${stage.meters / 1000} km${at !== null ? ` · ${clock(at)}` : ''}` : `At ${stage.meters / 1000} km · ${km(stage.meters - active.meters)} to go`} />
+            detail={done ? `${stage.meters / 1000} km${at !== null ? ` · ${clock(at)}` : ''}` : 'Keep going to find out'} />
         })}
       </View>
 
@@ -705,7 +705,7 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
       </View>}
     </BottomSheet>
 
-    <View style={[adventure.liveFooter, { height: FOOTER }]}>
+    <View style={[adventure.liveFooter, { height: FOOTER + tabBar, paddingBottom: tabBar }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Discard" onPress={() => setConfirm('discard')}
         style={({ pressed }) => [adventure.discard, { opacity: pressed ? 0.7 : 1 }]}>
         <Icon name="close" size={24} color={colors.danger} />
@@ -748,7 +748,7 @@ function LiveStat({ value, label, divided = false }: { value: string, label: str
   </View>
 }
 
-// A step of the egg's journey: the form, then when it was reached, or how far it is. A line joins the steps, coloured
+// A step of the egg's journey: the form, then when it was reached; one ahead keeps how far it is a secret. A line joins the steps, coloured
 // up to the latest one reached. A form not reached yet is a silhouette with its name hidden, as in the games, until the
 // adventure gets there.
 function TimelineRow({ sprite, shiny, title, detail, done, first = false, last, ink }: {
@@ -857,8 +857,6 @@ const adventure = themedStyles(() => ({
   hero: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   heroArt: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' },
   heroName: { fontFamily: displayFont(fonts.black), fontSize: retro() ? 18 : 21, lineHeight: 27, color: colors.ink },
-  heroTrack: { height: 10, borderRadius: 5, overflow: 'hidden', backgroundColor: colors.sunken },
-  heroFill: { height: 10, borderRadius: 5 },
   heroNext: { fontFamily: fonts.bold, fontSize: 13, color: colors.muted },
   liveStats: { backgroundColor: colors.sunken, borderRadius: 18 },
   distance: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 6, paddingTop: 16 },

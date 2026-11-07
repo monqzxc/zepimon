@@ -1,4 +1,5 @@
-import { routes as catalogRoutes, species, sprites, shinySprites } from './catalog'
+// Never the catalog's species and sprite tables: the watch has no memory to spare for them (see catalog.js).
+import { routes as catalogRoutes, speciesIds, speciesGeneration, spriteFile } from './catalog'
 import { pokemonTypes } from './types'
 import { ensureExpedition } from '../shared/expedition'
 import { formChoices, earnedForms, nextMilestone as nextFormMilestone, formDistance, spriteForm } from '../shared/forms'
@@ -9,8 +10,8 @@ export function dexPokemon(dex) {
   return Object.keys(names)
 }
 export const routes = catalogRoutes
-export const speciesCount = Object.keys(species).length
-export function generation(route) { return species[routes[route][0]].gen }
+export const speciesCount = Object.keys(speciesIds).length
+export function generation(route) { return speciesGeneration(routes[route][0]) }
 // The forms picked before setting off, kept as the adventure's mega: its Mega forms, or two Gigantamax forms.
 export function megaChoices(route) { return formChoices(routes[route]) }
 export function rollShiny(random = Math.random) { return Math.floor(random() * 50) === 0 }
@@ -111,7 +112,7 @@ function currentSpeed(tracker, meters, now, activity) {
 export function spritePath(name, shiny = false) {
   name = spriteForm(name)
   if (name.indexOf('Shiny ') === 0) { name = name.slice(6); shiny = true }
-  return (shiny ? shinySprites[name] : sprites[name]) || sprites[name] || sprites.Egg
+  return spriteFile(name, shiny) || spriteFile('Egg')
 }
 export function collectionCount(dex) {
   const acquired = {}

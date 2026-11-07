@@ -1,9 +1,10 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native'
 import type { ImageSourcePropType, NativeScrollEvent, NativeSyntheticEvent } from 'react-native'
 import Svg, { Circle, Path, Polyline } from 'react-native-svg'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { BottomTabBarHeightContext } from 'expo-router/tabs'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Reanimated, { Easing as Ease, cancelAnimation, interpolate, useAnimatedStyle, useSharedValue, withDecay, withTiming } from 'react-native-reanimated'
 import type { SharedValue } from 'react-native-reanimated'
@@ -22,6 +23,7 @@ import type { Strip } from './games/TileWorld'
 import { trainerFrame } from './games/safari-view'
 import { OverworldSprite } from './games/OverworldSprite'
 import { Icon, colors, displayFont, fonts, gradient, retro, themedStyles, useTheme } from './ui'
+import { FLOAT_REACH } from './TabBar'
 
 // The Adventure tab's map: your distance as a place on one long route (src/adventure-route.ts). A stone pad marks every
 // 2 km, named for a town, city or route of Kanto, Johto, Hoenn, Sinnoh and Unova, ticked once you have walked that far
@@ -51,8 +53,10 @@ const NAMED = MILESTONE * 0.7
 const UNDERFOOT = MILESTONE * 0.24
 // Room above the farthest route for its sign, below the floating header.
 const AHEAD = 150
-// How far up from the bottom the card floats: clear of where the map fades into the tab bar.
+// How far the card floats above the bottom of the map, or, on the tab, above the Pokemon floating over the tab bar's
+// ball, which the map runs on behind.
 const LIFT = 24
+const FLOAT_GAP = 16
 // The folded card's bubble, and how the card folds into it and opens again.
 const BUBBLE = 58
 const FOLD = { duration: 340, easing: Ease.bezier(0.2, 0, 0, 1) }
@@ -93,6 +97,7 @@ export function RouteTrail({ meters, trainer, activity, buddy, reduced, card, ca
 }) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
+  const tabBar = useContext(BottomTabBarHeightContext) ?? 0
   const { width: screen } = useWindowDimensions()
   const [size, setSize] = useState<{ width: number, height: number } | null>(null)
   const [dockHeight, setDockHeight] = useState(240)
@@ -124,7 +129,7 @@ export function RouteTrail({ meters, trainer, activity, buddy, reduced, card, ca
   const mapBottom = top + layout.rows * tile
   // The card floats over the map, so the map scrolls on far enough to bring the trailhead above it. Folded, only its
   // bubble does.
-  const lift = LIFT
+  const lift = tabBar > 0 ? FLOAT_REACH + FLOAT_GAP : LIFT
   const room = folded && bubble ? BUBBLE : dockHeight
   const content = mapBottom + lift + room + 24
   // The map in view runs from under the place's name to the top of the card; your trainer stands a little below its

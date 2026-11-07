@@ -117,6 +117,25 @@ test('moving time leaves out stops, and every 100 m is timed for pacing', () => 
   assert.deepEqual([resumed.movingSeconds, resumed.pace], [null, { start: Math.floor(active.meters / 100) + 1, at: [], moving: [], elev: [] }], 'An adventure from before pacing logs from here on')
 })
 
+test('a GPS clock behind the phone, or an old first fix, still leaves a pace log that survives a restart', () => {
+  // The GPS timestamps its fixes by its own clock, here 20 s behind the phone's, and hands over a cached fix first.
+  let active = newAdventure(bulbasaur, 'running', null, start, () => 0.5)
+  active = addFix(active, { lat: 14.5, lng: 121, accuracy: 4, at: start - 60000 })
+  active = addFix(active, { lat: 14.5, lng: 121, accuracy: 4, at: start - 20000 })
+  const metersPerDegree = 111195
+  for (let i = 1; i <= 60; i++) active = addFix(active, { lat: 14.5 + i * 10 / metersPerDegree, lng: 121, accuracy: 4, at: start - 20000 + i * 3000 })
+  const { at, moving } = active.pace
+  assert.equal(at.length, 7)
+  assert.ok(at.every((time, i) => time >= (i ? at[i - 1] : 0)), `The clock never runs back or below zero, got ${at}`)
+  assert.ok(moving.every((time, i) => time <= at[i]), `Moving time never passes the clock, got ${moving} against ${at}`)
+  const run = finishAdventure(active, active.last.at)
+  assert.deepEqual(restorePhoneRuns(JSON.parse(JSON.stringify([run])))[0].pace, run.pace, 'The saved adventure keeps its splits')
+  assert.deepEqual(restoreActive(saveActive(active)).pace, active.pace, 'An adventure reloaded mid-way keeps logging from the start')
+  // Logs saved before this was fixed, with moving time a little ahead of the clock, are mended rather than dropped.
+  const skewed = { start: 0, at: [0, 25, 55, 85], moving: [0, 30, 60, 85], elev: [null, null, null, null] }
+  assert.deepEqual(restorePhoneRuns([{ ...run, pace: skewed }])[0].pace, { ...skewed, moving: [0, 25, 55, 85] })
+})
+
 test('altitude is smoothed and kept at every 100 m for the splits', () => {
   let active = newAdventure(bulbasaur, 'running', null, start, () => 0.5)
   const metersPerDegree = 111195

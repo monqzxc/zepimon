@@ -5,8 +5,8 @@
     "appName": "Zepimon",
     "appType": "app",
     "version": {
-      "code": 54,
-      "name": "1.23"
+      "code": 56,
+      "name": "1.25"
     },
     "icon": "icon.png",
     "vender": "zepp",
