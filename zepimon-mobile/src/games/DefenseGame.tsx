@@ -7,7 +7,7 @@ import { typeTheme } from '../HabitatScene'
 import { Button, Copy, Eyebrow, Heading, IconButton, Panel, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
-import { LANES, PATHS, TICK, tileAt, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
+import { EVOLVE_MS, LANES, PATHS, TICK, tileAt, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
   facingToward, gridSize, unitTarget, moveOf,
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
 import type { Battle, BattleSpec, Heading as Facing, Layout } from './battle'
@@ -20,6 +20,7 @@ import type { TeamCard } from './roster'
 import { PixelSprite, TeamPicker } from './TeamPicker'
 import { suggestTeam } from './suggest'
 import { ZoomPan } from './ZoomPan'
+import { EvolveFx, Impact } from './BattleFx'
 import { useGameLoop, useReducedMotion } from './hooks'
 
 export type BattleResult = { won: boolean, score: number, stars: number }
@@ -248,7 +249,8 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           // Two-step walk cycle from the game clock, offset per foe so a wave does not march in lockstep.
           const step = reduced ? 0 : (Math.floor(game.elapsed / (slowed ? STEP_MS * 2 : STEP_MS)) + enemy.id) % 2
           return <Mover key={enemy.id} x={at.x * cell - size / 2} y={top + at.y * cell - size / 2} size={size} reduced={reduced}>
-            <Foe name={enemy.name} size={size} ratio={enemy.hp / enemy.maxHp} boss={enemy.boss} slowed={slowed}
+            <Foe name={enemy.name} size={size} ratio={enemy.hp / enemy.maxHp} boss={enemy.boss} slowed={slowed} reduced={reduced}
+              hurt={game.strikes.some(strike => strike.foe === enemy.id && strike.kind !== 'wave' && game.elapsed - strike.start < 200)}
               poisoned={enemy.poisonUntil > game.elapsed} heading={enemyHeading(game, enemy)} step={step} />
           </Mover>
         })}
@@ -256,6 +258,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           <ShotSprite shot={shot} game={game} cell={cell} reduced={reduced} />
         </Mover>)}
         {game.strikes.filter(strike => strike.kind !== 'wave').map(strike => <Mover key={strike.id} x={strike.x * cell} y={top + strike.y * cell} size={0} reduced={reduced}>
+          <Impact move={strike.move} cell={cell} small={strike.kind === 'spread'} reduced={reduced} />
           <StrikeSprite strike={strike} elapsed={game.elapsed} cell={cell} reduced={reduced} />
         </Mover>)}
         {game.drops.map(drop => <Pressable key={drop.id} accessibilityRole="button" accessibilityLabel={`Collect ${drop.value} berries`}
@@ -433,8 +436,8 @@ function ShadowAura({ size, step, boss }: { size: number, step: number, boss: bo
 }
 
 // Shadow Pokemon are the normal strip under a dark tint, facing the way they walk; forms without walking art stay still.
-const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, heading, step }: {
-  name: string, size: number, ratio: number, boss: boolean, slowed: boolean, poisoned: boolean, heading: Facing, step: number
+const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, heading, step, hurt, reduced }: {
+  name: string, size: number, ratio: number, boss: boolean, slowed: boolean, poisoned: boolean, heading: Facing, step: number, hurt: boolean, reduced: boolean
 }) {
   const strip = walkers[name]
   const sprite = { width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }
@@ -447,11 +450,16 @@ const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, headi
       {strip ? <Strip source={strip} size={size} frame={frame} tint={FOE_RED} solid />
         : <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { tintColor: FOE_RED }]} />}
     </View>)}
-    <View style={{ position: 'absolute', left: 0, top: 0 }}>
+    {/* Struck just now: a white flash over the foe, and a jolt unless motion is reduced. */}
+    <View style={{ position: 'absolute', left: 0, top: 0, transform: [{ translateX: hurt && !reduced ? (step ? 1 : -1) * size * 0.06 : 0 }] }}>
       {strip ? <Strip source={strip} size={size} frame={frame} tint="#2a1240" /> : <>
         <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={sprite} />
         <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { position: 'absolute', tintColor: '#2a1240', opacity: 0.55 }]} />
       </>}
+      {hurt && <View style={{ position: 'absolute', left: 0, top: 0, opacity: 0.8 }}>
+        {strip ? <Strip source={strip} size={size} frame={frame} tint="#ffffff" solid />
+          : <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { tintColor: '#ffffff' }]} />}
+      </View>}
     </View>
     <View style={{ position: 'absolute', bottom: 0 }}><Health ratio={ratio} width={size * 0.7} /></View>
     {boss && <Text style={board.boss}>BOSS</Text>}
@@ -468,7 +476,23 @@ function Ally({ unit, game, size, reduced }: { unit: Battle['units'][number], ga
   const step = reduced ? 0 : (Math.floor(game.elapsed / (target ? STEP_MS : STEP_MS * 2)) + unit.id) % 2
   const acted = !reduced && actedRecently(game, unit)
   const [dx, dy] = !acted ? [0, 0] : target ? lungeOffset[heading] : [0, -1]
-  return <AllySprite name={unit.name} shiny={unit.shiny} size={size} frame={facing[heading] + step} dx={dx * size * 0.1} dy={dy * size * 0.1} />
+  // Evolving: the evolution plays over it for EVOLVE_MS (src/games/BattleFx.tsx), facing you. The Pokemon itself stays
+  // mounted underneath, hidden, so its new form is loaded and takes over without a blank frame.
+  const evolving = !!unit.from && unit.evolvedAt !== undefined && game.elapsed - unit.evolvedAt < EVOLVE_MS
+  const from = unit.from ?? unit.name
+  return <View style={{ width: size, height: size }}>
+    <View style={{ opacity: evolving ? 0 : 1 }}>
+      <AllySprite name={unit.name} shiny={unit.shiny} size={size} frame={facing[heading] + step} dx={dx * size * 0.1} dy={dy * size * 0.1} />
+    </View>
+    {evolving && <View style={StyleSheet.absoluteFill}>
+      <EvolveFx key={unit.evolvedAt} to={unit.name} size={size} reduced={reduced} draw={(form, white) => {
+        const name = form === 'from' ? from : unit.name
+        const strip = walkers[(unit.shiny ? 'Shiny ' : '') + name]
+        return strip ? <Strip source={strip} size={size} frame={facing.S} tint={white ? '#ffffff' : undefined} solid={white} />
+          : <PixelSprite name={name} shiny={unit.shiny} size={size} tint={white ? '#ffffff' : undefined} />
+      }} />
+    </View>}
+  </View>
 }
 const AllySprite = memo(function AllySprite({ name, shiny, size, frame, dx, dy }: { name: string, shiny: boolean, size: number, frame: number, dx: number, dy: number }) {
   const strip = walkers[(shiny ? 'Shiny ' : '') + name]

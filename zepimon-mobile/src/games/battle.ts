@@ -31,8 +31,11 @@ export type Effect = 'produce' | 'wall' | 'splash' | 'chain' | 'slow' | 'poison'
 export type Kit = { label: string, effect: Effect, cost: number, hp: number, damage: number, cooldown: number, range: number, power: number }
 export type BattleSpec = { layout: Layout, waves: number, difficulty: number, habitat: string, foes: string[], path: PathId, boss?: string }
 export type Spawn = { at: number, name: string, wave: number, boss: boolean, lane: number }
+// from and evolvedAt: the form it last evolved from, and when (game time), for the board's evolution animation.
 export type Unit = { id: number, name: string, shiny: boolean, col: number, row: number, hp: number, maxHp: number, ready: number,
-  family: string[], evolves: boolean, spent: number, egg: boolean }
+  family: string[], evolves: boolean, spent: number, egg: boolean, from?: string, evolvedAt?: number }
+// How long the board plays an evolution.
+export const EVOLVE_MS = 1500
 export type Enemy = { id: number, name: string, type: string, wave: number, boss: boolean, hp: number, maxHp: number, speed: number,
   lane: number, progress: number, slowUntil: number, poisonUntil: number, poisonDps: number, reward: number }
 // move is the type whose move the shot shows: the attacker's own, or its egg move's when that hits the target harder.
@@ -348,7 +351,7 @@ export function evolveUnit(game: Battle, id: number): Battle {
   const next = unit && nextForm(unit)
   if (game.status !== 'playing' || !unit || !next || game.berries < next.cost) return game
   const hp = unitHealth(next.name, game.layout, unit.egg)
-  const evolved = { ...unit, name: next.name, hp, maxHp: hp, spent: unit.spent + next.cost }
+  const evolved = { ...unit, name: next.name, hp, maxHp: hp, spent: unit.spent + next.cost, from: unit.name, evolvedAt: game.elapsed }
   return { ...game, berries: game.berries - next.cost, units: game.units.map(item => item === unit ? evolved : item) }
 }
 
