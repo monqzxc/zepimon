@@ -564,7 +564,7 @@ test('a plain bump costs step time and keeps input; eventful ones let go', () =>
 })
 
 test('signature rooms belong to their Legendary, name their own relics and clear with their own words', () => {
-  for (const name of ['Articuno', 'Zapdos', 'Moltres', 'Kyogre', 'Groudon', 'Rayquaza', 'Raikou', 'Entei', 'Suicune', 'Regirock', 'Regice', 'Registeel', 'Regigigas', 'Latias', 'Latios']) {
+  for (const name of ['Articuno', 'Zapdos', 'Moltres', 'Kyogre', 'Groudon', 'Rayquaza', 'Raikou', 'Entei', 'Suicune', 'Regirock', 'Regice', 'Registeel', 'Regigigas', 'Latias', 'Latios', 'Uxie', 'Mesprit', 'Azelf']) {
     const id = `sig-${name.toLowerCase()}`
     assert.equal(signatureRoom(name), id)
     assert.equal(trialStages[id].legendary, name)

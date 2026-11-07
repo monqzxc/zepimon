@@ -466,7 +466,7 @@ export const trialStages = {
       "#.~.:.....:.~.#",
       "#.~.~~~=~~~.~.#",
       "#.:.~~.X.~~.:.#",
-      "#.~.~~~~~~~.~.#",
+      "#g~.~~~~~~~.~g#",
       "#.~.:..*..:.~.#",
       "#.~~~~~~~~~~~.#",
       "#.O_..#..._O..#",
@@ -701,5 +701,61 @@ export const trialStages = {
     warps: { "1": "2", "2": "1" }, open: "", crackAll: false, dark: true, par: 52, hint: "At dusk the island is split in two. Cross by the stones or the paired pads, and remember each stone holds only once.",
     star: null, legendary: "Latios", flavor: {"relic": "blue plume", "relics": "blue plumes", "water": "The pond is deep. Look for the stepping stones.", "clear": "Dusk settles on the island. Latios appears!"},
     chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-uxie": {
+    id: "sig-uxie", kind: "warp",
+    tiles: [
+      "###############",
+      "#@..1.#~#*.4.*#",
+      "#.##..#~#.#...#",
+      "#..:..#~#..:..#",
+      "#.#:#.#~#.#:#.#",
+      "#.....#~#....*#",
+      "#*#.#:#~#.#.#.#",
+      "#...:.#~#..:..#",
+      "#.##..#~#..#..#",
+      "#..3.*#~#.2.X.#",
+      "###############"
+    ],
+    warps: { "1": "2", "2": "1", "3": "4", "4": "3" }, open: "", crackAll: true, dark: false, par: 52, hint: "The cave remembers every step: each cracked tile must break once, and only once. The paired pads cross the falls both ways.",
+    star: null, legendary: "Uxie", flavor: {"relic": "memory stone", "relics": "memory stones", "water": "The falls are far too strong to cross.", "clear": "Every step remembered. Uxie opens its eyes!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-mesprit": {
+    id: "sig-mesprit", kind: "warp",
+    tiles: [
+      "###############",
+      "#*.gg....gg...#",
+      "#.~~~~~~~~~~~.#",
+      "#.~2.g.@.g..~.#",
+      "#.~.~~~~~~~.~g#",
+      "#.:.~4*.X~~*~.#",
+      "#.~.~~~~~~~.~.#",
+      "#g~.g....g..~.#",
+      "#.~~~~~3~~~~~.#",
+      "#.....gg....#1#",
+      "###############"
+    ],
+    warps: { "1": "2", "3": "4" }, open: "", crackAll: false, dark: false, par: 50, hint: "The pads only carry you inward, and the stepping stone carries you out just once. Gather what lies outside before you go in.",
+    star: null, legendary: "Mesprit", flavor: {"relic": "petal", "relics": "petals", "water": "The lake is calm, but deep.", "clear": "A warm feeling fills the garden. Mesprit appears!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-azelf": {
+    id: "sig-azelf", kind: "warp",
+    tiles: [
+      "#######!#######",
+      "#@...#..._#..*#",
+      "#..O.#....#._.#",
+      "#....#.O..#...#",
+      "#...1#...3#.O.#",
+      "#....#....#...#",
+      "#_..*#2..*#4..#",
+      "############=##",
+      "############X##",
+      "###############"
+    ],
+    warps: { "1": "2", "3": "4" }, open: "", crackAll: false, dark: true, par: 55, hint: "The pads only lead onward. Set each chamber’s boulder on its plate before you step on, for there is no going back.",
+    star: null, legendary: "Azelf", flavor: {"relic": "valor stone", "relics": "valor stones", "clear": "Only the brave come this far. Azelf awaits!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
   }
 }

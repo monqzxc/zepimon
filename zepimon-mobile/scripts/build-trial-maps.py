@@ -109,6 +109,15 @@ THEMES = {
     'south-dusk': dict(map='SouthernIsland_Interior', primary='general', secondary='rustboro', ground=0x001, path=0x204, grass=0x004,
                        water=None, shore=0x001, rock=0x2C1, cap=0x1D4, face=0x1DC, fill=0x1D4, pond=True,
                        wall_pattern=((0x1D4, 0x1D5), (0x1DC, 0x1DD)), tint=((150, 90, 170), 0.4)),
+    # The lake trio. Meteor Falls (Uxie): lilac stone, its pools and ridged rock.
+    'falls': dict(map='MeteorFalls_1F_1R', primary='general', secondary='meteor_falls', ground=0x201, path=0x229, grass=0x23C,
+                  water=0x170, shore=0x201, rock=0x232, cap=0x23E, face=0x22E, fill=0x244, pond=False),
+    # Route 117 (Mesprit): meadow, flowerbeds and sand path by the lake, fenced off from the tree lines.
+    'garden': dict(map='Route117', primary='general', secondary='mauville', ground=0x001, path=0x121, grass=0x20C,
+                   water=0x0A1, shore=0x001, rock=0x0C6, cap=0x016, face=0x149, fill=0x0C6, pond=False),
+    # Rusturf Tunnel (Azelf): the tunnel's ochre floor and mossy green rock.
+    'tunnel': dict(map='RusturfTunnel', primary='general', secondary='rusturf_tunnel', ground=0x201, path=0x202, grass=0x203,
+                   water=None, shore=0x201, rock=0x205, cap=0x209, face=0x219, fill=0x212, pond=True),
 }
 FLAVOR_KEYS = {'relic', 'relics', 'water', 'clear'}
 # The General tileset's pond by which sides are land: (north, south, west, east); other shapes use the middle.
