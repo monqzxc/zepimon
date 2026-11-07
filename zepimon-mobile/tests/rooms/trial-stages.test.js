@@ -1,9 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { startRoom, stepRoom } from '../src/games/trial.ts'
-import { trialStages } from '../src/generated/trial-maps.js'
-import { STAR } from './star-fixture.js'
-import { crystalPresses, solveRoom } from './trial-solver.js'
+import { startRoom, stepRoom } from '../../src/games/trial.ts'
+import { trialStages } from '../../src/generated/trial-maps.js'
+import { STAR } from '../star-fixture.js'
+import { crystalPresses, solveRoom } from '../trial-solver.js'
 
 const KINDS = ['switch', 'crumble', 'dark', 'temple', 'warp']
 const solved = new Map()

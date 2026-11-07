@@ -99,13 +99,15 @@ for (const layout of LAIR_LIST) {
     }
   })
 
-  test(`${layout.label}: walking out of the entrance leaves; anywhere else it is just a wall`, () => {
+  test(`${layout.label}: the portal never leads out; before any seal it is the shiny reset, after it a wall`, () => {
     let arena = startArena(layout, [], 3, T0)
-    assert.equal(arenaWalk(arena, layout.out, T0, MID).move, 'exit')
+    assert.equal(arenaWalk(arena, layout.out, T0, MID).move, 'reset', 'Before any seal, stepping onto the portal resets')
     assert.equal(arenaWalk(pauseArena(arena), layout.out, T0, MID).move, 'none', 'Not while paused')
-    const away = stepAway(arena)
-    arena = walkRoute(arena, [away], T0).arena
-    assert.notEqual(arenaWalk(arena, layout.out, T0 + 1000, MID).move, 'exit', 'Only from the doorway')
+    const sealed = arenaWalk(startArena(layout, ['wave'], 3, T0), layout.out, T0, MID)
+    assert.equal(sealed.move, 'bump', 'Once a seal is on, the portal holds')
+    assert.match(sealed.arena.message, /seal is on/)
+    arena = walkRoute(arena, [stepAway(arena)], T0).arena
+    assert.notEqual(arenaWalk(arena, layout.out, T0 + 1000, MID).move, 'reset', 'Only from the doorway')
     const bump = arenaWalk({ ...startArena(layout, [], 3, T0), at: layout.legendary.y > 0 ? { ...layout.legendary, y: layout.legendary.y + 1 } : layout.legendary }, 'north', T0, MID)
     if (bump.move === 'bump') assert.match(bump.arena.message, /Legendary/)
   })
@@ -163,7 +165,6 @@ for (const layout of LAIR_LIST) {
     assert.equal(arena.resonance, 0)
     assert.equal(arena.recoverUntil, arena.staggerUntil - STAGGER_MS + RECOVER_MS)
     assert.deepEqual(arena.seals, ['wave'], 'Seals already on stay on')
-    assert.equal(arenaWalk(arena, layout.out, now + 100, MID).move, 'exit', 'Walking out is always possible from the doorway')
     for (let t = now; t < arena.recoverUntil; t += 250) assert.equal(tick(arena, t).danger, null)
     arena = tick(arena, arena.recoverUntil)
     assert.equal(arena.resonance, 3)
@@ -286,4 +287,11 @@ test('saved walks this week add resonance, up to two more', () => {
   assert.deepEqual([0, 1, 2, 3, 10].map(maxResonance), [3, 4, 5, 5, 5])
   assert.equal(maxResonance(Number.NaN), 3)
   assert.equal(maxResonance(-4), 3)
+})
+
+test("on a revisit the lair's first line never offers the portal reset", () => {
+  const arena = startArena(LAIR_LIST[0], [], 3, T0)
+  assert.match(objective(arena), /portal/)
+  assert.doesNotMatch(objective(arena, false), /portal/)
+  assert.equal(objective(startArena(LAIR_LIST[0], ['wave'], 3, T0), false), objective(startArena(LAIR_LIST[0], ['wave'], 3, T0)), 'Later lines are the same')
 })

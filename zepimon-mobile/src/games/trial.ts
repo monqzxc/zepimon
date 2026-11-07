@@ -7,8 +7,10 @@ export type TrialKind = 'switch' | 'crumble' | 'dark' | 'temple' | 'warp' | 'sta
 export type StarNode = { id: string, at: [number, number], links: string[], turns: number, opens?: string }
 export type StarRules = { nodes: StarNode[], patterns: number, startLit: string[], target: { lit: string[], pattern: number }, resetOnFail: boolean,
   clues: { at: [number, number], text: string, reveals: string[] }[], hints: [string, string, string] }
+// A Legendary's signature room (`legendary` set) may name its relics, its water and the line it clears with.
+export type Flavor = { relic?: string, relics?: string, water?: string, clear?: string }
 export type Stage = { id: string, kind: TrialKind, tiles: readonly string[], warps: Record<string, string>, open: string, crackAll: boolean,
-  dark: boolean, par: number, hint: string, star: StarRules | null }
+  dark: boolean, par: number, hint: string, star: StarRules | null, legendary?: string, flavor?: Flavor | null }
 export type Room = { stage: string, at: Point, facing: Direction, buddy: Point, buddyFacing: Direction, moves: number, relics: string[], open: string,
   boulders: string[], holes: string[], doorsOpen: boolean, seen: string[], warpsUsed: string[], lit: string[], pattern: number, attunes: number,
   cluesRead: string[], status: 'playing' | 'fell' | 'cleared', message: string }
@@ -32,8 +34,8 @@ const WALKABLE = '.,g@*w_abc:O123456789'
 // Ground a boulder can rest on (the grid's own `O` is a boulder on ground).
 const GROUND = '.,g@w_O'
 
-function blockedText(tile: string): string {
-  if (tile === '~') return 'The water is too deep to cross.'
+function blockedText(tile: string, stage: Stage): string {
+  if (tile === '~') return stage.flavor?.water ?? 'The water is too deep to cross.'
   if (tile === '=') return 'The stone door is sealed.'
   if (tile === 'R') return 'A boulder is in the way.'
   if ('ABC'.includes(tile)) return 'The gate is shut.'
@@ -128,7 +130,7 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
   }
   if (tile === 'X' && !goalsMet(room, stage, room.at)) {
     const left = relicsIn(stage) - room.relics.length
-    const message = left ? `The seal holds. ${left} ${left === 1 ? 'relic remains' : 'relics remain'}.` : 'Cross every cracked tile to open the way.'
+    const message = left ? `The seal holds. ${left} ${relicWord(stage, left)} ${left === 1 ? 'remains' : 'remain'}.` : 'Cross every cracked tile to open the way.'
     return { room: { ...turned, message }, move: 'bump', events: ['locked'] }
   }
   const key = pointKey(next)
@@ -138,7 +140,7 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
     const far = { x: next.x + STEPS[direction].x, y: next.y + STEPS[direction].y }, farTile = tileAt(stage, far)
     let refusal = ''
     if (room.boulders.includes(pointKey(far))) refusal = "The boulder won't budge."
-    else if (farTile === '#' || farTile === '!') refusal = blockedText(farTile)
+    else if (farTile === '#' || farTile === '!') refusal = blockedText(farTile, stage)
     else if (!GROUND.includes(farTile)) refusal = "The boulder won't fit through there."
     else if (deadCells(stage).has(pointKey(far))) refusal = 'The boulder would get stuck there.'
     if (refusal) return { room: { ...turned, message: refusal }, move: 'bump', events }
@@ -147,7 +149,7 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
   }
   const gate = 'ABC'.includes(tile) && room.open.includes(tile)
   const door = tile === '=' && room.doorsOpen
-  if (tile !== 'X' && !gate && !door && !pushed && !WALKABLE.includes(tile) && tile !== '%') return { room: { ...turned, message: blockedText(tile) }, move: 'bump', events }
+  if (tile !== 'X' && !gate && !door && !pushed && !WALKABLE.includes(tile) && tile !== '%') return { room: { ...turned, message: blockedText(tile, stage) }, move: 'bump', events }
   let walked: Room = { ...turned, at: next, buddy: room.at, buddyFacing: direction, moves: room.moves + 1, boulders }
   let message = ''
   if (pushed && !room.doorsOpen && plates(stage).length && plates(stage).every(plate => boulders.includes(plate))) {
@@ -168,7 +170,8 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
     walked = { ...walked, relics: [...room.relics, key] }
     events.push('relic')
     const left = relicsIn(stage) - walked.relics.length
-    message = left ? `You found a relic! ${left} to go.` : 'You found the last relic! The seal opens.'
+    const one = relicWord(stage, 1)
+    message = left ? `You found ${/^[aeiou]/i.test(one) ? 'an' : 'a'} ${one}! ${left} to go.` : `You found the last ${one}! The seal opens.`
   }
   if ('abc'.includes(tile)) {
     const group = tile.toUpperCase()
@@ -191,7 +194,7 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
   if (tile === 'X') {
     walked = { ...walked, status: 'cleared' }
     events.push('clear')
-    message = 'The seal breaks. The way is open!'
+    message = stage.flavor?.clear ?? 'The seal breaks. The way is open!'
   }
   let move: RoomResult['move'] = pushed ? 'push' : 'step'
   const pair = /[1-9]/.test(tile) ? padAt(stage, stage.warps[tile]) : null
@@ -204,6 +207,9 @@ export function stepRoom(room: Room, stage: Stage, direction: Direction): RoomRe
   walked = { ...walked, seen: merge(merge(walked.seen, around(stage, next, stage.dark ? LIGHT : SIGHT)), around(stage, walked.at, stage.dark ? LIGHT : SIGHT)), message }
   return { room: walked, move, events }
 }
+
+// What this room's relics are called: a signature room's own word (a feather, an ember), or relic.
+export const relicWord = (stage: Stage, count: number) => count === 1 ? stage.flavor?.relic ?? 'relic' : stage.flavor?.relics ?? 'relics'
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && [...a].sort().every((id, i) => id === [...b].sort()[i])
 

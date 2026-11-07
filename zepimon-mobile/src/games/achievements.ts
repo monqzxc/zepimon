@@ -34,7 +34,9 @@ export function arcadeAchievements(records: ArcadeRecords): Achievement[] {
   const safariSpecies = new Set(Object.keys(safari).map(key => key.replace(/^Shiny /, ''))).size
   const safariShiny = Number(Object.keys(safari).some(key => key.startsWith('Shiny ')))
   const stages = generatedStages as Record<string, Stage>
-  const trialRoom = (kind: string) => Number([1, 2, 3].some(room => Object.hasOwn(trialRecords, `${kind}-${room}`)))
+  // A kind's main rooms, or any Legendary's signature room of that kind (what expeditions play now).
+  const trialRoom = (kind: string) => Number([1, 2, 3].some(room => Object.hasOwn(trialRecords, `${kind}-${room}`))
+    || Object.keys(trialRecords).some(id => stages[id]?.legendary !== undefined && stages[id].kind === kind))
   const trialPar = Object.entries(trialRecords).filter(([id, moves]) => Object.hasOwn(stages, id) && moves <= stages[id].par).length
   const won = Object.keys(bestMoves).length
   return [

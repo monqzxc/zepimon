@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { deadCells, goalsMet, hintTier, lit, planRoomWalk, resetAlignment, resonance, startRoom, stepRoom, walkOutcome } from '../src/games/trial.ts'
+import { deadCells, goalsMet, hintTier, lit, planRoomWalk, relicWord, resetAlignment, resonance, startRoom, stepRoom, walkOutcome } from '../src/games/trial.ts'
 import { STAR } from './star-fixture.js'
-import { KIND_NAMES, nextRoom, restartRoom, restartRun, restoreRun, restoreTrialRecords, runCleared, saveTrialRecords, startRun, trialFor } from '../src/games/trials.ts'
+import { KIND_NAMES, nextRoom, restartRoom, restartRun, restoreRun, restoreTrialRecords, runCleared, saveTrialRecords, signatureRoom, startRun, trialFor } from '../src/games/trials.ts'
 import { legendarySpecies } from '../src/generated/expedition.js'
 import { trialStages } from '../src/generated/trial-maps.js'
+import { solveRoom } from './trial-solver.js'
 
 const stage = (tiles, extra = {}) => ({ id: 't', kind: 'switch', tiles, warps: {}, open: '', crackAll: false, dark: false, par: 99, hint: '', star: null, ...extra })
 const press = (room, st, ...directions) => directions.reduce((result, direction) => stepRoom(result.room, st, direction), { room, move: 'none', events: [] })
@@ -406,11 +407,11 @@ test('tap-to-walk treats crystals as destinations and clues and the meteorite as
 })
 
 const KINDS = {
-  switch: ['Zapdos', 'Raikou', 'Ho-Oh', 'Jirachi', 'Magearna', 'Zeraora', 'Arceus'],
-  crumble: ['Articuno', 'Moltres', 'Suicune', 'Regice', 'Latias', 'Latios', 'Rayquaza', 'Heatran'],
-  dark: ['Entei', 'Celebi', 'Kyogre', 'Groudon', 'Giratina', 'Darkrai', 'Cresselia', 'Zygarde'],
-  temple: ['Lugia', 'Regirock', 'Registeel', 'Regigigas', 'Shaymin', 'Diancie', 'Phione', 'Manaphy'],
-  warp: ['Mewtwo', 'Mew', 'Uxie', 'Mesprit', 'Azelf', 'Dialga', 'Palkia'],
+  switch: ['Zapdos', 'Raikou', 'Dialga', 'Ho-Oh', 'Jirachi', 'Magearna', 'Zeraora', 'Arceus'],
+  crumble: ['Articuno', 'Moltres', 'Latias', 'Latios', 'Rayquaza', 'Heatran'],
+  dark: ['Entei', 'Regice', 'Celebi', 'Kyogre', 'Giratina', 'Darkrai', 'Cresselia', 'Zygarde'],
+  temple: ['Lugia', 'Groudon', 'Regirock', 'Regigigas', 'Shaymin', 'Diancie', 'Phione', 'Manaphy'],
+  warp: ['Mewtwo', 'Mew', 'Suicune', 'Registeel', 'Uxie', 'Mesprit', 'Azelf', 'Palkia'],
   star: ['Deoxys']
 }
 
@@ -433,12 +434,15 @@ test('every Legendary has a themed trial of its kind', () => {
 })
 
 test("room order follows the player's own clears", () => {
-  assert.deepEqual(trialFor('Zapdos', {}).stages, ['switch-tutorial', 'switch-1'])
+  assert.deepEqual(trialFor('Missingno', {}).stages, ['switch-tutorial', 'switch-1'])
   const records = { 'switch-tutorial': 12, 'switch-1': 60 }
-  assert.deepEqual(trialFor('Zapdos', records).stages, ['switch-2'])
-  assert.deepEqual(trialFor('Zapdos', { ...records, 'switch-2': 70 }).stages, ['switch-3'])
-  assert.deepEqual(trialFor('Zapdos', { ...records, 'switch-2': 70, 'switch-3': 80 }).stages, ['switch-3'])
-  assert.deepEqual(trialFor('Mew', { 'switch-1': 5 }).stages, ['warp-tutorial', 'warp-1'], 'Records of another kind do not count')
+  assert.deepEqual(trialFor('Missingno', records).stages, ['switch-2'])
+  assert.deepEqual(trialFor('Missingno', { ...records, 'switch-2': 70 }).stages, ['switch-3'])
+  assert.deepEqual(trialFor('Missingno', { ...records, 'switch-2': 70, 'switch-3': 80 }).stages, ['switch-3'])
+  assert.deepEqual(trialFor('Zapdos', {}).stages, ['switch-tutorial', 'sig-zapdos'], 'A signature room comes after its kind’s tutorial')
+  assert.deepEqual(trialFor('Zapdos', records).stages, ['sig-zapdos'], 'and is played every time, whatever else is cleared')
+  assert.deepEqual(trialFor('Articuno', { 'crumble-tutorial': 9 }).stages, ['sig-articuno'])
+  assert.deepEqual(trialFor('Mew', { 'switch-tutorial': 5 }).stages, ['warp-tutorial', 'sig-mew'], 'Records of another kind do not count')
   for (const anything of [{}, { star: 90 }]) {
     const trial = trialFor('Deoxys', anything)
     assert.deepEqual([trial.stages, trial.kind, trial.title], [['star'], 'star', 'Shattered Star'])
@@ -557,4 +561,46 @@ test('a plain bump costs step time and keeps input; eventful ones let go', () =>
   assert.deepEqual(walkOutcome({ move: 'warp', events: ['warp'] }), { moved: true, stop: true, drop: true })
   assert.equal(walkOutcome({ move: 'step', events: ['relic'] }).stop, true)
   assert.equal(walkOutcome({ move: 'step', events: ['switch'] }).stop, true)
+})
+
+test('signature rooms belong to their Legendary, name their own relics and clear with their own words', () => {
+  for (const name of ['Articuno', 'Zapdos', 'Moltres', 'Kyogre', 'Groudon', 'Rayquaza', 'Raikou', 'Entei', 'Suicune', 'Regirock', 'Regice', 'Registeel', 'Regigigas', 'Latias', 'Latios', 'Uxie', 'Mesprit', 'Azelf', 'Dialga', 'Palkia', 'Giratina']) {
+    const id = `sig-${name.toLowerCase()}`
+    assert.equal(signatureRoom(name), id)
+    assert.equal(trialStages[id].legendary, name)
+  }
+  assert.equal(signatureRoom('Missingno'), null, 'A shrine with no room of its own')
+  for (const name of legendarySpecies) {
+    if (name === 'Deoxys') continue
+    const id = signatureRoom(name)
+    assert.ok(id, `${name} has a room of its own`)
+    assert.equal(trialStages[id].kind, trialFor(name, {}).kind, `${name}: its room is of its trial's kind, so the tutorial before it teaches it`)
+  }
+  const ember = trialStages['sig-moltres']
+  assert.equal(relicWord(ember, 1), 'ember')
+  assert.equal(relicWord(ember, 3), 'embers')
+  assert.equal(relicWord(trialStages['switch-1'], 2), 'relics')
+  // Walk onto lava: its own refusal, not the water's.
+  const lava = ember.tiles.findIndex(row => row.includes('~'))
+  const start = startRoom(ember)
+  const toward = stepRoom({ ...start, at: { x: 1, y: lava } }, ember, 'east').room
+  assert.match(toward.message, /lava/)
+  // The minimum route clears with the room's own line, and finds embers along the way.
+  const messages = []
+  let room = startRoom(ember)
+  for (const direction of solveRoom(ember).route) { room = stepRoom(room, ember, direction).room; if (room.message) messages.push(room.message) }
+  assert.equal(room.status, 'cleared')
+  assert.equal(room.message, ember.flavor.clear)
+  assert.ok(messages.some(message => /You found an ember! 2 to go\./.test(message)), 'An ember, with its article')
+})
+
+test("Kyogre's currents run one way, so its pearls take the whole loop twice", () => {
+  const sea = trialStages['sig-kyogre']
+  const pads = Object.keys(sea.warps)
+  for (const pad of pads) assert.ok(!Object.hasOwn(sea.warps, sea.warps[pad]), `current ${pad} lands on a pad that does not lead straight back`)
+  const { route } = solveRoom(sea)
+  let room = startRoom(sea), rides = 0
+  for (const direction of route) { const result = stepRoom(room, sea, direction); room = result.room; if (result.move === 'warp') rides++ }
+  assert.equal(room.status, 'cleared')
+  assert.ok(rides > pads.length, `the shortest way rides ${rides} currents: the loop more than once`)
 })

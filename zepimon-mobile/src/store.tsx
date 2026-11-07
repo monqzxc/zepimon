@@ -14,7 +14,7 @@ import { legendaryPoints } from './games/achievements'
 import { allAdventures } from './adventures'
 import { runningTickets } from './running'
 import type { Quest } from './expedition-quest'
-import { activateSeal, catchEncounter, enterLair, finishTrial, leaveLair, legacyEncounters, restoreEncounters, saveCheckpoint,
+import { activateSeal, catchEncounter, enterLair, finishTrial, leaveLair, legacyEncounters, resetInLair, restoreEncounters, saveCheckpoint,
   stabilizeResonance } from './expedition-encounter'
 import type { Encounters, SealId } from './expedition-encounter'
 import { addSafariCatch, restoreSafariDex, withSafariCatches } from './games/safari'
@@ -36,7 +36,7 @@ type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<
 type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRecord>, importText: (text: string) => Promise<void>, importCloud: (text: string, owner: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void>, befriend: (key: string, index: number) => Promise<void>,
   finishTrial: (key: string, index: number, results: Record<string, number>) => Promise<void>,
   recordPracticeClear: (name: string, shiny: boolean, results: Record<string, number>) => Promise<void>, recordRematchWin: (name: string, shiny: boolean) => Promise<void>, saveTrialCheckpoint: (key: string, index: number, run: TrialRun) => Promise<void>, enterLair: (key: string, index: number) => Promise<void>,
-  leaveLair: (key: string, index: number, discardShiny: boolean) => Promise<void>, activateSeal: (key: string, index: number, seal: SealId) => Promise<void>,
+  leaveLair: (key: string, index: number, discardShiny: boolean) => Promise<void>, resetLair: (key: string, index: number, discardShiny: boolean) => Promise<void>, activateSeal: (key: string, index: number, seal: SealId) => Promise<void>,
   stabilizeResonance: (key: string, index: number) => Promise<void>,
   completeQuestChallenge: () => Promise<void>, earnPermit: () => Promise<void>, earnArcadePermit: () => Promise<void>, claimRunningTickets: () => Promise<void>, unlockWithPermit: (key: string) => Promise<void>, recordSafariCatch: (name: string, shiny: boolean) => Promise<void>, recordStars: (stop: string, stars: number) => Promise<void>,
   recordLevelStars: (level: string, stars: number) => Promise<void>, savePhoneRun: (run: PhoneRun) => Promise<void>, chooseEgg: (family: string[], mega: string | null) => Promise<void>,
@@ -133,7 +133,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   const recordArcadeScore = (game: ArcadeGame, score: number) => persist(current => ({
     ...current, arcadeScores: saveBestScore(current.arcadeScores, game, score)
   }))
-  // Legendary encounters (src/expedition-encounter.ts): trial, the roll in the lair, walking out to reroll and, only
+  // Legendary encounters (src/expedition-encounter.ts): trial, the roll in the lair, the shiny reset at its portal and, only
   // after a successful catch, the claim. Each step is saved, so leaving or reopening the app picks up where the player was.
   const befriend = (key: string, index: number) => persist(current => {
     const { expeditions, encounters } = catchEncounter(current, key, index)
@@ -151,6 +151,8 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   const enterEncounterLair = (key: string, index: number) => persist(current => ({ ...current, encounters: enterLair(current, key, index) }))
   const leaveEncounterLair = (key: string, index: number, discardShiny: boolean) =>
     persist(current => ({ ...current, encounters: leaveLair(current, key, index, discardShiny) }))
+  const resetEncounterLair = (key: string, index: number, discardShiny: boolean) =>
+    persist(current => ({ ...current, encounters: resetInLair(current, key, index, discardShiny) }))
   // The Legendary Resonance Trial (src/games/resonance.ts) in the lair, before the catch. Each step saves at once and is
   // safe to repeat: a seal already on or stabilizing twice changes nothing. Only the catch claims.
   const switchOnSeal = (key: string, index: number, seal: SealId) => persist(current => ({ ...current, encounters: activateSeal(current, key, index, seal) }))
@@ -184,7 +186,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   // Backups use the raw saved data, so the watch journal stays exactly as the watch sent it.
   const makeBackup = () => createBackup(latest.current, Date.now(), Constants.expoConfig?.version ?? '')
   return <Context.Provider value={{ ...saved, ...collectionOf(saved), ready, error, importText, importCloud, chooseBuddy, recordWin, recordArcadeScore,
-    befriend, finishTrial: finishEncounterTrial, recordPracticeClear, recordRematchWin, saveTrialCheckpoint, enterLair: enterEncounterLair, leaveLair: leaveEncounterLair,
+    befriend, finishTrial: finishEncounterTrial, recordPracticeClear, recordRematchWin, saveTrialCheckpoint, enterLair: enterEncounterLair, leaveLair: leaveEncounterLair, resetLair: resetEncounterLair,
     activateSeal: switchOnSeal, stabilizeResonance: steadyResonance,
     completeQuestChallenge, earnPermit: earnQuestPermit, earnArcadePermit: earnPointsPermit, claimRunningTickets, unlockWithPermit, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
     backupInfo: backupSummary(saved) }}>{children}</Context.Provider>
