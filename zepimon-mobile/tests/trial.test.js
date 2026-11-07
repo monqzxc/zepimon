@@ -564,7 +564,8 @@ test('a plain bump costs step time and keeps input; eventful ones let go', () =>
 })
 
 test('signature rooms belong to their Legendary, name their own relics and clear with their own words', () => {
-  for (const [name, id] of [['Articuno', 'sig-articuno'], ['Zapdos', 'sig-zapdos'], ['Moltres', 'sig-moltres']]) {
+  for (const name of ['Articuno', 'Zapdos', 'Moltres', 'Kyogre', 'Groudon', 'Rayquaza']) {
+    const id = `sig-${name.toLowerCase()}`
     assert.equal(signatureRoom(name), id)
     assert.equal(trialStages[id].legendary, name)
   }
@@ -585,4 +586,15 @@ test('signature rooms belong to their Legendary, name their own relics and clear
   assert.equal(room.status, 'cleared')
   assert.equal(room.message, ember.flavor.clear)
   assert.ok(messages.some(message => /You found an ember! 2 to go\./.test(message)), 'An ember, with its article')
+})
+
+test("Kyogre's currents run one way, so its pearls take the whole loop twice", () => {
+  const sea = trialStages['sig-kyogre']
+  const pads = Object.keys(sea.warps)
+  for (const pad of pads) assert.ok(!Object.hasOwn(sea.warps, sea.warps[pad]), `current ${pad} lands on a pad that does not lead straight back`)
+  const { route } = solveRoom(sea)
+  let room = startRoom(sea), rides = 0
+  for (const direction of route) { const result = stepRoom(room, sea, direction); room = result.room; if (result.move === 'warp') rides++ }
+  assert.equal(room.status, 'cleared')
+  assert.ok(rides > pads.length, `the shortest way rides ${rides} currents: the loop more than once`)
 })

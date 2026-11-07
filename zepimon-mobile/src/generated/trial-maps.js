@@ -476,5 +476,62 @@ export const trialStages = {
     warps: {}, open: "", crackAll: false, dark: false, par: 66, hint: "The crust crumbles once crossed, and only three bridges reach the ring. Set both boulders before you cross the last one.",
     star: null, legendary: "Moltres", flavor: {"relic": "ember", "relics": "embers", "water": "The lava is far too hot to cross.", "clear": "The caldera blazes. Moltres rises from the flames!"},
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-kyogre": {
+    id: "sig-kyogre", kind: "dark",
+    tiles: [
+      "###############",
+      "#@..#..~~~.#.*#",
+      "#.#.1..~~~3.#.#",
+      "#*#...!~~~....#",
+      "#...8..~~~.!.7#",
+      "#~~~~~~~~~~~~~#",
+      "#..6..~~~~2...#",
+      "#.#..!~~~~..#.#",
+      "#*..#.~~~~.#4.#",
+      "#....5~~~~..X.#",
+      "###############"
+    ],
+    warps: { "1": "3", "7": "2", "4": "5", "6": "8" }, open: "", crackAll: false, dark: true, par: 52, hint: "Each current runs one way only. Ride them round, and gather every pearl before you trust the last island.",
+    star: null, legendary: "Kyogre", flavor: {"relic": "pearl", "relics": "pearls", "water": "The current is far too strong to swim.", "clear": "The sea parts. Kyogre stirs in the deep!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-groudon": {
+    id: "sig-groudon", kind: "dark",
+    tiles: [
+      "#############",
+      "#@..#...~~.*#",
+      "#.O.#.O.~~..#",
+      "#...._....O.#",
+      "##.##.#.##..#",
+      "#._.....~~_.#",
+      "#...~~.....*#",
+      "######=######",
+      "######X######",
+      "#############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 50, hint: "Each boulder has one plate it can reach. Look before you push: a boulder against a wall stays there.",
+    star: null, legendary: "Groudon", flavor: {"relic": "fragment", "relics": "fragments", "water": "The magma would swallow you whole.", "clear": "The ground trembles. Groudon wakes beneath the stone!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-rayquaza": {
+    id: "sig-rayquaza", kind: "crumble",
+    tiles: [
+      "###############",
+      "#X....:...:..4#",
+      "##...:........#",
+      "#~~~~~~~~~~~~~#",
+      "#6....:...:..3#",
+      "#..:.......*..#",
+      "#~~~~~~~~~~~~~#",
+      "#5..:.....:2..#",
+      "#*....:.......#",
+      "#~~~~~~~~~~~~~#",
+      "#@...........1#",
+      "###############"
+    ],
+    warps: { "1": "2", "5": "6", "3": "4" }, open: "", crackAll: true, dark: false, par: 66, hint: "The stairs only climb. Break every cracked tile on a floor before you take its stairs up.",
+    star: null, legendary: "Rayquaza", flavor: {"relic": "scale", "relics": "scales", "water": "Nothing but open sky lies that way.", "clear": "The summit opens to the sky. Rayquaza descends!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
   }
 }

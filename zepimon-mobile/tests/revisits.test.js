@@ -93,7 +93,7 @@ test('a practice clear changes only trialRecords, keeping the lower moves', () =
   assert.deepEqual(worse.trialRecords, { 'switch-1': 80, star: 120 }, 'A slower clear keeps the old best')
   const fresh = practiceClear(before, 'Raikou', false, { 'switch-tutorial': 12 })
   assert.deepEqual(fresh.trialRecords, { 'switch-1': 80, star: 120, 'switch-tutorial': 12 }, 'A first clear is saved')
-  const island = practiceClear(before, 'Rayquaza', true, { 'crumble-3': 140 })
+  const island = practiceClear(before, 'Rayquaza', true, { 'sig-rayquaza': 140 })
   untouched(before, island)
   assert.deepEqual(before.trialRecords, { 'switch-1': 80, star: 120 }, 'The old state is never mutated')
 })

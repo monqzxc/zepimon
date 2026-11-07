@@ -71,6 +71,15 @@ THEMES = {
                  water=0x364, shore=0x31B, rock=0x317, cap=0x31C, face=0x329, fill=0x322,
                  pond={(1, 0, 1, 0): 0x36F, (1, 0, 0, 0): 0x36C, (1, 0, 0, 1): 0x36E, (0, 0, 1, 0): 0x36D, (0, 0, 0, 0): 0x364,
                        (0, 0, 0, 1): 0x36B, (0, 1, 1, 0): 0x36A, (0, 1, 0, 0): 0x369, (0, 1, 0, 1): 0x368}),
+    # Seafloor Cavern's last chamber (Kyogre): sandy seabed, the brown seabed rock, and the deep sea Kyogre sleeps in.
+    'seafloor': dict(map='SeafloorCavern_Room9', primary='general', secondary='cave', ground=0x211, path=0x2F1, grass=0x211,
+                     water=0x170, shore=0x211, rock=0x21A, cap=0x20D, face=0x209, fill=0x210, pond=False),
+    # Magma Hideout 4F (Groudon): the hideout's floor, Lavaridge's red rock (as on the Fiery Path) and its magma pool.
+    'magma': dict(map='MagmaHideout_4F', primary='general', secondary='lavaridge', ground=0x3A2, path=0x313, grass=0x3A2,
+                  water=0x2BD, shore=0x3A2, rock=0x30F, cap=0x30C, face=0x274, fill=0x271, pond=False),
+    # Sky Pillar's summit (Rayquaza): the tower's floor and cracks, its rubble and ledges, and open sky as the water.
+    'summit': dict(map='SkyPillar_Top', primary='general', secondary='pacifidlog', ground=0x234, path=0x235, grass=0x236,
+                   water=0x2C1, shore=0x234, rock=0x21F, cap=0x227, face=0x22F, fill=0x2C1, pond=False),
 }
 FLAVOR_KEYS = {'relic', 'relics', 'water', 'clear'}
 # The General tileset's pond by which sides are land: (north, south, west, east); other shapes use the middle.
