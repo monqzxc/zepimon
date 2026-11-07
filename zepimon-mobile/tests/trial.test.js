@@ -408,10 +408,10 @@ test('tap-to-walk treats crystals as destinations and clues and the meteorite as
 
 const KINDS = {
   switch: ['Zapdos', 'Raikou', 'Ho-Oh', 'Jirachi', 'Magearna', 'Zeraora', 'Arceus'],
-  crumble: ['Articuno', 'Moltres', 'Suicune', 'Regice', 'Latias', 'Latios', 'Rayquaza', 'Heatran'],
-  dark: ['Entei', 'Celebi', 'Kyogre', 'Groudon', 'Giratina', 'Darkrai', 'Cresselia', 'Zygarde'],
-  temple: ['Lugia', 'Regirock', 'Registeel', 'Regigigas', 'Shaymin', 'Diancie', 'Phione', 'Manaphy'],
-  warp: ['Mewtwo', 'Mew', 'Uxie', 'Mesprit', 'Azelf', 'Dialga', 'Palkia'],
+  crumble: ['Articuno', 'Moltres', 'Regice', 'Latias', 'Latios', 'Rayquaza', 'Heatran'],
+  dark: ['Entei', 'Celebi', 'Kyogre', 'Giratina', 'Darkrai', 'Cresselia', 'Zygarde'],
+  temple: ['Lugia', 'Groudon', 'Regirock', 'Registeel', 'Regigigas', 'Shaymin', 'Diancie', 'Phione', 'Manaphy'],
+  warp: ['Mewtwo', 'Mew', 'Suicune', 'Uxie', 'Mesprit', 'Azelf', 'Dialga', 'Palkia'],
   star: ['Deoxys']
 }
 
@@ -434,11 +434,11 @@ test('every Legendary has a themed trial of its kind', () => {
 })
 
 test("room order follows the player's own clears", () => {
-  assert.deepEqual(trialFor('Raikou', {}).stages, ['switch-tutorial', 'switch-1'])
+  assert.deepEqual(trialFor('Jirachi', {}).stages, ['switch-tutorial', 'switch-1'])
   const records = { 'switch-tutorial': 12, 'switch-1': 60 }
-  assert.deepEqual(trialFor('Raikou', records).stages, ['switch-2'])
-  assert.deepEqual(trialFor('Raikou', { ...records, 'switch-2': 70 }).stages, ['switch-3'])
-  assert.deepEqual(trialFor('Raikou', { ...records, 'switch-2': 70, 'switch-3': 80 }).stages, ['switch-3'])
+  assert.deepEqual(trialFor('Jirachi', records).stages, ['switch-2'])
+  assert.deepEqual(trialFor('Jirachi', { ...records, 'switch-2': 70 }).stages, ['switch-3'])
+  assert.deepEqual(trialFor('Jirachi', { ...records, 'switch-2': 70, 'switch-3': 80 }).stages, ['switch-3'])
   assert.deepEqual(trialFor('Zapdos', {}).stages, ['switch-tutorial', 'sig-zapdos'], 'A signature room comes after its kind’s tutorial')
   assert.deepEqual(trialFor('Zapdos', records).stages, ['sig-zapdos'], 'and is played every time, whatever else is cleared')
   assert.deepEqual(trialFor('Articuno', { 'crumble-tutorial': 9 }).stages, ['sig-articuno'])
@@ -564,12 +564,12 @@ test('a plain bump costs step time and keeps input; eventful ones let go', () =>
 })
 
 test('signature rooms belong to their Legendary, name their own relics and clear with their own words', () => {
-  for (const name of ['Articuno', 'Zapdos', 'Moltres', 'Kyogre', 'Groudon', 'Rayquaza']) {
+  for (const name of ['Articuno', 'Zapdos', 'Moltres', 'Kyogre', 'Groudon', 'Rayquaza', 'Raikou', 'Entei', 'Suicune']) {
     const id = `sig-${name.toLowerCase()}`
     assert.equal(signatureRoom(name), id)
     assert.equal(trialStages[id].legendary, name)
   }
-  assert.equal(signatureRoom('Raikou'), null, 'Shared rooms until it has its own')
+  assert.equal(signatureRoom('Lugia'), null, 'Shared rooms until it has its own')
   const ember = trialStages['sig-moltres']
   assert.equal(relicWord(ember, 1), 'ember')
   assert.equal(relicWord(ember, 3), 'embers')

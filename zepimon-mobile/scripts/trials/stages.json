@@ -524,7 +524,7 @@
     "flavor": {"relic": "pearl", "relics": "pearls", "water": "The current is far too strong to swim.", "clear": "The sea parts. Kyogre stirs in the deep!"}
   },
   "sig-groudon": {
-    "kind": "dark",
+    "kind": "temple",
     "legendary": "Groudon",
     "theme": "magma",
     "tiles": [
@@ -566,5 +566,75 @@
     "par": 66,
     "hint": "The stairs only climb. Break every cracked tile on a floor before you take its stairs up.",
     "flavor": {"relic": "scale", "relics": "scales", "water": "Nothing but open sky lies that way.", "clear": "The summit opens to the sky. Rayquaza descends!"}
+  },
+  "sig-raikou": {
+    "kind": "switch",
+    "legendary": "Raikou",
+    "theme": "meadow",
+    "tiles": [
+      "###############",
+      "#@..a...#..*..#",
+      "#.#####.#.###.#",
+      "#...b.A.B..#..#",
+      "###.###.#.#.#.#",
+      "#*..a...#.b...#",
+      "#.#####A###.###",
+      "#...b.....B.c.#",
+      "#.#######.###.#",
+      "#*.c....#..CX.#",
+      "###############"
+    ],
+    "par": 56,
+    "hint": "Every switch lies in your path, and running over one flips its gates. Count the flips before you run.",
+    "flavor": {"relic": "bolt", "relics": "bolts", "clear": "Thunder rolls across the field. Raikou is near!"}
+  },
+  "sig-entei": {
+    "kind": "dark",
+    "legendary": "Entei",
+    "theme": "ruins",
+    "dark": true,
+    "tiles": [
+      "###############",
+      "#@.:..#...:..*#",
+      "#.###.#.#.###.#",
+      "#...#.:.#.#...#",
+      "###.#.###.#.###",
+      "#*..:..!..:...#",
+      "#.#####.#####.#",
+      "#...:...#.....#",
+      "#.#.###.#.###:#",
+      "#.#...#....*..#",
+      "#####.#########",
+      "#####X#########",
+      "###############"
+    ],
+    "par": 62,
+    "hint": "The charred floor gives way once you cross it. Choose a route that never needs it twice.",
+    "flavor": {"relic": "bell shard", "relics": "bell shards", "clear": "The embers flare. Entei waits below!"}
+  },
+  "sig-suicune": {
+    "kind": "warp",
+    "legendary": "Suicune",
+    "theme": "spring",
+    "tiles": [
+      "###############",
+      "#@...#~~~#...*#",
+      "#.O..#~~~#..O.#",
+      "#....#~~~#....#",
+      "#._..#~~~#.#_.#",
+      "#...1#~~~#4...#",
+      "#*...#~~~#....#",
+      "######~~~######",
+      "#~~~~~~~~~~~~~#",
+      "#~2.......*.3~#",
+      "#~.###.#.###.~#",
+      "#~.....=.....~#",
+      "#~~~~~~X~~~~~~#",
+      "###############"
+    ],
+    "warps": {"1": "2", "2": "1", "3": "4", "4": "3"},
+    "par": 50,
+    "hint": "Each spring links two islands, both ways. Set a boulder on every island before you open the shrine.",
+    "flavor": {"relic": "crystal droplet", "relics": "crystal droplets", "water": "The spring is clear, but far too deep to wade.", "clear": "The spring runs clear. Suicune appears on the water!"}
   }
 }

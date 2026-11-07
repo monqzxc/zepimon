@@ -497,7 +497,7 @@ export const trialStages = {
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
   },
   "sig-groudon": {
-    id: "sig-groudon", kind: "dark",
+    id: "sig-groudon", kind: "temple",
     tiles: [
       "#############",
       "#@..#...~~.*#",
@@ -532,6 +532,68 @@ export const trialStages = {
     ],
     warps: { "1": "2", "5": "6", "3": "4" }, open: "", crackAll: true, dark: false, par: 66, hint: "The stairs only climb. Break every cracked tile on a floor before you take its stairs up.",
     star: null, legendary: "Rayquaza", flavor: {"relic": "scale", "relics": "scales", "water": "Nothing but open sky lies that way.", "clear": "The summit opens to the sky. Rayquaza descends!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-raikou": {
+    id: "sig-raikou", kind: "switch",
+    tiles: [
+      "###############",
+      "#@..a...#..*..#",
+      "#.#####.#.###.#",
+      "#...b.A.B..#..#",
+      "###.###.#.#.#.#",
+      "#*..a...#.b...#",
+      "#.#####A###.###",
+      "#...b.....B.c.#",
+      "#.#######.###.#",
+      "#*.c....#..CX.#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 56, hint: "Every switch lies in your path, and running over one flips its gates. Count the flips before you run.",
+    star: null, legendary: "Raikou", flavor: {"relic": "bolt", "relics": "bolts", "clear": "Thunder rolls across the field. Raikou is near!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-entei": {
+    id: "sig-entei", kind: "dark",
+    tiles: [
+      "###############",
+      "#@.:..#...:..*#",
+      "#.###.#.#.###.#",
+      "#...#.:.#.#...#",
+      "###.#.###.#.###",
+      "#*..:..!..:...#",
+      "#.#####.#####.#",
+      "#...:...#.....#",
+      "#.#.###.#.###:#",
+      "#.#...#....*..#",
+      "#####.#########",
+      "#####X#########",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: true, par: 62, hint: "The charred floor gives way once you cross it. Choose a route that never needs it twice.",
+    star: null, legendary: "Entei", flavor: {"relic": "bell shard", "relics": "bell shards", "clear": "The embers flare. Entei waits below!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-suicune": {
+    id: "sig-suicune", kind: "warp",
+    tiles: [
+      "###############",
+      "#@...#~~~#...*#",
+      "#.O..#~~~#..O.#",
+      "#....#~~~#....#",
+      "#._..#~~~#.#_.#",
+      "#...1#~~~#4...#",
+      "#*...#~~~#....#",
+      "######~~~######",
+      "#~~~~~~~~~~~~~#",
+      "#~2.......*.3~#",
+      "#~.###.#.###.~#",
+      "#~.....=.....~#",
+      "#~~~~~~X~~~~~~#",
+      "###############"
+    ],
+    warps: { "1": "2", "2": "1", "3": "4", "4": "3" }, open: "", crackAll: false, dark: false, par: 50, hint: "Each spring links two islands, both ways. Set a boulder on every island before you open the shrine.",
+    star: null, legendary: "Suicune", flavor: {"relic": "crystal droplet", "relics": "crystal droplets", "water": "The spring is clear, but far too deep to wade.", "clear": "The spring runs clear. Suicune appears on the water!"},
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
   }
 }

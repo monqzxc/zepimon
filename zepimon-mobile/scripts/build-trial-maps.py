@@ -80,6 +80,15 @@ THEMES = {
     # Sky Pillar's summit (Rayquaza): the tower's floor and cracks, its rubble and ledges, and open sky as the water.
     'summit': dict(map='SkyPillar_Top', primary='general', secondary='pacifidlog', ground=0x234, path=0x235, grass=0x236,
                    water=0x2C1, shore=0x234, rock=0x21F, cap=0x227, face=0x22F, fill=0x2C1, pond=False),
+    # Route 120 (Raikou): meadow grass, tall grass, the sand path and the route's tree lines as walls.
+    'meadow': dict(map='Route120', primary='general', secondary='fortree', ground=0x001, path=0x121, grass=0x015,
+                   water=None, shore=0x001, rock=0x232, cap=0x0C7, face=0x017, fill=0x0C6, pond=True),
+    # Mirage Tower 1F (Entei): the tower's sand floor and paths, its fallen rocks, its ledges over the dark.
+    'ruins': dict(map='MirageTower_1F', primary='general', secondary='mirage_tower', ground=0x211, path=0x2A1, grass=0x2A9,
+                  water=None, shore=0x211, rock=0x202, cap=0x209, face=0x219, fill=0x245, pond=True),
+    # Sootopolis (Suicune): the city's white stone, its sand, and the crater's crystal-clear water.
+    'spring': dict(map='SootopolisCity', primary='general', secondary='sootopolis', ground=0x2D9, path=0x071, grass=0x001,
+                   water=0x279, shore=0x2D9, rock=0x2F3, cap=0x241, face=0x2E1, fill=0x2D8, pond=False),
 }
 FLAVOR_KEYS = {'relic', 'relics', 'water', 'clear'}
 # The General tileset's pond by which sides are land: (north, south, west, east); other shapes use the middle.
