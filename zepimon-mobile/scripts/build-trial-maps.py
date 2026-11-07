@@ -118,8 +118,42 @@ THEMES = {
     # Rusturf Tunnel (Azelf): the tunnel's ochre floor and mossy green rock.
     'tunnel': dict(map='RusturfTunnel', primary='general', secondary='rusturf_tunnel', ground=0x201, path=0x202, grass=0x203,
                    water=None, shore=0x201, rock=0x205, cap=0x209, face=0x219, fill=0x212, pond=True),
+    # The creation trio. Emerald has no Spear Pillar; Mt. Pyre's summit (terraced ridges, a stone path, its pillars as the
+    # rock, the sky beyond) stands in for it: graded steel blue for Dialga and pearl pink for Palkia. Giratina's Distortion
+    # World is the same summit with every wall and the sky turned to a deep violet void.
+    'pillar-time': dict(map='MtPyre_Summit', primary='general', secondary='facility', ground=0x001, path=0x1D9, grass=0x00D, water=0x0A1, shore=0x001, rock=0x32A,
+                        cap=0x069, face=0x079, fill=0x073, pond=False, tint=((90, 120, 200), 0.28)),
+    'pillar-space': dict(map='MtPyre_Summit', primary='general', secondary='facility', ground=0x001, path=0x1D9, grass=0x00D, water=0x0A1, shore=0x001, rock=0x32A,
+                         cap=0x069, face=0x079, fill=0x073, pond=False, tint=((225, 140, 200), 0.28)),
+    'distortion': dict(map='MtPyre_Summit', primary='general', secondary='facility', ground=0x001, path=0x1D9, grass=0x00D, water=0x0A1, shore=0x001, rock=0x32A,
+                       cap=0x0A1, face=0x0A1, fill=0x0A1, pond=False, tint=((80, 30, 100), 0.66)),
 }
 FLAVOR_KEYS = {'relic', 'relics', 'water', 'clear'}
+# More places for the remaining Legendaries (signature rooms may also grade any theme with their own `tint`).
+THEMES.update({
+    # Underwater (Lugia, Phione): the seabed's floor, its trenches as walls and the deep as water.
+    'deep': dict(map='Underwater_Route128', primary='general', secondary='underwater', ground=0x213, path=0x20E, grass=0x213,
+                 water=0x25B, shore=0x213, rock=0x206, cap=0x256, face=0x229, fill=0x256, pond=False),
+    # Mt. Pyre's halls (Ho-Oh's Bell Tower): the patterned floor and its walls over the dark.
+    'tower': dict(map='MtPyre_1F', primary='general', secondary='facility', ground=0x2E6, path=0x2EE, grass=0x2E7,
+                  water=0x201, shore=0x2E6, rock=0x326, cap=0x201, face=0x2F7, fill=0x201, pond=False),
+    # The Fiery Path (Heatran): its warm floor and red rock.
+    'fiery': dict(map='FieryPath', primary='general', secondary='lavaridge', ground=0x308, path=0x310, grass=0x308,
+                  water=None, shore=0x308, rock=0x30F, cap=0x30C, face=0x274, fill=0x271, pond=True),
+    # Petalburg Woods (Celebi): the forest floor, its trail and tall grass; whole 2 x 2 trees as walls.
+    'woods': dict(map='PetalburgWoods', primary='general', secondary='rustboro', ground=0x001, path=0x205, grass=0x00D,
+                  water=None, shore=0x001, rock=0x1C7, cap=0x1D4, face=0x1DC, fill=0x1D4, pond=True,
+                  wall_pattern=((0x1D4, 0x1D5), (0x1DC, 0x1DD))),
+    # The Weather Institute (Mewtwo's lab): tiled floor, its walls and potted plants.
+    'lab': dict(map='Route119_WeatherInstitute_1F', primary='building', secondary='lab', ground=0x252, path=0x255, grass=0x252,
+                water=0x267, shore=0x252, rock=0x266, cap=0x25F, face=0x27A, fill=0x267, pond=False),
+    # Route 114's canyon (Zygarde): the canyon floor, its cliffs and river.
+    'canyon': dict(map='Route114', primary='general', secondary='fallarbor', ground=0x279, path=0x2A7, grass=0x001,
+                   water=0x170, shore=0x279, rock=0x2E8, cap=0x269, face=0x270, fill=0x269, pond=False),
+    # Route 118's shore (Zeraora): sand, sea and the tree lines.
+    'shore': dict(map='Route118', primary='general', secondary='mauville', ground=0x124, path=0x124, grass=0x001,
+                  water=0x170, shore=0x124, rock=0x0E2, cap=0x0C7, face=0x017, fill=0x0C6, pond=False),
+})
 # The General tileset's pond by which sides are land: (north, south, west, east); other shapes use the middle.
 POND = {(1, 0, 1, 0): 0x0C8, (1, 0, 0, 0): 0x0C9, (1, 0, 0, 1): 0x0CA, (0, 0, 1, 0): 0x0D0, (0, 0, 0, 0): 0x0D1,
         (0, 0, 0, 1): 0x0D2, (0, 1, 1, 0): 0x0D8, (0, 1, 0, 0): 0x0D9, (0, 1, 0, 1): 0x0DA}
@@ -167,9 +201,12 @@ def read_stages():
             flavor = stage.get('flavor', {})
             check(isinstance(flavor, dict) and set(flavor) <= FLAVOR_KEYS and all(isinstance(v, str) and v for v in flavor.values()),
                   f'{sid}: flavor takes {sorted(FLAVOR_KEYS)} as words')
+            tint = stage.get('tint')
+            check(tint is None or (len(tint) == 2 and len(tint[0]) == 3 and all(0 <= c <= 255 for c in tint[0]) and 0 < tint[1] < 1),
+                  f'{sid}: tint is [[r, g, b], strength]')
         else:
             check(re.fullmatch(r'star' if kind == 'star' else rf'{kind}-(tutorial|1|2|3)', sid), f'{sid}: ids are <kind>-tutorial, <kind>-1|2|3, star or sig-<name>')
-            check(not {'legendary', 'theme', 'flavor'} & set(stage), f'{sid}: only signature rooms take legendary, theme or flavor')
+            check(not {'legendary', 'theme', 'flavor', 'tint'} & set(stage), f'{sid}: only signature rooms take legendary, theme, flavor or tint')
         check(tiles and all(isinstance(row, str) for row in tiles), f'{sid}: tiles are rows of characters')
         rows, cols = len(tiles), len(tiles[0])
         check(all(len(row) == cols for row in tiles), f'{sid}: rows must have equal length')
@@ -285,6 +322,8 @@ def build_rooms(stages):
     sets, rooms = {}, {}
     for sid, stage in stages.items():
         theme = THEMES[stage.get('theme', stage['kind'])]
+        if 'tint' in stage:
+            theme = {**theme, 'tint': (tuple(stage['tint'][0]), stage['tint'][1])}
         pair = (theme['primary'], theme['secondary'])
         if pair not in sets:
             sets[pair] = (Tilesets(*pair), {})

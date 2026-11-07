@@ -48,6 +48,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "node --test tests/*.test.js",
+    "test:rooms": "node --test tests/rooms/*.test.js",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "export": "expo export --platform all",
