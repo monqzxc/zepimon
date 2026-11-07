@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { deadCells, goalsMet, hintTier, lit, planRoomWalk, resetAlignment, resonance, startRoom, stepRoom, walkOutcome } from '../src/games/trial.ts'
+import { deadCells, goalsMet, hintTier, lit, planRoomWalk, relicWord, resetAlignment, resonance, startRoom, stepRoom, walkOutcome } from '../src/games/trial.ts'
 import { STAR } from './star-fixture.js'
-import { KIND_NAMES, nextRoom, restartRoom, restartRun, restoreRun, restoreTrialRecords, runCleared, saveTrialRecords, startRun, trialFor } from '../src/games/trials.ts'
+import { KIND_NAMES, nextRoom, restartRoom, restartRun, restoreRun, restoreTrialRecords, runCleared, saveTrialRecords, signatureRoom, startRun, trialFor } from '../src/games/trials.ts'
 import { legendarySpecies } from '../src/generated/expedition.js'
 import { trialStages } from '../src/generated/trial-maps.js'
+import { solveRoom } from './trial-solver.js'
 
 const stage = (tiles, extra = {}) => ({ id: 't', kind: 'switch', tiles, warps: {}, open: '', crackAll: false, dark: false, par: 99, hint: '', star: null, ...extra })
 const press = (room, st, ...directions) => directions.reduce((result, direction) => stepRoom(result.room, st, direction), { room, move: 'none', events: [] })
@@ -433,11 +434,14 @@ test('every Legendary has a themed trial of its kind', () => {
 })
 
 test("room order follows the player's own clears", () => {
-  assert.deepEqual(trialFor('Zapdos', {}).stages, ['switch-tutorial', 'switch-1'])
+  assert.deepEqual(trialFor('Raikou', {}).stages, ['switch-tutorial', 'switch-1'])
   const records = { 'switch-tutorial': 12, 'switch-1': 60 }
-  assert.deepEqual(trialFor('Zapdos', records).stages, ['switch-2'])
-  assert.deepEqual(trialFor('Zapdos', { ...records, 'switch-2': 70 }).stages, ['switch-3'])
-  assert.deepEqual(trialFor('Zapdos', { ...records, 'switch-2': 70, 'switch-3': 80 }).stages, ['switch-3'])
+  assert.deepEqual(trialFor('Raikou', records).stages, ['switch-2'])
+  assert.deepEqual(trialFor('Raikou', { ...records, 'switch-2': 70 }).stages, ['switch-3'])
+  assert.deepEqual(trialFor('Raikou', { ...records, 'switch-2': 70, 'switch-3': 80 }).stages, ['switch-3'])
+  assert.deepEqual(trialFor('Zapdos', {}).stages, ['switch-tutorial', 'sig-zapdos'], 'A signature room comes after its kind’s tutorial')
+  assert.deepEqual(trialFor('Zapdos', records).stages, ['sig-zapdos'], 'and is played every time, whatever else is cleared')
+  assert.deepEqual(trialFor('Articuno', { 'crumble-tutorial': 9 }).stages, ['sig-articuno'])
   assert.deepEqual(trialFor('Mew', { 'switch-1': 5 }).stages, ['warp-tutorial', 'warp-1'], 'Records of another kind do not count')
   for (const anything of [{}, { star: 90 }]) {
     const trial = trialFor('Deoxys', anything)
@@ -557,4 +561,28 @@ test('a plain bump costs step time and keeps input; eventful ones let go', () =>
   assert.deepEqual(walkOutcome({ move: 'warp', events: ['warp'] }), { moved: true, stop: true, drop: true })
   assert.equal(walkOutcome({ move: 'step', events: ['relic'] }).stop, true)
   assert.equal(walkOutcome({ move: 'step', events: ['switch'] }).stop, true)
+})
+
+test('signature rooms belong to their Legendary, name their own relics and clear with their own words', () => {
+  for (const [name, id] of [['Articuno', 'sig-articuno'], ['Zapdos', 'sig-zapdos'], ['Moltres', 'sig-moltres']]) {
+    assert.equal(signatureRoom(name), id)
+    assert.equal(trialStages[id].legendary, name)
+  }
+  assert.equal(signatureRoom('Raikou'), null, 'Shared rooms until it has its own')
+  const ember = trialStages['sig-moltres']
+  assert.equal(relicWord(ember, 1), 'ember')
+  assert.equal(relicWord(ember, 3), 'embers')
+  assert.equal(relicWord(trialStages['switch-1'], 2), 'relics')
+  // Walk onto lava: its own refusal, not the water's.
+  const lava = ember.tiles.findIndex(row => row.includes('~'))
+  const start = startRoom(ember)
+  const toward = stepRoom({ ...start, at: { x: 1, y: lava } }, ember, 'east').room
+  assert.match(toward.message, /lava/)
+  // The minimum route clears with the room's own line, and finds embers along the way.
+  const messages = []
+  let room = startRoom(ember)
+  for (const direction of solveRoom(ember).route) { room = stepRoom(room, ember, direction).room; if (room.message) messages.push(room.message) }
+  assert.equal(room.status, 'cleared')
+  assert.equal(room.message, ember.flavor.clear)
+  assert.ok(messages.some(message => /You found an ember! 2 to go\./.test(message)), 'An ember, with its article')
 })

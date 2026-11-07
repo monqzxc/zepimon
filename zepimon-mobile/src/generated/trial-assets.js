@@ -116,6 +116,24 @@ export const trialChunks = {
     "1,0": { ground: require('../../assets/trials/star-ground-1-0.png') },
     "0,1": { ground: require('../../assets/trials/star-ground-0-1.png') },
     "1,1": { ground: require('../../assets/trials/star-ground-1-1.png') }
+  },
+  "sig-articuno": {
+    "0,0": { ground: require('../../assets/trials/sig-articuno-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-articuno-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-articuno-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-articuno-ground-1-1.png') }
+  },
+  "sig-zapdos": {
+    "0,0": { ground: require('../../assets/trials/sig-zapdos-ground-0-0.png'), top: require('../../assets/trials/sig-zapdos-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-zapdos-ground-1-0.png'), top: require('../../assets/trials/sig-zapdos-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-zapdos-ground-0-1.png'), top: require('../../assets/trials/sig-zapdos-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-zapdos-ground-1-1.png'), top: require('../../assets/trials/sig-zapdos-top-1-1.png') }
+  },
+  "sig-moltres": {
+    "0,0": { ground: require('../../assets/trials/sig-moltres-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-moltres-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-moltres-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-moltres-ground-1-1.png') }
   }
 }
 export const trialSprites = {

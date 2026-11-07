@@ -55,11 +55,20 @@ const TRIALS: Record<string, [string, TrialKind, string]> = {
   Zeraora: ['Thunderclap Trail', 'switch', 'Sparks leap between narrow halls. Chase them to Zeraora.']
 }
 
+// A Legendary's signature room: its own hand-made room (sig-<name> in generated/trial-maps.js), if it has one yet.
+export const signatureRoom = (name: string): string | null => {
+  const id = `sig-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+  return Object.hasOwn(trialStages, id) && trialStages[id].legendary === name ? id : null
+}
+
 // A kind's rooms: its tutorial first if never cleared, then main room `tier + 1`, where tier is how many main rooms are cleared (at most 2).
-// The Shattered Star is a single island room with no tutorial.
+// A Legendary with a signature room plays that instead of a main room, after its kind's tutorial if never cleared. The Shattered
+// Star is a single island room with no tutorial.
 export function trialFor(name: string, records: TrialRecords): { title: string, lore: string, kind: TrialKind, stages: string[] } {
   const [title, kind, lore] = Object.hasOwn(TRIALS, name) ? TRIALS[name] : [`${name}’s Shrine`, 'switch', `A quiet maze protects ${name}. Find the golden exit to reach it.`] as const
   if (kind === 'star') return { title, lore, kind, stages: ['star'] }
+  const signature = signatureRoom(name)
+  if (signature) return { title, lore, kind, stages: [...(Object.hasOwn(records, `${kind}-tutorial`) ? [] : [`${kind}-tutorial`]), signature] }
   const cleared = (id: string) => Object.hasOwn(records, id)
   const tier = Math.min(2, [1, 2, 3].filter(room => cleared(`${kind}-${room}`)).length)
   return { title, lore, kind, stages: [...(cleared(`${kind}-tutorial`) ? [] : [`${kind}-tutorial`]), `${kind}-${tier + 1}`] }

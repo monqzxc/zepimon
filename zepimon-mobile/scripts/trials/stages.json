@@ -433,5 +433,71 @@
         "When the star wakes, the northern crystal shines, and the west, south and islet crystals stay dark."
       ]
     }
+  },
+  "sig-articuno": {
+    "kind": "crumble",
+    "legendary": "Articuno",
+    "theme": "ice",
+    "crackAll": true,
+    "tiles": [
+      "###############",
+      "#@....#..:....#",
+      "#.#...#.~:~~~.#",
+      "#.#*::::~*:::.#",
+      "#.##..#.~:~~~.#",
+      "#.....#..:....#",
+      "###.######:####",
+      "#.....#...:.*.#",
+      "#.#O###.###...#",
+      "#.#_#X=.......#",
+      "###############"
+    ],
+    "par": 60,
+    "hint": "Thin ice breaks behind you, and every patch must break before the way opens. Plan a route that crosses each one once.",
+    "flavor": {"relic": "feather", "relics": "feathers", "water": "The water under the ice is freezing. Find another way.", "clear": "The last thin ice shatters. Articuno’s clearing opens!"}
+  },
+  "sig-zapdos": {
+    "kind": "switch",
+    "legendary": "Zapdos",
+    "theme": "storm",
+    "dark": true,
+    "tiles": [
+      "###############",
+      "#@..#....!#..*#",
+      "#.#.#.##.#.B..#",
+      "#.#a..#..A..#.#",
+      "#.###.#.####..#",
+      "#*..#.!.#.b#..#",
+      "###.#.###.##C##",
+      "#...B...c.#...#",
+      "#.#####.#.#.#.#",
+      "#..*..#...!.#X#",
+      "###############"
+    ],
+    "par": 90,
+    "hint": "Each switch flips every gate of its colour, open or shut. The blue switch hides in a generator alcove.",
+    "flavor": {"relic": "spark", "relics": "sparks", "water": "The floor drops away into darkness.", "clear": "Power surges back. The way to Zapdos crackles open!"}
+  },
+  "sig-moltres": {
+    "kind": "crumble",
+    "legendary": "Moltres",
+    "theme": "lava",
+    "tiles": [
+      "###############",
+      "#@....#.....*.#",
+      "#.~~~~~:~~~~~.#",
+      "#.~.:.....:.~.#",
+      "#.~.~~~=~~~.~.#",
+      "#.:.~~.X.~~.:.#",
+      "#.~.~~~~~~~.~.#",
+      "#.~.:..*..:.~.#",
+      "#.~~~~~~~~~~~.#",
+      "#.O_..#..._O..#",
+      "#*.....#......#",
+      "###############"
+    ],
+    "par": 66,
+    "hint": "The crust crumbles once crossed, and only three bridges reach the ring. Set both boulders before you cross the last one.",
+    "flavor": {"relic": "ember", "relics": "embers", "water": "The lava is far too hot to cross.", "clear": "The caldera blazes. Moltres rises from the flames!"}
   }
 }

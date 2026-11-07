@@ -4,7 +4,7 @@ import { pokemonType } from '../catalog'
 import { setPreference, usePreferences } from '../preferences'
 import { Chip, Copy, IconButton, Panel, colors, fonts, themedStyles, typeTints } from '../ui'
 import { trialStages } from '../generated/trial-maps.js'
-import { hintTier, planRoomWalk, resetAlignment, stepRoom, walkOutcome } from './trial'
+import { hintTier, planRoomWalk, relicWord, resetAlignment, stepRoom, walkOutcome } from './trial'
 import { KIND_NAMES, nextRoom, restartRoom, restartRun, startRun, trialFor } from './trials'
 import type { TrialRun } from './trials'
 import type { Direction, Point } from './safari-zone'
@@ -19,6 +19,7 @@ import { PlayOverlay } from './PlayOverlay'
 const stages = trialStages as Record<string, TrialStage>
 const native = Platform.OS !== 'web'
 const relicCount = (stage: TrialStage) => stage.tiles.join('').split('*').length - 1
+const capitalised = (word: string) => word[0].toUpperCase() + word.slice(1)
 // play: walking. fall: dropping through a hole. fade: between rooms. finish: the last exit opened. reveal: the Shattered Star wakes.
 type Phase = 'play' | 'fall' | 'fade' | 'finish' | 'reveal'
 // A run saved mid-fall starts its room again; one saved between rooms goes on to the next room. (A cleared last room finishes on mount.)
@@ -127,7 +128,7 @@ export function LegendaryTrial({ name, partner, reduced, busy, error = '', trial
   const tier = hintTier(room)
   // One line at 360 px: the room number lives in the eyebrow.
   const hud = star ? `Moves ${room.moves} · Attempts ${room.attunes}`
-    : [`Moves ${room.moves} (par ${stage.par})`, relics ? `Relics ${room.relics.length}/${relics}` : ''].filter(Boolean).join(' · ')
+    : [`Moves ${room.moves} (par ${stage.par})`, relics ? `${capitalised(relicWord(stage, relics))} ${room.relics.length}/${relics}` : ''].filter(Boolean).join(' · ')
   const where = `${KIND_NAMES[stage.kind]} room. You are at row ${room.at.y + 1}, column ${room.at.x + 1}. ${room.moves} moves.`
   const controls = !busy && phase === 'play'
   const { width, height } = area
