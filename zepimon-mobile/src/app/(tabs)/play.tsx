@@ -14,7 +14,7 @@ import type { BattleResult } from '../../games/DefenseGame'
 import { SafariZone } from '../../games/SafariZone'
 import { STEPS_PER_KM } from '../../games/safari-zone'
 import { AdventureMap, MODE_NAMES, STAR_GOALS } from '../../games/AdventureMap'
-import { BALLS_PER_KM, BERRIES_PER_KM, BONUS_KM_CAP, STOPS, freePlaySpec, safariStars, stopUnlocked, walkingBonus } from '../../games/adventure'
+import { BALLS_PER_KM, BONUS_KM_CAP, STOPS, freePlaySpec, safariStars, stopUnlocked, walkingBonus } from '../../games/adventure'
 import type { Stop } from '../../games/adventure'
 import { LEVELS, STAGES, levelUnlocked } from '../../games/levels'
 import type { Level } from '../../games/levels'
@@ -48,8 +48,6 @@ export default function PlayScreen() {
   const levelStars = LEVELS.reduce((sum, level) => sum + (trailLevels[level.id] || 0), 0)
   const levelsCleared = LEVELS.filter(level => trailLevels[level.id]).length
   const nextLevel = LEVELS.find((level, index) => levelUnlocked(trailLevels, index) && !trailLevels[level.id])
-  const berriesNote = bonus.km ? `Walking bonus: ${bonus.km} km this week adds ◉ ${bonus.berries} starting berries.`
-    : `Walk 1 km this week for ◉ ${BERRIES_PER_KM} extra starting berries (up to ◉ ${BERRIES_PER_KM * BONUS_KM_CAP}).`
   const ballsNote = bonus.km ? `Walking bonus: ${bonus.km} km this week adds ${bonus.balls} Safari Balls and ${bonus.km * STEPS_PER_KM} steps.`
     : `Walk 1 km this week for ${BALLS_PER_KM} extra Safari Balls and ${STEPS_PER_KM} extra steps (up to ${BALLS_PER_KM * BONUS_KM_CAP} balls and ${STEPS_PER_KM * BONUS_KM_CAP} steps).`
   // Full screen is for games, not the menus: it hides the tab bar, the back button and the status bar, and Android's
@@ -136,18 +134,18 @@ export default function PlayScreen() {
     {selected === 'levels' && <TrailLevels stars={trailLevels} freeBest={best('trail', 'waves', 12)}
       onPlay={level => select({ game: 'trail', level })} onFreePlay={() => select({ game: 'trail' })} />}
     {launch?.level && <LevelGame key={launch.level.id} level={launch.level} stars={trailLevels[launch.level.id] || 0}
-      choices={choices} assists={assists} bonus={bonus.berries} bonusNote={berriesNote} team={trailTeam} onStart={setTrailTeam}
+      choices={choices} assists={assists} bonus={bonus.berries} team={trailTeam} onStart={setTrailTeam}
       onFinish={result => saveLevel(launch.level!, result.stars)} onNext={next => select({ game: 'trail', level: next })} />}
     {launch && launch.game !== 'safari' && !launch.level && <DefenseGame key={launch.stop?.id ?? launch.game}
       layout={launch.game === 'guard' ? 'lanes' : 'trail'}
       makeSpec={() => launch.stop && launch.stop.mode !== 'safari' ? launch.stop.spec : freePlaySpec(launch.game === 'guard' ? 'lanes' : 'trail')}
-      title={launch.stop ? `${launch.stop.title} · ${MODE_NAMES[launch.game]}` : MODE_NAMES[launch.game]}
-      intro={launch.stop ? `${launch.stop.blurb} ${STAR_GOALS[launch.game]}` : launch.game === 'guard'
-        ? 'Free play: ten waves of Shadow Pokemon of every type, in a random habitat.' : 'Free play: twelve waves of Shadow Pokemon of every type, on a random trail.'}
-      choices={choices} assists={assists} bonus={bonus.berries} bonusNote={berriesNote} showStars={!!launch.stop}
+      brief={launch.stop ? { eyebrow: MODE_NAMES[launch.game].toUpperCase(), title: launch.stop.title, blurb: launch.stop.blurb,
+        goals: STAR_GOALS[launch.game], record: starText(adventure[launch.stop.id] || 0) }
+        : { eyebrow: 'FREE PLAY', title: MODE_NAMES[launch.game], record: best(launch.game, 'waves', launch.game === 'guard' ? 10 : 12),
+          blurb: launch.game === 'guard' ? 'Ten waves of every type, in a random habitat.' : 'Twelve waves of every type, on a random trail.' }}
+      choices={choices} assists={assists} bonus={bonus.berries} showStars={!!launch.stop}
       preview={launch.stop?.mode === 'trail' ? launch.stop.spec : undefined}
       initialTeam={launch.game === 'trail' ? trailTeam : undefined} onStart={launch.game === 'trail' ? setTrailTeam : undefined}
-      record={launch.stop ? stopRecord(launch.stop) : best(launch.game, 'waves', launch.game === 'guard' ? 10 : 12)}
       onFinish={result => launch.stop ? saveStars(launch.stop, result.stars) : saveScore(launch.game, result.score)} />}
     {launch?.game === 'safari' && <SafariZone key={launch.stop?.id ?? 'safari'} zone={launch.stop?.mode === 'safari' ? launch.stop.zone : undefined}
       bonusKm={bonus.km} bonusNote={ballsNote} dex={dex} goal={launch.stop ? STAR_GOALS.safari : undefined}
@@ -164,14 +162,14 @@ export default function PlayScreen() {
 }
 
 // One Trail Defense level, with its map preview and a button to the next level after a win.
-function LevelGame({ level, stars, choices, assists, bonus, bonusNote, team, onStart, onFinish, onNext }: {
-  level: Level, stars: number, choices: TeamCard[], assists: string[], bonus: number, bonusNote: string, team?: TeamCard[],
+function LevelGame({ level, stars, choices, assists, bonus, team, onStart, onFinish, onNext }: {
+  level: Level, stars: number, choices: TeamCard[], assists: string[], bonus: number, team?: TeamCard[],
   onStart: (team: TeamCard[]) => void, onFinish: (result: BattleResult) => void, onNext: (level: Level) => void
 }) {
   const next = LEVELS[level.number]
-  return <DefenseGame layout="trail" makeSpec={() => level.spec} title={`Level ${level.number} · ${level.name}`}
-    intro={`Stage ${level.stage + 1}, ${STAGES[level.stage].name}. ${level.blurb} ${STAR_GOALS.trail}`}
-    choices={choices} assists={assists} bonus={bonus} bonusNote={bonusNote} showStars preview={level.spec}
-    record={`Best here: ${starText(stars)}`} initialTeam={team} onStart={onStart} onFinish={onFinish}
+  return <DefenseGame layout="trail" makeSpec={() => level.spec}
+    brief={{ eyebrow: `LEVEL ${level.number} · ${STAGES[level.stage].name.toUpperCase()}`, title: level.name, blurb: level.blurb,
+      goals: STAR_GOALS.trail, record: starText(stars) }}
+    choices={choices} assists={assists} bonus={bonus} showStars preview={level.spec} initialTeam={team} onStart={onStart} onFinish={onFinish}
     next={next ? { title: `Next: Level ${next.number} · ${next.name}`, onPress: () => onNext(next) } : undefined} />
 }

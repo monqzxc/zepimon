@@ -4,7 +4,7 @@ import { Animated, Easing, Image, Platform, Pressable, ScrollView, StyleSheet, T
 import type { ImageSourcePropType, ViewStyle } from 'react-native'
 import { spriteSource } from '../catalog'
 import { typeTheme } from '../HabitatScene'
-import { Button, Copy, Eyebrow, Heading, IconButton, Panel, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
+import { Button, Copy, Heading, IconButton, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
 import { EVOLVE_MS, LANES, bossCharging, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
@@ -17,20 +17,22 @@ import { TrailTerrain } from './TrailTerrain'
 import { trailWalkers } from '../generated/trail-walkers.js'
 import { autoTeam, battleType, cardKey } from './roster'
 import type { TeamCard } from './roster'
-import { PixelSprite, TeamPicker } from './TeamPicker'
+import { PixelSprite } from './TeamPicker'
 import { suggestTeam } from './suggest'
 import { ZoomPan } from './ZoomPan'
 import { EvolveFx, Impact } from './BattleFx'
 import { WeatherLayer } from './Weather'
-import { BOSS_CHARGE, SKILL_MARKS, SKILL_TEXT, bossMoves } from './boss'
+import { BattleBrief } from './BattleBrief'
+import type { Brief } from './BattleBrief'
+import { BOSS_CHARGE, SKILL_MARKS, SKILL_TEXT } from './boss'
 import { useGameLoop, useReducedMotion } from './hooks'
 
 export type BattleResult = { won: boolean, score: number, stars: number }
 // preview shows a fixed trail before the battle; initialTeam and onStart let Trail Defense levels keep one team;
 // next adds a button after a win (the next level).
 type Props = {
-  layout: Layout, makeSpec: () => BattleSpec, title: string, intro: string, choices: TeamCard[], assists: string[],
-  bonus: number, bonusNote: string, record: string, showStars?: boolean, onFinish: (result: BattleResult) => void,
+  layout: Layout, makeSpec: () => BattleSpec, brief: Brief, choices: TeamCard[], assists: string[],
+  bonus: number, showStars?: boolean, onFinish: (result: BattleResult) => void,
   preview?: BattleSpec, initialTeam?: TeamCard[], onStart?: (team: TeamCard[]) => void, next?: { title: string, onPress: () => void }
 }
 
@@ -41,15 +43,6 @@ const MIN_CELL = 36
 const DRAWN_CELL = 48, MAX_CELL = 68
 const label = (type: string) => type[0].toUpperCase() + type.slice(1)
 // "Harsh sunlight: Fire foes are tougher."
-// What each boss skill does, and how to answer it, for the boss panel before a battle.
-const BOSS_TIPS: Record<keyof typeof SKILL_TEXT, string> = {
-  dash: 'it rushes ahead for a moment. Slow it down with Ice types.',
-  shield: 'a shield soaks up hits until it breaks. Poison seeps through it.',
-  blast: 'strikes your Pokemon nearby, and frail ones can faint. Spread your team out.',
-  stun: 'your Pokemon nearby stop attacking for a few seconds. Keep attackers further down the trail.',
-  heal: 'it recovers health and shakes off slow and poison. Hit hard while it charges.',
-  summon: 'two more foes appear behind it. Keep splash and chain attackers ready.'
-}
 const types = (list: string[]) => list.map(label).join(', ')
 const weatherLine = (weather: Weather) => `${WEATHER[weather].name}: ${types(WEATHER[weather].types)} foes tougher · your ${types(WEATHER[weather].types)} ▲, ${types(WEATHER[weather].weakens)} ▼`
 // What the weather does to your Pokemon, for the level's panel and a Pokemon's details.
@@ -68,17 +61,12 @@ export function starText(stars: number) {
   return '★'.repeat(stars) + '☆'.repeat(3 - stars)
 }
 
-export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, bonus, bonusNote, record, showStars = false, onFinish,
+export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, showStars = false, onFinish,
   preview, initialTeam, onStart, next }: Props) {
   // A level suggests a team for its map and foes (src/games/suggest.ts); one with element tiles starts on it.
   const suggestion = useMemo(() => preview ? suggestTeam(choices, preview) : undefined, [preview, choices])
-  const tiles = useMemo(() => {
-    if (!preview) return undefined
-    const counts = new Map<string, number>()
-    for (const type of PATHS[preview.path].tiles.values()) counts.set(type, (counts.get(type) ?? 0) + 1)
-    return [...counts].sort((a, b) => b[1] - a[1])
-  }, [preview])
-  const [team, setTeam] = useState(() => initialTeam?.length ? initialTeam : suggestion && tiles?.length ? suggestion.team : autoTeam(choices))
+  const [team, setTeam] = useState(() => initialTeam?.length ? initialTeam
+    : suggestion && preview && PATHS[preview.path].tiles.size ? suggestion.team : autoTeam(choices))
   const [helper, setHelper] = useState<string | null>(assists[0] ?? null)
   const [game, setGame] = useState<Battle | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
@@ -131,36 +119,8 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
     update(startBattle(makeSpec(), team, { bonus, assist: helper }, performance.now()))
   }
 
-  if (!game) return <View style={{ gap: 14 }}>
-    <Heading>{title}</Heading>
-    <Copy>{intro}</Copy>
-    <Panel>
-      <Copy color={colors.gold}>{record}</Copy>
-      <Copy small>{bonusNote}</Copy>
-    </Panel>
-    {preview?.layout === 'trail' && <MapPreview spec={preview} />}
-    {assists.length > 0 && <Panel>
-      <Eyebrow>LEGENDARY HELPER</Eyebrow>
-      <Copy small>Once per battle, your Expedition friend strikes every foe on the field and slows them down.</Copy>
-      <View style={styles.row}>{assists.map(name => <Button key={name} title={name} secondary={helper !== name} onPress={() => setHelper(name)} />)}</View>
-    </Panel>}
-    {preview?.boss && <Panel style={play.bossPanel}>
-      <Eyebrow>BOSS · LAST WAVE</Eyebrow>
-      <View style={[styles.row, { flexWrap: 'nowrap' }]}>
-        <PixelSprite name={preview.boss} size={48} />
-        <Text style={play.weatherTitle}>Shadow {preview.boss}</Text>
-      </View>
-      {bossMoves(preview.boss).map(({ skill, move }) => <Copy key={move} small color={colors.ink}>{`${SKILL_MARKS[skill]} ${move}: ${BOSS_TIPS[skill]}`}</Copy>)}
-    </Panel>}
-    {preview?.weather && <Panel style={play.weatherPanel}>
-      <Text style={play.weatherTitle}>{WEATHER[preview.weather].mark} {WEATHER[preview.weather].name}</Text>
-      <Copy small color={colors.ink}>{`${types(WEATHER[preview.weather].types)} foes are powered up: more health, a little more speed, and the ${WEATHER[preview.weather].mark} mark.`}</Copy>
-      <Copy small color={colors.ink}>{`Your ${types(WEATHER[preview.weather].types)} Pokemon hit ${POWER_UP}% harder (▲). ${types(WEATHER[preview.weather].weakens)} Pokemon hit ${POWER_DOWN}% softer (▼). Berry growers and blockers don't mind it.`}</Copy>
-    </Panel>}
-    <TeamPicker layout={layout} choices={choices} team={team} onChange={setTeam} suggestion={suggestion} tiles={tiles} weather={preview?.weather} />
-    <Button title={team.length ? `Start ${title}` : 'Choose at least one Pokemon'} disabled={!team.length} onPress={start} />
-    <HowTo layout={layout} />
-  </View>
+  if (!game) return <BattleBrief layout={layout} brief={brief} preview={preview} bonus={bonus} assists={assists} helper={helper} onHelper={setHelper}
+    choices={choices} team={team} onTeam={setTeam} suggestion={suggestion} onStart={start} />
 
   const spec = game.spec
   const theme = typeTheme(spec.habitat)
@@ -365,40 +325,6 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       </View>}
     </View>}
   </View>
-}
-
-function HowTo({ layout }: { layout: Layout }) {
-  return <Panel>
-    <Eyebrow>HOW TO PLAY</Eyebrow>
-    {layout === 'lanes' ? <>
-      <Copy small>Tap a card, then a free square. Shadow Pokemon walk down the five lanes and stop to nibble the first Pokemon in their way.</Copy>
-      <Copy small>Grass types grow berries: tap them to collect. Rock, Ground and Steel types block. Everyone else attacks foes above them in their lane.</Copy>
-      <Copy small>If a foe reaches the bottom, that lane’s Snorlax wakes up once and rolls it away. A second breach in the same lane ends the battle.</Copy>
-    </> : <>
-      <Copy small>Tap a card, then a free square beside the trail. Each Pokemon attacks foes within its range; defeated foes pay berries.</Copy>
-      <Copy small>Every family starts at its first stage. Tap a placed Pokemon to evolve it with berries, all the way to its final stage.</Copy>
-      <Copy small>Foes that reach the end of the trail cost a life (a boss costs three). Keep all ten for three stars.</Copy>
-    </>}
-    <Copy small>Type matchups matter: super-effective hits do double damage and show ×2.</Copy>
-    <Copy small>The last wave’s boss has moves of its own. A ring closing in means it has stopped to charge one: it may dash ahead, raise a shield, blast or stun your Pokemon nearby, heal itself or call more foes. The top bar says what it did.</Copy>
-    <Copy small>Pokemon hatched on your watch are marked EGG and know their family’s real egg moves: an extra attack type, harder hits or more health, a bigger harvest for Grass types, or extra health for blockers. Loaners and Safari catches have none.</Copy>
-    <Copy small>Switching tabs or leaving the app pauses the battle. Returning to the arcade ends it.</Copy>
-  </Panel>
-}
-
-// A small, still picture of the trail so players can see the map before choosing a team.
-function MapPreview({ spec }: { spec: BattleSpec }) {
-  const { cols, rows, name } = PATHS[spec.path]
-  const theme = typeTheme(spec.habitat)
-  const cell = Math.min(18, 162 / cols, 240 / rows)
-  return <Panel>
-    <Eyebrow>THE MAP · {cols} × {rows} · {theme.label.toUpperCase()}</Eyebrow>
-    <View accessible accessibilityLabel={`Map of ${name}: ${cols} by ${rows} squares`}
-      style={[board.field, { alignSelf: 'center', width: cols * cell, height: rows * cell, backgroundColor: theme.sky }]}>
-      <TrailTerrain path={spec.path} cell={cell} theme={theme} />
-    </View>
-    <Copy small>Foes leave the cave and follow the trail to the Poke Ball.</Copy>
-  </Panel>
 }
 
 // A compact counter in the battle's top bar.
@@ -655,9 +581,6 @@ const play = themedStyles(() => ({
   statValue: { fontFamily: fonts.black, color: colors.ink, fontSize: 17, lineHeight: 22 },
   status: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 2 },
   weather: { fontFamily: fonts.heavy, color: colors.gold, fontSize: 13, lineHeight: 18, paddingHorizontal: 2 },
-  bossPanel: { gap: 6, borderColor: '#ff8c42', borderWidth: 1.5 },
-  weatherPanel: { gap: 4, borderColor: colors.gold, borderWidth: 1.5 },
-  weatherTitle: { fontFamily: fonts.black, color: colors.ink, fontSize: 17, lineHeight: 22 },
   area: { flex: 1, minHeight: 160 },
   note: { position: 'absolute', top: 8, left: 12, right: 12, alignItems: 'center' },
   noteText: { overflow: 'hidden', textAlign: 'center', fontFamily: fonts.bold, fontSize: 13, lineHeight: 18, color: '#FFFFFF',
