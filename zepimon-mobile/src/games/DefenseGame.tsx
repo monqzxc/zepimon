@@ -356,13 +356,32 @@ function Mover({ x, y, size, reduced, children }: { x: number, y: number, size: 
   </Animated.View>
 }
 
-// One frame of a walking strip: the 8-frame row is clipped to a single square. A tint repaints the visible pixels.
-function Strip({ source, size, frame, tint }: { source: ImageSourcePropType, size: number, frame: number, tint?: string }) {
+// One frame of a walking strip: the 8-frame row is clipped to a single square. A tint repaints the visible pixels;
+// `solid` paints the silhouette in the tint alone (the foes' outline).
+function Strip({ source, size, frame, tint, solid = false }: { source: ImageSourcePropType, size: number, frame: number, tint?: string, solid?: boolean }) {
   const style = { position: 'absolute' as const, top: 0, left: -frame * size, width: size * 8, height: size,
     ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }
   return <View style={{ width: size, height: size, overflow: 'hidden' }}>
-    <Image source={source} resizeMode="stretch" fadeDuration={0} style={style} />
-    {!!tint && <Image source={source} resizeMode="stretch" fadeDuration={0} style={[style, { tintColor: tint, opacity: 0.55 }]} />}
+    {!solid && <Image source={source} resizeMode="stretch" fadeDuration={0} style={style} />}
+    {!!tint && <Image source={source} resizeMode="stretch" fadeDuration={0} style={[style, { tintColor: tint, opacity: solid ? 1 : 0.55 }]} />}
+  </View>
+}
+
+// What marks a foe as an enemy at a glance, whatever its species: a dark violet aura on the ground with wisps rising
+// off it (they flicker with the walk cycle; still with reduced motion), and a red outline - the silhouette drawn in red
+// one sprite pixel out in each direction, under the sprite itself.
+const OUTLINE: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+const FOE_RED = '#ff2a3d'
+function ShadowAura({ size, step, boss }: { size: number, step: number, boss: boolean }) {
+  const glow = size * (boss ? 1.05 : 0.9)
+  const wisp = (x: number, rise: number, scale: number, key: string) => <View key={key} style={[board.wisp, {
+    left: size / 2 + x * size - size * 0.05 * scale, top: size * (0.18 - rise), width: size * 0.1 * scale, height: size * 0.22 * scale,
+    borderRadius: size }]} />
+  return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View style={[board.aura, { left: (size - glow) / 2, top: size * 0.32, width: glow, height: glow * 0.62, borderRadius: glow }]} />
+    <View style={[board.auraCore, { left: size * 0.22, top: size * 0.5, width: size * 0.56, height: size * 0.3, borderRadius: size }]} />
+    {step ? [wisp(-0.28, 0.02, 1, 'a'), wisp(0.22, 0.1, 0.8, 'b'), wisp(-0.02, -0.04, 0.7, 'c')]
+      : [wisp(-0.22, 0.1, 0.8, 'a'), wisp(0.28, 0.02, 1, 'b'), wisp(0.04, 0.06, 0.7, 'c')]}
   </View>
 }
 
@@ -372,12 +391,21 @@ const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, headi
 }) {
   const strip = walkers[name]
   const sprite = { width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }
+  const px = Math.max(1, size / 44)
+  const frame = facing[heading] + step
   return <View style={{ width: size, height: size, alignItems: 'center' }}>
+    <ShadowAura size={size} step={step} boss={boss} />
     <View style={[board.shadow, { width: size * 0.5, height: size * 0.11, borderRadius: size, bottom: size * 0.04 }]} />
-    {strip ? <Strip source={strip} size={size} frame={facing[heading] + step} tint="#2a1240" /> : <>
-      <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={sprite} />
-      <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { position: 'absolute', tintColor: '#2a1240', opacity: 0.55 }]} />
-    </>}
+    {OUTLINE.map(([dx, dy]) => <View key={`${dx},${dy}`} style={{ position: 'absolute', left: dx * px, top: dy * px }}>
+      {strip ? <Strip source={strip} size={size} frame={frame} tint={FOE_RED} solid />
+        : <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { tintColor: FOE_RED }]} />}
+    </View>)}
+    <View style={{ position: 'absolute', left: 0, top: 0 }}>
+      {strip ? <Strip source={strip} size={size} frame={frame} tint="#2a1240" /> : <>
+        <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={sprite} />
+        <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { position: 'absolute', tintColor: '#2a1240', opacity: 0.55 }]} />
+      </>}
+    </View>
     <View style={{ position: 'absolute', bottom: 0 }}><Health ratio={ratio} width={size * 0.7} /></View>
     {boss && <Text style={board.boss}>BOSS</Text>}
     {(slowed || poisoned) && <Text style={board.status}>{slowed ? '❄' : ''}{poisoned ? '☠' : ''}</Text>}
@@ -433,6 +461,9 @@ const board = themedStyles(() => ({
   cell: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   free: { borderWidth: 1, borderColor: 'rgba(255, 224, 141, 0.45)', backgroundColor: 'rgba(255, 224, 141, 0.12)' },
   shadow: { position: 'absolute', backgroundColor: 'rgba(2, 16, 27, 0.22)' },
+  aura: { position: 'absolute', backgroundColor: 'rgba(96, 18, 150, 0.42)' },
+  auraCore: { position: 'absolute', backgroundColor: 'rgba(36, 4, 60, 0.55)' },
+  wisp: { position: 'absolute', backgroundColor: 'rgba(132, 40, 196, 0.62)' },
   range: { position: 'absolute', borderWidth: 2, borderColor: 'rgba(84, 199, 196, 0.85)', backgroundColor: 'rgba(84, 199, 196, 0.14)' },
   inspected: { borderWidth: 2, borderColor: onBoard.gold },
   snorlax: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
