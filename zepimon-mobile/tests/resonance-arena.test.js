@@ -99,12 +99,15 @@ for (const layout of LAIR_LIST) {
     }
   })
 
-  test(`${layout.label}: the entrance is a one-way portal, sealed once you are through`, () => {
-    const arena = startArena(layout, [], 3, T0)
-    const back = arenaWalk(arena, layout.out, T0, MID)
-    assert.equal(back.move, 'bump', 'Stepping back into the portal never leaves the lair')
-    assert.match(back.arena.message, /one way/)
+  test(`${layout.label}: the portal never leads out; before any seal it is the shiny reset, after it a wall`, () => {
+    let arena = startArena(layout, [], 3, T0)
+    assert.equal(arenaWalk(arena, layout.out, T0, MID).move, 'reset', 'Before any seal, stepping onto the portal resets')
     assert.equal(arenaWalk(pauseArena(arena), layout.out, T0, MID).move, 'none', 'Not while paused')
+    const sealed = arenaWalk(startArena(layout, ['wave'], 3, T0), layout.out, T0, MID)
+    assert.equal(sealed.move, 'bump', 'Once a seal is on, the portal holds')
+    assert.match(sealed.arena.message, /seal is on/)
+    arena = walkRoute(arena, [stepAway(arena)], T0).arena
+    assert.notEqual(arenaWalk(arena, layout.out, T0 + 1000, MID).move, 'reset', 'Only from the doorway')
     const bump = arenaWalk({ ...startArena(layout, [], 3, T0), at: layout.legendary.y > 0 ? { ...layout.legendary, y: layout.legendary.y + 1 } : layout.legendary }, 'north', T0, MID)
     if (bump.move === 'bump') assert.match(bump.arena.message, /Legendary/)
   })

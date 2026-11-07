@@ -55,7 +55,8 @@ type Step = { kind: 'overview' } | { kind: 'lanterns' }
 // distance give an Expedition Permit.
 // Every encounter then runs one way, with no stop in between: trial → a one-way portal into the Legendary's lair, a room
 // from Pokemon Emerald where it waits (src/games/lairs.ts; coming in shows whether it is Shiny) → Resonance Trial (four
-// seals in the lair; src/games/ResonanceTrial.tsx) → battle → catch, and only a successful catch adds the Legendary to
+// seals in the lair; src/games/ResonanceTrial.tsx; until the first seal, stepping back onto the portal is the shiny
+// reset, met anew right there) → battle → catch, and only a successful catch adds the Legendary to
 // the Dex. Leaving at any point keeps its place, and coming back picks up where it was. Shrine Revisits replay a caught Legendary's trial rooms or battle
 // as practice, with no permit, distance or quest; they save only rooms' best moves and rematch wins.
 export default function ExpeditionsScreen() {
@@ -152,6 +153,9 @@ export default function ExpeditionsScreen() {
           : <ResonanceTrial key={`${key}:${index}:${encounter.attempt}`} encounter={encounter} number={number} partner={partner} reduced={reduced}
           busy={busy} error={message} weekKm={walkingBonus(progress).km}
           onSeal={seal => store.activateSeal(key, index, seal)} onStabilize={() => { void act(() => store.stabilizeResonance(key, index), () => battle(key, index, foe)) }}
+          // The shiny reset at the portal: saved in one step; the new attempt remounts the lair with the new meeting.
+          onReset={async discardShiny => { setMessage(''); try { await store.resetLair(key, index, discardShiny) }
+            catch (error) { setMessage(error instanceof Error ? error.message : 'Could not reset. Try again.'); throw error } }}
           onLeave={() => leave(`You left the ${lair}. ${encounter.shiny ? 'The Shiny ' : ''}${encounter.name} will be waiting just as it is.`)} />
       }
     } else if (step.kind === 'trial') {
@@ -199,7 +203,7 @@ export default function ExpeditionsScreen() {
         <Copy>{Object.keys(expeditions.dex).length} Normal / Shiny discoveries kept on this phone.</Copy>
         <Button title="Open my Dex" secondary onPress={() => router.push('/dex')} />
       </Panel>
-      <Copy small>Clearing a shrine trial opens a one-way portal into the Legendary’s lair, where it may be Shiny. The portal seals behind you: steady the Legendary with four seals and the battle begins. Leaving, reopening or syncing never changes it, and you pick up right where you were.</Copy>
+      <Copy small>Clearing a shrine trial opens a one-way portal into the Legendary’s lair, where it may be Shiny. The portal never leads back out, but until you switch on a seal, stepping back onto it resets the encounter for a new Shiny chance. Steady the Legendary with four seals and the battle begins. Leaving, reopening or syncing never changes it, and you pick up right where you were.</Copy>
       <Copy small>Distance counts only saved adventures, never live distance. A failed catch or leaving uses nothing up. Befriending records, quests and permits are kept on this phone; reinstalling requires befriending unlocked encounters again.</Copy>
     </>}
   </GameScreenContext.Provider></Screen>
@@ -247,6 +251,7 @@ function Encounter({ trailKey, trail, encounter, busy, onBegin, onEnter, onPermi
       {encounter?.trial ? <StatusNote tone="success">Your trial is done. {name} waits in the {lair}.</StatusNote>
         : <StatusNote tone="info" detail={trial.lore}>{trial.title} · {KIND_NAMES[trial.kind]}: {encounter?.checkpoint ? 'pick up the trial where you left it' : 'clear the trial'} to reach {name}.</StatusNote>}
       <BallButton title={encounter?.trial ? enter : 'Begin the trial'} loading={busy} disabled={sealedFor > 0} onPress={encounter?.trial ? onEnter : onBegin} />
+      {encounter?.trial && !resonance?.started && <Footnote>{`Coming in shows whether ${name} is Shiny. Until you switch on a seal, step back onto the portal to meet it anew.`}</Footnote>}
       {!encounter?.trial && <Footnote>{`The trial’s last door is a one-way portal: it takes you straight into the ${lair}, then on to the battle once ${name} is steady.`}</Footnote>}
     </> : <>
       <StatusNote tone="info">Save another adventure on your watch or this phone to continue, or open this encounter early with an Expedition Permit.</StatusNote>

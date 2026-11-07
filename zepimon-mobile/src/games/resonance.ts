@@ -9,7 +9,8 @@ import type { Direction, Point, SafariMap } from './safari-zone.ts'
 // (src/games/lairs.ts), a room from Pokemon Emerald: walked, collided and tapped to walk the Safari Zone's way
 // (src/games/safari-zone.ts), with the Legendary waiting where it lives in that room. Until the first seal switches on
 // the Legendary only watches. The way in is a one-way portal from the shrine trial: it seals behind you, so there is
-// no walking back out (and no new Shiny roll). The player switches on four ancient seals, each a small, gentle
+// no walking back out. Stepping back onto it before any seal is on is the shiny reset instead (move 'reset': the lair
+// ripples and the Legendary is met anew); after the first seal it is only a wall. The player switches on four ancient seals, each a small, gentle
 // challenge, while the Legendary sends readable, telegraphed attacks:
 // - wave: touching the seal calls an energy wave over the whole lair but one safe tile (◎); stand on it when it lands.
 // - runes: touching the seal lights three numbered runes; step on them in order (a rune out of turn simply doesn't count).
@@ -150,7 +151,7 @@ export function objective(arena: Arena): string {
   if (arena.wave) return 'An energy wave is coming: stand on the safe tile ◎ before it lands!'
   if (arena.pulse) return 'Hold still on the seal and press Resonate while the ring is in the gold band.'
   if (allOn(arena)) return 'Every seal is on. Steady the Legendary to open the catch.'
-  if (!arena.seals.length && arena.runes === null && arena.stones === null) return 'It watches, calm. Wake a seal ◇ to begin.'
+  if (!arena.seals.length && arena.runes === null && arena.stones === null) return 'It watches, calm. Wake a seal ◇ to begin, or step back onto the portal to meet it anew.'
   const left = RESONANCE_SEALS.length - arena.seals.length
   const parts: string[] = []
   if (arena.runes !== null) parts.push(`step on rune ${arena.runes + 1}`)
@@ -194,10 +195,16 @@ function touchSeal(arena: Arena, seal: SealId, now: number, random: () => number
 }
 
 // One press, from the step walker, the D-pad, the keys or a tap route. Blocked while paused, staggered or recovering.
-// The entrance is a one-way portal: it seals once you are through, so a step back into it is only a bump.
-export function arenaWalk(arena: Arena, direction: Direction, now: number, random: () => number): ArenaResult & { move: 'step' | 'bump' | 'none' } {
+// The entrance is a one-way portal: it never leads out. From the doorway, before any seal is on, a step back into it is
+// the shiny reset (move 'reset'), whatever else is going on; once a seal is on it is only a bump.
+export function arenaWalk(arena: Arena, direction: Direction, now: number, random: () => number): ArenaResult & { move: 'step' | 'bump' | 'none' | 'reset' } {
   const { layout } = arena
   if (arena.paused) return { arena, completed: null, move: 'none' }
+  if (same(arena.at, layout.start) && direction === layout.out) {
+    const turned = { ...arena, facing: direction }
+    if (!arena.seals.length) return { arena: turned, completed: null, move: 'reset' }
+    return { arena: say(turned, 'A seal is on: the portal holds the Legendary as it is now.'), completed: null, move: 'bump' }
+  }
   if (now < arena.staggerUntil || now < arena.recoverUntil) return { arena, completed: null, move: 'none' }
   const turned = { ...arena, facing: direction }
   const next = { x: arena.at.x + STEPS[direction].x, y: arena.at.y + STEPS[direction].y }
