@@ -223,7 +223,7 @@ test('the battle never knocks the Legendary out and reaches a catch only through
 })
 
 const stepRun = (run, ...directions) => directions.reduce((current, direction) => ({ ...current, room: stepRoom(current.room, trialStages[current.stages[current.index]], direction).room }), run)
-const TRIAL_RUN = () => stepRun(startRun(['switch-tutorial', 'switch-1']), 'east', 'east')
+const TRIAL_RUN = () => stepRun(startRun(['switch-tutorial', 'sig-zapdos']), 'east', 'east')
 
 test('a checkpoint is kept until the trial is done', () => {
   const run = TRIAL_RUN()

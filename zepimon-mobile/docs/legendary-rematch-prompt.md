@@ -26,7 +26,7 @@ Expo SDK 57, React Native 0.86, Expo Router, TypeScript.
 - **Caught Legendaries:** `expeditions.dex` in the store (`src/store.tsx`, type in `src/expeditions.ts`). It is keyed `'Name'` or `'Shiny Name'`. The canonical species order is `legendarySpecies` in `src/generated/expedition.js`.
 - **Trials:**
   - `src/games/trials.ts`: `trialFor(name, records)` gives `{ title, lore, kind, stages }`, and `KIND_NAMES` holds the kind names.
-  - `src/generated/trial-maps.js`: `trialStages` with ids `<kind>-tutorial`, `<kind>-1|2|3`, and `star`.
+  - `src/generated/trial-maps.js`: `trialStages` with ids `<kind>-tutorial`, `sig-<name>` (each Legendary's own room) and `star`.
   - `src/games/LegendaryTrial.tsx`: the trial screen. Its props are `trial`, `checkpoint`, `onCheckpoint`, `onSolved(results)` and `onLeave(run)`.
 - **Battle:** `src/games/LegendaryBattle.tsx`, with props `foe`, `partner`, `number`, `reduced`, `onCaught`, `onLeave` and `onDone`. In an expedition, `onCaught` calls `store.befriend(key, index)`, which claims the encounter (`src/app/expeditions.tsx` ~line 73). **A rematch must not call `befriend`.**
 - **Records:** `store.trialRecords` (stage id → best moves) and `saveTrialRecords` in `trials.ts`. The trial arcade achievements in `src/games/achievements.ts` read these records.

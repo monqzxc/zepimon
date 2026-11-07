@@ -24,7 +24,9 @@ test('every room can be cleared, within par', () => {
 
 test('rooms are sized for a 3–5 minute trial', () => {
   for (const kind of KINDS) {
-    for (const tier of ['tutorial', '1', '2', '3']) assert.ok(trialStages[`${kind}-${tier}`], `${kind}-${tier} is missing`)
+    assert.ok(trialStages[`${kind}-tutorial`], `${kind}-tutorial is missing`)
+    // The shared main rooms were retired once every Legendary had its own signature room.
+    for (const tier of ['1', '2', '3']) assert.equal(trialStages[`${kind}-${tier}`], undefined, `${kind}-${tier} is retired`)
   }
   assert.ok(trialStages.star, 'star is missing')
   for (const stage of Object.values(trialStages)) {

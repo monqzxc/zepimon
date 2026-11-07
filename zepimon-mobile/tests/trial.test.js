@@ -434,11 +434,10 @@ test('every Legendary has a themed trial of its kind', () => {
 })
 
 test("room order follows the player's own clears", () => {
-  assert.deepEqual(trialFor('Missingno', {}).stages, ['switch-tutorial', 'switch-1'])
+  // The shared main rooms are retired: a shrine with no room of its own plays only its kind's tutorial.
+  assert.deepEqual(trialFor('Missingno', {}).stages, ['switch-tutorial'])
   const records = { 'switch-tutorial': 12, 'switch-1': 60 }
-  assert.deepEqual(trialFor('Missingno', records).stages, ['switch-2'])
-  assert.deepEqual(trialFor('Missingno', { ...records, 'switch-2': 70 }).stages, ['switch-3'])
-  assert.deepEqual(trialFor('Missingno', { ...records, 'switch-2': 70, 'switch-3': 80 }).stages, ['switch-3'])
+  assert.deepEqual(trialFor('Missingno', records).stages, ['switch-tutorial'])
   assert.deepEqual(trialFor('Zapdos', {}).stages, ['switch-tutorial', 'sig-zapdos'], 'A signature room comes after its kind’s tutorial')
   assert.deepEqual(trialFor('Zapdos', records).stages, ['sig-zapdos'], 'and is played every time, whatever else is cleared')
   assert.deepEqual(trialFor('Articuno', { 'crumble-tutorial': 9 }).stages, ['sig-articuno'])
@@ -453,7 +452,7 @@ test("room order follows the player's own clears", () => {
 const walk = (run, ...directions) => directions.reduce((current, direction) => ({ ...current, room: stepRoom(current.room, trialStages[current.stages[current.index]], direction).room }), run)
 
 test('a run survives a save and reload', () => {
-  const run = walk(startRun(['switch-tutorial', 'switch-1']), 'east', 'east')
+  const run = walk(startRun(['switch-tutorial', 'sig-zapdos']), 'east', 'east')
   assert.equal(run.room.moves, 2)
   assert.deepEqual(restoreRun(JSON.parse(JSON.stringify(run))), run)
   const star = walk(startRun(['star']), 'east', 'north')
@@ -461,11 +460,12 @@ test('a run survives a save and reload', () => {
 })
 
 test('a run that no longer fits the rooms is dropped', () => {
-  const run = walk(startRun(['switch-tutorial', 'switch-1']), 'east')
+  const run = walk(startRun(['switch-tutorial', 'sig-zapdos']), 'east')
   const edit = (change, base = run) => { const copy = JSON.parse(JSON.stringify(base)); change(copy); return copy }
   assert.notEqual(restoreRun(edit(() => {})), null)
   const bad = [
-    edit(r => { r.stages = ['nope', 'switch-1'] }),
+    edit(r => { r.stages = ['nope', 'sig-zapdos'] }),
+    edit(r => { r.stages = ['switch-tutorial', 'switch-1'] }),
     edit(r => { r.index = 5 }),
     edit(r => { r.index = 1 }),
     edit(r => { r.stages = [] }),
@@ -482,7 +482,7 @@ test('a run that no longer fits the rooms is dropped', () => {
     edit(r => { r.room.pattern = 1 }),
     edit(r => { r.results = { 'switch-tutorial': -2 } }),
     edit(r => { r.results = { nope: 2 } }),
-    edit(r => { r.room.stage = 'switch-1' }),
+    edit(r => { r.room.stage = 'sig-zapdos' }),
     edit(r => { r.room.facing = 'up' }),
     edit(r => { r.room.cluesRead = ['1,1'] })
   ]
@@ -502,11 +502,14 @@ test('records keep the best', () => {
   assert.deepEqual(saveTrialRecords({ a: 50 }, { a: 60, b: 70 }), { a: 50, b: 70 })
   assert.deepEqual(saveTrialRecords({ a: 50 }, { a: 40 }), { a: 40 })
   assert.deepEqual(restoreTrialRecords({ 'switch-1': 40, nope: 3, 'crumble-1': -1, 'dark-1': 'x', 'warp-1': 2.5 }), { 'switch-1': 40 })
+  // Best moves in the retired shared rooms are kept, though the rooms are gone; rooms that never were are not.
+  assert.equal(trialStages['switch-1'], undefined)
+  assert.deepEqual(restoreTrialRecords({ 'temple-3': 70, 'switch-4': 10, 'sig-zapdos': 50 }), { 'temple-3': 70, 'sig-zapdos': 50 })
   for (const garbage of [null, 4, 'x', []]) assert.deepEqual(restoreTrialRecords(garbage), {})
 })
 
 test('moving through the rooms of a run', () => {
-  let run = startRun(['switch-tutorial', 'switch-1'])
+  let run = startRun(['switch-tutorial', 'sig-zapdos'])
   assert.deepEqual([run.index, run.room.stage, run.results], [0, 'switch-tutorial', {}])
   assert.equal(runCleared(run), false)
   const moved = walk(run, 'east', 'east')
@@ -514,17 +517,17 @@ test('moving through the rooms of a run', () => {
   assert.deepEqual(restartRoom({ ...moved, results: { x: 1 } }).results, { x: 1 })
   assert.deepEqual(restartRun({ ...moved, index: 1 }), run)
   run = nextRoom(moved)
-  assert.deepEqual([run.index, run.room.stage, run.results], [1, 'switch-1', { 'switch-tutorial': 2 }])
+  assert.deepEqual([run.index, run.room.stage, run.results], [1, 'sig-zapdos', { 'switch-tutorial': 2 }])
   assert.equal(runCleared(run), false)
   const last = { ...run, room: { ...run.room, status: 'cleared', moves: 33 } }
   assert.equal(runCleared(last), true)
   assert.equal(runCleared({ ...last, index: 0 }), false)
   const done = nextRoom(last)
-  assert.deepEqual([done.index, done.room, done.results], [1, last.room, { 'switch-tutorial': 2, 'switch-1': 33 }])
+  assert.deepEqual([done.index, done.room, done.results], [1, last.room, { 'switch-tutorial': 2, 'sig-zapdos': 33 }])
 })
 
 test('a saved run must use canonical keys and a cleared room must end on its exit', () => {
-  const run = walk(startRun(['switch-tutorial', 'switch-1']), 'east')
+  const run = walk(startRun(['switch-tutorial', 'sig-zapdos']), 'east')
   const edit = (change, base = run) => { const copy = JSON.parse(JSON.stringify(base)); change(copy); return copy }
   assert.notEqual(restoreRun(edit(r => { r.room.seen = ['1,1'] })), null)
   assert.equal(restoreRun(edit(r => { r.room.seen = ['01,1'] })), null, 'Leading zeros are not a canonical key')
@@ -579,7 +582,7 @@ test('signature rooms belong to their Legendary, name their own relics and clear
   const ember = trialStages['sig-moltres']
   assert.equal(relicWord(ember, 1), 'ember')
   assert.equal(relicWord(ember, 3), 'embers')
-  assert.equal(relicWord(trialStages['switch-1'], 2), 'relics')
+  assert.equal(relicWord(trialStages['switch-tutorial'], 2), 'relics')
   // Walk onto lava: its own refusal, not the water's.
   const lava = ember.tiles.findIndex(row => row.includes('~'))
   const start = startRoom(ember)

@@ -4,7 +4,7 @@ import type { ArcadeScores } from './scores.ts'
 import type { DexRecord } from '../journal.ts'
 import { trialStages as generatedStages } from '../generated/trial-maps.js'
 import type { Stage } from './trial.ts'
-import { KIND_NAMES } from './trials.ts'
+import { KIND_NAMES, RETIRED_ROOMS } from './trials.ts'
 import type { TrialRecords } from './trials.ts'
 import { allAdventures } from '../adventures.ts'
 import { achievements, runningPoints } from '../running.ts'
@@ -34,10 +34,11 @@ export function arcadeAchievements(records: ArcadeRecords): Achievement[] {
   const safariSpecies = new Set(Object.keys(safari).map(key => key.replace(/^Shiny /, ''))).size
   const safariShiny = Number(Object.keys(safari).some(key => key.startsWith('Shiny ')))
   const stages = generatedStages as Record<string, Stage>
-  // A kind's main rooms, or any Legendary's signature room of that kind (what expeditions play now).
+  // Any Legendary's signature room of a kind, or one of the kind's retired main rooms cleared before they went.
   const trialRoom = (kind: string) => Number([1, 2, 3].some(room => Object.hasOwn(trialRecords, `${kind}-${room}`))
     || Object.keys(trialRecords).some(id => stages[id]?.legendary !== undefined && stages[id].kind === kind))
-  const trialPar = Object.entries(trialRecords).filter(([id, moves]) => Object.hasOwn(stages, id) && moves <= stages[id].par).length
+  const par = (id: string) => Object.hasOwn(stages, id) ? stages[id].par : RETIRED_ROOMS[id]
+  const trialPar = Object.entries(trialRecords).filter(([id, moves]) => par(id) !== undefined && moves <= par(id)).length
   const won = Object.keys(bestMoves).length
   return [
     { id: 'memory-win', game: 'Memory Match', title: 'First match', description: 'Win a game of Memory Match.', points: 10, value: Math.min(1, won), goal: 1 },

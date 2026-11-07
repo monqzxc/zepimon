@@ -61,17 +61,22 @@ export const signatureRoom = (name: string): string | null => {
   return Object.hasOwn(trialStages, id) && trialStages[id].legendary === name ? id : null
 }
 
-// A kind's rooms: its tutorial first if never cleared, then main room `tier + 1`, where tier is how many main rooms are cleared (at most 2).
-// A Legendary with a signature room plays that instead of a main room, after its kind's tutorial if never cleared. The Shattered
-// Star is a single island room with no tutorial.
+// The rooms a Legendary's trial plays: its kind's tutorial first if never cleared, then its own signature room. The
+// Shattered Star is a single island room with no tutorial. Every Legendary has a signature room; a name without one
+// (none today) plays the tutorial alone.
 export function trialFor(name: string, records: TrialRecords): { title: string, lore: string, kind: TrialKind, stages: string[] } {
   const [title, kind, lore] = Object.hasOwn(TRIALS, name) ? TRIALS[name] : [`${name}’s Shrine`, 'switch', `A quiet maze protects ${name}. Find the golden exit to reach it.`] as const
   if (kind === 'star') return { title, lore, kind, stages: ['star'] }
   const signature = signatureRoom(name)
-  if (signature) return { title, lore, kind, stages: [...(Object.hasOwn(records, `${kind}-tutorial`) ? [] : [`${kind}-tutorial`]), signature] }
-  const cleared = (id: string) => Object.hasOwn(records, id)
-  const tier = Math.min(2, [1, 2, 3].filter(room => cleared(`${kind}-${room}`)).length)
-  return { title, lore, kind, stages: [...(cleared(`${kind}-tutorial`) ? [] : [`${kind}-tutorial`]), `${kind}-${tier + 1}`] }
+  const tutorial = `${kind}-tutorial`
+  return { title, lore, kind, stages: signature ? [...(Object.hasOwn(records, tutorial) ? [] : [tutorial]), signature] : [tutorial] }
+}
+
+// The shared main rooms every Legendary of a kind once played, by id with their par, retired once each had its own
+// signature room. Best moves kept for them still count towards the trial achievements.
+export const RETIRED_ROOMS: Record<string, number> = {
+  'switch-1': 76, 'switch-2': 96, 'switch-3': 101, 'crumble-1': 57, 'crumble-2': 84, 'crumble-3': 86,
+  'dark-1': 70, 'dark-2': 74, 'dark-3': 94, 'temple-1': 58, 'temple-2': 72, 'temple-3': 81, 'warp-1': 65, 'warp-2': 74, 'warp-3': 110
 }
 
 // A run through one trial's rooms: the room being played and the moves each earlier room took. JSON-safe.
@@ -176,6 +181,6 @@ export function saveTrialRecords(records: TrialRecords, results: Record<string, 
 export function restoreTrialRecords(raw: unknown): TrialRecords {
   const records: TrialRecords = {}
   if (!isRecord(raw)) return records
-  for (const [id, moves] of Object.entries(raw)) if (known(id) && isCount(moves)) records[id] = moves
+  for (const [id, moves] of Object.entries(raw)) if ((known(id) || Object.hasOwn(RETIRED_ROOMS, id)) && isCount(moves)) records[id] = moves
   return records
 }
