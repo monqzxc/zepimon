@@ -15,7 +15,7 @@ const saved = () => ({
   },
   quest: { ...emptyQuest(), permits: 1, unlocks: { '1767225600000:12345': 1 } },
   encounters: { '1767225600000:12345': { index: 2, name: 'Uxie', shiny: null, trial: false, resetPending: false,
-    checkpoint: { stages: ['warp-1'], index: 0, results: {} } } },
+    checkpoint: { stages: ['sig-uxie'], index: 0, results: {} } } },
   trialRecords: { 'sig-jirachi': 80, star: 120 },
   rematchWins: { Jirachi: 2 }
 })
@@ -73,9 +73,8 @@ test('only caught Legendaries can be revisited, in the form they were caught', (
 })
 
 test('each room shows its best and par when known', () => {
-  const par = trialStages['switch-2'].par
-  assert.equal(roomLine('switch-2', { 'switch-2': 64 }), `Room 2 · best 64 · par ${par}`)
-  assert.equal(roomLine('switch-2', {}), `Room 2 · par ${par}`)
+  const par = trialStages['sig-zapdos'].par
+  assert.equal(roomLine('sig-zapdos', {}), `Thunder Spire · par ${par}`)
   assert.equal(roomLine('sig-moltres', { 'sig-moltres': 61 }), `Ember Caldera · best 61 · par ${trialStages['sig-moltres'].par}`, 'A signature room goes by its trial’s name')
   assert.equal(roomLine('switch-tutorial', { 'switch-tutorial': 9 }), `Tutorial · best 9 · par ${trialStages['switch-tutorial'].par}`)
   assert.equal(roomLine('star', {}), `The island · par ${trialStages.star.par}`)
@@ -100,9 +99,9 @@ test('a practice clear changes only trialRecords, keeping the lower moves', () =
 
 test('a practice clear for an uncaught Legendary or another kind of room is refused', () => {
   const before = saved()
-  assert.throws(() => practiceClear(before, 'Mewtwo', false, { 'warp-1': 10 }), /caught/)
+  assert.throws(() => practiceClear(before, 'Mewtwo', false, { 'sig-mewtwo': 10 }), /caught/)
   assert.throws(() => practiceClear(before, 'Jirachi', true, { 'sig-jirachi': 10 }), /caught/, 'Shiny form not caught')
-  assert.throws(() => practiceClear(before, 'Jirachi', false, { 'warp-1': 10 }), /room/, "Not one of Jirachi's rooms")
+  assert.throws(() => practiceClear(before, 'Jirachi', false, { 'sig-mewtwo': 10 }), /room/, "Not one of Jirachi's rooms")
   assert.throws(() => practiceClear(before, 'Jirachi', false, { 'sig-jirachi': -3 }), /room/)
   assert.throws(() => practiceClear(before, 'Jirachi', false, { 'sig-jirachi': 2.5 }), /room/)
   assert.deepEqual(before, saved(), 'Nothing changed')

@@ -205,7 +205,8 @@ def read_stages():
             check(tint is None or (len(tint) == 2 and len(tint[0]) == 3 and all(0 <= c <= 255 for c in tint[0]) and 0 < tint[1] < 1),
                   f'{sid}: tint is [[r, g, b], strength]')
         else:
-            check(re.fullmatch(r'star' if kind == 'star' else rf'{kind}-(tutorial|1|2|3)', sid), f'{sid}: ids are <kind>-tutorial, <kind>-1|2|3, star or sig-<name>')
+            # The shared main rooms (<kind>-1|2|3) were retired once every Legendary had its own signature room.
+            check(re.fullmatch(r'star' if kind == 'star' else rf'{kind}-tutorial', sid), f'{sid}: ids are <kind>-tutorial, star or sig-<name>')
             check(not {'legendary', 'theme', 'flavor', 'tint'} & set(stage), f'{sid}: only signature rooms take legendary, theme, flavor or tint')
         check(tiles and all(isinstance(row, str) for row in tiles), f'{sid}: tiles are rows of characters')
         rows, cols = len(tiles), len(tiles[0])
