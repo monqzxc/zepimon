@@ -89,6 +89,35 @@ THEMES = {
     # Sootopolis (Suicune): the city's white stone, its sand, and the crater's crystal-clear water.
     'spring': dict(map='SootopolisCity', primary='general', secondary='sootopolis', ground=0x2D9, path=0x071, grass=0x001,
                    water=0x279, shore=0x2D9, rock=0x2F3, cap=0x241, face=0x2E1, fill=0x2D8, pond=False),
+    # The Regi chambers: Desert Ruins, Island Cave and the Ancient Tomb share one layout and tileset in Emerald, so each
+    # takes a `tint` (colour, strength) over its whole terrain: warm sandstone, ice blue and cold steel.
+    'regi-rock': dict(map='DesertRuins', primary='general', secondary='cave', ground=0x201, path=0x201, grass=0x201,
+                      water=None, shore=0x201, rock=0x2D5, cap=0x21B, face=0x219, fill=0x2E1, pond=True, tint=((214, 140, 70), 0.22)),
+    'regi-ice': dict(map='IslandCave', primary='general', secondary='cave', ground=0x201, path=0x201, grass=0x201,
+                     water=None, shore=0x201, rock=0x2D5, cap=0x21B, face=0x219, fill=0x2E1, pond=True, tint=((110, 180, 255), 0.42)),
+    'regi-steel': dict(map='AncientTomb', primary='general', secondary='cave', ground=0x201, path=0x201, grass=0x201,
+                       water=None, shore=0x201, rock=0x2D5, cap=0x21B, face=0x219, fill=0x2E1, pond=True, tint=((150, 165, 190), 0.5)),
+    # The Sealed Chamber's inner room (Regigigas): its own purple stone, with the braille-carved faces as the walls.
+    'sealed': dict(map='SealedChamber_InnerRoom', primary='general', secondary='cave', ground=0x201, path=0x201, grass=0x201,
+                   water=None, shore=0x201, rock=0x2D5, cap=0x2E9, face=0x237, fill=0x2F9, pond=True),
+    # Southern Island (the Eon duo): its clearing's grass and flowers, the pond, and the Soul Dew's stone as the rock. Its
+    # trees are 2 x 2 metatiles, so walls follow `wall_pattern` (rows of the tree, by tile parity) instead of cap/face/fill.
+    # Latios's dusk is the same island washed toward evening violet.
+    'south-day': dict(map='SouthernIsland_Interior', primary='general', secondary='rustboro', ground=0x001, path=0x204, grass=0x004,
+                      water=None, shore=0x001, rock=0x2C1, cap=0x1D4, face=0x1DC, fill=0x1D4, pond=True,
+                      wall_pattern=((0x1D4, 0x1D5), (0x1DC, 0x1DD))),
+    'south-dusk': dict(map='SouthernIsland_Interior', primary='general', secondary='rustboro', ground=0x001, path=0x204, grass=0x004,
+                       water=None, shore=0x001, rock=0x2C1, cap=0x1D4, face=0x1DC, fill=0x1D4, pond=True,
+                       wall_pattern=((0x1D4, 0x1D5), (0x1DC, 0x1DD)), tint=((150, 90, 170), 0.4)),
+    # The lake trio. Meteor Falls (Uxie): lilac stone, its pools and ridged rock.
+    'falls': dict(map='MeteorFalls_1F_1R', primary='general', secondary='meteor_falls', ground=0x201, path=0x229, grass=0x23C,
+                  water=0x170, shore=0x201, rock=0x232, cap=0x23E, face=0x22E, fill=0x244, pond=False),
+    # Route 117 (Mesprit): meadow, flowerbeds and sand path by the lake, fenced off from the tree lines.
+    'garden': dict(map='Route117', primary='general', secondary='mauville', ground=0x001, path=0x121, grass=0x20C,
+                   water=0x0A1, shore=0x001, rock=0x0C6, cap=0x016, face=0x149, fill=0x0C6, pond=False),
+    # Rusturf Tunnel (Azelf): the tunnel's ochre floor and mossy green rock.
+    'tunnel': dict(map='RusturfTunnel', primary='general', secondary='rusturf_tunnel', ground=0x201, path=0x202, grass=0x203,
+                   water=None, shore=0x201, rock=0x205, cap=0x209, face=0x219, fill=0x212, pond=True),
 }
 FLAVOR_KEYS = {'relic', 'relics', 'water', 'clear'}
 # The General tileset's pond by which sides are land: (north, south, west, east); other shapes use the middle.
@@ -230,6 +259,8 @@ def map_metatile(theme, tiles, x, y):
     at = lambda px, py: tiles[py][px] if 0 <= px < cols and 0 <= py < rows else '#'
     char = at(x, y)
     if char in WALLS:
+        if 'wall_pattern' in theme:
+            return theme['wall_pattern'][y % 2][x % 2]
         if at(x, y + 1) not in WALLS:
             return theme['face']
         return theme['fill'] if at(x, y - 1) in WALLS else theme['cap']
@@ -240,6 +271,13 @@ def map_metatile(theme, tiles, x, y):
             return table.get(land, table[(0, 0, 0, 0)])
         return theme['water']
     return theme[{',': 'path', 'g': 'grass', 'R': 'rock', 'w': 'shore'}.get(char, 'ground')]
+
+
+def tinted(image, colour, strength):
+    """The image washed toward a colour, keeping its transparency."""
+    washed = Image.blend(image, Image.new('RGBA', image.size, colour + (255,)), strength)
+    washed.putalpha(image.getchannel('A'))
+    return washed
 
 
 def build_rooms(stages):
@@ -263,6 +301,8 @@ def build_rooms(stages):
                 lit = Image.blend(below, Image.new('RGBA', below.size, colour + (255,)), strength)
                 lit.putalpha(below.getchannel('A'))
                 below = lit
+            if 'tint' in theme:
+                below, above = (tinted(layer, *theme['tint']) for layer in (below, above))
             return below, above
         images, chunks = chunk_images(tiles, CHUNK, metatile_for)
         data = dict(id=sid, kind=stage['kind'], tiles=tiles, warps=stage.get('warps', {}), open=''.join(sorted(stage.get('open', ''))),

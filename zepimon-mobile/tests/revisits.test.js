@@ -41,7 +41,7 @@ test('caught Legendaries are listed in species order, a Shiny catch as its own e
 
 test('a Legendary revisits every room of its kind, and Deoxys only the island', () => {
   assert.deepEqual(revisitRooms('Jirachi'), ['switch-tutorial', 'switch-1', 'switch-2', 'switch-3'])
-  assert.deepEqual(revisitRooms('Latias'), ['crumble-tutorial', 'crumble-1', 'crumble-2', 'crumble-3'])
+  assert.deepEqual(revisitRooms('Heatran'), ['crumble-tutorial', 'crumble-1', 'crumble-2', 'crumble-3'])
   assert.deepEqual(revisitRooms('Articuno'), ['crumble-tutorial', 'sig-articuno'], 'A signature room replaces the main rooms')
   assert.deepEqual(revisitRooms('Zapdos'), ['switch-tutorial', 'sig-zapdos'])
   assert.deepEqual(revisitRooms('Deoxys'), ['star'])
@@ -55,7 +55,7 @@ test('a Legendary revisits every room of its kind, and Deoxys only the island', 
 test('rooms explored counts the rooms of its own shrine that have a best', () => {
   const { trialRecords } = saved()
   assert.deepEqual(roomsExplored('Jirachi', trialRecords), { explored: 1, rooms: 4 })
-  assert.deepEqual(roomsExplored('Latias', trialRecords), { explored: 0, rooms: 4 }, 'Another kind’s rooms do not count')
+  assert.deepEqual(roomsExplored('Heatran', trialRecords), { explored: 0, rooms: 4 }, 'Another kind’s rooms do not count')
   assert.deepEqual(roomsExplored('Moltres', { 'sig-moltres': 60 }), { explored: 1, rooms: 2 })
   assert.deepEqual(roomsExplored('Deoxys', trialRecords), { explored: 1, rooms: 1 })
   assert.deepEqual(roomsExplored('Jirachi', {}), { explored: 0, rooms: 4 })

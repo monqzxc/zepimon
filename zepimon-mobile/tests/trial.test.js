@@ -408,10 +408,10 @@ test('tap-to-walk treats crystals as destinations and clues and the meteorite as
 
 const KINDS = {
   switch: ['Zapdos', 'Raikou', 'Ho-Oh', 'Jirachi', 'Magearna', 'Zeraora', 'Arceus'],
-  crumble: ['Articuno', 'Moltres', 'Regice', 'Latias', 'Latios', 'Rayquaza', 'Heatran'],
-  dark: ['Entei', 'Celebi', 'Kyogre', 'Giratina', 'Darkrai', 'Cresselia', 'Zygarde'],
-  temple: ['Lugia', 'Groudon', 'Regirock', 'Registeel', 'Regigigas', 'Shaymin', 'Diancie', 'Phione', 'Manaphy'],
-  warp: ['Mewtwo', 'Mew', 'Suicune', 'Uxie', 'Mesprit', 'Azelf', 'Dialga', 'Palkia'],
+  crumble: ['Articuno', 'Moltres', 'Latias', 'Latios', 'Rayquaza', 'Heatran'],
+  dark: ['Entei', 'Regice', 'Celebi', 'Kyogre', 'Giratina', 'Darkrai', 'Cresselia', 'Zygarde'],
+  temple: ['Lugia', 'Groudon', 'Regirock', 'Regigigas', 'Shaymin', 'Diancie', 'Phione', 'Manaphy'],
+  warp: ['Mewtwo', 'Mew', 'Suicune', 'Registeel', 'Uxie', 'Mesprit', 'Azelf', 'Dialga', 'Palkia'],
   star: ['Deoxys']
 }
 
@@ -564,7 +564,7 @@ test('a plain bump costs step time and keeps input; eventful ones let go', () =>
 })
 
 test('signature rooms belong to their Legendary, name their own relics and clear with their own words', () => {
-  for (const name of ['Articuno', 'Zapdos', 'Moltres', 'Kyogre', 'Groudon', 'Rayquaza', 'Raikou', 'Entei', 'Suicune']) {
+  for (const name of ['Articuno', 'Zapdos', 'Moltres', 'Kyogre', 'Groudon', 'Rayquaza', 'Raikou', 'Entei', 'Suicune', 'Regirock', 'Regice', 'Registeel', 'Regigigas', 'Latias', 'Latios', 'Uxie', 'Mesprit', 'Azelf']) {
     const id = `sig-${name.toLowerCase()}`
     assert.equal(signatureRoom(name), id)
     assert.equal(trialStages[id].legendary, name)
