@@ -37,6 +37,12 @@ export function revisitRooms(name: string): string[] {
   return ['tutorial', '1', '2', '3'].map(room => `${kind}-${room}`).filter(id => Object.hasOwn(trialStages, id))
 }
 
+// The room a revisit's journey plays (trial, then lair, then rematch): the Legendary's own signature room, the island for
+// Deoxys, or else the main room its trial would play next given the player's records (never the tutorial).
+export function journeyRoom(name: string, records: TrialRecords): string {
+  return trialFor(name, records).stages.at(-1) as string
+}
+
 // Only a Legendary caught on an expedition, in the form it was caught, has a shrine to revisit.
 export function canRevisit(dex: Record<string, DexRecord>, name: string, shiny: boolean): boolean {
   return species.includes(name) && Object.hasOwn(dex, revisitKey(name, shiny))

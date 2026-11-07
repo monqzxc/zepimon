@@ -146,12 +146,12 @@ const allOn = (arena: Arena) => RESONANCE_SEALS.every(seal => arena.seals.includ
 const say = (arena: Arena, message: string, feedback: Feedback = null): Arena =>
   ({ ...arena, message, feedback, feedbackId: feedback === arena.feedback && message === arena.message ? arena.feedbackId : arena.feedbackId + 1 })
 
-// What to do next, in one line.
-export function objective(arena: Arena): string {
+// What to do next, in one line. canReset: whether the portal can still meet the Legendary anew (never on a revisit).
+export function objective(arena: Arena, canReset = true): string {
   if (arena.wave) return 'An energy wave is coming: stand on the safe tile ◎ before it lands!'
   if (arena.pulse) return 'Hold still on the seal and press Resonate while the ring is in the gold band.'
   if (allOn(arena)) return 'Every seal is on. Steady the Legendary to open the catch.'
-  if (!arena.seals.length && arena.runes === null && arena.stones === null) return 'It watches, calm. Wake a seal ◇ to begin, or step back onto the portal to meet it anew.'
+  if (!arena.seals.length && arena.runes === null && arena.stones === null) return canReset ? 'It watches, calm. Wake a seal ◇ to begin, or step back onto the portal to meet it anew.' : 'It watches, calm. Wake a seal ◇ to begin.'
   const left = RESONANCE_SEALS.length - arena.seals.length
   const parts: string[] = []
   if (arena.runes !== null) parts.push(`step on rune ${arena.runes + 1}`)

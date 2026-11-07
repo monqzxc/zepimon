@@ -288,3 +288,10 @@ test('saved walks this week add resonance, up to two more', () => {
   assert.equal(maxResonance(Number.NaN), 3)
   assert.equal(maxResonance(-4), 3)
 })
+
+test("on a revisit the lair's first line never offers the portal reset", () => {
+  const arena = startArena(LAIR_LIST[0], [], 3, T0)
+  assert.match(objective(arena), /portal/)
+  assert.doesNotMatch(objective(arena, false), /portal/)
+  assert.equal(objective(startArena(LAIR_LIST[0], ['wave'], 3, T0), false), objective(startArena(LAIR_LIST[0], ['wave'], 3, T0)), 'Later lines are the same')
+})

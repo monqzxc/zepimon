@@ -38,7 +38,9 @@ const SEAL_HELP: Record<SealId, string> = {
 type Props = {
   encounter: ActiveEncounter & { shiny: boolean }, number: number, partner: { name: string, shiny: boolean }, reduced: boolean, busy: boolean,
   error: string, weekKm: number, onSeal: (seal: SealId) => Promise<void>, onStabilize: () => void,
-  onReset: (discardShiny: boolean) => Promise<void>, onLeave: () => void
+  onReset: (discardShiny: boolean) => Promise<void>, onLeave: () => void,
+  // A Shrine Revisit's lair: nothing is saved, the Legendary stays in the form it was caught, so the portal never resets.
+  practice?: boolean
 }
 
 // How long the portal ripples before the Legendary is met anew (the save's own pacing is RESET_COOLDOWN).
@@ -51,7 +53,9 @@ type Confirm = 'none' | 'shiny' | 'shiny-final'
 // onto it is the shiny reset: the lair ripples and the Legendary is met anew right there (a Shiny asks twice first).
 // The first seal sets it for good. Four seals steady it, and onStabilize goes straight on to the battle and catch
 // (src/app/expeditions.tsx). Every seal is saved the moment it switches on, so Leave, a failed catch or a restart keeps it.
-export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekKm, onSeal, onStabilize, onReset, onLeave }: Props) {
+// In practice (a Shrine Revisit) the same lair plays out with nothing saved, the portal stays sealed, and steadying the
+// Legendary leads on to a rematch instead of a catch.
+export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekKm, onSeal, onStabilize, onReset, onLeave, practice = false }: Props) {
   const saved = encounter.resonance?.seals ?? []
   const [arena, setArena] = useState(() => startArena(arenaFor(encounter.name), saved, maxResonance(weekKm), Date.now()))
   const { layout } = arena
@@ -68,6 +72,7 @@ export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekK
   // Seals already saved, or being saved: each is sent once, and again only if saving failed.
   const sent = useRef(new Set<SealId>(saved))
   const [saveError, setSaveError] = useState('')
+  const [note, setNote] = useState('')
   const update = (next: Arena) => { current.current = next; setArena(next) }
   const report = (seals: SealId[]) => {
     for (const seal of seals) {
@@ -86,6 +91,7 @@ export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekK
     setTimeout(() => { onReset(discardShiny).catch(() => setRippling(false)) }, reduced ? RIPPLE_MS / 2 : RIPPLE_MS)
   }
   const stepOnPortal = () => {
+    if (practice) { setNote(`On a revisit the portal holds: this ${name} stays as you caught it.`); return }
     if (settled || rippling) return
     if (encounter.shiny) setConfirm('shiny')
     else ripple(false)
@@ -94,6 +100,7 @@ export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekK
   const walkOnce = (direction: Direction) => {
     const result = arenaWalk(current.current, direction, Date.now(), Math.random)
     if (result.move === 'reset') { update(result.arena); stepOnPortal(); return { moved: false, stop: true } }
+    if (result.move === 'step') setNote('')
     if (result.move !== 'none') setMove(previous => ({ kind: result.move === 'bump' ? 'bump' : 'step', id: previous.id + 1 }))
     update(result.arena)
     if (result.completed) report(result.arena.seals)
@@ -138,7 +145,8 @@ export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekK
     return () => clearTimeout(timer)
   }, [])
 
-  const allSaved = RESONANCE_SEALS.every(seal => saved.includes(seal))
+  // In practice the seals live only here; on an expedition the catch waits until every seal is saved.
+  const allSaved = practice ? arena.seals.length === RESONANCE_SEALS.length : RESONANCE_SEALS.every(seal => saved.includes(seal))
   const tile = fitTile(area.width, area.height, layout.map)
   const pulseOn = !!arena.pulse
   const phase = arena.pulse ? pulsePhase(arena.pulse, clock) : 0
@@ -154,7 +162,7 @@ export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekK
         RESONANCE {'●'.repeat(arena.resonance)}{'○'.repeat(arena.maxResonance - arena.resonance)}{arena.recoverUntil ? ' · RECOVERING' : ''}
       </Text>
       <Text style={[look.place, encounter.shiny && { color: colors.gold }]}>{layout.label.toUpperCase()} · {encounter.shiny ? `✦ SHINY ${encounter.name.toUpperCase()} ✦` : encounter.name.toUpperCase()}</Text>
-      <Text numberOfLines={2} style={look.objective}>{steadying ? `The seals’ light flows into ${encounter.name}…` : objective(arena)}</Text>
+      <Text numberOfLines={2} style={look.objective}>{steadying ? `The seals’ light flows into ${encounter.name}…` : objective(arena, !practice)}</Text>
     </View>
     <View style={[look.map, { backgroundColor: layout.background }]} onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}
       accessible={safariControls !== 'tap'} accessibilityRole="image"
@@ -169,7 +177,7 @@ export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekK
             const route = routeTo(current.current, portal ? layout.start : to)
             if (route) walker.follow(portal ? [...route, layout.out] : route)
           }}
-          cover={<SealedPortal layout={layout} tile={tile} reduced={reduced} open={!settled} />}>
+          cover={<SealedPortal layout={layout} tile={tile} reduced={reduced} open={!settled && !practice} />}>
           <Marks arena={arena} tile={tile} clock={clock} reduced={reduced} />
           {pulseOn && <PulseRing at={layout.seals.pulse} tile={tile} phase={phase} lit={inWindow} />}
           <Legendary at={layout.legendary} name={encounter.name} shiny={encounter.shiny} tile={tile} facing={facingToward(arena.at, layout.legendary)}
@@ -203,10 +211,11 @@ export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekK
       </View>}
     </View>
     <Text accessibilityLiveRegion="polite" numberOfLines={2} style={[look.message, feedbackStyle(arena)]}>
-      {error || saveError || (arena.message === objective(arena) ? '' : `${feedbackMark(arena)}${arena.message}`)}</Text>
+      {error || saveError || note || ([objective(arena), objective(arena, false)].includes(arena.message) ? '' : `${feedbackMark(arena)}${arena.message}`)}</Text>
     {help && <Panel style={{ gap: 6 }}>
       <Copy small color={colors.ink}>Walk with the D-pad, arrow keys or WASD, or tap a spot with Tap to walk (as in the Safari Zone).</Copy>
-      <Copy small>The portal you came through only goes one way: it never leads back out. Until a seal is on, {encounter.name} only watches, and stepping back onto the portal ◎ resets the encounter to meet it anew, with a new chance to be Shiny. The first seal sets it for good. Steady it with all four seals and the battle begins. Leave keeps everything just as it is for next time.</Copy>
+      {practice ? <Copy small>A revisit: the lair plays out just as on the expedition, but nothing is saved and {encounter.name} stays as you caught it, so the portal holds. Steady it with all four seals for a rematch. Nothing is caught.</Copy>
+        : <Copy small>The portal you came through only goes one way: it never leads back out. Until a seal is on, {encounter.name} only watches, and stepping back onto the portal ◎ resets the encounter to meet it anew, with a new chance to be Shiny. The first seal sets it for good. Steady it with all four seals and the battle begins. Leave keeps everything just as it is for next time.</Copy>}
       {RESONANCE_SEALS.map(seal => <Copy key={seal} small>{SEAL_HELP[seal]}</Copy>)}
       <Copy small>⚠ marks where an attack will land, ✸ is it landing. Step off before it lands. Hits only count on the marked tiles.</Copy>
     </Panel>}
@@ -215,7 +224,7 @@ export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekK
         : <View style={{ width: 156 }}><Copy small>Tap a spot on the map to walk there. Arrow keys / WASD also work.</Copy></View>}
       <View style={{ flex: 1, gap: 8 }}>
         {arena.seals.length === 4
-          ? <Button title={steadying ? 'Steadying…' : 'Steady the Legendary · battle'} loading={steadying || busy} disabled={!allSaved} onPress={() => setSteadying(true)} />
+          ? <Button title={steadying ? 'Steadying…' : `Steady the Legendary · ${practice ? 'rematch' : 'battle'}`} loading={steadying || busy} disabled={!allSaved} onPress={() => setSteadying(true)} />
           : <Button title={inWindow ? 'Resonate — now!' : 'Resonate'} disabled={!pulseOn || arena.paused} onPress={() => {
             const result = resonate(current.current, Date.now())
             update(result.arena)

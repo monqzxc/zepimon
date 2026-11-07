@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { legendarySpecies } from '../src/generated/expedition.js'
 import { trialStages } from '../src/generated/trial-maps.js'
 import { emptyQuest } from '../src/expedition-quest.ts'
-import { caughtLegendaries, canRevisit, practiceClear, rematchWin, restoreRematchWins, revisitKey, revisitRooms, roomLine, roomsExplored } from '../src/games/revisits.ts'
+import { caughtLegendaries, canRevisit, journeyRoom, practiceClear, rematchWin, restoreRematchWins, revisitKey, revisitRooms, roomLine, roomsExplored } from '../src/games/revisits.ts'
 
 const record = shiny => ({ meters: 25000, steps: 0, shiny, form: '', source: 'expedition', finishedAt: '2026-10-01T00:00:00.000Z' })
 // A player mid-way through an expedition: a trail with claims, two friends (one Shiny), a permit and a waiting encounter
@@ -126,4 +126,16 @@ test('saved rematch wins keep only Legendary keys with positive whole counts', (
   assert.deepEqual(restoreRematchWins(undefined), {})
   assert.deepEqual(restoreRematchWins([1, 2]), {})
   assert.deepEqual(restoreRematchWins(null), {})
+})
+
+test("a revisit's journey plays the Legendary's own room, never a tutorial, and its moves can be saved", () => {
+  assert.equal(journeyRoom('Articuno', {}), 'sig-articuno', 'Its signature room, even before the tutorial is cleared')
+  assert.equal(journeyRoom('Deoxys', {}), 'star')
+  assert.equal(journeyRoom('Jirachi', {}), 'switch-1', 'A shared trial plays the main room it would play next')
+  assert.equal(journeyRoom('Jirachi', { 'switch-tutorial': 9, 'switch-1': 70 }), 'switch-2')
+  for (const name of legendarySpecies) {
+    const room = journeyRoom(name, {})
+    assert.ok(!room.endsWith('-tutorial'), `${name}: ${room}`)
+    assert.ok(revisitRooms(name).includes(room), `${name}: a journey's clear is a room of its own shrine`)
+  }
 })
