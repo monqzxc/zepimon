@@ -26,9 +26,10 @@ const STEP_MS = { intro: 1100, attack: 900, ball: 650, shake: 450 }
 // onCaught saves the catch; it runs once, only after a ball holds. A `rematch` (a Shrine Revisit against a Legendary
 // already caught) plays the same battle with its own words: a held ball wins the rematch instead of catching anything,
 // the parent's onCaught must not claim an encounter, and running or running out of balls just ends it.
-export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLeave, onDone, rematch = false }: {
+// onRetry, when given, offers the battle again straight away after the Legendary breaks free or you run, beside onLeave.
+export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLeave, onDone, onRetry, rematch = false }: {
   foe: { name: string, shiny: boolean }, partner: { name: string, shiny: boolean }, number: number, reduced: boolean,
-  onCaught: () => Promise<void>, onLeave: () => void, onDone: () => void, rematch?: boolean
+  onCaught: () => Promise<void>, onLeave: () => void, onDone: () => void, onRetry?: () => void, rematch?: boolean
 }) {
   const [battle, setBattle] = useState(() => startBattle(foe, partner))
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
@@ -106,7 +107,8 @@ export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLea
       </> : <Button title={rematch ? 'Saving your win…' : 'Saving your new friend…'} loading onPress={() => {}} />}
     </View>}
     {(battle.phase === 'out' || battle.phase === 'fled') && <View style={gba.after}>
-      <Button title={rematch ? 'Back to Shrine Revisits' : 'Back to the lair'} onPress={onLeave} />
+      {onRetry && <Button title="Try the catch again" onPress={onRetry} />}
+      <Button title={rematch ? 'Back to Shrine Revisits' : 'Back to Expeditions'} secondary={!!onRetry} onPress={onLeave} />
     </View>}
     {!done && <Text style={gba.footer}>{rematch ? 'REMATCH' : `EXPEDITION ${number}`} · Poké Balls ×{battle.balls} · Moves never knock the Legendary out.</Text>}
   </View>

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Platform, Text, View } from 'react-native'
-import { RESONANCE_SEALS, resonanceStage } from '../expedition-encounter'
+import { Animated, Easing, Platform, Text, View } from 'react-native'
+import { RESONANCE_SEALS } from '../expedition-encounter'
 import type { ActiveEncounter, SealId } from '../expedition-encounter'
 import { usePreferences } from '../preferences'
-import { Button, Chip, Copy, Eyebrow, Panel, Title, colors, fonts, styles, themedStyles } from '../ui'
+import { Button, Chip, Copy, Panel, colors, fonts, styles, themedStyles } from '../ui'
 import { lairArt } from '../generated/lair-art.js'
 import { pointKey } from './safari-zone'
 import type { Direction, Point } from './safari-zone'
@@ -31,36 +31,18 @@ const SEAL_HELP: Record<SealId, string> = {
   pulse: 'Pulse ◇: stand on it and press Resonate while the ring is in the gold band.',
   stones: 'Stone ◇: three guardian stones ▲ stir. Step on each, in any order.'
 }
-const ARROWS: Record<Direction, string> = { north: '▲', south: '▼', west: '◀', east: '▶' }
 
 type Props = {
   encounter: ActiveEncounter & { shiny: boolean }, number: number, partner: { name: string, shiny: boolean }, reduced: boolean, busy: boolean,
-  error: string, weekKm: number, onSeal: (seal: SealId) => Promise<void>, onStabilize: () => void, onCapture: () => void,
-  onWalkOut: (discardShiny: boolean) => void, onLeave: () => void
+  error: string, weekKm: number, onSeal: (seal: SealId) => Promise<void>, onStabilize: () => void, onLeave: () => void
 }
 
 // The Legendary's lair (src/games/lairs.ts), where the Resonance Trial happens (rules in src/games/resonance.ts, saved
-// progress in src/expedition-encounter.ts). Coming in shows the Legendary, Shiny or not. Until a seal is on, walking
-// back out of the entrance means the next entry meets it anew (a Shiny asks twice first); the first seal sets it for
-// good. Four seals switched on steady it, and the existing battle and catch open. Every seal is saved the moment it
-// switches on, so leaving, a failed catch or a restart keeps it.
-export function ResonanceTrial(props: Props) {
-  const { encounter, number, onCapture, onLeave } = props
-  const name = `${encounter.shiny ? 'Shiny ' : ''}${encounter.name}`
-  if (resonanceStage(encounter) === 'capture-ready') return <Panel>
-    <Eyebrow>EXPEDITION {number} · {arenaFor(encounter.name).label.toUpperCase()} · STABILIZED</Eyebrow>
-    <Title>{name} is calm</Title>
-    <View style={{ alignItems: 'center' }}><OverworldSprite name={encounter.name} shiny={encounter.shiny} size={132} /></View>
-    <Copy color={colors.ink}>All four seals hold {encounter.name} steady. The catch is open: weaken it, then throw your Poké Balls. If it breaks free, the seals stay on and you can try again.</Copy>
-    <Button title="Begin the catch" onPress={onCapture} />
-    <Button title="Back to Expeditions" secondary onPress={onLeave} />
-  </Panel>
-  return <ArenaPlay {...props} />
-}
-
-type Confirm = 'none' | 'shiny' | 'shiny-final'
-
-function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, onStabilize, onWalkOut, onLeave }: Props) {
+// progress in src/expedition-encounter.ts). The shrine trial's last door is a one-way portal into it: coming in shows
+// the Legendary, Shiny or not, and the portal seals behind you. Four seals switched on steady it, and onStabilize goes
+// straight on to the battle and catch (src/app/expeditions.tsx). Every seal is saved the moment it switches on, so
+// Leave, a failed catch or a restart keeps it.
+export function ResonanceTrial({ encounter, partner, reduced, busy, error, weekKm, onSeal, onStabilize, onLeave }: Props) {
   const saved = encounter.resonance?.seals ?? []
   const [arena, setArena] = useState(() => startArena(arenaFor(encounter.name), saved, maxResonance(weekKm), Date.now()))
   const { layout } = arena
@@ -69,7 +51,6 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
   const [clock, setClock] = useState(() => Date.now())
   const [help, setHelp] = useState(false)
   const [steadying, setSteadying] = useState(false)
-  const [confirm, setConfirm] = useState<Confirm>('none')
   const [revealing, setRevealing] = useState(true)
   const { safariControls, safariTrainer } = usePreferences()
   const current = useRef(arena)
@@ -85,20 +66,11 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
         .catch(() => { sent.current.delete(seal); setSaveError('A seal could not be saved yet. It will try again in a moment.') })
     }
   }
-  // Set for good once a seal is on: walking out then is just leaving, and nothing rerolls.
   const settled = saved.length > 0 || arena.seals.length > 0
   const name = `${encounter.shiny ? 'Shiny ' : ''}${encounter.name}`
-  // Walking out of the entrance: before any seal, the next entry meets the Legendary anew (a Shiny asks twice first);
-  // after, it is leaving.
-  const walkOut = () => {
-    if (settled) onLeave()
-    else if (encounter.shiny) setConfirm('shiny')
-    else onWalkOut(false)
-  }
 
   const walkOnce = (direction: Direction) => {
     const result = arenaWalk(current.current, direction, Date.now(), Math.random)
-    if (result.move === 'exit') { update(result.arena); walkOut(); return { moved: false, stop: true } }
     if (result.move !== 'none') setMove(previous => ({ kind: result.move === 'bump' ? 'bump' : 'step', id: previous.id + 1 }))
     update(result.arena)
     if (result.completed) report(result.arena.seals)
@@ -106,7 +78,7 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
     const onSeal = RESONANCE_SEALS.some(seal => pointKey(layout.seals[seal]) === pointKey(result.arena.at))
     return { moved: result.move === 'step', stop: result.move !== 'step' || !!result.completed || onSeal }
   }
-  const walking = !arena.paused && !steadying && confirm === 'none'
+  const walking = !arena.paused && !steadying
   const walker = useStepWalker(walkOnce, walking)
   const { press, release } = walker
   useKeyboardDirections(press, release, walking, walker.drop)
@@ -131,7 +103,7 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  // The short stabilization: the seals' light flows into the Legendary, then the catch opens.
+  // The short stabilization: the seals' light flows into the Legendary, then the battle begins.
   useEffect(() => {
     if (!steadying) return
     const timer = setTimeout(onStabilize, reduced ? STEADY_MS / 2 : STEADY_MS)
@@ -169,12 +141,10 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
           move={move} trainer={safariTrainer} buddy={partner} onGrass={false} width={area.width} height={area.height}
           reduced={reduced} jump={0} background={layout.background} fit tapToWalk={safariControls === 'tap' && walking}
           onTapTile={(to: Point) => {
-            // Tapping the entrance walks to the doorway and out.
-            const out = to.x === layout.entrance.x && to.y === layout.entrance.y
-            const route = routeTo(current.current, out ? layout.start : to)
-            if (route) walker.follow(out ? [...route, layout.out] : route)
+            const route = routeTo(current.current, to)
+            if (route) walker.follow(route)
           }}
-          cover={<ExitMark layout={layout} tile={tile} settled={settled} />}>
+          cover={<SealedPortal layout={layout} tile={tile} reduced={reduced} />}>
           <Marks arena={arena} tile={tile} clock={clock} reduced={reduced} />
           {pulseOn && <PulseRing at={layout.seals.pulse} tile={tile} phase={phase} lit={inWindow} />}
           <Legendary at={layout.legendary} name={encounter.name} shiny={encounter.shiny} tile={tile} facing={facingToward(arena.at, layout.legendary)}
@@ -188,29 +158,17 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
         <Text accessibilityLiveRegion="polite" style={[look.revealTitle, encounter.shiny && { color: '#FFE27A' }]}>
           {settled ? `${name} waits, ${arena.seals.length} of 4 seals on.` : encounter.shiny ? `✦ A Shiny ${encounter.name} appeared! ✦` : `A wild ${encounter.name} appeared!`}</Text>
       </View>}
-      {arena.paused && confirm === 'none' && <View style={look.pause}>
+      {arena.paused && <View style={look.pause}>
         <Text style={look.pauseTitle}>Paused</Text>
         <Copy color="#FFFFFF">{settled ? 'Your seals are safe. The Legendary waits.' : 'The Legendary waits, just as it is.'}</Copy>
         <Button title="Resume" onPress={() => update(resumeArena(current.current, Date.now()))} />
-      </View>}
-      {confirm !== 'none' && <View style={look.pause}>
-        {confirm === 'shiny' ? <>
-          <Text style={[look.pauseTitle, { color: '#FFE27A' }]}>✦ This {encounter.name} is Shiny ✦</Text>
-          <Copy color="#FFFFFF">Walking out leaves it behind. The next time you come in, the Legendary is met anew and may not be Shiny.</Copy>
-          <Button title="I understand, walk out" secondary onPress={() => setConfirm('shiny-final')} />
-        </> : <>
-          <Text style={look.pauseTitle}>Leave the Shiny {encounter.name} behind?</Text>
-          <Copy color="#FFFFFF">This cannot be undone.</Copy>
-          <Button title="Leave it behind" loading={busy} onPress={() => { setConfirm('none'); onWalkOut(true) }} />
-        </>}
-        <Button title="Stay with the Shiny" onPress={() => setConfirm('none')} />
       </View>}
     </View>
     <Text accessibilityLiveRegion="polite" numberOfLines={2} style={[look.message, feedbackStyle(arena)]}>
       {error || saveError || (arena.message === objective(arena) ? '' : `${feedbackMark(arena)}${arena.message}`)}</Text>
     {help && <Panel style={{ gap: 6 }}>
       <Copy small color={colors.ink}>Walk with the D-pad, arrow keys or WASD, or tap a spot with Tap to walk (as in the Safari Zone).</Copy>
-      <Copy small>Until a seal is on, {encounter.name} only watches. Walk back out of the entrance {ARROWS[layout.out]} to come in again and meet it anew; the entrance seals for a moment. Leave keeps it just as it is. Once a seal is on, it stays as it is.</Copy>
+      <Copy small>The portal you came through only goes one way, and it has sealed behind you. Until a seal is on, {encounter.name} only watches. Steady it with all four seals and the battle begins. Leave keeps everything just as it is for next time.</Copy>
       {RESONANCE_SEALS.map(seal => <Copy key={seal} small>{SEAL_HELP[seal]}</Copy>)}
       <Copy small>⚠ marks where an attack will land, ✸ is it landing. Step off before it lands. Hits only count on the marked tiles.</Copy>
     </Panel>}
@@ -219,14 +177,14 @@ function ArenaPlay({ encounter, partner, reduced, busy, error, weekKm, onSeal, o
         : <View style={{ width: 156 }}><Copy small>Tap a spot on the map to walk there. Arrow keys / WASD also work.</Copy></View>}
       <View style={{ flex: 1, gap: 8 }}>
         {arena.seals.length === 4
-          ? <Button title={steadying ? 'Steadying…' : 'Steady the Legendary'} loading={steadying || busy} disabled={!allSaved} onPress={() => setSteadying(true)} />
+          ? <Button title={steadying ? 'Steadying…' : 'Steady the Legendary · battle'} loading={steadying || busy} disabled={!allSaved} onPress={() => setSteadying(true)} />
           : <Button title={inWindow ? 'Resonate — now!' : 'Resonate'} disabled={!pulseOn || arena.paused} onPress={() => {
             const result = resonate(current.current, Date.now())
             update(result.arena)
             if (result.completed) report(result.arena.seals)
           }} />}
         <View style={styles.row}>
-          <Chip label={arena.paused ? 'Resume' : 'Pause'} selected={arena.paused} disabled={steadying || confirm !== 'none'}
+          <Chip label={arena.paused ? 'Resume' : 'Pause'} selected={arena.paused} disabled={steadying}
             onPress={() => { walker.drop(); update(arena.paused ? resumeArena(current.current, Date.now()) : pauseArena(current.current)) }} />
           <Chip label={help ? 'Hide help' : 'How to play'} selected={help} onPress={() => setHelp(!help)} />
           <Chip label="Leave" selected={false} disabled={steadying} onPress={() => { walker.drop(); onLeave() }} />
@@ -321,12 +279,24 @@ function Legendary({ at, name, shiny, tile, facing, glowing, reduced }: { at: Po
   </View>
 }
 
-// The entrance you came in by, marked with the way out. Before any seal it is also the way to meet the Legendary anew.
-function ExitMark({ layout, tile, settled }: { layout: ArenaLayout, tile: number, settled: boolean }) {
-  const { entrance, out } = layout
-  return <View pointerEvents="none" style={[look.exit, { left: entrance.x * tile + 2, top: entrance.y * tile + 2, width: tile - 4, height: tile - 4 }]}>
-    <Text style={[look.markText, { fontSize: tile * 0.36 }]}>{ARROWS[out]}</Text>
-    {tile >= 34 && <Text style={[look.markLabel, { fontSize: Math.max(8, tile * 0.17), color: '#FFFFFF' }]}>{settled ? 'LEAVE' : 'OUT'}</Text>}
+// The portal you came in by, sealed behind you: a stone ring with a faint violet swirl, turning slowly unless motion is
+// reduced. It reads as closed without color too (the ring is crossed by a bar).
+function SealedPortal({ layout, tile, reduced }: { layout: ArenaLayout, tile: number, reduced: boolean }) {
+  const { entrance } = layout
+  const [spin] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    if (reduced) return
+    const loop = Animated.loop(Animated.timing(spin, { toValue: 1, duration: 6000, easing: Easing.linear, useNativeDriver: Platform.OS !== 'web' }))
+    loop.start()
+    return () => loop.stop()
+  }, [reduced, spin])
+  const size = tile - 4
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] })
+  return <View pointerEvents="none" accessibilityLabel="The portal behind you, sealed"
+    style={[look.portal, { left: entrance.x * tile + 2, top: entrance.y * tile + 2, width: size, height: size, borderRadius: size / 2 }]}>
+    <Animated.View style={[look.portalSwirl, { width: size * 0.7, height: size * 0.7, borderRadius: size, transform: [{ rotate }] }]} />
+    <View style={[look.portalBar, { width: size * 0.62, height: Math.max(3, size * 0.1) }]} />
+    {tile >= 34 && <Text style={[look.markLabel, look.portalLabel, { fontSize: Math.max(8, tile * 0.16) }]}>SEALED</Text>}
   </View>
 }
 
@@ -357,8 +327,11 @@ const look = themedStyles(() => ({
     borderColor: '#F2C230', borderStyle: 'dashed' },
   strike: { position: 'absolute', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(224, 72, 58, 0.65)', borderWidth: 2, borderColor: '#FFB4A8' },
   safe: { backgroundColor: 'rgba(27, 110, 51, 0.85)', borderColor: '#9BE3BC' },
-  exit: { position: 'absolute', alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 2, borderStyle: 'dashed',
-    borderColor: 'rgba(255, 255, 255, 0.85)', backgroundColor: 'rgba(8, 16, 24, 0.45)' },
+  portal: { position: 'absolute', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 3,
+    borderColor: '#93A196', backgroundColor: 'rgba(30, 10, 48, 0.78)' },
+  portalSwirl: { position: 'absolute', borderWidth: 2, borderColor: 'rgba(196, 150, 255, 0.75)', borderTopColor: 'transparent', borderBottomColor: 'transparent' },
+  portalBar: { borderRadius: 2, backgroundColor: '#5D6B62', borderWidth: 1, borderColor: '#2C3833' },
+  portalLabel: { position: 'absolute', bottom: 2, color: '#E6D8FF' },
   reveal: { position: 'absolute', left: 10, right: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, gap: 2,
     backgroundColor: 'rgba(6, 12, 20, 0.78)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.25)' },
   revealPlace: { fontFamily: fonts.heavy, fontSize: 11, lineHeight: 15, letterSpacing: 1.2, color: '#C9D6E8' },

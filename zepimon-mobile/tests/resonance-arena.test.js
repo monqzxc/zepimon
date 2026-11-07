@@ -99,13 +99,12 @@ for (const layout of LAIR_LIST) {
     }
   })
 
-  test(`${layout.label}: walking out of the entrance leaves; anywhere else it is just a wall`, () => {
-    let arena = startArena(layout, [], 3, T0)
-    assert.equal(arenaWalk(arena, layout.out, T0, MID).move, 'exit')
+  test(`${layout.label}: the entrance is a one-way portal, sealed once you are through`, () => {
+    const arena = startArena(layout, [], 3, T0)
+    const back = arenaWalk(arena, layout.out, T0, MID)
+    assert.equal(back.move, 'bump', 'Stepping back into the portal never leaves the lair')
+    assert.match(back.arena.message, /one way/)
     assert.equal(arenaWalk(pauseArena(arena), layout.out, T0, MID).move, 'none', 'Not while paused')
-    const away = stepAway(arena)
-    arena = walkRoute(arena, [away], T0).arena
-    assert.notEqual(arenaWalk(arena, layout.out, T0 + 1000, MID).move, 'exit', 'Only from the doorway')
     const bump = arenaWalk({ ...startArena(layout, [], 3, T0), at: layout.legendary.y > 0 ? { ...layout.legendary, y: layout.legendary.y + 1 } : layout.legendary }, 'north', T0, MID)
     if (bump.move === 'bump') assert.match(bump.arena.message, /Legendary/)
   })
@@ -163,7 +162,6 @@ for (const layout of LAIR_LIST) {
     assert.equal(arena.resonance, 0)
     assert.equal(arena.recoverUntil, arena.staggerUntil - STAGGER_MS + RECOVER_MS)
     assert.deepEqual(arena.seals, ['wave'], 'Seals already on stay on')
-    assert.equal(arenaWalk(arena, layout.out, now + 100, MID).move, 'exit', 'Walking out is always possible from the doorway')
     for (let t = now; t < arena.recoverUntil; t += 250) assert.equal(tick(arena, t).danger, null)
     arena = tick(arena, arena.recoverUntil)
     assert.equal(arena.resonance, 3)
