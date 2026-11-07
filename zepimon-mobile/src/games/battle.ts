@@ -1,6 +1,9 @@
 import { battleType, cardKey, eggMovesOf, pickWeighted, stageOf, wildPool } from './roster.ts'
 import type { TeamCard } from './roster.ts'
 import { TRAIL_MAPS } from './trails.ts'
+import { BLAST_DAMAGE, BLAST_REACH, BOSS_CHARGE, BOSS_DASH, BOSS_EVERY, BOSS_FIRST, DASH_MS, HEAL_SHARE, SHIELD_MS, SHIELD_SHARE, STUN_MS, STUN_REACH,
+  SUMMONS, bossMoves } from './boss.ts'
+import type { BossMove } from './boss.ts'
 
 // One engine for Route Guard (five lanes, enemies walk down) and Trail Defense (enemies follow a path).
 // Positions are in grid cells; the game advances in fixed 100 ms steps so results do not depend on timer jitter.
@@ -65,15 +68,20 @@ export function unitWeather(weather: Weather | undefined, name: string, layout: 
 export type Spawn = { at: number, name: string, wave: number, boss: boolean, lane: number }
 // from and evolvedAt: the form it last evolved from, and when (game time), for the board's evolution animation.
 export type Unit = { id: number, name: string, shiny: boolean, col: number, row: number, hp: number, maxHp: number, ready: number,
-  family: string[], evolves: boolean, spent: number, egg: boolean, from?: string, evolvedAt?: number }
+  family: string[], evolves: boolean, spent: number, egg: boolean, from?: string, evolvedAt?: number,
+  stunnedUntil?: number }   // stunned by a boss (src/games/boss.ts): it does nothing until then
 // How long the board plays an evolution.
 export const EVOLVE_MS = 1500
 export type Enemy = { id: number, name: string, type: string, wave: number, boss: boolean, hp: number, maxHp: number, speed: number,
-  lane: number, progress: number, slowUntil: number, poisonUntil: number, poisonDps: number, reward: number, boosted?: boolean }
+  lane: number, progress: number, slowUntil: number, poisonUntil: number, poisonDps: number, reward: number, boosted?: boolean,
+  // A boss's skills (src/games/boss.ts): when it next charges one, which of its moves is next, until when it is charging
+  // (standing still), its shield and when that fades, until when it dashes, and the move it last used.
+  nextSkill?: number, skillIndex?: number, chargeUntil?: number, shield?: number, shieldUntil?: number, dashUntil?: number,
+  lastSkill?: BossMove & { at: number } }
 // move is the type whose move the shot shows: the attacker's own, or its egg move's when that hits the target harder.
 export type Shot = { id: number, x: number, y: number, target: number, damage: number, type: string, coverage: string | null, effect: Effect, move: string }
 export type Drop = { id: number, col: number, row: number, value: number, until: number }
-export type Fx = { id: number, kind: 'super' | 'berries' | 'guard' | 'assist' | 'leak', x: number, y: number, until: number, text: string }
+export type Fx = { id: number, kind: 'super' | 'berries' | 'guard' | 'assist' | 'leak' | 'boss' | 'hurt' | 'heal', x: number, y: number, until: number, text: string }
 // A move landing, for the board to animate: a hit on a foe, a smaller one on a foe caught by a splash or chain, or a wave
 // around a Pokemon whose move strikes everything within reach (a grower's harvest has reach 0). foe is the foe hit, or -1.
 export type Strike = { id: number, move: string, kind: 'hit' | 'spread' | 'wave', x: number, y: number, foe: number, reach: number, start: number, until: number }
@@ -404,7 +412,7 @@ export function callAssist(game: Battle): Battle {
   const g = clone(game)
   const type = battleType(game.assist.name)
   for (const enemy of g.enemies) {
-    enemy.hp -= ASSIST_DAMAGE * effectiveness(type, enemy.type) * weatherPower(g.spec.weather, type)
+    harm(g, enemy, ASSIST_DAMAGE * effectiveness(type, enemy.type) * weatherPower(g.spec.weather, type))
     enemy.slowUntil = g.elapsed + 3000
   }
   for (const enemy of g.enemies) addStrike(g, type, 'hit', enemyPoint(g, enemy), enemy.id)
@@ -491,9 +499,84 @@ function targetsFor(g: Battle, unit: Unit, kit: Kit): Enemy[] {
   return g.enemies.filter(enemy => enemy.hp > 0 && distance(enemyPoint(g, enemy), center) <= kit.range).sort((a, b) => b.progress - a.progress)
 }
 
+// Damage to a foe, soaked up first by a boss's shield.
+function harm(g: Battle, enemy: Enemy, amount: number) {
+  if (enemy.shield && enemy.shield > 0) {
+    const soaked = Math.min(enemy.shield, amount)
+    enemy.shield -= soaked
+    amount -= soaked
+    if (enemy.shield <= 0) { enemy.shield = 0; const at = enemyPoint(g, enemy); addFx(g, 'boss', at.x, at.y - 0.6, 'Shield broken!', 900) }
+  }
+  enemy.hp -= amount
+}
+
+// The move a boss is charging (standing still, about to use it), or null.
+export function bossCharging(game: Battle, enemy: Enemy): BossMove | null {
+  if (!enemy.boss || !enemy.chargeUntil || enemy.chargeUntil <= game.elapsed) return null
+  const moves = bossMoves(enemy.name)
+  return moves[(enemy.skillIndex ?? 0) % moves.length]
+}
+
+// A boss's turn: start charging its next move when it is due, and use it once charged. True while it stands charging.
+function bossTurn(g: Battle, enemy: Enemy, random: () => number): boolean {
+  const t = g.elapsed
+  if (enemy.shieldUntil !== undefined && enemy.shieldUntil <= t) { enemy.shield = 0; enemy.shieldUntil = undefined }
+  if (enemy.nextSkill === undefined) return false
+  if (enemy.chargeUntil) {
+    if (t < enemy.chargeUntil) return true
+    enemy.chargeUntil = 0
+    const moves = bossMoves(enemy.name)
+    castBossMove(g, enemy, moves[(enemy.skillIndex ?? 0) % moves.length], random)
+    enemy.skillIndex = (enemy.skillIndex ?? 0) + 1
+    enemy.nextSkill = t + BOSS_EVERY
+    return false
+  }
+  if (t >= enemy.nextSkill) { enemy.chargeUntil = t + BOSS_CHARGE; return true }
+  return false
+}
+
+function castBossMove(g: Battle, enemy: Enemy, { skill, move }: BossMove, random: () => number) {
+  const t = g.elapsed
+  const at = enemyPoint(g, enemy)
+  const near = (reach: number) => g.units.filter(unit => unit.hp > 0 && distance({ x: unit.col + 0.5, y: unit.row + 0.5 }, at) <= reach)
+  enemy.lastSkill = { skill, move, at: t }
+  // Called out above it, or below it on the board's top row.
+  addFx(g, 'boss', at.x, at.y < 1.2 ? at.y + 0.9 : at.y - 0.9, `${move}!`, 1400)
+  if (skill === 'dash') {
+    enemy.dashUntil = t + DASH_MS
+  } else if (skill === 'shield') {
+    enemy.shield = Math.round(enemy.maxHp * SHIELD_SHARE)
+    enemy.shieldUntil = t + SHIELD_MS
+  } else if (skill === 'blast') {
+    addStrike(g, enemy.type, 'wave', at, -1, BLAST_REACH)
+    const damage = Math.round(BLAST_DAMAGE * (1 + 0.1 * enemy.wave))
+    for (const unit of near(BLAST_REACH)) {
+      unit.hp -= damage
+      addFx(g, 'hurt', unit.col + 0.5, unit.row + 0.2, `−${damage}`, 900)
+    }
+  } else if (skill === 'stun') {
+    addStrike(g, enemy.type, 'wave', at, -1, STUN_REACH)
+    for (const unit of near(STUN_REACH)) unit.stunnedUntil = t + STUN_MS
+  } else if (skill === 'heal') {
+    const gain = Math.min(enemy.maxHp - enemy.hp, Math.round(enemy.maxHp * HEAL_SHARE))
+    enemy.hp += gain
+    enemy.slowUntil = 0
+    enemy.poisonUntil = 0
+    if (gain > 0) addFx(g, 'heal', at.x, at.y - 0.4, `+${gain}`, 900)
+  } else {
+    // Two foes of the battle's own kinds, at most middle forms, appear just behind the boss.
+    const pool = wildPool(g.spec.foes).filter(wild => wild.stage <= 2)
+    for (let i = 0; i < SUMMONS && pool.length; i++) {
+      const minion = makeEnemy(g.nextId++, { at: t, name: pickWeighted(pool, random).name, wave: enemy.wave, boss: false, lane: enemy.lane }, g.spec)
+      minion.progress = Math.max(g.layout === 'lanes' ? -0.5 : 0, enemy.progress - 0.35 * (i + 1))
+      g.enemies.push(minion)
+    }
+  }
+}
+
 function hit(g: Battle, enemy: Enemy, damage: number, type: string, coverage: string | null, effect: Effect) {
   const multiplier = bestOf(type, coverage, enemy.type)
-  enemy.hp -= damage * multiplier
+  harm(g, enemy, damage * multiplier)
   const at = enemyPoint(g, enemy)
   addStrike(g, hitType(type, coverage, enemy.type), 'hit', at, enemy.id)
   if (multiplier > 1) addFx(g, 'super', at.x, at.y, '×2')
@@ -504,7 +587,7 @@ function hit(g: Battle, enemy: Enemy, damage: number, type: string, coverage: st
     const near = g.enemies.filter(other => other !== enemy && other.hp > 0).map(other => ({ other, gap: distance(enemyPoint(g, other), at) }))
       .filter(({ gap }) => gap <= (effect === 'splash' ? 0.9 : 1.8)).sort((a, b) => a.gap - b.gap)
     for (const { other } of effect === 'splash' ? near : near.slice(0, 1)) {
-      other.hp -= damage * (effect === 'splash' ? 0.5 : 0.6) * bestOf(type, coverage, other.type)
+      harm(g, other, damage * (effect === 'splash' ? 0.5 : 0.6) * bestOf(type, coverage, other.type))
       addStrike(g, hitType(type, coverage, other.type), 'spread', enemyPoint(g, other), other.id)
     }
   }
@@ -535,7 +618,9 @@ function step(g: Battle, dt: number, random: () => number) {
   const lanes = g.layout === 'lanes'
   while (g.spawns.length && g.spawns[0].at <= t) {
     const spawn = g.spawns.shift()!
-    g.enemies.push(makeEnemy(g.nextId++, spawn, g.spec))
+    const enemy = makeEnemy(g.nextId++, spawn, g.spec)
+    if (enemy.boss) Object.assign(enemy, { nextSkill: t + BOSS_FIRST, skillIndex: 0 })
+    g.enemies.push(enemy)
     g.wave = Math.max(g.wave, spawn.wave + 1)
   }
   if (lanes && t >= g.nextSky) {
@@ -547,7 +632,8 @@ function step(g: Battle, dt: number, random: () => number) {
   for (const enemy of g.enemies) {
     if (enemy.poisonUntil > t) enemy.hp -= enemy.poisonDps * dt / 1000
     if (enemy.hp <= 0) continue
-    const move = enemy.speed * (enemy.slowUntil > t ? 0.5 : 1) * dt / 1000
+    if (enemy.boss && bossTurn(g, enemy, random)) continue
+    const move = enemy.speed * (enemy.slowUntil > t ? 0.5 : 1) * ((enemy.dashUntil ?? 0) > t ? BOSS_DASH : 1) * dt / 1000
     if (!lanes) { enemy.progress += move; continue }
     // A foe stops at the first Pokemon below it in its lane and nibbles until that Pokemon faints.
     const blocker = g.units.filter(unit => unit.col === enemy.lane && unit.hp > 0 && unit.row + 1 > enemy.progress).sort((a, b) => a.row - b.row)[0]
@@ -579,7 +665,7 @@ function step(g: Battle, dt: number, random: () => number) {
   }
 
   for (const unit of g.units) {
-    if (unit.hp <= 0 || t < unit.ready) continue
+    if (unit.hp <= 0 || t < unit.ready || (unit.stunnedUntil ?? 0) > t) continue
     const kit = kitFor(unit.name, g.layout)
     if (kit.effect === 'wall') continue
     const center = { x: unit.col + 0.5, y: unit.row + 0.5 }
