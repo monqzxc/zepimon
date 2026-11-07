@@ -1,6 +1,7 @@
 """Lairs drawn for this app, for Legendaries whose home Emerald has no room for (used by build-lairs.py): Deoxys in
 outer space, Rayquaza in the ozone layer, Giratina in the Distortion World, Darkrai in a nightmare, Mew in a bubble
-playroom, Zygarde among its cells and Mewtwo in the lab it broke out of. Each is a layout (one character per 16 px
+playroom, Zygarde among its cells, Mewtwo in the lab it broke out of and the lake trio in the caverns at the middle of
+Lakes Acuity, Verity and Valor. Each is a layout (one character per 16 px
 tile) and a theme that paints it in Emerald's pixel style: the void or walls around, the floor, obstacles (with a top
 layer that the trainer walks behind), hazards, the entrance and the spot where the Legendary waits.
 
@@ -28,10 +29,18 @@ LAYOUTS = {
                     '#..X...X..#', '#.~.....~.#', '#.........#', '##.......##', '#####E#####'],
     'cinnabar-lab': ['###########', '#XX.....XX#', '#.........#', '#..~...~..#', '#....L....#', '#X.......X#',
                      '#.........#', '#..X...X..#', '#.........#', '#.........#', '#####E#####'],
+    # The lake trio's caverns, each on the islet at the middle of its lake, the lake seeping in as pools.
+    'acuity-cavern': ['###########', '###~~~~~###', '##.~~~~~.##', '#.X.....X.#', '#....L....#', '#.........#',
+                      '#~.X...X.~#', '#.........#', '##.......##', '###.....###', '#####E#####'],
+    'verity-cavern': ['###########', '##~~...~~##', '#~.......~#', '#..X...X..#', '#....L....#', '#.........#',
+                      '#.X.....X.#', '#.........#', '#~.......~#', '##.......##', '#####E#####'],
+    'valor-cavern': ['###########', '#~~.....~~#', '#~.......~#', '#...X.X...#', '#....L....#', '#X.......X#',
+                     '#.........#', '#..~...~..#', '#.........#', '##.......##', '#####E#####'],
 }
 NAMES = {'outer-space': 'Meteor Field', 'ozone-layer': 'Ozone Layer', 'distortion-world': 'Distortion World',
          'nightmare-realm': 'Nightmare Realm', 'bubble-playroom': 'Bubble Playroom', 'cell-hollow': 'Cell Hollow',
-         'cinnabar-lab': 'Cinnabar Lab'}
+         'cinnabar-lab': 'Cinnabar Lab', 'acuity-cavern': 'Acuity Cavern', 'verity-cavern': 'Verity Cavern',
+         'valor-cavern': 'Valor Cavern'}
 
 
 def hex_rgb(value):
@@ -571,8 +580,117 @@ class Lab(Theme):
                 c.px(x, y, (205, 238, 255, 170 if edge in (0, 2) else 90), 'top')
 
 
+class Cavern(Theme):
+    """A cave at the heart of a Sinnoh lake: rock walls with a lit face where they meet the floor, a pebbly floor, boulders
+    or ice, the lake's water in pools and a stone dais ringed in its guardian's colour. snow adds drifts and ice."""
+    platform = False
+
+    def __init__(self, rock, rock_dark, floor, floor_dark, water, ring, snow=False):
+        self.rock, self.rock_dark, self.ground, self.ground_dark, self.water = map(hex_rgb, (rock, rock_dark, floor, floor_dark, water))
+        self.ring, self.snow, self.rows = hex_rgb(ring), snow, []
+
+    def decorate(self, c, rows):
+        self.rows = rows
+
+    def at(self, tx, ty):
+        return self.rows[ty][tx] if 0 <= ty < len(self.rows) and 0 <= tx < len(self.rows[0]) else '#'
+
+    def wall(self, c, x0, y0, tx, ty):
+        for y in range(y0, y0 + T):
+            for x in range(x0, x0 + T):
+                t = smooth(x, y, 6, 71)
+                c.px(x, y, self.rock_dark if t < 0.35 or noise(x, y, 72) < 0.06 else self.rock)
+        # Where the rock meets the floor, its face catches the light, ragged at the top.
+        if self.at(tx, ty + 1) in '.XL~':
+            for x in range(x0, x0 + T):
+                top = y0 + 8 + int(noise(x, ty, 73) * 3)
+                for y in range(top, y0 + T):
+                    c.px(x, y, mix(self.rock, hex_rgb('#ffffff'), 0.18 + (y - top) * 0.02))
+                c.px(x, top, self.rock_dark)
+                c.px(x, y0 + T - 1, self.rock_dark)
+            if self.snow:
+                for x in range(x0, x0 + T):
+                    for y in range(y0 + 7, y0 + 8 + int(noise(x, ty, 74) * 2)):
+                        c.px(x, y, hex_rgb('#f4f9ff'))
+
+    def floor(self, c, x0, y0, tx, ty):
+        for y in range(y0, y0 + T):
+            for x in range(x0, x0 + T):
+                c.px(x, y, self.ground_dark if smooth(x, y, 4, 75) < 0.3 else self.ground)
+        for i in range(3):
+            if noise(tx * 5 + i, ty, 76) < 0.5:
+                px, py = x0 + 2 + int(noise(tx, ty * 5 + i, 77) * 11), y0 + 2 + int(noise(tx + i, ty, 78) * 11)
+                c.px(px, py, self.ground_dark)
+                c.px(px + 1, py, mix(self.ground, hex_rgb('#ffffff'), 0.35))
+        if self.snow and noise(tx, ty, 79) < 0.35:
+            c.disc(x0 + 4 + int(noise(tx, ty, 80) * 8), y0 + 6 + int(noise(tx, ty, 81) * 6), 3, hex_rgb('#f4f9ff'), squash=0.55)
+
+    def obstacle(self, c, x0, y0, tx, ty):
+        self.floor(c, x0, y0, tx, ty)
+        c.disc(x0 + 8, y0 + 14, 6.5, (0, 0, 0, 90), squash=0.35)
+        if self.snow:
+            # A cluster of ice crystals, the tallest over the tile above.
+            for ox, height, w in ((-4, 9, 2), (4, 11, 2), (0, 17, 3)):
+                for y in range(y0 + 14 - height, y0 + 14):
+                    for x in range(x0 + 8 + ox - w, x0 + 8 + ox + w):
+                        colour = hex_rgb('#ffffff') if x == x0 + 8 + ox - w else hex_rgb('#bfe8ff') if x < x0 + 8 + ox else hex_rgb('#7cb8e0')
+                        c.px(x, y, colour, 'top' if y < y0 + 1 else 'ground')
+            return
+        # A boulder fallen from the cavern roof, its crown over the tile above.
+        cx, cy = x0 + 8, y0 + 7
+        for y in range(cy - 8, cy + 8):
+            for x in range(cx - 7, cx + 8):
+                d = ((x - cx) / 7) ** 2 + ((y - cy) / 7.5) ** 2 + (noise(x, y, 82) - 0.5) * 0.2
+                if d > 1:
+                    continue
+                colour = self.rock_dark if d > 0.78 else mix(self.rock, hex_rgb('#ffffff'), 0.25) if x + y < cx + cy - 3 else self.rock
+                c.px(x, y, colour, 'top' if y < y0 else 'ground')
+
+    def hazard(self, c, x0, y0, tx, ty):
+        # The lake's water, with ripples, a pale rim against the floor and rounded corners where two sides meet it.
+        self.floor(c, x0, y0, tx, ty)
+        shore = lambda dx, dy: self.at(tx + dx, ty + dy) in '.XL'
+        n, s, w, e = shore(0, -1), shore(0, 1), shore(-1, 0), shore(1, 0)
+        r = 5
+        for y in range(y0, y0 + T):
+            for x in range(x0, x0 + T):
+                lx, ly = x - x0, y - y0
+                # Distance into the water from each floor side; corners where two floor sides meet are rounded.
+                dx = min(lx if w else T, T - 1 - lx if e else T)
+                dy = min(ly if n else T, T - 1 - ly if s else T)
+                if dx < r and dy < r and (r - dx - 0.5) ** 2 + (r - dy - 0.5) ** 2 > r * r:
+                    continue
+                if (dx < r and dy < r and (r - dx - 0.5) ** 2 + (r - dy - 0.5) ** 2 > (r - 1) ** 2) or min(dx, dy) == 0:
+                    c.px(x, y, mix(self.water, hex_rgb('#ffffff'), 0.55))
+                    continue
+                wave = math.sin(x * 0.5 + y * 0.9 + smooth(x, y, 8, 83) * 3)
+                c.px(x, y, mix(self.water, hex_rgb('#ffffff'), 0.35) if wave > 0.93 else self.water)
+        if self.snow and noise(tx, ty, 84) < 0.5:
+            c.disc(x0 + 5 + int(noise(tx, ty, 85) * 6), y0 + 6 + int(noise(tx, ty, 86) * 5), 2.5, hex_rgb('#e6f6ff'), squash=0.6)
+        return False
+
+    def entrance(self, c, x0, y0):
+        # The cave mouth, with the lake's daylight beyond it.
+        c.rect(x0 + 3, y0 + 4, x0 + 12, y0 + 15, self.rock_dark)
+        c.disc(x0 + 8, y0 + 5, 4.5, self.rock_dark)
+        for y in range(y0 + 5, y0 + 16):
+            for x in range(x0 + 5, x0 + 11):
+                c.px(x, y, mix(hex_rgb('#fff6d8'), self.water, (y - y0 - 5) / 12))
+
+    def legendary(self, c, x0, y0, tx, ty):
+        self.floor(c, x0, y0, tx, ty)
+        c.disc(x0 + 8, y0 + 12, 8, self.rock_dark, squash=0.45)
+        c.disc(x0 + 8, y0 + 11, 7, mix(self.rock, hex_rgb('#ffffff'), 0.3), squash=0.45)
+        c.ring(x0 + 8, y0 + 11, 7, self.ring, width=1, squash=0.45)
+        c.ring(x0 + 8, y0 + 11, 4, self.ring, width=1, squash=0.45)
+
+
 THEMES = {'outer-space': Space(), 'ozone-layer': Sky(), 'distortion-world': Distortion(), 'nightmare-realm': Nightmare(),
-          'bubble-playroom': Playroom(), 'cell-hollow': Cells(), 'cinnabar-lab': Lab()}
+          'bubble-playroom': Playroom(), 'cell-hollow': Cells(), 'cinnabar-lab': Lab(),
+          # Lake Acuity lies in Sinnoh's snowy north; Uxie's dais is gold, Mesprit's pink and Azelf's blue.
+          'acuity-cavern': Cavern('#7d8ea8', '#46536a', '#c9d6e4', '#a9b9cc', '#4f8fc4', '#ffd84a', snow=True),
+          'verity-cavern': Cavern('#8a7564', '#4f4036', '#c4a888', '#a88d70', '#4aa3c9', '#ff8fc8'),
+          'valor-cavern': Cavern('#86605a', '#4a3230', '#b88e78', '#9a725e', '#3d7fb8', '#5fb0ff')}
 
 
 def draw(lair_id):

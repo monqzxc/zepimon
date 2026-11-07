@@ -1,4 +1,5 @@
 import { claimExpedition, expeditionEncounter, unlockedEncounters } from './expeditions.ts'
+import { legendarySpecies } from './generated/expedition.js'
 import type { ExpeditionProgress } from './expeditions.ts'
 import { encounterReady, trailPermits, trailUnlocked } from './expedition-quest.ts'
 import type { Quest } from './expedition-quest.ts'
@@ -9,8 +10,8 @@ export const SHINY_ODDS = 100
 // After walking out of a Legendary's lair, its entrance stays sealed this long before the next try.
 export const RESET_COOLDOWN = 1500
 
-// The Legendary waiting at a trail's next encounter, kept beside the trail rather than in it. Its species comes from
-// the canonical draw (generated/expedition.js) and never changes. Whether it is Shiny is this encounter's own roll,
+// The Legendary waiting at a trail's next encounter, kept beside the trail rather than in it. Its species is the one
+// nextLegendaries picks for the trail, and once saved here it never changes. Whether it is Shiny is this encounter's own roll,
 // 1 in 100, made as the player enters its lair after the trial (src/games/lairs.ts). Walking back out through the
 // lair's entrance (a Shiny asks twice) seals the entrance for RESET_COOLDOWN; the next entry after that rolls again.
 // shiny is null until the first roll; resetPending is set while the player is out and the next entry should roll.
@@ -50,12 +51,42 @@ export function resonanceStage(encounter: ActiveEncounter | undefined): Resonanc
   return progress.seals.length === RESONANCE_SEALS.length ? 'stabilizing' : 'active'
 }
 
+const plain = (key: string) => key.replace(/^Shiny /, '')
+
+// The Legendary waiting at each trail's next encounter. The canonical draw (generated/expedition.js) is where the trail
+// starts in the cycle of Legendaries; from there it moves on past any Legendary already caught (Normal or Shiny) or
+// already waiting on another trail, so none is met twice and no two trails wait with the same one. A saved encounter
+// keeps its Legendary, and those are set aside first. Then trails with an open encounter pick, oldest first, so the
+// one the Expeditions screen shows never changes under you, and the trails still walking pick last. Once every
+// Legendary is caught, any not waiting elsewhere comes round again.
+export function nextLegendaries(play: Play): Record<string, string> {
+  const caught = new Set(Object.keys(play.expeditions.dex).map(plain))
+  const waiting = new Set<string>()
+  const names: Record<string, string> = {}
+  const trails = Object.entries(play.expeditions.trails).filter(([, trail]) => trail.claimed < 4000)
+  for (const [key, trail] of trails) {
+    const saved = play.encounters[key]
+    if (saved?.index === trail.claimed) { names[key] = saved.name; waiting.add(saved.name) }
+  }
+  const open = ([key, trail]: typeof trails[number]) => Number(encounterReady(play.quest, key, trail))
+  const rest = trails.filter(([key]) => !Object.hasOwn(names, key))
+    .sort((a, b) => open(b) - open(a) || a[1].startedAt - b[1].startedAt || a[1].seed - b[1].seed)
+  for (const [key, trail] of rest) {
+    const first = legendarySpecies.indexOf(expeditionEncounter(trail, trail.claimed).name)
+    const cycle = legendarySpecies.map((_, i) => legendarySpecies[(first + i) % legendarySpecies.length])
+    const name = cycle.find(name => !caught.has(name) && !waiting.has(name)) ?? cycle.find(name => !waiting.has(name)) ?? cycle[0]
+    names[key] = name
+    waiting.add(name)
+  }
+  return names
+}
+
 // The trail's next encounter, as saved or fresh, once it is open. Anything else (an older index, a claimed one) throws.
 export function activeEncounter(play: Play, key: string, index: number): ActiveEncounter {
   const trail = play.expeditions.trails[key]
   if (!trail || index !== trail.claimed || !encounterReady(play.quest, key, trail)) throw new Error('This encounter is not ready yet.')
   const saved = play.encounters[key]
-  return saved?.index === index ? saved : { index, name: expeditionEncounter(trail, index).name, trial: false, shiny: null, attempt: 0,
+  return saved?.index === index ? saved : { index, name: nextLegendaries(play)[key], trial: false, shiny: null, attempt: 0,
     resetPending: false, nextResetAllowedAt: 0 }
 }
 
@@ -146,35 +177,42 @@ export function catchEncounter(play: Play, key: string, index: number, now = Dat
   const encounter = activeEncounter(play, key, index)
   if (!readyToBattle(encounter)) throw new Error('Finish the trial and meet the Legendary in its lair before the battle.')
   if (!readyToCapture(encounter)) throw new Error('Stabilize the Resonance Trial before the catch.')
-  const expeditions = claimExpedition(play.expeditions, key, index, now, { shiny: encounter.shiny, permits: trailPermits(play.quest, key) })
+  const expeditions = claimExpedition(play.expeditions, key, index, now, { name: encounter.name, shiny: encounter.shiny,
+    permits: trailPermits(play.quest, key) })
   const { [key]: _caught, ...encounters } = play.encounters
   return { expeditions, encounters }
 }
 
 // Saves from before encounter rolls: an encounter that was already open was shown with its seeded 1-in-50 result, so a
 // Shiny shown there stays Shiny as that encounter's first roll. Everything else rolls 1 in 100 as its lair is entered.
-// Claimed rewards are never touched.
+// Claimed rewards are never touched, and a Legendary already caught or kept for another trail is left for a fresh pick.
 export function legacyEncounters(expeditions: ExpeditionProgress): Encounters {
   const encounters: Encounters = {}
+  const taken = new Set(Object.keys(expeditions.dex).map(plain))
   for (const [key, trail] of Object.entries(expeditions.trails)) {
     if (trail.claimed >= unlockedEncounters(trail)) continue
     const { name, shiny } = expeditionEncounter(trail, trail.claimed)
-    if (shiny) encounters[key] = { index: trail.claimed, name, trial: false, shiny: true, attempt: 1, resetPending: false, nextResetAllowedAt: 0 }
+    if (!shiny || taken.has(name)) continue
+    taken.add(name)
+    encounters[key] = { index: trail.claimed, name, trial: false, shiny: true, attempt: 1, resetPending: false, nextResetAllowedAt: 0 }
   }
   return encounters
 }
 
-// Keeps each saved encounter that still matches its trail's next open encounter and species; drops anything else.
+// Keeps each saved encounter that still matches its trail's next open encounter, with a Legendary not yet caught and
+// not kept for another trail; drops anything else, and that trail picks again (nextLegendaries).
 export function restoreEncounters(raw: unknown, expeditions: ExpeditionProgress, quest: Quest): Encounters {
   const encounters: Encounters = {}
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return encounters
+  const taken = new Set(Object.keys(expeditions.dex).map(plain))
   for (const [key, value] of Object.entries(raw as Record<string, ActiveEncounter>)) {
     const trail = expeditions.trails[key]
     if (!trail || !value || typeof value !== 'object' || value.index !== trail.claimed || trail.claimed >= trailUnlocked(quest, key, trail) ||
-        value.name !== expeditionEncounter(trail, trail.claimed).name || typeof value.trial !== 'boolean' || typeof value.resetPending !== 'boolean' ||
+        !legendarySpecies.includes(value.name) || taken.has(value.name) || typeof value.trial !== 'boolean' || typeof value.resetPending !== 'boolean' ||
         !(value.shiny === null || typeof value.shiny === 'boolean') || !Number.isSafeInteger(value.attempt) || value.attempt < 0 || value.attempt > 1000000 ||
         (value.shiny === null) !== (value.attempt === 0) || (value.shiny === null && value.resetPending) ||
         !Number.isFinite(value.nextResetAllowedAt) || value.nextResetAllowedAt < 0 || value.nextResetAllowedAt > 8.64e15) continue
+    taken.add(value.name)
     const checkpoint = value.trial ? null : restoreRun(value.checkpoint)
     const restored: ActiveEncounter = { index: value.index, name: value.name, trial: value.trial, shiny: value.shiny, attempt: value.attempt,
       resetPending: value.resetPending, nextResetAllowedAt: value.nextResetAllowedAt, ...(checkpoint && { checkpoint }) }

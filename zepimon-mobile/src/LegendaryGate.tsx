@@ -36,9 +36,10 @@ const HEADLINES: Record<GateState, string> = {
 const BADGES: Record<GateState, string> = { waiting: '✦ ENCOUNTER WAITING', permit: '◆ PERMIT READY', walking: 'ON THE TRAIL', none: 'NO TRAIL YET' }
 
 export function useGateStatus(): GateStatus {
-  const { expeditions, quest, progress, phoneRuns } = useJournal()
+  const { expeditions, quest, encounters, progress, phoneRuns } = useJournal()
   const tickets = useMemo(() => runningTickets(allAdventures(progress, phoneRuns)).length, [progress, phoneRuns])
-  return useMemo(() => gateStatus(expeditions, quest, progress, Date.now(), ticketsLeft(quest, tickets)), [expeditions, quest, progress, tickets])
+  return useMemo(() => gateStatus(expeditions, quest, progress, Date.now(), ticketsLeft(quest, tickets), encounters),
+    [expeditions, quest, progress, tickets, encounters])
 }
 
 const enter = () => router.push('/expeditions')

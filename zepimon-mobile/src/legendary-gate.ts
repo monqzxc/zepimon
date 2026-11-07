@@ -1,9 +1,11 @@
-import { expeditionEncounter, expeditionGoal } from './expeditions.ts'
+import { expeditionGoal } from './expeditions.ts'
 import type { ExpeditionProgress } from './expeditions.ts'
 import { QUEST_SESSIONS, distanceLeg, encounterReady, questSessions, trailUnlocked } from './expedition-quest.ts'
 import type { Quest } from './expedition-quest.ts'
 import type { Progress } from './progress.ts'
 import { trialFor } from './games/trials.ts'
+import { nextLegendaries } from './expedition-encounter.ts'
+import type { Encounters } from './expedition-encounter.ts'
 
 // The Legendary Gate (src/LegendaryGate.tsx), the way into Legendary Expeditions on Home, Adventure and the Expeditions
 // header. This works out what it shows from the saved progress, and only reads it:
@@ -30,13 +32,15 @@ function lastCaught(expeditions: ExpeditionProgress): { name: string, shiny: boo
 // Kilometres to one decimal, rounded up so a few metres left never reads as 0 km.
 const kmLeft = (meters: number) => `${Math.max(0.1, Math.ceil(meters / 100) / 10)} km`
 
-// tickets: running tickets earned and not yet claimed (src/running.ts runningTickets), each a permit to claim.
-export function gateStatus(expeditions: ExpeditionProgress, quest: Quest, progress: Progress, now = Date.now(), tickets = 0): GateStatus {
+// tickets: running tickets earned and not yet claimed (src/running.ts runningTickets), each a permit to claim. encounters:
+// the saved encounters, which keep their Legendary (src/expedition-encounter.ts nextLegendaries).
+export function gateStatus(expeditions: ExpeditionProgress, quest: Quest, progress: Progress, now = Date.now(), tickets = 0,
+  encounters: Encounters = {}): GateStatus {
   const trails = Object.entries(expeditions.trails).sort((a, b) => b[1].startedAt - a[1].startedAt)
   const waiting = waitingEncounters(expeditions, quest)
   const open = trails.find(([key, trail]) => encounterReady(quest, key, trail))
   if (open) {
-    const { name } = expeditionEncounter(open[1], open[1].claimed)
+    const name = nextLegendaries({ expeditions, quest, encounters })[open[0]]
     const more = waiting > 1 ? ` · ${waiting} encounters waiting` : ''
     return { state: 'waiting', name, shiny: false, line: `${name} is waiting at ${trialFor(name, {}).title}${more}`, waiting, remaining: 0 }
   }

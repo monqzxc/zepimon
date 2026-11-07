@@ -42,7 +42,7 @@ test('every Legendary has a lair by its story: an Emerald room, or one drawn for
     Registeel: 'regi-chamber', Regigigas: 'sealed-chamber', Latias: 'southern-island', Latios: 'southern-island', Mew: 'bubble-playroom',
     Celebi: 'faraway-island', Deoxys: 'outer-space', Jirachi: 'birth-island', Articuno: 'shoal-cave', Zapdos: 'new-mauville',
     Dialga: 'mt-pyre-summit', Giratina: 'distortion-world', Darkrai: 'nightmare-realm', Zygarde: 'cell-hollow', Mewtwo: 'cinnabar-lab',
-    Diancie: 'crystal-cavern' }
+    Diancie: 'crystal-cavern', Uxie: 'acuity-cavern', Mesprit: 'verity-cavern', Azelf: 'valor-cavern' }
   for (const [name, lair] of Object.entries(homes)) assert.equal(lairOf(name), lair, name)
   assert.equal(arenaFor('Shiny Kyogre'), arenaFor('Kyogre'), 'A Shiny lives where its kind does')
   assert.equal(lairOf('Pikachu'), 'new-mauville', 'A Pokemon no lair lists meets in the lair of its type')

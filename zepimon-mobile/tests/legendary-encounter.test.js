@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { RESET_COOLDOWN, RESONANCE_SEALS, SHINY_ODDS, activateSeal, activeEncounter, catchEncounter, enterLair, finishTrial, leaveLair, legacyEncounters,
-  readyToBattle, resetInLair, restoreEncounters, rollLegendaryShiny, saveCheckpoint, stabilizeResonance } from '../src/expedition-encounter.ts'
+  nextLegendaries, readyToBattle, resetInLair, restoreEncounters, rollLegendaryShiny, saveCheckpoint, stabilizeResonance } from '../src/expedition-encounter.ts'
 import { emptyQuest } from '../src/expedition-quest.ts'
 import { startRun } from '../src/games/trials.ts'
 import { stepRoom } from '../src/games/trial.ts'
@@ -152,9 +152,9 @@ test('old saves keep a Shiny they were already showing; other encounters roll fr
   assert.equal(opened[key0].shiny, true, 'The kept Shiny is not rerolled when its lair is entered')
 })
 
-test('saved encounters must match their trail: wrong species, index or fields are dropped', () => {
+test('saved encounters must match their trail: a species that is no Legendary, a wrong index or fields are dropped', () => {
   const opened = lair()[key]
-  for (const changed of [{ name: 'Mew' === opened.name ? 'Lugia' : 'Mew' }, { index: 1 }, { shiny: null }, { attempt: -1 }, { trial: 'yes' },
+  for (const changed of [{ name: 'Pikachu' }, { index: 1 }, { shiny: null }, { attempt: -1 }, { trial: 'yes' },
     { nextResetAllowedAt: Infinity }, { shiny: null, attempt: 0, resetPending: true }]) {
     assert.deepEqual(restoreEncounters({ [key]: { ...opened, ...changed } }, play().expeditions, emptyQuest()), {})
   }
@@ -259,4 +259,45 @@ test('reopening keeps a good checkpoint and drops a broken one', () => {
 test('no checkpoint after the trial', () => {
   const finished = finishTrial(play(), key, 0)
   assert.throws(() => saveCheckpoint(play(finished), key, 0, TRIAL_RUN()), /finished/)
+})
+
+test('no Legendary is met twice: trails skip one already caught or waiting on another trail', () => {
+  // Two trails whose canonical draws run through the same Legendaries, as the lake trio did on two real trails.
+  const older = { seed: 21, startedAt: 1000, meters: 75000, claimed: 0 }
+  const newer = { seed: 21, startedAt: 2000, meters: 75000, claimed: 0 }
+  const both = (dex = {}, encounters = {}) => ({ expeditions: { trails: { [expeditionKey(older)]: older, [expeditionKey(newer)]: newer }, dex },
+    quest: emptyQuest(), encounters })
+  const at = i => legendarySpecies[(21 + i) % legendarySpecies.length]
+  assert.deepEqual(nextLegendaries(both()), { [expeditionKey(older)]: at(0), [expeditionKey(newer)]: at(1) }, 'The older trail picks first')
+  const caught = { [at(0)]: {}, ['Shiny ' + at(1)]: {} }
+  assert.deepEqual(nextLegendaries(both(caught)), { [expeditionKey(older)]: at(2), [expeditionKey(newer)]: at(3) }, 'Normal or Shiny, a catch is skipped')
+  // A saved encounter keeps its Legendary, even off its canonical draw, and the other trail moves past it.
+  const saved = { [expeditionKey(newer)]: { index: 0, name: at(0), trial: false, shiny: null, attempt: 0, resetPending: false, nextResetAllowedAt: 0 } }
+  assert.deepEqual(nextLegendaries(both({}, saved)), { [expeditionKey(older)]: at(1), [expeditionKey(newer)]: at(0) })
+  assert.equal(activeEncounter(both(caught), expeditionKey(newer), 0).name, at(3))
+  // Once every Legendary is caught, they come round again, still never two trails at once.
+  const all = Object.fromEntries(legendarySpecies.map(name => [name, {}]))
+  assert.deepEqual(nextLegendaries(both(all)), { [expeditionKey(older)]: at(0), [expeditionKey(newer)]: at(1) })
+})
+
+test('the catch records the Legendary the encounter was opened with', () => {
+  const caughtFirst = { ...play().expeditions, dex: { [expeditionEncounter(trail, 0).name]: { meters: 25000, steps: 0, shiny: false,
+    form: expeditionEncounter(trail, 0).name, source: 'expedition', finishedAt: new Date(NOW).toISOString() } } }
+  const state = encounters => ({ expeditions: caughtFirst, quest: emptyQuest(), encounters })
+  const met = enterLair(state(finishTrial(state({}), key, 0)), key, 0, NOW, NORMAL)
+  const name = met[key].name
+  assert.equal(name, legendarySpecies[(trail.seed + 1) % legendarySpecies.length], 'Skips the one already caught')
+  const ready = stabilizeResonance(state(RESONANCE_SEALS.reduce((saved, seal) => activateSeal(state(saved), key, 0, seal), met)), key, 0)
+  const { expeditions } = catchEncounter(state(ready), key, 0, NOW)
+  assert.ok(expeditions.dex[name], 'The new Legendary is in the Dex')
+  assert.equal(Object.keys(expeditions.dex).length, 2)
+})
+
+test('reopening drops a saved encounter whose Legendary is already caught or kept for another trail', () => {
+  const other = { seed: 30, startedAt: 5000, meters: 30000, claimed: 0 }
+  const expeditions = { trails: { [key]: trail, [expeditionKey(other)]: other }, dex: { Mew: {} } }
+  const fresh = name => ({ index: 0, name, trial: false, shiny: null, attempt: 0, resetPending: false, nextResetAllowedAt: 0 })
+  assert.deepEqual(Object.keys(restoreEncounters({ [key]: fresh('Mew') }, expeditions, emptyQuest())), [])
+  assert.deepEqual(Object.keys(restoreEncounters({ [key]: fresh('Uxie'), [expeditionKey(other)]: fresh('Uxie') }, expeditions, emptyQuest())), [key])
+  assert.deepEqual(restoreEncounters({ [key]: fresh('Pikachu') }, expeditions, emptyQuest()), {}, 'Only a Legendary')
 })

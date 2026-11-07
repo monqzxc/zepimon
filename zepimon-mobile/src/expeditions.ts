@@ -20,16 +20,18 @@ export function importExpeditions(previous: ExpeditionProgress, journal: Journal
     meters: Math.max(old?.meters || 0, incoming.meters), claimed: old?.claimed || 0 } } }
 }
 
-// shiny is the encounter's own roll (src/expedition-encounter.ts); without one, the canonical seeded draw decides.
-// permits are the encounters this trail opened with Expedition Permits.
+// name and shiny are the encounter's own Legendary and roll (src/expedition-encounter.ts); without them, the canonical
+// seeded draw decides. permits are the encounters this trail opened with Expedition Permits.
 export function claimExpedition(previous: ExpeditionProgress, key: string, index: number, now = Date.now(),
-  { shiny: rolled, permits = 0 }: { shiny?: boolean, permits?: number } = {}): ExpeditionProgress {
+  { name: picked, shiny: rolled, permits = 0 }: { name?: string, shiny?: boolean, permits?: number } = {}): ExpeditionProgress {
   const trail = previous.trails[key]
   if (!trail || index !== trail.claimed || index >= unlockedEncounters(trail, permits)) {
     throw new Error('This encounter is already befriended or is not ready yet.')
   }
-  const { name, shiny: drawn } = expeditionEncounter(trail, index)
-  const shiny = rolled ?? drawn
+  const drawn = expeditionEncounter(trail, index)
+  if (picked !== undefined && !legendarySpecies.includes(picked)) throw new Error('This encounter is not a Legendary.')
+  const name = picked ?? drawn.name
+  const shiny = rolled ?? drawn.shiny
   const record: DexRecord = { meters: expeditionGoal, steps: 0, shiny, form: name,
     source: 'expedition', finishedAt: new Date(now).toISOString() }
   return { trails: { ...previous.trails, [key]: { ...trail, claimed: index + 1 } },

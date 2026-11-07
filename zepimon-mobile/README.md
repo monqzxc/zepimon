@@ -287,7 +287,9 @@ scene is `src/LegendaryGate.tsx`.
 
 Open **Expeditions** under **Missions & expeditions** on the Adventure tab. With watch v1.11.0, saved
 walks/runs accumulate toward clues at 5, 15 and 25 km. Mystery habitats and silhouettes become visible as
-clues are discovered. The 39 available species cycle from a random starting point. Extra distance carries
+clues are discovered. The 39 available species cycle from a random starting point, skipping any Legendary
+you have already caught (Normal or Shiny) or that is already waiting on another trail, so none is met twice
+until all 39 are caught (`nextLegendaries` in `src/expedition-encounter.ts`). Extra distance carries
 into subsequent expeditions; multiple unlocked encounters wait for you.
 
 **Three ways to open the next encounter.** Any one is enough, and the screen shows each one's progress separately:
@@ -343,7 +345,7 @@ story, a lair drawn for it in Emerald's pixel style. The lairs and who lives the
 | Sky Pillar (the summit) | Ho-Oh |
 | Sealed Ruins (the Regis' chamber) | Regirock, Regice, Registeel |
 | Sealed Chamber | Regigigas |
-| Southern Island | Latias, Latios, Suicune, Uxie, Mesprit, Azelf |
+| Southern Island | Latias, Latios, Suicune |
 | Faraway Island | Celebi, Shaymin |
 | Birth Island | Jirachi, Cresselia |
 | Shoal Cave (the ice room) | Articuno |
@@ -360,6 +362,9 @@ story, a lair drawn for it in Emerald's pixel style. The lairs and who lives the
 | Bubble Playroom (a pastel playroom of toppled toy blocks, soap bubbles and puddles) | Mew |
 | Cell Hollow (green honeycomb on black, crystallised gene clusters) | Zygarde |
 | Cinnabar Lab (a dark purple lab, Mewtwo in its shattered containment tank) | Mewtwo |
+| Acuity Cavern (the cave at the middle of snowy Lake Acuity: frosted rock, ice crystals, the lake in pools, a gold-ringed dais) | Uxie |
+| Verity Cavern (the cave at the middle of Lake Verity: warm rock, boulders, the lake in pools, a pink-ringed dais) | Mesprit |
+| Valor Cavern (the cave at the middle of Lake Valor: red rock, boulders, the lake in pools, a blue-ringed dais) | Azelf |
 
 Mt. Pyre (the graveyard) stays as the lair for a future ghost, dark or poison Legendary.
 

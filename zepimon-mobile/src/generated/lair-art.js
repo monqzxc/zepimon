@@ -19,5 +19,8 @@ export const lairArt = {
   "nightmare-realm": { ground: require('../../assets/lairs/nightmare-realm-ground.png'), top: require('../../assets/lairs/nightmare-realm-top.png') },
   "bubble-playroom": { ground: require('../../assets/lairs/bubble-playroom-ground.png'), top: require('../../assets/lairs/bubble-playroom-top.png') },
   "cell-hollow": { ground: require('../../assets/lairs/cell-hollow-ground.png'), top: require('../../assets/lairs/cell-hollow-top.png') },
-  "cinnabar-lab": { ground: require('../../assets/lairs/cinnabar-lab-ground.png'), top: require('../../assets/lairs/cinnabar-lab-top.png') }
+  "cinnabar-lab": { ground: require('../../assets/lairs/cinnabar-lab-ground.png'), top: require('../../assets/lairs/cinnabar-lab-top.png') },
+  "acuity-cavern": { ground: require('../../assets/lairs/acuity-cavern-ground.png'), top: require('../../assets/lairs/acuity-cavern-top.png') },
+  "verity-cavern": { ground: require('../../assets/lairs/verity-cavern-ground.png'), top: require('../../assets/lairs/verity-cavern-top.png') },
+  "valor-cavern": { ground: require('../../assets/lairs/valor-cavern-ground.png'), top: require('../../assets/lairs/valor-cavern-top.png') }
 }

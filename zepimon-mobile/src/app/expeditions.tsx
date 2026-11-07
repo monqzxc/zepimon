@@ -3,10 +3,10 @@ import type { ReactNode } from 'react'
 import { router } from 'expo-router'
 import { Text, View } from 'react-native'
 import { useJournal } from '../store'
-import { expeditionEncounter, expeditionKey } from '../expeditions'
+import { expeditionKey } from '../expeditions'
 import type { Trail } from '../expeditions'
 import { QUEST_SESSIONS, QUEST_SESSION_METERS, distanceLeg, encounterReady, questSessions, trailUnlocked } from '../expedition-quest'
-import { readyToBattle, readyToCapture, resetDue } from '../expedition-encounter'
+import { nextLegendaries, readyToBattle, readyToCapture, resetDue } from '../expedition-encounter'
 import type { ActiveEncounter } from '../expedition-encounter'
 import { clueMilestones, expeditionGoal } from '../generated/expedition.js'
 import { km } from '../journal'
@@ -78,6 +78,8 @@ export default function ExpeditionsScreen() {
   const pending = trails.reduce((sum, [key, trail]) => sum + trailUnlocked(quest, key, trail) - trail.claimed, 0)
   const currentKey = journal?.snapshot.expedition ? expeditionKey(journal.snapshot.expedition) : ''
   const selected = trails.find(([key, trail]) => encounterReady(quest, key, trail)) || trails.find(([key]) => key === currentKey) || trails.at(-1)
+  // Each trail's next Legendary: never one already caught or waiting on another trail.
+  const names = nextLegendaries({ expeditions, quest, encounters })
 
   async function act(task: () => Promise<void>, then?: () => void) {
     setBusy(true); setMessage('')
@@ -177,7 +179,7 @@ export default function ExpeditionsScreen() {
       }
     } else if (step.kind === 'trial') {
       const { key, index } = step
-      content = <LegendaryTrial name={expeditionEncounter(trail, index).name} partner={partner} reduced={reduced} busy={busy} error={message}
+      content = <LegendaryTrial name={names[key]} partner={partner} reduced={reduced} busy={busy} error={message}
         trial={step.trial} checkpoint={encounter?.index === index ? encounter.checkpoint : undefined}
         onCheckpoint={run => store.saveTrialCheckpoint(key, index, run)}
         onLeave={run => {
@@ -201,10 +203,10 @@ export default function ExpeditionsScreen() {
         <Button title="View my new friend" onPress={() => router.push({ pathname: '/pokemon', params: { name: friend.replace(/^Shiny /, '') } })} /></Panel>}
       {!!message && <Copy color={colors.gold}>{message}</Copy>}
       {pending > 0 && <Panel><Copy color={colors.gold}>{pending} encounter{pending === 1 ? '' : 's'} ready to meet. Take your time: they will wait.</Copy></Panel>}
-      {selected && selected[1].claimed < 4000 ? <Encounter key={`${selected[0]}:${selected[1].claimed}`} trailKey={selected[0]} trail={selected[1]}
+      {selected && selected[1].claimed < 4000 ? <Encounter key={`${selected[0]}:${selected[1].claimed}`} trailKey={selected[0]} trail={selected[1]} name={names[selected[0]]}
         encounter={encounters[selected[0]]?.index === selected[1].claimed ? encounters[selected[0]] : undefined} busy={busy}
         onBegin={() => { setMessage(''); setStep({ kind: 'trial', key: selected[0], index: selected[1].claimed,
-          trial: trialFor(expeditionEncounter(selected[1], selected[1].claimed).name, store.trialRecords) }) }}
+          trial: trialFor(names[selected[0]], store.trialRecords) }) }}
         onEnter={() => { void enterLair(selected[0], selected[1].claimed) }}
         onPermit={() => { void act(() => store.unlockWithPermit(selected[0]), () => setMessage('Your Expedition Permit opened the next encounter!')) }} /> :
         <Panel><Heading>{selected ? 'Every recorded trail explored' : 'Your first clue awaits'}</Heading>
@@ -227,11 +229,11 @@ export default function ExpeditionsScreen() {
   </GameScreenContext.Provider></Screen>
 }
 
-function Encounter({ trailKey, trail, encounter, busy, onBegin, onEnter, onPermit }: {
-  trailKey: string, trail: Trail, encounter: ActiveEncounter | undefined, busy: boolean, onBegin: () => void, onEnter: () => void, onPermit: () => void
+function Encounter({ trailKey, trail, name, encounter, busy, onBegin, onEnter, onPermit }: {
+  trailKey: string, trail: Trail, name: string, encounter: ActiveEncounter | undefined, busy: boolean, onBegin: () => void, onEnter: () => void,
+  onPermit: () => void
 }) {
   const { quest, trialRecords } = useJournal()
-  const { name } = expeditionEncounter(trail, trail.claimed)
   const trial = trialFor(name, trialRecords)
   const meters = distanceLeg(quest, trailKey, trail)
   const ready = encounterReady(quest, trailKey, trail)

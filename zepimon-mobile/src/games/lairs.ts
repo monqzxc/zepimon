@@ -9,7 +9,8 @@ import type { Direction, Point } from './safari-zone.ts'
 // Island, Faraway Island and Birth Island, with fitting Emerald places standing in for Legendaries Emerald doesn't have.
 // Where no Emerald room fits a Legendary's story, the lair is drawn for it (scripts/drawn_lairs.py): Deoxys among the
 // meteorites of outer space, Rayquaza on the clouds of the ozone layer, Giratina in the Distortion World, Darkrai in a
-// nightmare, Mew in a bubble playroom, Zygarde among its crystallised cells and Mewtwo in the lab it broke out of.
+// nightmare, Mew in a bubble playroom, Zygarde among its crystallised cells, Mewtwo in the lab it broke out of, and
+// Uxie, Mesprit and Azelf in the caverns at the middle of Lakes Acuity, Verity and Valor.
 export type LairId = keyof typeof lairMaps
 export type LairMap = { name: string, room: string, cols: number, rows: number, tiles: string[], legendary: Point, start: Point,
   entrance: Point, out: Direction, background: string }
@@ -21,8 +22,8 @@ export const LAIR_OF: Record<string, LairId> = {
   Rayquaza: 'ozone-layer', 'Ho-Oh': 'sky-pillar',
   Regirock: 'regi-chamber', Regice: 'regi-chamber', Registeel: 'regi-chamber',
   Regigigas: 'sealed-chamber',
-  Latias: 'southern-island', Latios: 'southern-island', Suicune: 'southern-island', Uxie: 'southern-island',
-  Mesprit: 'southern-island', Azelf: 'southern-island',
+  Latias: 'southern-island', Latios: 'southern-island', Suicune: 'southern-island',
+  Uxie: 'acuity-cavern', Mesprit: 'verity-cavern', Azelf: 'valor-cavern',
   Mew: 'bubble-playroom', Celebi: 'faraway-island', Shaymin: 'faraway-island', Zygarde: 'cell-hollow',
   Deoxys: 'outer-space', Jirachi: 'birth-island', Cresselia: 'birth-island',
   Articuno: 'shoal-cave',
@@ -68,5 +69,8 @@ export const AMBIENCE: Record<LairId, Ambience> = {
   'nightmare-realm': { kind: 'drift', colors: ['#4a4f9a', '#8e8fd8', '#ff3048'], count: 10, size: 6 },
   'bubble-playroom': { kind: 'rise', colors: ['#c6ecff', '#ffc4e1', '#fff2a8'], count: 12, size: 7 },
   'cell-hollow': { kind: 'rise', colors: ['#3cff7a', '#b8ffcf'], count: 12, size: 4 },
-  'cinnabar-lab': { kind: 'twinkle', colors: ['#a46bff', '#c08cff', '#5ff2e0'], count: 12, size: 4 }
+  'cinnabar-lab': { kind: 'twinkle', colors: ['#a46bff', '#c08cff', '#5ff2e0'], count: 12, size: 4 },
+  'acuity-cavern': { kind: 'fall', colors: ['#ffffff', '#e6f6ff', '#fff3a8'], count: 14, size: 4 },
+  'verity-cavern': { kind: 'twinkle', colors: ['#ffd6f0', '#ff8fc8', '#ffffff'], count: 12, size: 4 },
+  'valor-cavern': { kind: 'twinkle', colors: ['#9fd8ff', '#5fb0ff', '#ffffff'], count: 12, size: 4 }
 }
