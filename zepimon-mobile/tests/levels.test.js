@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { battleType, cardKey, teamChoices } from '../src/games/roster.ts'
-import { PATHS, WEATHER, WEATHER_HEALTH, boostedBy, callAssist, canPlace, gridSize, placeUnit, planWaves, startBattle, tickBattle, tileAt } from '../src/games/battle.ts'
+import { PATHS, WEATHER, WEATHER_HEALTH, WEATHER_POWER, WEATHER_WEAK, boostedBy, unitWeather, weatherPower, callAssist, canPlace, gridSize, placeUnit, planWaves, startBattle, tickBattle, tileAt } from '../src/games/battle.ts'
 import { LEVELS, LEVELS_PER_STAGE, STAGES, levelUnlocked, restoreLevelStars, saveLevelStars } from '../src/games/levels.ts'
 
 const seeded = (seed = 1) => () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296 }
@@ -207,4 +207,35 @@ test('weather from stage 3 on powers up foes of its types, and brings them into 
     else { assert.equal(a.boosted, undefined); assert.equal(a.maxHp, b.maxHp) }
   }
   assert.ok(sunny.some(enemy => enemy.type === 'fire'), 'Ember Climb sends Fire foes')
+})
+
+test('weather powers up your Pokemon of its types and weakens those it is hard on, all but growers and blockers', () => {
+  for (const [weather, { types, weakens }] of Object.entries(WEATHER)) {
+    assert.ok(weakens.length, `${weather} weakens some types`)
+    assert.ok(!weakens.some(type => types.includes(type)), `${weather} never both powers up and weakens a type`)
+  }
+  assert.equal(weatherPower('sun', 'fire'), WEATHER_POWER)
+  assert.equal(weatherPower('sun', 'water'), WEATHER_WEAK)
+  assert.equal(weatherPower('rain', 'fire'), WEATHER_WEAK)
+  assert.equal(weatherPower('sun', 'normal'), 1)
+  assert.equal(weatherPower(undefined, 'fire'), 1)
+  assert.equal(unitWeather('rain', 'Squirtle', 'trail'), 'boosted')
+  assert.equal(unitWeather('sun', 'Squirtle', 'trail'), 'weakened')
+  assert.equal(unitWeather(undefined, 'Squirtle', 'trail'), null)
+  // The Legendary helper feels it too: Kyogre's strike under rain, clear skies and harsh sunlight.
+  const ember = LEVELS.find(level => level.spec.path === 'ember-climb')
+  const strike = weather => {
+    let game = startBattle({ ...ember.spec, weather }, loaners, { assist: 'Kyogre' }, 0, seeded(7)); let now = 0
+    while (game.enemies.length < 3 && now < 90000) { now += 100; game = tickBattle(game, now, seeded(now)) }
+    // Foes too tough to faint, so each one's loss can be read after the strike.
+    game = { ...game, enemies: game.enemies.map(enemy => ({ ...enemy, hp: 10000, maxHp: 10000 })) }
+    const after = callAssist(game)
+    return game.enemies.map((enemy, i) => enemy.hp - after.enemies[i].hp)
+  }
+  const clear = strike(undefined), rain = strike('rain'), sun = strike('sun')
+  assert.ok(clear.length >= 3 && clear.every(loss => loss > 0))
+  clear.forEach((loss, i) => {
+    assert.ok(Math.abs(rain[i] - loss * WEATHER_POWER) < 1e-6, 'Rain powers up a Water strike')
+    assert.ok(Math.abs(sun[i] - loss * WEATHER_WEAK) < 1e-6, 'Harsh sunlight weakens it')
+  })
 })

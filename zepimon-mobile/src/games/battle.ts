@@ -32,18 +32,36 @@ export type Kit = { label: string, effect: Effect, cost: number, hp: number, dam
 export type BattleSpec = { layout: Layout, waves: number, difficulty: number, habitat: string, foes: string[], path: PathId, boss?: string, weather?: Weather }
 
 // Weather (Trail Defense's harder stages): it powers up foes of its types, as in the games, with more health and a
-// little more speed, and brings those types into the waves if the stage's foes lack them.
+// little more speed, and brings those types into the waves if the stage's foes lack them. Your Pokemon feel it too:
+// those of its types hit harder (WEATHER_POWER), and those it weakens (weakens) hit softer (WEATHER_WEAK): water and ice
+// moves in harsh sunlight and fire in rain, as in the games; and the types weak to what sand, hail and fog bring: flying
+// and bug pelted by sand, grass, flying and dragon in hail, psychic in a fog full of ghosts. Growers and blockers deal
+// no damage, so the weather leaves them be.
 export type Weather = 'sun' | 'rain' | 'sandstorm' | 'hail' | 'fog'
-export const WEATHER: Record<Weather, { name: string, mark: string, types: string[] }> = {
-  sun: { name: 'Harsh sunlight', mark: '☀\uFE0E', types: ['fire'] },
-  rain: { name: 'Heavy rain', mark: '☂\uFE0E', types: ['water'] },
-  sandstorm: { name: 'Sandstorm', mark: '≋', types: ['rock', 'ground', 'steel'] },
-  hail: { name: 'Hail', mark: '❄\uFE0E', types: ['ice'] },
-  fog: { name: 'Thick fog', mark: '☁\uFE0E', types: ['ghost', 'dark'] }
+export const WEATHER: Record<Weather, { name: string, mark: string, types: string[], weakens: string[] }> = {
+  sun: { name: 'Harsh sunlight', mark: '☀\uFE0E', types: ['fire'], weakens: ['water', 'ice'] },
+  rain: { name: 'Heavy rain', mark: '☂\uFE0E', types: ['water'], weakens: ['fire'] },
+  sandstorm: { name: 'Sandstorm', mark: '≋', types: ['rock', 'ground', 'steel'], weakens: ['flying', 'bug'] },
+  hail: { name: 'Hail', mark: '❄\uFE0E', types: ['ice'], weakens: ['grass', 'flying', 'dragon'] },
+  fog: { name: 'Thick fog', mark: '☁\uFE0E', types: ['ghost', 'dark'], weakens: ['psychic'] }
 }
-export const WEATHER_HEALTH = 1.3, WEATHER_SPEED = 1.1
+export const WEATHER_HEALTH = 1.3, WEATHER_SPEED = 1.1, WEATHER_POWER = 1.3, WEATHER_WEAK = 0.7
 // Whether the weather powers up a foe of this type.
 export const boostedBy = (weather: Weather | undefined, type: string) => !!weather && WEATHER[weather].types.includes(type)
+// What the weather does to one of your Pokemon of this type: 'boosted', 'weakened' or nothing.
+export function weatherOn(weather: Weather | undefined, type: string): 'boosted' | 'weakened' | null {
+  if (!weather) return null
+  return WEATHER[weather].types.includes(type) ? 'boosted' : WEATHER[weather].weakens.includes(type) ? 'weakened' : null
+}
+// The weather's factor on the damage your Pokemon of this type deal.
+export function weatherPower(weather: Weather | undefined, type: string): number {
+  const on = weatherOn(weather, type)
+  return on === 'boosted' ? WEATHER_POWER : on === 'weakened' ? WEATHER_WEAK : 1
+}
+// What the weather does to one of your Pokemon on the board, by its form: growers and blockers deal no damage, so none.
+export function unitWeather(weather: Weather | undefined, name: string, layout: Layout): 'boosted' | 'weakened' | null {
+  return ['produce', 'wall'].includes(kitFor(name, layout).effect) ? null : weatherOn(weather, battleType(name))
+}
 export type Spawn = { at: number, name: string, wave: number, boss: boolean, lane: number }
 // from and evolvedAt: the form it last evolved from, and when (game time), for the board's evolution animation.
 export type Unit = { id: number, name: string, shiny: boolean, col: number, row: number, hp: number, maxHp: number, ready: number,
@@ -386,7 +404,7 @@ export function callAssist(game: Battle): Battle {
   const g = clone(game)
   const type = battleType(game.assist.name)
   for (const enemy of g.enemies) {
-    enemy.hp -= ASSIST_DAMAGE * effectiveness(type, enemy.type)
+    enemy.hp -= ASSIST_DAMAGE * effectiveness(type, enemy.type) * weatherPower(g.spec.weather, type)
     enemy.slowUntil = g.elapsed + 3000
   }
   for (const enemy of g.enemies) addStrike(g, type, 'hit', enemyPoint(g, enemy), enemy.id)
@@ -580,7 +598,7 @@ function step(g: Battle, dt: number, random: () => number) {
     const type = battleType(unit.name)
     const perk = unit.egg ? eggPerk(unit.name, g.layout) : null
     const coverage = perk?.kind === 'coverage' ? perk.type : null
-    const damage = kit.damage * (perk?.kind === 'power' ? EGG_POWER : 1)
+    const damage = kit.damage * (perk?.kind === 'power' ? EGG_POWER : 1) * weatherPower(g.spec.weather, type)
     if (kit.effect === 'line') {
       addStrike(g, type, 'wave', center, -1, kit.range)
       for (const target of targets) hit(g, target, damage, type, coverage, 'none')

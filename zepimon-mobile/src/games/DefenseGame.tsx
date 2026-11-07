@@ -7,10 +7,10 @@ import { typeTheme } from '../HabitatScene'
 import { Button, Copy, Eyebrow, Heading, IconButton, Panel, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
-import { EVOLVE_MS, LANES, PATHS, TICK, WEATHER, tileAt, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
+import { EVOLVE_MS, LANES, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
   facingToward, gridSize, unitTarget, moveOf,
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
-import type { Battle, BattleSpec, Heading as Facing, Layout } from './battle'
+import type { Battle, BattleSpec, Heading as Facing, Layout, Weather } from './battle'
 import { ShotSprite, StrikeSprite } from './MoveFx'
 import { AssistMove } from './AssistMove'
 import { TrailTerrain } from './TrailTerrain'
@@ -40,7 +40,10 @@ const MIN_CELL = 36
 const DRAWN_CELL = 48, MAX_CELL = 68
 const label = (type: string) => type[0].toUpperCase() + type.slice(1)
 // "Harsh sunlight: Fire foes are tougher."
-const weatherLine = (weather: keyof typeof WEATHER) => `${WEATHER[weather].name}: ${WEATHER[weather].types.map(label).join(', ')} foes are tougher.`
+const types = (list: string[]) => list.map(label).join(', ')
+const weatherLine = (weather: Weather) => `${WEATHER[weather].name}: ${types(WEATHER[weather].types)} foes tougher · your ${types(WEATHER[weather].types)} ▲, ${types(WEATHER[weather].weakens)} ▼`
+// What the weather does to your Pokemon, for the level's panel and a Pokemon's details.
+const POWER_UP = Math.round((WEATHER_POWER - 1) * 100), POWER_DOWN = Math.round((1 - WEATHER_WEAK) * 100)
 const native = Platform.OS !== 'web'
 // The battle board keeps its own colors: its terrain art is darker than the light app theme around it.
 const onBoard = { ink: '#f4ebcf', gold: '#ffe08d', dark: '#071b2c' }
@@ -132,9 +135,10 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
     </Panel>}
     {preview?.weather && <Panel style={play.weatherPanel}>
       <Text style={play.weatherTitle}>{WEATHER[preview.weather].mark} {WEATHER[preview.weather].name}</Text>
-      <Copy small color={colors.ink}>{`${WEATHER[preview.weather].types.map(label).join(', ')} foes are powered up: more health, a little more speed, and the ${WEATHER[preview.weather].mark} mark.`}</Copy>
+      <Copy small color={colors.ink}>{`${types(WEATHER[preview.weather].types)} foes are powered up: more health, a little more speed, and the ${WEATHER[preview.weather].mark} mark.`}</Copy>
+      <Copy small color={colors.ink}>{`Your ${types(WEATHER[preview.weather].types)} Pokemon hit ${POWER_UP}% harder (▲). ${types(WEATHER[preview.weather].weakens)} Pokemon hit ${POWER_DOWN}% softer (▼). Berry growers and blockers don't mind it.`}</Copy>
     </Panel>}
-    <TeamPicker layout={layout} choices={choices} team={team} onChange={setTeam} suggestion={suggestion} tiles={tiles} />
+    <TeamPicker layout={layout} choices={choices} team={team} onChange={setTeam} suggestion={suggestion} tiles={tiles} weather={preview?.weather} />
     <Button title={team.length ? `Start ${title}` : 'Choose at least one Pokemon'} disabled={!team.length} onPress={start} />
     <HowTo layout={layout} />
   </View>
@@ -207,7 +211,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
         <IconButton name={full ? 'fullscreenExit' : 'fullscreen'} label={full ? 'Exit full screen' : 'Full screen'} size={40} onPress={() => setFull(!full)} />
       </View>
       <Text numberOfLines={1} style={play.status}>{status}</Text>
-      {spec.weather && <Text numberOfLines={1} style={play.weather}>{WEATHER[spec.weather].mark} {weatherLine(spec.weather)}</Text>}
+      {spec.weather && <Text numberOfLines={2} style={play.weather}>{WEATHER[spec.weather].mark} {weatherLine(spec.weather)}</Text>}
     </View>
 
     {/* The area takes whatever the bar and the tray leave. Its contents are all absolutely placed, so they never
@@ -231,7 +235,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           const where = (layout === 'lanes' ? `Lane ${col + 1}, row ${row + 1}` : `Column ${col + 1}, row ${row + 1}`) + (tile ? `, ${label(tile)} tile` : '')
           return <Pressable key={index} disabled={onPath} onPress={() => pressCell(col, row)}
             accessibilityRole="button" accessibilityState={{ disabled: onPath, selected: unit?.id === inspect }}
-            accessibilityLabel={`${where}: ${unit ? `${unit.name}, ${Math.ceil(unit.hp / unit.maxHp * 100)}% health` : onPath ? 'trail' : 'empty'}`}
+            accessibilityLabel={`${where}: ${unit ? `${unit.name}, ${Math.ceil(unit.hp / unit.maxHp * 100)}% health${skyNote(unitWeather(spec.weather, unit.name, layout))}` : onPath ? 'trail' : 'empty'}`}
             style={[board.cell, { left: col * cell, top: top + row * cell, width: cell, height: cell,
               backgroundColor: layout === 'trail' ? 'transparent' : (col + row) % 2 ? theme.ground : theme.near },
               free && board.free, !!picked && !unit && !fits && board.blocked, unit?.id === inspect && board.inspected]}>
@@ -240,6 +244,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
               <Ally unit={unit} game={game} size={cell * 0.82} reduced={reduced} />
               {unit.hp < unit.maxHp && <Health ratio={unit.hp / unit.maxHp} width={cell * 0.7} />}
               {unit.egg && <Text accessible={false} style={board.egg}>EGG</Text>}
+              <WeatherArrow sky={unitWeather(spec.weather, unit.name, layout)} size={cell} />
             </>}
           </Pressable>
         })}
@@ -285,7 +290,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       </BoardFrame>}
       {!!note && <View pointerEvents="none" style={play.note}><Text accessibilityLiveRegion="polite" style={play.noteText}>{note}</Text></View>}
       {/* Details float over the half of the board away from the Pokemon you tapped. */}
-      {selected && <UnitPanel unit={selected} layout={layout} playing={playing} berries={game.berries}
+      {selected && <UnitPanel unit={selected} layout={layout} weather={spec.weather} playing={playing} berries={game.berries}
         style={selected.row >= rows / 2 ? { top: 8 } : { bottom: 8 }}
         onEvolve={() => act(battle => evolveUnit(battle, selected.id))}
         onRelease={() => { act(battle => removeUnit(battle, selected.id)); setInspect(null) }} onClose={() => setInspect(null)} />}
@@ -514,14 +519,23 @@ const AllySprite = memo(function AllySprite({ name, shiny, size, frame, dx, dy }
   </View>
 })
 
-function UnitPanel({ unit, layout, playing, berries, style, onEvolve, onRelease, onClose }: {
-  unit: Battle['units'][number], layout: Layout, playing: boolean, berries: number, style: ViewStyle,
+const skyNote = (sky: 'boosted' | 'weakened' | null) => sky === 'boosted' ? ', powered up by the weather' : sky === 'weakened' ? ', weakened by the weather' : ''
+// The weather's mark on one of your Pokemon: a gold ▲ when it powers it up, a blue ▼ when it weakens it.
+function WeatherArrow({ sky, size }: { sky: 'boosted' | 'weakened' | null, size: number }) {
+  if (!sky) return null
+  return <Text accessible={false} style={[board.arrow, sky === 'weakened' && board.arrowWeak, { fontSize: Math.max(9, size * 0.2), lineHeight: Math.max(12, size * 0.26) }]}>
+    {sky === 'boosted' ? '▲' : '▼'}</Text>
+}
+
+function UnitPanel({ unit, layout, weather, playing, berries, style, onEvolve, onRelease, onClose }: {
+  unit: Battle['units'][number], layout: Layout, weather?: Weather, playing: boolean, berries: number, style: ViewStyle,
   onEvolve: () => void, onRelease: () => void, onClose: () => void
 }) {
   const kit = kitFor(unit.name, layout)
   const next = nextForm(unit)
   const perk = eggPerk(unit.name, layout)
   const move = moveOf(unit.name, layout)
+  const sky = unitWeather(weather, unit.name, layout)
   return <View style={[play.floating, style]}>
     <View style={[styles.row, { flexWrap: 'nowrap' }]}>
       <PixelSprite name={unit.name} shiny={unit.shiny} size={44} />
@@ -532,6 +546,9 @@ function UnitPanel({ unit, layout, playing, berries, style, onEvolve, onRelease,
     </View>
     <Copy small color={unit.egg && perk ? colors.gold : colors.muted}>{!unit.egg ? 'No egg moves: only Pokemon hatched on your watch know them.'
       : perk ? `Hatched from an egg · Egg move ${perk.move}: ${perk.text}.` : 'Hatched from an egg, but this family has no Gen II–IV egg moves.'}</Copy>
+    {weather && sky && <Copy small color={sky === 'boosted' ? colors.gold : colors.danger}>{sky === 'boosted'
+      ? `${WEATHER[weather].mark} ${WEATHER[weather].name} powers it up: ${POWER_UP}% more damage.`
+      : `${WEATHER[weather].mark} ${WEATHER[weather].name} weakens it: ${POWER_DOWN}% less damage.`}</Copy>}
     <View style={play.actions}>
       {layout === 'trail' && next && <SmallButton primary title={`Evolve to ${next.name} · ◉ ${next.cost}`} disabled={!playing || berries < next.cost} onPress={onEvolve} />}
       <SmallButton title={`Release · +◉ ${refundFor(unit)}`} disabled={!playing} onPress={onRelease} />
@@ -557,6 +574,9 @@ const board = themedStyles(() => ({
   fx: { position: 'absolute', textAlign: 'center', fontFamily: fonts.black, textShadowColor: onBoard.dark, textShadowRadius: 3, textShadowOffset: { width: 1, height: 1 } },
   boss: { position: 'absolute', top: -2, fontSize: 10, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 5, borderRadius: 999, overflow: 'hidden' },
   status: { position: 'absolute', top: 0, right: 0, fontSize: 12 },
+  arrow: { position: 'absolute', top: 2, right: 3, fontFamily: fonts.black, color: onBoard.gold, textShadowColor: onBoard.dark, textShadowRadius: 2,
+    textShadowOffset: { width: 1, height: 1 } },
+  arrowWeak: { color: '#8FC8FF' },
   weatherMark: { position: 'absolute', top: 0, left: 0, color: '#1A1200', backgroundColor: onBoard.gold, borderRadius: 999, overflow: 'hidden',
     paddingHorizontal: 3, fontFamily: fonts.black },
   egg: { position: 'absolute', top: 2, left: 2, fontSize: 8, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 3, borderRadius: 999, overflow: 'hidden' },

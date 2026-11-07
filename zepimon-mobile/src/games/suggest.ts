@@ -1,4 +1,4 @@
-import { PATHS, WEATHER, effectiveness, kitFor } from './battle.ts'
+import { PATHS, WEATHER, WEATHER_POWER, WEATHER_WEAK, effectiveness, kitFor, unitWeather } from './battle.ts'
 import type { BattleSpec } from './battle.ts'
 import { TEAM_SIZE, battleType, stageOf } from './roster.ts'
 import type { TeamCard } from './roster.ts'
@@ -14,15 +14,18 @@ const BLOCKERS = ['rock', 'ground', 'steel']
 export function suggestTeam(choices: readonly TeamCard[], spec: BattleSpec, size = TEAM_SIZE): Suggestion {
   // Trail Defense places every family at its first stage, so that form's type is the one that counts.
   const typeOf = (card: TeamCard) => battleType(card.family[0])
+  const first = (card: TeamCard) => card.family[0]
   // Foes the weather powers up count twice: they are the ones to beat.
   const foes = [...spec.foes, ...(spec.boss ? [battleType(spec.boss)] : []), ...(spec.weather ? WEATHER[spec.weather].types.filter(type => spec.foes.includes(type)) : [])]
   const strongAgainst = (card: TeamCard) => [...new Set(foes.filter(foe => effectiveness(typeOf(card), foe) > 1))]
   const offense = (card: TeamCard) => foes.reduce((sum, foe) => sum + effectiveness(typeOf(card), foe) - 1, 0)
-  const rank = (card: TeamCard) => offense(card) * 3 + stageOf(card.name) + (card.hatched ? 0.5 : 0) - (card.loaner ? 0.25 : 0)
+  // The weather favours attackers of its types and holds back those it weakens (growers and blockers never mind it).
+  const sky = (card: TeamCard) => unitWeather(spec.weather, first(card), 'trail')
+  const rank = (card: TeamCard) => offense(card) * 3 + stageOf(card.name) + (card.hatched ? 0.5 : 0) - (card.loaner ? 0.25 : 0) +
+    (sky(card) === 'boosted' ? 1.5 : sky(card) === 'weakened' ? -2 : 0)
   const ranked = [...choices].sort((a, b) => rank(b) - rank(a) || a.name.localeCompare(b.name))
   const team: TeamCard[] = [], notes: string[] = [], missing: string[] = []
   const take = (card: TeamCard | undefined) => { if (card && team.length < size && !team.includes(card)) { team.push(card); return card } }
-  const first = (card: TeamCard) => card.family[0]
 
   const grower = take(ranked.find(card => kitFor(first(card), 'trail').effect === 'produce'))
   if (grower) notes.push(`${first(grower)} grows berries to pay for the rest.`)
@@ -47,5 +50,11 @@ export function suggestTeam(choices: readonly TeamCard[], spec: BattleSpec, size
   for (const card of ranked) take(card)
   const attackers = team.slice(before).filter(card => strongAgainst(card).length)
   if (attackers.length) notes.push(attackers.slice(0, 3).map(card => `${first(card)} hits ${strongAgainst(card).map(label).join(', ')} foes hard`).join('; ') + '.')
+  if (spec.weather) {
+    const boosted = team.filter(card => sky(card) === 'boosted'), weakened = team.filter(card => sky(card) === 'weakened')
+    const { name } = WEATHER[spec.weather]
+    if (boosted.length) notes.push(`${name} powers up ${boosted.map(first).join(' and ')}: ${Math.round((WEATHER_POWER - 1) * 100)}% more damage.`)
+    if (weakened.length) notes.push(`${name} weakens ${weakened.map(first).join(' and ')}: ${Math.round((1 - WEATHER_WEAK) * 100)}% less damage.`)
+  }
   return { team, notes, missing }
 }
