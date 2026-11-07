@@ -159,3 +159,26 @@ test('pixel art covers each opaque pixel exactly once, cropped to the sprite', (
   assert.equal(covered.get('3,0'), '#000000')
   assert.deepEqual(pixelArt({ width: 2, height: 2, rgba: new Uint8Array(16) }), { width: 0, height: 0, paths: [] })
 })
+
+test('hand-drawn sprites are rectangular grids whose every pixel has a colour in each of their palettes', async () => {
+  const art = await import('../src/games/pixel-sprites.ts')
+  const check = (name, sprite, palettes) => {
+    for (const layer of sprite.layers) {
+      assert.equal(layer.length, sprite.height, `${name}: every layer is ${sprite.height} rows`)
+      layer.forEach((row, y) => assert.equal(row.length, sprite.width, `${name}: row ${y} is ${sprite.width} wide`))
+    }
+    const used = new Set(art.runsOf(sprite).map(run => run.char))
+    for (const [label, palette] of Object.entries(palettes)) for (const char of used) assert.ok(palette[char], `${name} (${label}) has a colour for ${char}`)
+  }
+  for (const [id, seal] of Object.entries(art.SEAL_SPRITES)) check(`seal ${id}`, seal, { off: art.SEAL_OFF, on: art.SEAL_ON })
+  art.RUNE_SPRITES.forEach((rune, i) => check(`rune ${i + 1}`, rune, { waiting: art.RUNE_WAITING, done: art.RUNE_DONE }))
+  check('guardian stone', art.GUARDIAN_STONE, { asleep: art.STONE_ASLEEP, awake: art.STONE_AWAKE })
+  check('warning', art.WARNING, { colours: art.WARNING_COLOURS })
+  check('strike', art.STRIKE, { colours: art.STRIKE_COLOURS })
+  check('safe', art.SAFE, { colours: art.SAFE_COLOURS })
+  art.LANTERN_FRAMES.forEach((frame, i) => check(`lantern ${i}`, frame, { lit: art.lanternColours('#000', true), dark: art.lanternColours('#000', false) }))
+  check('medal', art.MEDAL, art.MEDAL_COLOURS)
+  check('padlock', art.PADLOCK, { locked: art.PADLOCK_COLOURS })
+  assert.deepEqual(art.LANTERN_FRAMES.map(frame => [frame.width, frame.height]), [[16, 20], [16, 20]], 'Both flame frames share one outline')
+  assert.deepEqual(art.runsOf({ width: 4, height: 1, layers: [['aab.']] }), [{ x: 0, y: 0, length: 2, char: 'a' }, { x: 2, y: 0, length: 1, char: 'b' }])
+})

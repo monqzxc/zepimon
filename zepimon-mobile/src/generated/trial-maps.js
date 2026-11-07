@@ -418,5 +418,182 @@ export const trialStages = {
     warps: {}, open: "", crackAll: false, dark: false, par: 54, hint: "Read the stones, then wake the crystals the island asks for.",
     star: {"nodes": [{"id": "north", "at": [7, 1], "links": ["west", "east"], "turns": 0}, {"id": "east", "at": [13, 7], "links": ["north", "islet"], "turns": 0}, {"id": "islet", "at": [11, 14], "links": ["east", "south"], "turns": 0}, {"id": "south", "at": [7, 12], "links": ["islet", "west"], "turns": 1, "opens": "A"}, {"id": "west", "at": [1, 7], "links": ["south", "north"], "turns": 0}], "patterns": 3, "startLit": [], "target": {"lit": ["east", "north"], "pattern": 2}, "resetOnFail": false, "clues": [{"at": [4, 4], "text": "Where the sun sets, the crystal sleeps.", "reveals": ["west"]}, {"at": [10, 8], "text": "Old stars are drawn on the ground in lines running out from the meteorite. Each line ends at a crystal that must shine.", "reveals": ["north", "east"]}, {"at": [7, 10], "text": "The star rests on its first face. Turn it twice before you call it.", "reveals": ["pattern"]}, {"at": [12, 14], "text": "Out here the sea keeps its crystal dark, and the south shore sleeps as well.", "reveals": ["islet", "south"]}], "hints": ["A crystal never changes alone: each one flips itself and its two neighbours along the shore.", "Only the southern crystal turns the star.", "When the star wakes, the northern crystal shines, and the west, south and islet crystals stay dark."]},
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-articuno": {
+    id: "sig-articuno", kind: "crumble",
+    tiles: [
+      "###############",
+      "#@....#..:....#",
+      "#.#...#.~:~~~.#",
+      "#.#*::::~*:::.#",
+      "#.##..#.~:~~~.#",
+      "#.....#..:....#",
+      "###.######:####",
+      "#.....#...:.*.#",
+      "#.#O###.###...#",
+      "#.#_#X=.......#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: true, dark: false, par: 60, hint: "Thin ice breaks behind you, and every patch must break before the way opens. Plan a route that crosses each one once.",
+    star: null, legendary: "Articuno", flavor: {"relic": "feather", "relics": "feathers", "water": "The water under the ice is freezing. Find another way.", "clear": "The last thin ice shatters. Articuno’s clearing opens!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-zapdos": {
+    id: "sig-zapdos", kind: "switch",
+    tiles: [
+      "###############",
+      "#@..#....!#..*#",
+      "#.#.#.##.#.B..#",
+      "#.#a..#..A..#.#",
+      "#.###.#.####..#",
+      "#*..#.!.#.b#..#",
+      "###.#.###.##C##",
+      "#...B...c.#...#",
+      "#.#####.#.#.#.#",
+      "#..*..#...!.#X#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: true, par: 90, hint: "Each switch flips every gate of its colour, open or shut. The blue switch hides in a generator alcove.",
+    star: null, legendary: "Zapdos", flavor: {"relic": "spark", "relics": "sparks", "water": "The floor drops away into darkness.", "clear": "Power surges back. The way to Zapdos crackles open!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-moltres": {
+    id: "sig-moltres", kind: "crumble",
+    tiles: [
+      "###############",
+      "#@....#.....*.#",
+      "#.~~~~~:~~~~~.#",
+      "#.~.:.....:.~.#",
+      "#.~.~~~=~~~.~.#",
+      "#.:.~~.X.~~.:.#",
+      "#.~.~~~~~~~.~.#",
+      "#.~.:..*..:.~.#",
+      "#.~~~~~~~~~~~.#",
+      "#.O_..#..._O..#",
+      "#*.....#......#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 66, hint: "The crust crumbles once crossed, and only three bridges reach the ring. Set both boulders before you cross the last one.",
+    star: null, legendary: "Moltres", flavor: {"relic": "ember", "relics": "embers", "water": "The lava is far too hot to cross.", "clear": "The caldera blazes. Moltres rises from the flames!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-kyogre": {
+    id: "sig-kyogre", kind: "dark",
+    tiles: [
+      "###############",
+      "#@..#..~~~.#.*#",
+      "#.#.1..~~~3.#.#",
+      "#*#...!~~~....#",
+      "#...8..~~~.!.7#",
+      "#~~~~~~~~~~~~~#",
+      "#..6..~~~~2...#",
+      "#.#..!~~~~..#.#",
+      "#*..#.~~~~.#4.#",
+      "#....5~~~~..X.#",
+      "###############"
+    ],
+    warps: { "1": "3", "7": "2", "4": "5", "6": "8" }, open: "", crackAll: false, dark: true, par: 52, hint: "Each current runs one way only. Ride them round, and gather every pearl before you trust the last island.",
+    star: null, legendary: "Kyogre", flavor: {"relic": "pearl", "relics": "pearls", "water": "The current is far too strong to swim.", "clear": "The sea parts. Kyogre stirs in the deep!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-groudon": {
+    id: "sig-groudon", kind: "temple",
+    tiles: [
+      "#############",
+      "#@..#...~~.*#",
+      "#.O.#.O.~~..#",
+      "#...._....O.#",
+      "##.##.#.##..#",
+      "#._.....~~_.#",
+      "#...~~.....*#",
+      "######=######",
+      "######X######",
+      "#############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 50, hint: "Each boulder has one plate it can reach. Look before you push: a boulder against a wall stays there.",
+    star: null, legendary: "Groudon", flavor: {"relic": "fragment", "relics": "fragments", "water": "The magma would swallow you whole.", "clear": "The ground trembles. Groudon wakes beneath the stone!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-rayquaza": {
+    id: "sig-rayquaza", kind: "crumble",
+    tiles: [
+      "###############",
+      "#X....:...:..4#",
+      "##...:........#",
+      "#~~~~~~~~~~~~~#",
+      "#6....:...:..3#",
+      "#..:.......*..#",
+      "#~~~~~~~~~~~~~#",
+      "#5..:.....:2..#",
+      "#*....:.......#",
+      "#~~~~~~~~~~~~~#",
+      "#@...........1#",
+      "###############"
+    ],
+    warps: { "1": "2", "5": "6", "3": "4" }, open: "", crackAll: true, dark: false, par: 66, hint: "The stairs only climb. Break every cracked tile on a floor before you take its stairs up.",
+    star: null, legendary: "Rayquaza", flavor: {"relic": "scale", "relics": "scales", "water": "Nothing but open sky lies that way.", "clear": "The summit opens to the sky. Rayquaza descends!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-raikou": {
+    id: "sig-raikou", kind: "switch",
+    tiles: [
+      "###############",
+      "#@..a...#..*..#",
+      "#.#####.#.###.#",
+      "#...b.A.B..#..#",
+      "###.###.#.#.#.#",
+      "#*..a...#.b...#",
+      "#.#####A###.###",
+      "#...b.....B.c.#",
+      "#.#######.###.#",
+      "#*.c....#..CX.#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 56, hint: "Every switch lies in your path, and running over one flips its gates. Count the flips before you run.",
+    star: null, legendary: "Raikou", flavor: {"relic": "bolt", "relics": "bolts", "clear": "Thunder rolls across the field. Raikou is near!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-entei": {
+    id: "sig-entei", kind: "dark",
+    tiles: [
+      "###############",
+      "#@.:..#...:..*#",
+      "#.###.#.#.###.#",
+      "#...#.:.#.#...#",
+      "###.#.###.#.###",
+      "#*..:..!..:...#",
+      "#.#####.#####.#",
+      "#...:...#.....#",
+      "#.#.###.#.###:#",
+      "#.#...#....*..#",
+      "#####.#########",
+      "#####X#########",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: true, par: 62, hint: "The charred floor gives way once you cross it. Choose a route that never needs it twice.",
+    star: null, legendary: "Entei", flavor: {"relic": "bell shard", "relics": "bell shards", "clear": "The embers flare. Entei waits below!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-suicune": {
+    id: "sig-suicune", kind: "warp",
+    tiles: [
+      "###############",
+      "#@...#~~~#...*#",
+      "#.O..#~~~#..O.#",
+      "#....#~~~#....#",
+      "#._..#~~~#.#_.#",
+      "#...1#~~~#4...#",
+      "#*...#~~~#....#",
+      "######~~~######",
+      "#~~~~~~~~~~~~~#",
+      "#~2.......*.3~#",
+      "#~.###.#.###.~#",
+      "#~.....=.....~#",
+      "#~~~~~~X~~~~~~#",
+      "###############"
+    ],
+    warps: { "1": "2", "2": "1", "3": "4", "4": "3" }, open: "", crackAll: false, dark: false, par: 50, hint: "Each spring links two islands, both ways. Set a boulder on every island before you open the shrine.",
+    star: null, legendary: "Suicune", flavor: {"relic": "crystal droplet", "relics": "crystal droplets", "water": "The spring is clear, but far too deep to wade.", "clear": "The spring runs clear. Suicune appears on the water!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
   }
 }

@@ -106,6 +106,19 @@ export function leaveLair(play: Play, key: string, index: number, discardShiny: 
   return save(play, key, { ...encounter, resetPending: true, nextResetAllowedAt: now + RESET_COOLDOWN })
 }
 
+// The shiny reset, from inside the lair: stepping back onto the sealed portal you came through, before any seal is on,
+// meets the Legendary anew there and then, in one save (so closing the app midway can never leave it half reset).
+// A Shiny needs discardShiny. Resets are paced by RESET_COOLDOWN from the last one; a clock turned back never blocks.
+export function resetInLair(play: Play, key: string, index: number, discardShiny: boolean, now = Date.now(), random = Math.random): Encounters {
+  const encounter = activeEncounter(play, key, index)
+  if (!encounter.trial || encounter.shiny === null) throw new Error('Enter the lair first.')
+  if (encounter.resonance?.started) throw new Error('A seal is on, so this Legendary stays as it is.')
+  if (encounter.shiny && !discardShiny) throw new Error('Confirm that you want to leave this Shiny behind.')
+  if (!resetDue(encounter, now)) throw new Error('The portal is still settling. Try again in a moment.')
+  return save(play, key, { ...encounter, shiny: rollLegendaryShiny(random), attempt: encounter.attempt + 1, resetPending: false,
+    nextResetAllowedAt: now + RESET_COOLDOWN })
+}
+
 // A seal switched on stays on: leaving, losing focus or a failed catch never turns it off. Switching it on again
 // changes nothing. The first one starts the Resonance Trial, which sets the result: no more rerolls.
 export function activateSeal(play: Play, key: string, index: number, seal: SealId): Encounters {

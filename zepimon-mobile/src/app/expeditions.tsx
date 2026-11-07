@@ -24,7 +24,7 @@ import { ArcadeAchievements } from '../games/ArcadeAchievements'
 import { RunningTickets } from '../games/RunningTickets'
 import { KIND_NAMES, trialFor } from '../games/trials'
 import { questTheme } from '../games/lanterns'
-import { canRevisit, revisitKey, revisitRooms, roomLine } from '../games/revisits'
+import { canRevisit, journeyRoom, revisitKey, revisitRooms, roomLine } from '../games/revisits'
 import { ShrineRevisits } from '../games/ShrineRevisits'
 import { BallButton, BigName, FactRow, Footnote, SceneFrame, StatusLine, StatusNote } from '../games/ExpeditionParts'
 import { Button, Copy, Eyebrow, HabitatScene, Heading, Panel, Screen, colors, gradient, styles, useTheme } from '../ui'
@@ -44,19 +44,21 @@ const storyOf = (name: string) => stories[name] || { title: 'A whisper on the tr
 // practice for a Legendary already caught, outside the expedition (src/games/revisits.ts).
 type Step = { kind: 'overview' } | { kind: 'lanterns' }
   | { kind: 'trial', key: string, index: number, trial: ReturnType<typeof trialFor> }
-  | { kind: 'battle', key: string, index: number, foe: { name: string, shiny: boolean } }
+  | { kind: 'battle', key: string, index: number, foe: { name: string, shiny: boolean }, attempt: number }
   | { kind: 'resonance', key: string, index: number }
   | { kind: 'revisit-rooms', name: string, shiny: boolean }
-  | { kind: 'revisit-trial', name: string, shiny: boolean, room: string, trial: ReturnType<typeof trialFor> }
+  | { kind: 'revisit-trial', name: string, shiny: boolean, room: string, trial: ReturnType<typeof trialFor>, journey?: boolean }
+  | { kind: 'revisit-lair', name: string, shiny: boolean, attempt: number }
   | { kind: 'rematch', name: string, shiny: boolean }
 
 // Legendary Expeditions. Three ways open the next encounter: 25 km of saved walks and runs, the Expedition Quest
 // (three saved sessions and a shrine challenge), achievement points (arcade and running) or running tickets; all but
 // distance give an Expedition Permit.
-// Every encounter then runs trial → the Legendary's lair, a room from Pokemon Emerald where it waits (src/games/lairs.ts):
-// coming in shows whether it is Shiny, and walking back out before any seal is on meets it anew on the next entry →
-// Resonance Trial (four seals in the lair; src/games/ResonanceTrial.tsx) → battle → catch, and only a successful catch
-// adds the Legendary to the Dex. Shrine Revisits replay a caught Legendary's trial rooms or battle
+// Every encounter then runs one way, with no stop in between: trial → a one-way portal into the Legendary's lair, a room
+// from Pokemon Emerald where it waits (src/games/lairs.ts; coming in shows whether it is Shiny) → Resonance Trial (four
+// seals in the lair; src/games/ResonanceTrial.tsx; until the first seal, stepping back onto the portal is the shiny
+// reset, met anew right there) → battle → catch, and only a successful catch adds the Legendary to
+// the Dex. Leaving at any point keeps its place, and coming back picks up where it was. Shrine Revisits replay a caught Legendary's trial rooms or battle
 // as practice, with no permit, distance or quest; they save only rooms' best moves and rematch wins.
 export default function ExpeditionsScreen() {
   useTheme()
@@ -84,12 +86,21 @@ export default function ExpeditionsScreen() {
     finally { setBusy(false) }
   }
   const leave = (note: string) => { setStep({ kind: 'overview' }); setMessage(note) }
-  const enterLair = (key: string, index: number) => act(() => store.enterLair(key, index), () => setStep({ kind: 'resonance', key, index }))
-  // A one-room shrine (the Shattered Star's island) skips the room picker.
-  const playRoom = (name: string, shiny: boolean, room: string) => {
-    setMessage('')
-    setStep({ kind: 'revisit-trial', name, shiny, room, trial: { ...trialFor(name, store.trialRecords), stages: [room] } })
+  const battle = (key: string, index: number, foe: { name: string, shiny: boolean }) => setStep({ kind: 'battle', key, index, foe, attempt: 0 })
+  // Once the seals hold the Legendary steady, the lair goes straight on to the battle, also when coming back to it.
+  const enterLair = (key: string, index: number) => {
+    const encounter = encounters[key]
+    if (encounter?.index === index && readyToCapture(encounter)) { setMessage(''); battle(key, index, { name: encounter.name, shiny: encounter.shiny }); return }
+    return act(() => store.enterLair(key, index), () => setStep({ kind: 'resonance', key, index }))
   }
+  // A one-room shrine (the Shattered Star's island) skips the room picker.
+  const playRoom = (name: string, shiny: boolean, room: string, journey = false) => {
+    setMessage('')
+    setStep({ kind: 'revisit-trial', name, shiny, room, trial: { ...trialFor(name, store.trialRecords), stages: [room] }, journey })
+  }
+  // A revisit's journey: the trial room, the one-way portal into the lair, then a rematch. Practice all the way: nothing is caught.
+  const journey = (name: string, shiny: boolean) => playRoom(name, shiny, journeyRoom(name, store.trialRecords), true)
+  const enterPracticeLair = (name: string, shiny: boolean) => { setMessage(''); setStep({ kind: 'revisit-lair', name, shiny, attempt: 0 }) }
   const revisit = (name: string, shiny: boolean) => {
     const rooms = revisitRooms(name)
     if (rooms.length === 1) playRoom(name, shiny, rooms[0])
@@ -97,7 +108,8 @@ export default function ExpeditionsScreen() {
   }
 
   let content: ReactNode = null
-  if ((step.kind === 'revisit-rooms' || step.kind === 'revisit-trial' || step.kind === 'rematch') && !canRevisit(expeditions.dex, step.name, step.shiny)) {
+  if ((step.kind === 'revisit-rooms' || step.kind === 'revisit-trial' || step.kind === 'revisit-lair' || step.kind === 'rematch')
+    && !canRevisit(expeditions.dex, step.name, step.shiny)) {
     content = <Panel><Copy>Catch this Legendary on an expedition to revisit its shrine.</Copy><Button title="Back to Expeditions" onPress={() => leave('')} /></Panel>
   } else if (step.kind === 'revisit-rooms') {
     content = <RevisitRooms name={step.name} shiny={step.shiny} message={message} onRoom={room => playRoom(step.name, step.shiny, room)} onBack={() => leave('')} />
@@ -112,10 +124,22 @@ export default function ExpeditionsScreen() {
         const best = Math.min(store.trialRecords[room] ?? moves, moves)
         void act(() => store.recordPracticeClear(name, shiny, results), () => {
           const note = `Room cleared in ${moves} moves (best ${best}).`
-          if (single) leave(note)
+          // On a journey the room's last door is the portal: straight on into the lair.
+          if (step.journey) { setStep({ kind: 'revisit-lair', name, shiny, attempt: 0 }); setMessage('') }
+          else if (single) leave(note)
           else { setStep({ kind: 'revisit-rooms', name, shiny }); setMessage(note) }
         })
       }} />
+  } else if (step.kind === 'revisit-lair') {
+    const { name, shiny, attempt } = step
+    // The real lair with a stand-in encounter that is never saved: the seals live in the lair, the portal holds, and steadying
+    // the Legendary goes on to a rematch.
+    const practiceEncounter = { index: 0, name, trial: true, shiny, attempt: attempt + 1, resetPending: false, nextResetAllowedAt: 0 }
+    content = <ResonanceTrial key={`${revisitKey(name, shiny)}:${attempt}`} practice encounter={practiceEncounter} number={0} partner={partner}
+      reduced={reduced} busy={false} error="" weekKm={walkingBonus(progress).km}
+      onSeal={() => Promise.resolve()} onReset={() => Promise.resolve()}
+      onStabilize={() => { setMessage(''); setStep({ kind: 'rematch', name, shiny }) }}
+      onLeave={() => leave(`You left ${shiny ? 'the Shiny ' : ''}${name}’s lair. Revisit it any time.`)} />
   } else if (step.kind === 'rematch') {
     const { name, shiny } = step
     // A rematch never calls befriend: a held ball only counts a rematch win.
@@ -125,8 +149,11 @@ export default function ExpeditionsScreen() {
     content = <ShrineLanterns number={quest.number} busy={busy} onLeave={() => leave('')}
       onSolved={() => { void act(store.completeQuestChallenge, () => leave('Shrine challenge complete! It counts toward this Expedition Quest.')) }} />
   } else if (step.kind === 'battle') {
-    content = <LegendaryBattle foe={step.foe} partner={partner} number={step.index + 1} reduced={reduced}
-      onCaught={() => store.befriend(step.key, step.index)} onLeave={() => setStep({ kind: 'resonance', key: step.key, index: step.index })}
+    // A failed catch keeps the seals on: Try again starts a fresh battle, and leaving keeps the encounter steadied.
+    content = <LegendaryBattle key={step.attempt} foe={step.foe} partner={partner} number={step.index + 1} reduced={reduced}
+      onCaught={() => store.befriend(step.key, step.index)}
+      onRetry={() => setStep({ ...step, attempt: step.attempt + 1 })}
+      onLeave={() => leave(`${step.foe.shiny ? 'The Shiny ' : ''}${step.foe.name} stays calm, its seals still on. Come back to try the catch again.`)}
       onDone={() => { setFriend((step.foe.shiny ? 'Shiny ' : '') + step.foe.name); setStep({ kind: 'overview' }) }} />
   } else if (step.kind !== 'overview') {
     const trail = expeditions.trails[step.key]
@@ -137,15 +164,15 @@ export default function ExpeditionsScreen() {
       const { key, index } = step
       if (encounter?.index === index && readyToBattle(encounter)) {
         const lair = arenaFor(encounter.name).label
-        content = <ResonanceTrial key={`${key}:${index}:${encounter.attempt}`} encounter={encounter} number={number} partner={partner} reduced={reduced}
+        const foe = { name: encounter.name, shiny: encounter.shiny }
+        // Stabilizing saves first, then the battle begins.
+        content = encounter.resonance?.stabilized ? <Panel><Copy>{encounter.name} is steady.</Copy><Button title="Begin the battle" onPress={() => battle(key, index, foe)} /></Panel>
+          : <ResonanceTrial key={`${key}:${index}:${encounter.attempt}`} encounter={encounter} number={number} partner={partner} reduced={reduced}
           busy={busy} error={message} weekKm={walkingBonus(progress).km}
-          onSeal={seal => store.activateSeal(key, index, seal)} onStabilize={() => { void act(() => store.stabilizeResonance(key, index)) }}
-          onCapture={() => { if (readyToCapture(encounter)) setStep({ kind: 'battle', key, index, foe: { name: encounter.name, shiny: encounter.shiny } }) }}
-          // Back outside first, so the lair never shows its encounter as gone while the walk out is saved.
-          onWalkOut={discardShiny => {
-            setStep({ kind: 'overview' })
-            void act(() => store.leaveLair(key, index, discardShiny), () => setMessage(`You walked out of the ${lair}. Go back in to meet ${encounter.name} anew.`))
-          }}
+          onSeal={seal => store.activateSeal(key, index, seal)} onStabilize={() => { void act(() => store.stabilizeResonance(key, index), () => battle(key, index, foe)) }}
+          // The shiny reset at the portal: saved in one step; the new attempt remounts the lair with the new meeting.
+          onReset={async discardShiny => { setMessage(''); try { await store.resetLair(key, index, discardShiny) }
+            catch (error) { setMessage(error instanceof Error ? error.message : 'Could not reset. Try again.'); throw error } }}
           onLeave={() => leave(`You left the ${lair}. ${encounter.shiny ? 'The Shiny ' : ''}${encounter.name} will be waiting just as it is.`)} />
       }
     } else if (step.kind === 'trial') {
@@ -164,7 +191,7 @@ export default function ExpeditionsScreen() {
   }
 
   // The trial fills the screen without scrolling, so the map and the D-pad are on screen together, as in the Safari Zone.
-  return <Screen key={step.kind} fill={playing || step.kind === 'resonance'} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
+  return <Screen key={step.kind} fill={playing || step.kind === 'resonance' || step.kind === 'revisit-lair'} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
     {content ?? <>
       {/* The header is the inside of the Legendary Gate, showing what waits as the gate does on Home. */}
       <LegendaryGate variant="banner" title="Follow a little mystery.">
@@ -186,14 +213,15 @@ export default function ExpeditionsScreen() {
       <Routes busy={busy} onLanterns={() => setStep({ kind: 'lanterns' })}
         onPermit={() => { void act(store.earnPermit, () => setMessage('Quest complete! You received an Expedition Permit.')) }}
         sessions={questSessions(quest, progress, expeditions)} leg={selected ? distanceLeg(quest, selected[0], selected[1]) : 0} />
-      <ShrineRevisits busy={busy} onRevisit={revisit} onRematch={(name, shiny) => { setMessage(''); setStep({ kind: 'rematch', name, shiny }) }} />
+      <ShrineRevisits busy={busy} onJourney={journey} onLair={enterPracticeLair} onRevisit={revisit}
+        onRematch={(name, shiny) => { setMessage(''); setStep({ kind: 'rematch', name, shiny }) }} />
       <ArcadeAchievements place="expeditions" />
       <RunningTickets place="expeditions" />
       <Panel><Eyebrow>YOUR EXPEDITION FRIENDS</Eyebrow>
         <Copy>{Object.keys(expeditions.dex).length} Normal / Shiny discoveries kept on this phone.</Copy>
         <Button title="Open my Dex" secondary onPress={() => router.push('/dex')} />
       </Panel>
-      <Copy small>Each time you meet a Legendary in its lair, it may be Shiny. Walking back out of the lair’s entrance before switching on a seal means the next entry meets it anew (the entrance seals for a moment, and a Shiny asks twice first). Leaving any other way, reopening or syncing never changes it, and once a seal is on it stays as it is. Encounters opened before this update keep the Shiny they were already showing.</Copy>
+      <Copy small>Clearing a shrine trial opens a one-way portal into the Legendary’s lair, where it may be Shiny. The portal never leads back out, but until you switch on a seal, stepping back onto it resets the encounter for a new Shiny chance. Steady the Legendary with four seals and the battle begins. Leaving, reopening or syncing never changes it, and you pick up right where you were.</Copy>
       <Copy small>Distance counts only saved adventures, never live distance. A failed catch or leaving uses nothing up. Befriending records, quests and permits are kept on this phone; reinstalling requires befriending unlocked encounters again.</Copy>
     </>}
   </GameScreenContext.Provider></Screen>
@@ -241,8 +269,8 @@ function Encounter({ trailKey, trail, encounter, busy, onBegin, onEnter, onPermi
       {encounter?.trial ? <StatusNote tone="success">Your trial is done. {name} waits in the {lair}.</StatusNote>
         : <StatusNote tone="info" detail={trial.lore}>{trial.title} · {KIND_NAMES[trial.kind]}: {encounter?.checkpoint ? 'pick up the trial where you left it' : 'clear the trial'} to reach {name}.</StatusNote>}
       <BallButton title={encounter?.trial ? enter : 'Begin the trial'} loading={busy} disabled={sealedFor > 0} onPress={encounter?.trial ? onEnter : onBegin} />
-      {encounter?.trial && !resonance?.started && <Footnote>{encounter.resetPending ? `You walked out. Going back in meets ${name} anew.`
-        : `Coming in shows whether ${name} is Shiny. Until you switch on a seal, you can walk back out and come in again to meet it anew.`}</Footnote>}
+      {encounter?.trial && !resonance?.started && <Footnote>{`Coming in shows whether ${name} is Shiny. Until you switch on a seal, step back onto the portal to meet it anew.`}</Footnote>}
+      {!encounter?.trial && <Footnote>{`The trial’s last door is a one-way portal: it takes you straight into the ${lair}, then on to the battle once ${name} is steady.`}</Footnote>}
     </> : <>
       <StatusNote tone="info">Save another adventure on your watch or this phone to continue, or open this encounter early with an Expedition Permit.</StatusNote>
       {quest.permits > 0 && <BallButton title={`Use an Expedition Permit (${quest.permits} held)`} loading={busy} onPress={onPermit} />}

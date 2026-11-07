@@ -5,7 +5,9 @@ missing from that cache at the pinned pokeemerald-expansion revision)
        python scripts/build-trial-maps.py --reference <primary> <secondary>   (metatile contact sheets in ../tmp, for THEMES)
 
 Rooms are authored in scripts/trials/stages.json as rows of characters (the tile legend is in src/games/trial.ts and the
-plan). Each kind takes the tileset pair of one Emerald map (THEMES); the static terrain (ground, path, grass, water,
+plan). A Legendary's signature room (`sig-<name>`, with `legendary`) is its own trial room: it may mix every mechanic, takes
+its own `theme` and may give `flavor` (what its relics are called, what its water is, the line when it clears). Each kind,
+or a signature room's theme, takes the tileset pair of one Emerald map (THEMES); the static terrain (ground, path, grass, water,
 rock, walls) is baked into 8 x 8-tile chunks like the Safari Zone's, and everything that changes during play (relics,
 switches, gates, plates, doors, boulders, fragile floor, warp pads, the exit, torches and the Shattered Star's pieces) is
 baked as the room's ground and drawn over it from the strips in SPRITES. A stage that breaks a rule (see read_stages)
@@ -57,7 +59,38 @@ THEMES = {
     'star': dict(map='BirthIsland_Exterior', primary='general', secondary='dewford', ground=0x001, path=0x1D9, grass=0x00D,
                  water=0x170, shore=0x0D1, rock=0x0E0, cap=0x06C, face=0x07C, fill=0x074, pond=False,
                  path_glow=((255, 246, 200), 0.4)),
+    # Signature rooms' own places.
+    # Shoal Cave's ice room (Articuno): striped ice floor, frosted patches, ice boulders, the raised frozen rock.
+    'ice': dict(map='ShoalCave_LowTideIceRoom', primary='general', secondary='cave', ground=0x38D, path=0x385, grass=0x38F,
+                water=None, shore=0x38D, rock=0x37E, cap=0x379, face=0x389, fill=0x381, pond=True),
+    # New Mauville's power plant (Zapdos): panelled floor, crates, the plant's walls over the black void.
+    'storm': dict(map='NewMauville_Inside', primary='general', secondary='bike_shop', ground=0x210, path=0x22F, grass=0x210,
+                  water=0x208, shore=0x210, rock=0x2C0, cap=0x237, face=0x227, fill=0x208, pond=False),
+    # Cave of Origin's lava chamber (Moltres): its warm floor, and water drawn as its lava pool with the pool's own edges.
+    'lava': dict(map='CaveOfOrigin_Unused_B4F_Lava', primary='general', secondary='cave', ground=0x31B, path=0x333, grass=0x31B,
+                 water=0x364, shore=0x31B, rock=0x317, cap=0x31C, face=0x329, fill=0x322,
+                 pond={(1, 0, 1, 0): 0x36F, (1, 0, 0, 0): 0x36C, (1, 0, 0, 1): 0x36E, (0, 0, 1, 0): 0x36D, (0, 0, 0, 0): 0x364,
+                       (0, 0, 0, 1): 0x36B, (0, 1, 1, 0): 0x36A, (0, 1, 0, 0): 0x369, (0, 1, 0, 1): 0x368}),
+    # Seafloor Cavern's last chamber (Kyogre): sandy seabed, the brown seabed rock, and the deep sea Kyogre sleeps in.
+    'seafloor': dict(map='SeafloorCavern_Room9', primary='general', secondary='cave', ground=0x211, path=0x2F1, grass=0x211,
+                     water=0x170, shore=0x211, rock=0x21A, cap=0x20D, face=0x209, fill=0x210, pond=False),
+    # Magma Hideout 4F (Groudon): the hideout's floor, Lavaridge's red rock (as on the Fiery Path) and its magma pool.
+    'magma': dict(map='MagmaHideout_4F', primary='general', secondary='lavaridge', ground=0x3A2, path=0x313, grass=0x3A2,
+                  water=0x2BD, shore=0x3A2, rock=0x30F, cap=0x30C, face=0x274, fill=0x271, pond=False),
+    # Sky Pillar's summit (Rayquaza): the tower's floor and cracks, its rubble and ledges, and open sky as the water.
+    'summit': dict(map='SkyPillar_Top', primary='general', secondary='pacifidlog', ground=0x234, path=0x235, grass=0x236,
+                   water=0x2C1, shore=0x234, rock=0x21F, cap=0x227, face=0x22F, fill=0x2C1, pond=False),
+    # Route 120 (Raikou): meadow grass, tall grass, the sand path and the route's tree lines as walls.
+    'meadow': dict(map='Route120', primary='general', secondary='fortree', ground=0x001, path=0x121, grass=0x015,
+                   water=None, shore=0x001, rock=0x232, cap=0x0C7, face=0x017, fill=0x0C6, pond=True),
+    # Mirage Tower 1F (Entei): the tower's sand floor and paths, its fallen rocks, its ledges over the dark.
+    'ruins': dict(map='MirageTower_1F', primary='general', secondary='mirage_tower', ground=0x211, path=0x2A1, grass=0x2A9,
+                  water=None, shore=0x211, rock=0x202, cap=0x209, face=0x219, fill=0x245, pond=True),
+    # Sootopolis (Suicune): the city's white stone, its sand, and the crater's crystal-clear water.
+    'spring': dict(map='SootopolisCity', primary='general', secondary='sootopolis', ground=0x2D9, path=0x071, grass=0x001,
+                   water=0x279, shore=0x2D9, rock=0x2F3, cap=0x241, face=0x2E1, fill=0x2D8, pond=False),
 }
+FLAVOR_KEYS = {'relic', 'relics', 'water', 'clear'}
 # The General tileset's pond by which sides are land: (north, south, west, east); other shapes use the middle.
 POND = {(1, 0, 1, 0): 0x0C8, (1, 0, 0, 0): 0x0C9, (1, 0, 0, 1): 0x0CA, (0, 0, 1, 0): 0x0D0, (0, 0, 0, 0): 0x0D1,
         (0, 0, 0, 1): 0x0D2, (0, 1, 1, 0): 0x0D8, (0, 1, 0, 0): 0x0D9, (0, 1, 0, 1): 0x0DA}
@@ -97,7 +130,17 @@ def read_stages():
     for sid, stage in stages.items():
         kind, tiles = stage.get('kind'), stage.get('tiles')
         check(kind in KINDS, f'{sid}: unknown kind {kind!r}')
-        check(re.fullmatch(r'star' if kind == 'star' else rf'{kind}-(tutorial|1|2|3)', sid), f'{sid}: ids are <kind>-tutorial, <kind>-1|2|3 or star')
+        signature = sid.startswith('sig-')
+        if signature:
+            check(re.fullmatch(r'sig-[a-z0-9-]+', sid) and kind != 'star', f'{sid}: signature ids are sig-<name>, and not the star')
+            check(isinstance(stage.get('legendary'), str) and stage['legendary'], f'{sid}: a signature room names its legendary')
+            check(stage.get('theme', kind) in THEMES, f'{sid}: unknown theme {stage.get("theme")!r}')
+            flavor = stage.get('flavor', {})
+            check(isinstance(flavor, dict) and set(flavor) <= FLAVOR_KEYS and all(isinstance(v, str) and v for v in flavor.values()),
+                  f'{sid}: flavor takes {sorted(FLAVOR_KEYS)} as words')
+        else:
+            check(re.fullmatch(r'star' if kind == 'star' else rf'{kind}-(tutorial|1|2|3)', sid), f'{sid}: ids are <kind>-tutorial, <kind>-1|2|3, star or sig-<name>')
+            check(not {'legendary', 'theme', 'flavor'} & set(stage), f'{sid}: only signature rooms take legendary, theme or flavor')
         check(tiles and all(isinstance(row, str) for row in tiles), f'{sid}: tiles are rows of characters')
         rows, cols = len(tiles), len(tiles[0])
         check(all(len(row) == cols for row in tiles), f'{sid}: rows must have equal length')
@@ -192,8 +235,9 @@ def map_metatile(theme, tiles, x, y):
         return theme['fill'] if at(x, y - 1) in WALLS else theme['cap']
     if char == '~':
         if theme['pond']:
+            table = POND if theme['pond'] is True else theme['pond']
             land = tuple(int(at(px, py) != '~') for px, py in ((x, y - 1), (x, y + 1), (x - 1, y), (x + 1, y)))
-            return POND.get(land, POND[(0, 0, 0, 0)])
+            return table.get(land, table[(0, 0, 0, 0)])
         return theme['water']
     return theme[{',': 'path', 'g': 'grass', 'R': 'rock', 'w': 'shore'}.get(char, 'ground')]
 
@@ -202,7 +246,7 @@ def build_rooms(stages):
     """Chunk images and the stage data for every room, all in memory until everything passed."""
     sets, rooms = {}, {}
     for sid, stage in stages.items():
-        theme = THEMES[stage['kind']]
+        theme = THEMES[stage.get('theme', stage['kind'])]
         pair = (theme['primary'], theme['secondary'])
         if pair not in sets:
             sets[pair] = (Tilesets(*pair), {})
@@ -223,7 +267,7 @@ def build_rooms(stages):
         images, chunks = chunk_images(tiles, CHUNK, metatile_for)
         data = dict(id=sid, kind=stage['kind'], tiles=tiles, warps=stage.get('warps', {}), open=''.join(sorted(stage.get('open', ''))),
                     crackAll=bool(stage.get('crackAll', False)), dark=bool(stage.get('dark', False)), par=stage['par'], hint=stage['hint'],
-                    star=stage.get('star'), chunk=CHUNK, chunks=chunks)
+                    star=stage.get('star'), legendary=stage.get('legendary'), flavor=stage.get('flavor'), chunk=CHUNK, chunks=chunks)
         rooms[sid] = (data, images)
     return rooms
 
@@ -465,7 +509,8 @@ def write_rooms(rooms):
         entries.append(
             f'  {js(sid)}: {{\n    id: {js(sid)}, kind: {js(data["kind"])},\n    tiles: {tiles},\n'
             f'    warps: {{{" " + warps + " " if warps else ""}}}, open: {js(data["open"])}, crackAll: {js(data["crackAll"])}, dark: {js(data["dark"])},'
-            f' par: {data["par"]}, hint: {js(data["hint"])},\n    star: {js(data["star"])},\n'
+            f' par: {data["par"]}, hint: {js(data["hint"])},\n    star: {js(data["star"])},'
+            + (f' legendary: {js(data["legendary"])}, flavor: {js(data["flavor"])},' if data['legendary'] else '') + '\n'
             f'    chunk: {data["chunk"]}, chunks: {{ {chunks} }}\n  }}')
     MAP_DATA.write_text(
         '// Generated by scripts/build-trial-maps.py from scripts/trials/stages.json. Plain data, no images, so tests and the\n'

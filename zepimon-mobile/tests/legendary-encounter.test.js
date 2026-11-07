@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { RESET_COOLDOWN, RESONANCE_SEALS, SHINY_ODDS, activateSeal, activeEncounter, catchEncounter, enterLair, finishTrial, leaveLair, legacyEncounters,
-  readyToBattle, restoreEncounters, rollLegendaryShiny, saveCheckpoint, stabilizeResonance } from '../src/expedition-encounter.ts'
+  readyToBattle, resetInLair, restoreEncounters, rollLegendaryShiny, saveCheckpoint, stabilizeResonance } from '../src/expedition-encounter.ts'
 import { emptyQuest } from '../src/expedition-quest.ts'
 import { startRun } from '../src/games/trials.ts'
 import { stepRoom } from '../src/games/trial.ts'
@@ -79,6 +79,23 @@ test('the wait survives closing the app; a turned-back clock cannot freeze it', 
   assert.deepEqual([resumed[key].shiny, resumed[key].attempt, resumed[key].resetPending], [true, 2, false])
   const backwards = enterLair(play(pending), key, 0, NOW - 3600000, NORMAL)
   assert.equal(backwards[key].resetPending, false)
+})
+
+test('the shiny reset at the portal meets the Legendary anew in one save, paced by the cooldown', () => {
+  assert.throws(() => resetInLair(play(finishTrial(play(), key, 0)), key, 0, false, NOW), /lair/, 'Nothing to reset before the first roll')
+  const opened = lair()
+  let rolls = 0
+  const reset = resetInLair(play(opened), key, 0, false, NOW, () => { rolls++; return 0.001 })
+  assert.equal(rolls, 1)
+  assert.deepEqual(reset[key], { ...opened[key], shiny: true, attempt: 2, resetPending: false, nextResetAllowedAt: NOW + RESET_COOLDOWN })
+  assert.equal(readyToBattle(reset[key]), true, 'Still in the lair, ready to go on: never half reset')
+  assert.throws(() => resetInLair(play(reset), key, 0, true, NOW + 1499), /settling/, 'Too soon after the last reset')
+  assert.throws(() => resetInLair(play(reset), key, 0, false, NOW + 1500), /Shiny/, 'A Shiny needs its own confirmation')
+  const again = resetInLair(play(reset), key, 0, true, NOW + 1500, NORMAL)
+  assert.deepEqual([again[key].shiny, again[key].attempt], [false, 3])
+  assert.equal(resetInLair(play(reset), key, 0, true, NOW - 3600000, NORMAL)[key].attempt, 3, 'A turned-back clock never blocks')
+  assert.throws(() => resetInLair(play(activateSeal(play(again), key, 0, 'wave')), key, 0, true, NOW + 9000), /seal/, 'The first seal sets it for good')
+  assert.deepEqual(play(again).expeditions, play().expeditions, 'Distance and claims are untouched')
 })
 
 test('leaving a Shiny behind needs its own confirmation', () => {

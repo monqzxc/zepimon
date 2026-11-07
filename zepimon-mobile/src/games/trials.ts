@@ -21,7 +21,7 @@ const TRIALS: Record<string, [string, TrialKind, string]> = {
   Mew: ['Bubble Garden', 'warp', 'Something playful keeps moving the hedges. Follow the giggles to the heart of the garden.'],
   Raikou: ['Storm Run', 'switch', 'Thunder echoes down long corridors. Race through to where Raikou waits.'],
   Entei: ['Burned Tower', 'dark', 'Charred beams block the tower’s rooms. Find a way down to Entei.'],
-  Suicune: ['Crystal Spring', 'crumble', 'Clear water winds inward. Follow the current to Suicune’s spring.'],
+  Suicune: ['Crystal Spring', 'warp', 'Clear water winds inward. Follow the current to Suicune’s spring.'],
   Lugia: ['Whirl Islands', 'temple', 'The whirlpools pull every path toward the deep. Ride them down to Lugia.'],
   'Ho-Oh': ['Bell Tower Ascent', 'switch', 'Climb the tower floor by floor to the rainbow at its top.'],
   Celebi: ['Ilex Shrine', 'dark', 'The forest shifts between moments. Keep to the path and reach the little shrine.'],
@@ -31,7 +31,7 @@ const TRIALS: Record<string, [string, TrialKind, string]> = {
   Latias: ['Southern Island Breeze', 'crumble', 'A warm wind runs through the island trees. Follow it to Latias.'],
   Latios: ['Southern Island Dusk', 'crumble', 'Evening light paints a path through the trees. Follow it to Latios.'],
   Kyogre: ['Marine Cave', 'dark', 'The tide channels coil toward the cave’s centre. Swim down to Kyogre.'],
-  Groudon: ['Terra Cave', 'dark', 'Hot stone corridors protect the sleeping guardian. Find the way through to Groudon.'],
+  Groudon: ['Terra Cave', 'temple', 'Hot stone corridors protect the sleeping guardian. Find the way through to Groudon.'],
   Rayquaza: ['Sky Pillar Ascent', 'crumble', 'Ancient winds twist the stairs to the sky. Climb to the top to meet Rayquaza.'],
   Jirachi: ['Wishing Star Path', 'switch', 'A trail of falling stars curls inward. Follow it to where Jirachi dreams.'],
   Deoxys: ['Shattered Star', 'star', 'A strange meteorite hums at the island’s heart. Wake the right crystals to stir what sleeps inside.'],
@@ -55,11 +55,20 @@ const TRIALS: Record<string, [string, TrialKind, string]> = {
   Zeraora: ['Thunderclap Trail', 'switch', 'Sparks leap between narrow halls. Chase them to Zeraora.']
 }
 
+// A Legendary's signature room: its own hand-made room (sig-<name> in generated/trial-maps.js), if it has one yet.
+export const signatureRoom = (name: string): string | null => {
+  const id = `sig-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+  return Object.hasOwn(trialStages, id) && trialStages[id].legendary === name ? id : null
+}
+
 // A kind's rooms: its tutorial first if never cleared, then main room `tier + 1`, where tier is how many main rooms are cleared (at most 2).
-// The Shattered Star is a single island room with no tutorial.
+// A Legendary with a signature room plays that instead of a main room, after its kind's tutorial if never cleared. The Shattered
+// Star is a single island room with no tutorial.
 export function trialFor(name: string, records: TrialRecords): { title: string, lore: string, kind: TrialKind, stages: string[] } {
   const [title, kind, lore] = Object.hasOwn(TRIALS, name) ? TRIALS[name] : [`${name}’s Shrine`, 'switch', `A quiet maze protects ${name}. Find the golden exit to reach it.`] as const
   if (kind === 'star') return { title, lore, kind, stages: ['star'] }
+  const signature = signatureRoom(name)
+  if (signature) return { title, lore, kind, stages: [...(Object.hasOwn(records, `${kind}-tutorial`) ? [] : [`${kind}-tutorial`]), signature] }
   const cleared = (id: string) => Object.hasOwn(records, id)
   const tier = Math.min(2, [1, 2, 3].filter(room => cleared(`${kind}-${room}`)).length)
   return { title, lore, kind, stages: [...(cleared(`${kind}-tutorial`) ? [] : [`${kind}-tutorial`]), `${kind}-${tier + 1}`] }

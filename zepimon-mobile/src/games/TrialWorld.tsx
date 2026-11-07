@@ -38,6 +38,8 @@ export function TrialWorld({ run, stage, move, jump, trainer, buddy, width, heig
   const exit = useExitFrame(goalsMet(room, stage), reduced)
   const glow = useWarpGlow(room, stage, move, reduced)
   const [pulse] = useState(() => new Animated.Value(1))
+  // Relics float gently, a tenth of a tile, in step with the glow beneath them.
+  const bob = pulse.interpolate({ inputRange: [0.45, 1], outputRange: [-tile * 0.1, 0] })
   useEffect(() => {
     if (reduced) { pulse.setValue(1); return }
     const loop = Animated.loop(Animated.sequence([
@@ -48,22 +50,36 @@ export function TrialWorld({ run, stage, move, jump, trainer, buddy, width, heig
   }, [pulse, reduced])
 
   const at = (x: number, y: number, strip: string, frame: number) => <Sprite key={`${strip}:${key(x, y)}`} strip={sprites[strip]} frame={frame} at={{ x, y }} tile={tile} />
+  // Light and shade under the sprites: round glows (gold for relics and an open exit, cyan for warp pads, violet for
+  // lit crystals) and ground shadows, so the objects sit in the room rather than on top of it.
+  const halo = (x: number, y: number, colour: string, scale: number, id: string) => <View key={`halo-${id}:${key(x, y)}`} style={{ position: 'absolute',
+    left: (x + 0.5 - scale / 2) * tile, top: (y + 0.5 - scale / 2) * tile, width: tile * scale, height: tile * scale, borderRadius: tile * scale, backgroundColor: colour }} />
   const objects: ReactNode[] = []
   const relics: ReactNode[] = []
+  const glows: ReactNode[] = []
+  const pulsing: ReactNode[] = []
+  const exitOpen = goalsMet(room, stage)
   for (const { x, y, tile: char } of cells(stage, '*_=:!X123456789abcABC%?')) {
     const here = key(x, y)
-    if (char === '*') { if (!room.relics.includes(here)) relics.push(at(x, y, 'relic', 0)) }
+    if (char === '*') {
+      if (room.relics.includes(here)) continue
+      pulsing.push(halo(x, y, 'rgba(255, 214, 102, 0.45)', 0.9, 'relic'))
+      relics.push(<View key={`shadow:${here}`} style={{ position: 'absolute', left: (x + 0.22) * tile, top: (y + 0.78) * tile, width: tile * 0.56,
+        height: tile * 0.14, borderRadius: tile, backgroundColor: 'rgba(0, 0, 0, 0.3)' }} />)
+      relics.push(<Animated.View key={here} style={{ position: 'absolute', left: 0, top: 0, transform: [{ translateY: bob }] }}>{at(x, y, 'relic', 0)}</Animated.View>)
+    }
     else if (char === '_') objects.push(at(x, y, 'plate', 0))
     else if (char === '=') objects.push(at(x, y, 'door', room.doorsOpen ? 1 : 0))
     else if (char === ':') objects.push(at(x, y, 'fragile', room.holes.includes(here) ? 1 : 0))
     else if (char === '!') objects.push(at(x, y, 'torch', tick % 2))
-    else if (char === 'X') objects.push(at(x, y, 'exit', exit))
-    else if (/[1-9]/.test(char)) objects.push(at(x, y, 'warp', glow.pads.includes(char) ? glow.frame : 0))
+    else if (char === 'X') { if (exitOpen) pulsing.push(halo(x, y, 'rgba(255, 226, 122, 0.55)', 1.3, 'exit')); objects.push(at(x, y, 'exit', exit)) }
+    else if (/[1-9]/.test(char)) { pulsing.push(halo(x, y, 'rgba(110, 230, 255, 0.4)', 0.95, 'warp')); objects.push(at(x, y, 'warp', glow.pads.includes(char) ? glow.frame : 0)) }
     else if ('abc'.includes(char)) objects.push(at(x, y, `switch-${char}`, room.open.includes(char.toUpperCase()) ? 1 : 0))
     else if ('ABC'.includes(char)) objects.push(at(x, y, `gate-${char.toLowerCase()}`, room.open.includes(char) ? 1 : 0))
     else if (char === '%') {
       const node = stage.star?.nodes.find(n => n.at[0] === x && n.at[1] === y)
       const on = !!node && room.lit.includes(node.id)
+      if (on) glows.push(halo(x, y, 'rgba(196, 160, 255, 0.5)', 1.25, 'crystal'))
       objects.push(at(x, y, 'crystal', on ? reduced ? 1 : [1, 2, 3, 2][tick % 4] : 0))
     } else if (char === '?') objects.push(at(x, y, 'clue', 0))
   }
@@ -72,13 +88,32 @@ export function TrialWorld({ run, stage, move, jump, trainer, buddy, width, heig
     at={room.at} facing={room.facing} buddyAt={room.buddy} buddyFacing={room.buddyFacing} move={move} trainer={trainer} buddy={buddy} onGrass={false}
     width={width} height={height} reduced={reduced} jump={jump} background={DARK} tapToWalk={tapToWalk} onTapTile={onTapTile} falling={falling} fitHeight={fitHeight}
     cover={stage.dark ? <Cover room={room} stage={stage} tile={tile} /> : undefined}>
+    {glows}
+    {pulsing.length > 0 && <Animated.View style={{ position: 'absolute', left: 0, top: 0, opacity: pulse }}>{pulsing}</Animated.View>}
     {objects}
-    {relics.length > 0 && <Animated.View style={{ position: 'absolute', left: 0, top: 0, opacity: pulse }}>{relics}</Animated.View>}
+    {relics}
+    {relics.length > 0 && !reduced && <Glints spots={cells(stage, '*').filter(spot => !room.relics.includes(key(spot.x, spot.y)))} tile={tile} />}
     {room.boulders.map((spot, i) => <Boulder key={i} at={spot} tile={tile} reduced={reduced} jump={jump} />)}
     {rock && !revealing && <View style={{ position: 'absolute', left: rock.x * tile, top: rock.y * tile }}>
       <Frame strip={sprites.meteorite} frame={room.pattern} width={tile * 2} height={tile * 2} />
     </View>}
   </TileWorld>
+}
+
+// Relics' glints: every couple of seconds a small four-point star flashes at a relic's upper corner. Relics take turns
+// by where they lie, so they never all wink at once. Its own ticker, so only the glints redraw, not the room.
+function Glints({ spots, tile }: { spots: Point[], tile: number }) {
+  const tick = useTicker(true, 250)
+  const arm = tile * 0.22, thick = Math.max(2, tile * 0.05)
+  return <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0 }}>
+    {spots.filter(({ x, y }) => (tick + x * 3 + y * 5) % 8 === 0).map(({ x, y }) => {
+      const cx = (x + 0.72) * tile, cy = (y + 0.22) * tile
+      return <View key={key(x, y)}>
+        <View style={{ position: 'absolute', left: cx - arm / 2, top: cy - thick / 2, width: arm, height: thick, backgroundColor: '#FFFFFF' }} />
+        <View style={{ position: 'absolute', left: cx - thick / 2, top: cy - arm / 2, width: thick, height: arm, backgroundColor: '#FFFFFF' }} />
+      </View>
+    })}
+  </View>
 }
 
 // Unseen: dark. Seen but out of the light: dimmed. Lit: clear.
@@ -106,6 +141,7 @@ function Boulder({ at, tile, reduced, jump }: { at: string, tile: number, reduce
     return () => glide.stop()
   }, [position, x, y, tile, reduced, jump])
   return <Animated.View style={{ position: 'absolute', left: 0, top: 0, transform: position.getTranslateTransform() }}>
+    <View style={{ position: 'absolute', left: tile * 0.12, top: tile * 0.74, width: tile * 0.76, height: tile * 0.2, borderRadius: tile, backgroundColor: 'rgba(0, 0, 0, 0.32)' }} />
     <Frame strip={sprites.boulder} frame={0} width={tile} height={tile} />
   </Animated.View>
 }

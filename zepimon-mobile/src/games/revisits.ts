@@ -2,7 +2,7 @@ import { legendarySpecies } from '../generated/expedition.js'
 import { trialStages as generatedStages } from '../generated/trial-maps.js'
 import type { DexRecord } from '../journal.ts'
 import type { Stage } from './trial.ts'
-import { saveTrialRecords, trialFor } from './trials.ts'
+import { saveTrialRecords, signatureRoom, trialFor } from './trials.ts'
 import type { TrialRecords } from './trials.ts'
 
 // Shrine Revisits: a caught Legendary's trial rooms can be replayed and its battle fought again, as practice. A revisit
@@ -27,11 +27,20 @@ export function caughtLegendaries(dex: Record<string, DexRecord>): Revisit[] {
   }))
 }
 
-// The rooms of the Legendary's trial kind: its tutorial and three main rooms, or only the island for the Shattered Star.
+// The rooms of the Legendary's trial: its kind's tutorial and its own signature room, or else its kind's tutorial and three
+// main rooms, or only the island for the Shattered Star.
 export function revisitRooms(name: string): string[] {
   const { kind } = trialFor(name, {})
   if (kind === 'star') return ['star']
+  const signature = signatureRoom(name)
+  if (signature) return [`${kind}-tutorial`, signature]
   return ['tutorial', '1', '2', '3'].map(room => `${kind}-${room}`).filter(id => Object.hasOwn(trialStages, id))
+}
+
+// The room a revisit's journey plays (trial, then lair, then rematch): the Legendary's own signature room, the island for
+// Deoxys, or else the main room its trial would play next given the player's records (never the tutorial).
+export function journeyRoom(name: string, records: TrialRecords): string {
+  return trialFor(name, records).stages.at(-1) as string
 }
 
 // Only a Legendary caught on an expedition, in the form it was caught, has a shrine to revisit.
@@ -45,7 +54,11 @@ export function roomsExplored(name: string, records: TrialRecords): { explored: 
   return { explored: rooms.filter(id => Object.hasOwn(records, id)).length, rooms: rooms.length }
 }
 
-export const roomName =(id: string) => id === 'star' ? 'The island' : id.endsWith('-tutorial') ? 'Tutorial' : `Room ${id.split('-').pop()}`
+export const roomName = (id: string) => {
+  const legendary = trialStages[id]?.legendary
+  if (legendary) return trialFor(legendary, {}).title
+  return id === 'star' ? 'The island' : id.endsWith('-tutorial') ? 'Tutorial' : `Room ${id.split('-').pop()}`
+}
 
 // "Room 2 · best 64 · par 58", leaving out what isn't known yet.
 export function roomLine(id: string, records: TrialRecords): string {

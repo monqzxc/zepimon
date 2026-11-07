@@ -8,9 +8,10 @@ import type { Direction, Point, SafariMap } from './safari-zone.ts'
 // The Legendary Resonance Trial, kept free of React so its rules can be tested. It happens in the Legendary's own lair
 // (src/games/lairs.ts), a room from Pokemon Emerald: walked, collided and tapped to walk the Safari Zone's way
 // (src/games/safari-zone.ts), with the Legendary waiting where it lives in that room. Until the first seal switches on
-// the Legendary only watches, and stepping back out of the entrance leaves the lair (the next entry rolls its Shiny
-// chance again). The player switches on four ancient seals, each a small, gentle challenge, while the Legendary sends
-// readable, telegraphed attacks:
+// the Legendary only watches. The way in is a one-way portal from the shrine trial: it seals behind you, so there is
+// no walking back out. Stepping back onto it before any seal is on is the shiny reset instead (move 'reset': the lair
+// ripples and the Legendary is met anew); after the first seal it is only a wall. The player switches on four ancient seals, each a small, gentle
+// challenge, while the Legendary sends readable, telegraphed attacks:
 // - wave: touching the seal calls an energy wave over the whole lair but one safe tile (◎); stand on it when it lands.
 // - runes: touching the seal lights three numbered runes; step on them in order (a rune out of turn simply doesn't count).
 // - pulse: stand on the seal and press Resonate while its shrinking ring is in the gold band. The Legendary holds still.
@@ -145,12 +146,12 @@ const allOn = (arena: Arena) => RESONANCE_SEALS.every(seal => arena.seals.includ
 const say = (arena: Arena, message: string, feedback: Feedback = null): Arena =>
   ({ ...arena, message, feedback, feedbackId: feedback === arena.feedback && message === arena.message ? arena.feedbackId : arena.feedbackId + 1 })
 
-// What to do next, in one line.
-export function objective(arena: Arena): string {
+// What to do next, in one line. canReset: whether the portal can still meet the Legendary anew (never on a revisit).
+export function objective(arena: Arena, canReset = true): string {
   if (arena.wave) return 'An energy wave is coming: stand on the safe tile ◎ before it lands!'
   if (arena.pulse) return 'Hold still on the seal and press Resonate while the ring is in the gold band.'
   if (allOn(arena)) return 'Every seal is on. Steady the Legendary to open the catch.'
-  if (!arena.seals.length && arena.runes === null && arena.stones === null) return 'It watches, calm. Wake a seal ◇ to begin, or walk back out to try again.'
+  if (!arena.seals.length && arena.runes === null && arena.stones === null) return canReset ? 'It watches, calm. Wake a seal ◇ to begin, or step back onto the portal to meet it anew.' : 'It watches, calm. Wake a seal ◇ to begin.'
   const left = RESONANCE_SEALS.length - arena.seals.length
   const parts: string[] = []
   if (arena.runes !== null) parts.push(`step on rune ${arena.runes + 1}`)
@@ -193,18 +194,23 @@ function touchSeal(arena: Arena, seal: SealId, now: number, random: () => number
   return say(next, `Three guardian stones ▲ stir. ${objective(next)}`)
 }
 
-// One press, from the step walker, the D-pad, the keys or a tap route. Blocked while paused, staggered or recovering,
-// except for walking out: from the start, a step towards the entrance leaves the lair (move 'exit') whatever else is going on.
-export function arenaWalk(arena: Arena, direction: Direction, now: number, random: () => number): ArenaResult & { move: 'step' | 'bump' | 'none' | 'exit' } {
+// One press, from the step walker, the D-pad, the keys or a tap route. Blocked while paused, staggered or recovering.
+// The entrance is a one-way portal: it never leads out. From the doorway, before any seal is on, a step back into it is
+// the shiny reset (move 'reset'), whatever else is going on; once a seal is on it is only a bump.
+export function arenaWalk(arena: Arena, direction: Direction, now: number, random: () => number): ArenaResult & { move: 'step' | 'bump' | 'none' | 'reset' } {
   const { layout } = arena
   if (arena.paused) return { arena, completed: null, move: 'none' }
-  if (same(arena.at, layout.start) && direction === layout.out) return { arena: { ...arena, facing: direction }, completed: null, move: 'exit' }
+  if (same(arena.at, layout.start) && direction === layout.out) {
+    const turned = { ...arena, facing: direction }
+    if (!arena.seals.length) return { arena: turned, completed: null, move: 'reset' }
+    return { arena: say(turned, 'A seal is on: the portal holds the Legendary as it is now.'), completed: null, move: 'bump' }
+  }
   if (now < arena.staggerUntil || now < arena.recoverUntil) return { arena, completed: null, move: 'none' }
   const turned = { ...arena, facing: direction }
   const next = { x: arena.at.x + STEPS[direction].x, y: arena.at.y + STEPS[direction].y }
   if (!isWalkable(tileAt(next, layout.map))) {
     const why = same(next, layout.legendary) ? 'The Legendary stands its ground. Switch on the seals around it.'
-      : same(next, layout.entrance) ? 'The way out is from the doorway, where you came in.' : 'Something is in the way.'
+      : same(next, layout.entrance) ? 'The portal sealed behind you. It only goes one way: into the lair.' : 'Something is in the way.'
     return { arena: say(turned, why), completed: null, move: 'bump' }
   }
   let moved: Arena = { ...turned, at: next, buddy: arena.at, buddyFacing: direction }
