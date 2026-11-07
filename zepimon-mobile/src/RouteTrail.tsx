@@ -26,7 +26,7 @@ import { Icon, colors, displayFont, fonts, gradient, retro, themedStyles, useThe
 import { FLOAT_REACH } from './TabBar'
 
 // The Adventure tab's map: your distance as a place on one long route (src/adventure-route.ts). A stone pad marks every
-// 2 km, named for a town, city or route of Kanto, Johto, Hoenn, Sinnoh and Unova, ticked once you have walked that far
+// MILESTONE (3 km), named for a town, city or route of Kanto, Johto, Hoenn, Sinnoh and Unova, ticked once you have walked that far
 // and locked ahead; tapping one shows what happened there (`tip`, for milestones reached) or how far it still is. You
 // stand on a glowing pad of your own at your total, walking or running in place as `activity` says, your buddy beside
 // you; `card` (what to do next) floats just above the bottom, with `notice` above it. `folded` shrinks the card into its

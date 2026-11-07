@@ -35,11 +35,17 @@ const HEADLINES: Record<GateState, string> = {
 }
 const BADGES: Record<GateState, string> = { waiting: '✦ ENCOUNTER WAITING', permit: '◆ PERMIT READY', walking: 'ON THE TRAIL', none: 'NO TRAIL YET' }
 
+// The clock it reads ticks once a minute, so a quest session that runs out while the gate is on screen is noticed.
 export function useGateStatus(): GateStatus {
   const { expeditions, quest, encounters, progress, phoneRuns } = useJournal()
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000)
+    return () => clearInterval(timer)
+  }, [])
   const tickets = useMemo(() => runningTickets(allAdventures(progress, phoneRuns)).length, [progress, phoneRuns])
-  return useMemo(() => gateStatus(expeditions, quest, progress, Date.now(), ticketsLeft(quest, tickets), encounters),
-    [expeditions, quest, progress, tickets, encounters])
+  return useMemo(() => gateStatus(expeditions, quest, progress, now, ticketsLeft(quest, tickets), encounters),
+    [expeditions, quest, progress, now, tickets, encounters])
 }
 
 const enter = () => router.push('/expeditions')
