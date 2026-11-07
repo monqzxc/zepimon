@@ -14,6 +14,9 @@ import { useStepWalker } from './step-walker'
 import { DPad, useKeyboardDirections } from './DPad'
 import { useGameLoop } from './hooks'
 import { OverworldSprite } from './OverworldSprite'
+import { Pixels } from './Pixels'
+import { GUARDIAN_STONE, RUNE_DONE, RUNE_SPRITES, RUNE_WAITING, SAFE, SAFE_COLOURS, SEAL_OFF, SEAL_ON, SEAL_SPRITES, STONE_ASLEEP, STONE_AWAKE,
+  STRIKE, STRIKE_COLOURS, WARNING, WARNING_COLOURS } from './pixel-sprites'
 import { Sparkles } from './SafariEncounter'
 import { ShinyGlow, ShinyStars } from './ShinyAura'
 import { LairAmbience } from './LairAmbience'
@@ -244,29 +247,32 @@ function Marks({ arena, tile, clock, reduced }: { arena: Arena, tile: number, cl
   const striking = !!danger && clock >= danger.warnUntil
   const blink = !reduced && !striking && Math.floor(clock / 300) % 2 === 1
   const safe = danger?.safe ? danger.safe.split(',').map(Number) : null
+  const art = tile * 0.84
   return <>
     {RESONANCE_SEALS.map(seal => {
       const on = arena.seals.includes(seal)
-      return <View key={seal} style={[box(arena.layout.seals[seal]), look.mark, on ? look.sealTileOn : look.sealTile]}>
-        <Text style={[look.markText, { fontSize: tile * 0.42, color: on ? '#1A1200' : '#FFFFFF' }]}>{on ? '◆' : '◇'}</Text>
+      return <View key={seal} style={[box(arena.layout.seals[seal]), look.mark]}>
+        {on && <View style={[look.halo, { width: tile * 1.1, height: tile * 1.1, borderRadius: tile }]} />}
+        <Pixels art={SEAL_SPRITES[seal]} palette={on ? SEAL_ON : SEAL_OFF} size={art} />
         {/* On small tiles (a wide lair) the name shrinks to its first letter. */}
-        <Text style={[look.markLabel, { fontSize: Math.max(8, tile * 0.18), color: on ? '#1A1200' : '#FFFFFF' }]}>{tile < 34 ? SEAL_NAMES[seal][0] : SEAL_NAMES[seal].toUpperCase()}</Text>
+        <Text style={[look.markLabel, look.markLabelShadow, { fontSize: Math.max(8, tile * 0.17) }]}>{tile < 34 ? SEAL_NAMES[seal][0] : SEAL_NAMES[seal].toUpperCase()}</Text>
       </View>
     })}
-    {arena.runes !== null && arena.layout.runes.map((point, i) => <View key={`rune-${i}`} style={[box(point), look.mark, i < arena.runes! ? look.runeDone : look.rune]}>
-      <Text style={[look.markText, { fontSize: tile * 0.45 }]}>{i + 1}</Text>
+    {arena.runes !== null && arena.layout.runes.map((point, i) => <View key={`rune-${i}`} style={[box(point), look.mark]}>
+      <Pixels art={RUNE_SPRITES[i]} palette={i < arena.runes! ? RUNE_DONE : RUNE_WAITING} size={art} />
     </View>)}
-    {arena.stones !== null && arena.layout.stones.map((point, i) => <View key={`stone-${i}`} style={[box(point), look.mark, arena.stones!.includes(i) ? look.stoneAwake : look.stone]}>
-      <Text style={[look.markText, { fontSize: tile * 0.45 }]}>▲</Text>
+    {arena.stones !== null && arena.layout.stones.map((point, i) => <View key={`stone-${i}`} style={[box(point), look.mark]}>
+      <Pixels art={GUARDIAN_STONE} palette={arena.stones!.includes(i) ? STONE_AWAKE : STONE_ASLEEP} size={art} />
     </View>)}
+    {/* The tint marks the whole tile; the sprite says which moment it is. Blinking only fades the wrapper. */}
     {danger?.tiles.map(key => {
       const [x, y] = key.split(',').map(Number)
       return <View key={`danger-${key}`} style={[box({ x, y }), striking ? look.strike : look.warn, { opacity: blink ? 0.6 : 1 }]}>
-        <Text style={[look.markText, { fontSize: tile * 0.4, color: striking ? '#FFFFFF' : '#1A1200' }]}>{striking ? '✸' : '⚠'}</Text>
+        <Pixels art={striking ? STRIKE : WARNING} palette={striking ? STRIKE_COLOURS : WARNING_COLOURS} size={tile * 0.72} />
       </View>
     })}
     {safe && <View style={[box({ x: safe[0], y: safe[1] }), look.mark, look.safe]}>
-      <Text style={[look.markText, { fontSize: tile * 0.5, color: '#FFFFFF' }]}>◎</Text>
+      <Pixels art={SAFE} palette={SAFE_COLOURS} size={art} />
     </View>}
   </>
 }
@@ -364,19 +370,15 @@ const look = themedStyles(() => ({
   pause: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 20,
     backgroundColor: 'rgba(4, 12, 10, 0.72)' },
   pauseTitle: { fontFamily: fonts.black, fontSize: 24, lineHeight: 30, color: '#FFFFFF' },
-  mark: { alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 2 },
+  mark: { alignItems: 'center', justifyContent: 'center' },
+  halo: { position: 'absolute', backgroundColor: 'rgba(255, 226, 122, 0.35)' },
+  markLabelShadow: { color: '#FFFFFF', textShadowColor: 'rgba(0, 0, 0, 0.85)', textShadowRadius: 2, textShadowOffset: { width: 0, height: 1 } },
   markText: { fontFamily: fonts.black, color: '#FFFFFF', textAlign: 'center' },
   markLabel: { position: 'absolute', bottom: 1, left: 0, right: 0, textAlign: 'center', fontFamily: fonts.heavy },
-  sealTile: { backgroundColor: 'rgba(12, 40, 60, 0.7)', borderColor: '#76BDF4' },
-  sealTileOn: { backgroundColor: 'rgba(242, 194, 48, 0.85)', borderColor: '#FFF4B8' },
-  rune: { backgroundColor: 'rgba(14, 110, 62, 0.75)', borderColor: '#9BE3BC' },
-  runeDone: { backgroundColor: 'rgba(242, 194, 48, 0.85)', borderColor: '#FFF4B8' },
-  stone: { backgroundColor: 'rgba(60, 60, 70, 0.75)', borderColor: '#B8B8C8' },
-  stoneAwake: { backgroundColor: 'rgba(242, 194, 48, 0.85)', borderColor: '#FFF4B8' },
   warn: { position: 'absolute', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(242, 194, 48, 0.45)', borderWidth: 2,
     borderColor: '#F2C230', borderStyle: 'dashed' },
   strike: { position: 'absolute', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(224, 72, 58, 0.65)', borderWidth: 2, borderColor: '#FFB4A8' },
-  safe: { backgroundColor: 'rgba(27, 110, 51, 0.85)', borderColor: '#9BE3BC' },
+  safe: { borderRadius: 6, backgroundColor: 'rgba(27, 110, 51, 0.45)' },
   portal: { position: 'absolute', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 3,
     borderColor: '#93A196', backgroundColor: 'rgba(30, 10, 48, 0.78)' },
   portalSwirl: { position: 'absolute', borderWidth: 2, borderColor: 'rgba(196, 150, 255, 0.75)', borderTopColor: 'transparent', borderBottomColor: 'transparent' },
