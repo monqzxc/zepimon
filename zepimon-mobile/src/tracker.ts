@@ -246,6 +246,18 @@ export async function stopAdventure(): Promise<ActiveAdventure | null> {
   return state.active
 }
 
+// Marks a form as seen on the Adventure screen once its hatch or evolution has played there, and shows it in the
+// live notification too.
+export async function seeForm(form: string) {
+  await loaded
+  const active = state.active
+  if (!active || active.seen === form) return
+  const next = { ...active, seen: form }
+  update({ active: next })
+  live()
+  await persist(next)
+}
+
 // Turns screen-off recording back on (or off), switching a recording in progress over.
 export async function setScreenOnly(screenOnly: boolean) {
   await loaded

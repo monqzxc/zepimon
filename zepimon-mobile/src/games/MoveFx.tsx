@@ -67,7 +67,9 @@ export function ShotSprite({ shot, game, cell, reduced }: { shot: Shot, game: Ba
 // A move landing: its strip plays once over the strike's life. Reduced motion shows one still frame that fades out.
 export function StrikeSprite({ strike, elapsed, cell, reduced }: { strike: Strike, elapsed: number, cell: number, reduced: boolean }) {
   const look = lookOf(strike.move)
-  const layers = strike.kind === 'wave' ? look.wave ?? [] : strike.kind === 'spread' ? look.spread ?? smaller(look.hit) : look.hit
+  // Hits and splashes land a quarter bigger than the strips' own size, so they read at a glance on a busy board.
+  const landed = strike.kind === 'wave' ? look.wave ?? [] : strike.kind === 'spread' ? look.spread ?? smaller(look.hit) : look.hit
+  const layers = strike.kind === 'wave' ? landed : landed.map(layer => ({ ...layer, scale: (layer.scale ?? 1) * 1.25 }))
   const progress = Math.min(0.999, Math.max(0, (elapsed - strike.start) / (strike.until - strike.start)))
   return <>{layers.map((layer, index) => {
     const { frames } = sheets[layer.sprite]

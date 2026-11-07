@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { ImageSourcePropType, ViewStyle } from 'react-native'
@@ -7,16 +7,21 @@ import { typeTheme } from '../HabitatScene'
 import { Button, Copy, Eyebrow, Heading, IconButton, Panel, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
-import { LANES, PATHS, TICK, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
+import { EVOLVE_MS, LANES, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
   facingToward, gridSize, unitTarget, moveOf,
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
-import type { Battle, BattleSpec, Heading as Facing, Layout } from './battle'
+import type { Battle, BattleSpec, Heading as Facing, Layout, Weather } from './battle'
 import { ShotSprite, StrikeSprite } from './MoveFx'
+import { AssistMove } from './AssistMove'
 import { TrailTerrain } from './TrailTerrain'
 import { trailWalkers } from '../generated/trail-walkers.js'
-import { autoTeam, cardKey } from './roster'
+import { autoTeam, battleType, cardKey } from './roster'
 import type { TeamCard } from './roster'
 import { PixelSprite, TeamPicker } from './TeamPicker'
+import { suggestTeam } from './suggest'
+import { ZoomPan } from './ZoomPan'
+import { EvolveFx, Impact } from './BattleFx'
+import { WeatherLayer } from './Weather'
 import { useGameLoop, useReducedMotion } from './hooks'
 
 export type BattleResult = { won: boolean, score: number, stars: number }
@@ -31,6 +36,14 @@ type Props = {
 // The board fits between the top bar and the card tray. Squares never shrink below MIN_CELL so they stay easy to
 // tap: a map too tall for that scrolls on its own while the bar and the tray stay put.
 const MIN_CELL = 36
+// Trail Defense draws its squares at least this big, so zooming in stays crisp, and zooms in as far as MAX_CELL.
+const DRAWN_CELL = 48, MAX_CELL = 68
+const label = (type: string) => type[0].toUpperCase() + type.slice(1)
+// "Harsh sunlight: Fire foes are tougher."
+const types = (list: string[]) => list.map(label).join(', ')
+const weatherLine = (weather: Weather) => `${WEATHER[weather].name}: ${types(WEATHER[weather].types)} foes tougher · your ${types(WEATHER[weather].types)} ▲, ${types(WEATHER[weather].weakens)} ▼`
+// What the weather does to your Pokemon, for the level's panel and a Pokemon's details.
+const POWER_UP = Math.round((WEATHER_POWER - 1) * 100), POWER_DOWN = Math.round((1 - WEATHER_WEAK) * 100)
 const native = Platform.OS !== 'web'
 // The battle board keeps its own colors: its terrain art is darker than the light app theme around it.
 const onBoard = { ink: '#f4ebcf', gold: '#ffe08d', dark: '#071b2c' }
@@ -46,7 +59,15 @@ export function starText(stars: number) {
 
 export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, bonus, bonusNote, record, showStars = false, onFinish,
   preview, initialTeam, onStart, next }: Props) {
-  const [team, setTeam] = useState(() => initialTeam?.length ? initialTeam : autoTeam(choices))
+  // A level suggests a team for its map and foes (src/games/suggest.ts); one with element tiles starts on it.
+  const suggestion = useMemo(() => preview ? suggestTeam(choices, preview) : undefined, [preview, choices])
+  const tiles = useMemo(() => {
+    if (!preview) return undefined
+    const counts = new Map<string, number>()
+    for (const type of PATHS[preview.path].tiles.values()) counts.set(type, (counts.get(type) ?? 0) + 1)
+    return [...counts].sort((a, b) => b[1] - a[1])
+  }, [preview])
+  const [team, setTeam] = useState(() => initialTeam?.length ? initialTeam : suggestion && tiles?.length ? suggestion.team : autoTeam(choices))
   const [helper, setHelper] = useState<string | null>(assists[0] ?? null)
   const [game, setGame] = useState<Battle | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
@@ -68,6 +89,14 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
     }
   }, [])
   const act = (change: (game: Battle) => Battle) => { if (current.current) update(change(current.current)) }
+  // The Legendary's move plays over the board once, when it answers the call (src/games/AssistMove.tsx).
+  const [answer, setAnswer] = useState<{ name: string, id: number } | null>(null)
+  const endAnswer = useCallback(() => setAnswer(null), [])
+  const callFriend = () => {
+    const before = current.current
+    act(callAssist)
+    if (before?.assist && !before.assist.used && before.status === 'playing') setAnswer({ name: before.assist.name, id: Date.now() })
+  }
   const pause = () => act(battle => pauseBattle(battle, performance.now()))
   const resume = () => act(battle => resumeBattle(battle, performance.now()))
   useGameLoop(() => act(battle => tickBattle(battle, performance.now())), pause)
@@ -104,7 +133,12 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       <Copy small>Once per battle, your Expedition friend strikes every foe on the field and slows them down.</Copy>
       <View style={styles.row}>{assists.map(name => <Button key={name} title={name} secondary={helper !== name} onPress={() => setHelper(name)} />)}</View>
     </Panel>}
-    <TeamPicker layout={layout} choices={choices} team={team} onChange={setTeam} />
+    {preview?.weather && <Panel style={play.weatherPanel}>
+      <Text style={play.weatherTitle}>{WEATHER[preview.weather].mark} {WEATHER[preview.weather].name}</Text>
+      <Copy small color={colors.ink}>{`${types(WEATHER[preview.weather].types)} foes are powered up: more health, a little more speed, and the ${WEATHER[preview.weather].mark} mark.`}</Copy>
+      <Copy small color={colors.ink}>{`Your ${types(WEATHER[preview.weather].types)} Pokemon hit ${POWER_UP}% harder (▲). ${types(WEATHER[preview.weather].weakens)} Pokemon hit ${POWER_DOWN}% softer (▼). Berry growers and blockers don't mind it.`}</Copy>
+    </Panel>}
+    <TeamPicker layout={layout} choices={choices} team={team} onChange={setTeam} suggestion={suggestion} tiles={tiles} weather={preview?.weather} />
     <Button title={team.length ? `Start ${title}` : 'Choose at least one Pokemon'} disabled={!team.length} onPress={start} />
     <HowTo layout={layout} />
   </View>
@@ -114,13 +148,19 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
   const { cols, rows } = gridSize(game)
   // Lanes add a strip of sky above the board (0.7 squares) and Snorlax's row below it (0.8).
   const units = layout === 'lanes' ? rows + 1.5 : rows
-  const cell = Math.min(area.width / cols, Math.max(area.height / units, MIN_CELL))
+  // Route Guard's board fits as it always has (a tall one scrolls). Trail Defense draws its board once at a crisp size
+  // and puts a camera over it (src/games/ZoomPan.tsx): it opens at the size it always had, and pinches out to the whole
+  // map or in to big squares.
+  const sized = Math.min(area.width / cols, Math.max(area.height / units, MIN_CELL))
+  const cell = layout === 'trail' ? Math.max(sized, DRAWN_CELL) : sized
+  const zoom = { start: sized / cell, least: Math.min(area.width / cols, area.height / units) / cell, most: Math.max(1, MAX_CELL / cell) }
   const fieldWidth = cols * cell
   const top = layout === 'lanes' ? cell * 0.7 : 0
   const height = top + rows * cell + (layout === 'lanes' ? cell * 0.8 : 0)
   const scrolls = height > area.height + 0.5
   // Where the board shows inside its area, for the pause screen to cover just the board.
-  const shown = { left: (area.width - fieldWidth) / 2, top: Math.max(0, (area.height - height) / 2), width: fieldWidth, height: Math.min(height, area.height) }
+  const shown = layout === 'trail' ? { left: 0, top: 0, width: area.width, height: area.height }
+    : { left: (area.width - fieldWidth) / 2, top: Math.max(0, (area.height - height) / 2), width: fieldWidth, height: Math.min(height, area.height) }
   const playing = game.status === 'playing'
   const over = game.status === 'won' || game.status === 'lost'
   const wait = nextWaveIn(game)
@@ -151,7 +191,9 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       return
     }
     const cost = kitFor(placedForm(battle, card), layout).cost
+    const tile = tileAt(battle, col, row)
     setNote(battle.status !== 'playing' ? 'Resume the battle to place Pokemon.' : !canPlace(battle, col, row) ? (pathCells?.has(col + ',' + row) ? 'Pokemon stand beside the trail, not on it.' : 'That square is taken.')
+      : tile && !canPlace(battle, col, row, placedForm(battle, card)) ? `Only ${label(tile)} Pokemon can stand on ${label(tile)} tiles.`
       : cardReadyAt(battle, card) > battle.elapsed ? `${card.name} is recharging.` : `You need ◉ ${cost - battle.berries} more berries.`)
   }
 
@@ -169,13 +211,13 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
         <IconButton name={full ? 'fullscreenExit' : 'fullscreen'} label={full ? 'Exit full screen' : 'Full screen'} size={40} onPress={() => setFull(!full)} />
       </View>
       <Text numberOfLines={1} style={play.status}>{status}</Text>
+      {spec.weather && <Text numberOfLines={2} style={play.weather}>{WEATHER[spec.weather].mark} {weatherLine(spec.weather)}</Text>}
     </View>
 
     {/* The area takes whatever the bar and the tray leave. Its contents are all absolutely placed, so they never
         stretch it: a board measured in full screen would otherwise keep the area that tall after leaving it. */}
     <View style={play.area} onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}>
-      {area.width > 0 && <ScrollView style={StyleSheet.absoluteFill} scrollEnabled={scrolls} nestedScrollEnabled showsVerticalScrollIndicator={scrolls}
-        contentContainerStyle={{ minHeight: area.height, alignItems: 'center', justifyContent: 'center' }}>
+      {area.width > 0 && <BoardFrame camera={layout === 'trail'} area={area} width={fieldWidth} height={height} zoom={zoom} scrolls={scrolls} reduced={reduced}>
       <View style={[board.field, { width: fieldWidth, height, backgroundColor: theme.sky }]}>
         {layout === 'trail' && <TrailTerrain path={spec.path} cell={cell} theme={theme} />}
         {layout === 'trail' && selected && <View pointerEvents="none" style={[board.range, {
@@ -186,19 +228,23 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           const col = index % cols, row = Math.floor(index / cols)
           const onPath = !!pathCells?.has(col + ',' + row)
           const unit = game.units.find(item => item.col === col && item.row === row)
-          const free = !!picked && playing && !unit && !onPath
-          const where = layout === 'lanes' ? `Lane ${col + 1}, row ${row + 1}` : `Column ${col + 1}, row ${row + 1}`
+          const tile = tileAt(game, col, row)
+          // With a card picked, only squares it may take light up; element tiles of another type dim.
+          const fits = !pickedForm || tile === null || battleType(pickedForm) === tile
+          const free = !!picked && playing && !unit && !onPath && fits
+          const where = (layout === 'lanes' ? `Lane ${col + 1}, row ${row + 1}` : `Column ${col + 1}, row ${row + 1}`) + (tile ? `, ${label(tile)} tile` : '')
           return <Pressable key={index} disabled={onPath} onPress={() => pressCell(col, row)}
             accessibilityRole="button" accessibilityState={{ disabled: onPath, selected: unit?.id === inspect }}
-            accessibilityLabel={`${where}: ${unit ? `${unit.name}, ${Math.ceil(unit.hp / unit.maxHp * 100)}% health` : onPath ? 'trail' : 'empty'}`}
+            accessibilityLabel={`${where}: ${unit ? `${unit.name}, ${Math.ceil(unit.hp / unit.maxHp * 100)}% health${skyNote(unitWeather(spec.weather, unit.name, layout))}` : onPath ? 'trail' : 'empty'}`}
             style={[board.cell, { left: col * cell, top: top + row * cell, width: cell, height: cell,
               backgroundColor: layout === 'trail' ? 'transparent' : (col + row) % 2 ? theme.ground : theme.near },
-              free && board.free, unit?.id === inspect && board.inspected]}>
+              free && board.free, !!picked && !unit && !fits && board.blocked, unit?.id === inspect && board.inspected]}>
             {unit && <>
               <View style={[board.shadow, { width: cell * 0.46, height: cell * 0.1, borderRadius: cell, bottom: cell * 0.14 }]} />
               <Ally unit={unit} game={game} size={cell * 0.82} reduced={reduced} />
               {unit.hp < unit.maxHp && <Health ratio={unit.hp / unit.maxHp} width={cell * 0.7} />}
               {unit.egg && <Text accessible={false} style={board.egg}>EGG</Text>}
+              <WeatherArrow sky={unitWeather(spec.weather, unit.name, layout)} size={cell} />
             </>}
           </Pressable>
         })}
@@ -216,7 +262,9 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           // Two-step walk cycle from the game clock, offset per foe so a wave does not march in lockstep.
           const step = reduced ? 0 : (Math.floor(game.elapsed / (slowed ? STEP_MS * 2 : STEP_MS)) + enemy.id) % 2
           return <Mover key={enemy.id} x={at.x * cell - size / 2} y={top + at.y * cell - size / 2} size={size} reduced={reduced}>
-            <Foe name={enemy.name} size={size} ratio={enemy.hp / enemy.maxHp} boss={enemy.boss} slowed={slowed}
+            <Foe name={enemy.name} size={size} ratio={enemy.hp / enemy.maxHp} boss={enemy.boss} slowed={slowed} reduced={reduced}
+              mark={enemy.boosted && spec.weather ? WEATHER[spec.weather].mark : ''}
+              hurt={game.strikes.some(strike => strike.foe === enemy.id && strike.kind !== 'wave' && game.elapsed - strike.start < 200)}
               poisoned={enemy.poisonUntil > game.elapsed} heading={enemyHeading(game, enemy)} step={step} />
           </Mover>
         })}
@@ -224,6 +272,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           <ShotSprite shot={shot} game={game} cell={cell} reduced={reduced} />
         </Mover>)}
         {game.strikes.filter(strike => strike.kind !== 'wave').map(strike => <Mover key={strike.id} x={strike.x * cell} y={top + strike.y * cell} size={0} reduced={reduced}>
+          <Impact move={strike.move} cell={cell} small={strike.kind === 'spread'} reduced={reduced} />
           <StrikeSprite strike={strike} elapsed={game.elapsed} cell={cell} reduced={reduced} />
         </Mover>)}
         {game.drops.map(drop => <Pressable key={drop.id} accessibilityRole="button" accessibilityLabel={`Collect ${drop.value} berries`}
@@ -231,14 +280,17 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           style={[board.drop, { left: drop.col * cell + cell * 0.38, top: top + drop.row * cell - cell * 0.02, width: cell * 0.62, height: cell * 0.62 }]}>
           <BerryIcon />
         </Pressable>)}
-        {game.effects.map(fx => <Text key={fx.id} pointerEvents="none" accessible={false}
+        {/* While the Legendary's move plays, its banner says what the assist pop-up would. */}
+        {game.effects.filter(fx => !(answer && fx.kind === 'assist')).map(fx => <Text key={fx.id} pointerEvents="none" accessible={false}
           style={[board.fx, { left: fx.x * cell - cell, top: top + fx.y * cell - cell * 0.6, width: cell * 2, color: fxColors[fx.kind],
             fontSize: fx.kind === 'guard' || fx.kind === 'assist' ? 22 : 16 }]}>{fx.text}</Text>)}
+        {spec.weather && <WeatherLayer weather={spec.weather} width={fieldWidth} height={height} reduced={reduced} />}
+        {answer && <AssistMove key={answer.id} name={answer.name} width={fieldWidth} height={height} reduced={reduced} onDone={endAnswer} />}
       </View>
-      </ScrollView>}
+      </BoardFrame>}
       {!!note && <View pointerEvents="none" style={play.note}><Text accessibilityLiveRegion="polite" style={play.noteText}>{note}</Text></View>}
       {/* Details float over the half of the board away from the Pokemon you tapped. */}
-      {selected && <UnitPanel unit={selected} layout={layout} playing={playing} berries={game.berries}
+      {selected && <UnitPanel unit={selected} layout={layout} weather={spec.weather} playing={playing} berries={game.berries}
         style={selected.row >= rows / 2 ? { top: 8 } : { bottom: 8 }}
         onEvolve={() => act(battle => evolveUnit(battle, selected.id))}
         onRelease={() => { act(battle => removeUnit(battle, selected.id)); setInspect(null) }} onClose={() => setInspect(null)} />}
@@ -281,7 +333,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       {(layout === 'trail' || game.assist) && <View style={play.actions}>
         {layout === 'trail' && <SmallButton title="Send next wave · +◉ 10" disabled={!playing || wait === null || wait <= 1000} onPress={() => act(sendNextWave)} />}
         {game.assist && <SmallButton primary title={game.assist.used ? `${game.assist.name} helped!` : `Call ${game.assist.name}`}
-          disabled={!playing || game.assist.used} onPress={() => act(callAssist)} />}
+          disabled={!playing || game.assist.used} onPress={callFriend} />}
       </View>}
     </View>}
   </View>
@@ -342,6 +394,19 @@ function Health({ ratio, width }: { ratio: number, width: number }) {
   </View>
 }
 
+// Where the board sits: Trail Defense's under a camera that pans and zooms; Route Guard's as it always was, scrolling
+// when it is taller than the room it has.
+function BoardFrame({ camera, area, width, height, zoom, scrolls, reduced, children }: {
+  camera: boolean, area: { width: number, height: number }, width: number, height: number,
+  zoom: { start: number, least: number, most: number }, scrolls: boolean, reduced: boolean, children: ReactNode
+}) {
+  if (camera) return <ZoomPan frame={area} width={width} height={height} start={zoom.start} least={zoom.least} most={zoom.most} reduced={reduced}>
+    {children}
+  </ZoomPan>
+  return <ScrollView style={StyleSheet.absoluteFill} scrollEnabled={scrolls} nestedScrollEnabled showsVerticalScrollIndicator={scrolls}
+    contentContainerStyle={{ minHeight: area.height, alignItems: 'center', justifyContent: 'center' }}>{children}</ScrollView>
+}
+
 // Moves smoothly from the previous position to the new one over one game step. Reduced motion jumps instead.
 function Mover({ x, y, size, reduced, children }: { x: number, y: number, size: number, reduced: boolean, children: ReactNode }) {
   const [position] = useState(() => new Animated.ValueXY({ x, y }))
@@ -386,8 +451,9 @@ function ShadowAura({ size, step, boss }: { size: number, step: number, boss: bo
 }
 
 // Shadow Pokemon are the normal strip under a dark tint, facing the way they walk; forms without walking art stay still.
-const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, heading, step }: {
-  name: string, size: number, ratio: number, boss: boolean, slowed: boolean, poisoned: boolean, heading: Facing, step: number
+const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, heading, step, hurt, reduced, mark }: {
+  name: string, size: number, ratio: number, boss: boolean, slowed: boolean, poisoned: boolean, heading: Facing, step: number, hurt: boolean, reduced: boolean,
+  mark: string
 }) {
   const strip = walkers[name]
   const sprite = { width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }
@@ -400,14 +466,21 @@ const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, headi
       {strip ? <Strip source={strip} size={size} frame={frame} tint={FOE_RED} solid />
         : <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { tintColor: FOE_RED }]} />}
     </View>)}
-    <View style={{ position: 'absolute', left: 0, top: 0 }}>
+    {/* Struck just now: a white flash over the foe, and a jolt unless motion is reduced. */}
+    <View style={{ position: 'absolute', left: 0, top: 0, transform: [{ translateX: hurt && !reduced ? (step ? 1 : -1) * size * 0.06 : 0 }] }}>
       {strip ? <Strip source={strip} size={size} frame={frame} tint="#2a1240" /> : <>
         <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={sprite} />
         <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { position: 'absolute', tintColor: '#2a1240', opacity: 0.55 }]} />
       </>}
+      {hurt && <View style={{ position: 'absolute', left: 0, top: 0, opacity: 0.8 }}>
+        {strip ? <Strip source={strip} size={size} frame={frame} tint="#ffffff" solid />
+          : <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { tintColor: '#ffffff' }]} />}
+      </View>}
     </View>
     <View style={{ position: 'absolute', bottom: 0 }}><Health ratio={ratio} width={size * 0.7} /></View>
     {boss && <Text style={board.boss}>BOSS</Text>}
+    {/* Powered up by the weather: its mark on a gold chip. */}
+    {!!mark && <Text accessible={false} style={[board.weatherMark, { fontSize: Math.max(9, size * 0.24) }]}>{mark}</Text>}
     {(slowed || poisoned) && <Text style={board.status}>{slowed ? '❄' : ''}{poisoned ? '☠' : ''}</Text>}
   </View>
 })
@@ -421,7 +494,23 @@ function Ally({ unit, game, size, reduced }: { unit: Battle['units'][number], ga
   const step = reduced ? 0 : (Math.floor(game.elapsed / (target ? STEP_MS : STEP_MS * 2)) + unit.id) % 2
   const acted = !reduced && actedRecently(game, unit)
   const [dx, dy] = !acted ? [0, 0] : target ? lungeOffset[heading] : [0, -1]
-  return <AllySprite name={unit.name} shiny={unit.shiny} size={size} frame={facing[heading] + step} dx={dx * size * 0.1} dy={dy * size * 0.1} />
+  // Evolving: the evolution plays over it for EVOLVE_MS (src/games/BattleFx.tsx), facing you. The Pokemon itself stays
+  // mounted underneath, hidden, so its new form is loaded and takes over without a blank frame.
+  const evolving = !!unit.from && unit.evolvedAt !== undefined && game.elapsed - unit.evolvedAt < EVOLVE_MS
+  const from = unit.from ?? unit.name
+  return <View style={{ width: size, height: size }}>
+    <View style={{ opacity: evolving ? 0 : 1 }}>
+      <AllySprite name={unit.name} shiny={unit.shiny} size={size} frame={facing[heading] + step} dx={dx * size * 0.1} dy={dy * size * 0.1} />
+    </View>
+    {evolving && <View style={StyleSheet.absoluteFill}>
+      <EvolveFx key={unit.evolvedAt} to={unit.name} size={size} reduced={reduced} draw={(form, white) => {
+        const name = form === 'from' ? from : unit.name
+        const strip = walkers[(unit.shiny ? 'Shiny ' : '') + name]
+        return strip ? <Strip source={strip} size={size} frame={facing.S} tint={white ? '#ffffff' : undefined} solid={white} />
+          : <PixelSprite name={name} shiny={unit.shiny} size={size} tint={white ? '#ffffff' : undefined} />
+      }} />
+    </View>}
+  </View>
 }
 const AllySprite = memo(function AllySprite({ name, shiny, size, frame, dx, dy }: { name: string, shiny: boolean, size: number, frame: number, dx: number, dy: number }) {
   const strip = walkers[(shiny ? 'Shiny ' : '') + name]
@@ -430,14 +519,23 @@ const AllySprite = memo(function AllySprite({ name, shiny, size, frame, dx, dy }
   </View>
 })
 
-function UnitPanel({ unit, layout, playing, berries, style, onEvolve, onRelease, onClose }: {
-  unit: Battle['units'][number], layout: Layout, playing: boolean, berries: number, style: ViewStyle,
+const skyNote = (sky: 'boosted' | 'weakened' | null) => sky === 'boosted' ? ', powered up by the weather' : sky === 'weakened' ? ', weakened by the weather' : ''
+// The weather's mark on one of your Pokemon: a gold ▲ when it powers it up, a blue ▼ when it weakens it.
+function WeatherArrow({ sky, size }: { sky: 'boosted' | 'weakened' | null, size: number }) {
+  if (!sky) return null
+  return <Text accessible={false} style={[board.arrow, sky === 'weakened' && board.arrowWeak, { fontSize: Math.max(9, size * 0.2), lineHeight: Math.max(12, size * 0.26) }]}>
+    {sky === 'boosted' ? '▲' : '▼'}</Text>
+}
+
+function UnitPanel({ unit, layout, weather, playing, berries, style, onEvolve, onRelease, onClose }: {
+  unit: Battle['units'][number], layout: Layout, weather?: Weather, playing: boolean, berries: number, style: ViewStyle,
   onEvolve: () => void, onRelease: () => void, onClose: () => void
 }) {
   const kit = kitFor(unit.name, layout)
   const next = nextForm(unit)
   const perk = eggPerk(unit.name, layout)
   const move = moveOf(unit.name, layout)
+  const sky = unitWeather(weather, unit.name, layout)
   return <View style={[play.floating, style]}>
     <View style={[styles.row, { flexWrap: 'nowrap' }]}>
       <PixelSprite name={unit.name} shiny={unit.shiny} size={44} />
@@ -448,6 +546,9 @@ function UnitPanel({ unit, layout, playing, berries, style, onEvolve, onRelease,
     </View>
     <Copy small color={unit.egg && perk ? colors.gold : colors.muted}>{!unit.egg ? 'No egg moves: only Pokemon hatched on your watch know them.'
       : perk ? `Hatched from an egg · Egg move ${perk.move}: ${perk.text}.` : 'Hatched from an egg, but this family has no Gen II–IV egg moves.'}</Copy>
+    {weather && sky && <Copy small color={sky === 'boosted' ? colors.gold : colors.danger}>{sky === 'boosted'
+      ? `${WEATHER[weather].mark} ${WEATHER[weather].name} powers it up: ${POWER_UP}% more damage.`
+      : `${WEATHER[weather].mark} ${WEATHER[weather].name} weakens it: ${POWER_DOWN}% less damage.`}</Copy>}
     <View style={play.actions}>
       {layout === 'trail' && next && <SmallButton primary title={`Evolve to ${next.name} · ◉ ${next.cost}`} disabled={!playing || berries < next.cost} onPress={onEvolve} />}
       <SmallButton title={`Release · +◉ ${refundFor(unit)}`} disabled={!playing} onPress={onRelease} />
@@ -460,6 +561,7 @@ const board = themedStyles(() => ({
   field: { borderRadius: 16, overflow: 'hidden', ...shadows.card },
   cell: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   free: { borderWidth: 1, borderColor: 'rgba(255, 224, 141, 0.45)', backgroundColor: 'rgba(255, 224, 141, 0.12)' },
+  blocked: { backgroundColor: 'rgba(2, 8, 16, 0.45)' },
   shadow: { position: 'absolute', backgroundColor: 'rgba(2, 16, 27, 0.22)' },
   aura: { position: 'absolute', backgroundColor: 'rgba(96, 18, 150, 0.42)' },
   auraCore: { position: 'absolute', backgroundColor: 'rgba(36, 4, 60, 0.55)' },
@@ -472,6 +574,11 @@ const board = themedStyles(() => ({
   fx: { position: 'absolute', textAlign: 'center', fontFamily: fonts.black, textShadowColor: onBoard.dark, textShadowRadius: 3, textShadowOffset: { width: 1, height: 1 } },
   boss: { position: 'absolute', top: -2, fontSize: 10, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 5, borderRadius: 999, overflow: 'hidden' },
   status: { position: 'absolute', top: 0, right: 0, fontSize: 12 },
+  arrow: { position: 'absolute', top: 2, right: 3, fontFamily: fonts.black, color: onBoard.gold, textShadowColor: onBoard.dark, textShadowRadius: 2,
+    textShadowOffset: { width: 1, height: 1 } },
+  arrowWeak: { color: '#8FC8FF' },
+  weatherMark: { position: 'absolute', top: 0, left: 0, color: '#1A1200', backgroundColor: onBoard.gold, borderRadius: 999, overflow: 'hidden',
+    paddingHorizontal: 3, fontFamily: fonts.black },
   egg: { position: 'absolute', top: 2, left: 2, fontSize: 8, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 3, borderRadius: 999, overflow: 'hidden' },
   stars: { color: colors.star, fontSize: 26, letterSpacing: 4 }
 }))
@@ -485,6 +592,9 @@ const play = themedStyles(() => ({
   statLabel: { fontFamily: fonts.heavy, color: colors.muted, fontSize: 10, lineHeight: 13, letterSpacing: 0.8 },
   statValue: { fontFamily: fonts.black, color: colors.ink, fontSize: 17, lineHeight: 22 },
   status: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 2 },
+  weather: { fontFamily: fonts.heavy, color: colors.gold, fontSize: 13, lineHeight: 18, paddingHorizontal: 2 },
+  weatherPanel: { gap: 4, borderColor: colors.gold, borderWidth: 1.5 },
+  weatherTitle: { fontFamily: fonts.black, color: colors.ink, fontSize: 17, lineHeight: 22 },
   area: { flex: 1, minHeight: 160 },
   note: { position: 'absolute', top: 8, left: 12, right: 12, alignItems: 'center' },
   noteText: { overflow: 'hidden', textAlign: 'center', fontFamily: fonts.bold, fontSize: 13, lineHeight: 18, color: '#FFFFFF',

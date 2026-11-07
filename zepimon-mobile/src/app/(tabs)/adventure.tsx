@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Animated, Easing, Image, Platform, Pressable, Text, View, useWindowDimensions } from 'react-native'
+import { AppState, Animated, Easing, Image, Platform, Pressable, Text, View, useWindowDimensions } from 'react-native'
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
 import type { ImageSourcePropType } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
@@ -14,10 +14,10 @@ import { isDynamax, pokemonType, spriteSource } from '../../catalog'
 import { DynamaxAura } from '../../Sprite'
 import { spriteForm } from '../../generated/forms.js'
 import { walkingFrames } from '../../generated/walking.js'
-import { currentForm, currentPace, earnedForms, encodePath, expeditionNews, finishAdventure, formChoices, formStages, gigantamaxChoices, megaChoices,
+import { currentForm, currentPace, earnedForms, pendingForm, shownForm, encodePath, expeditionNews, finishAdventure, formChoices, formStages, gigantamaxChoices, megaChoices,
   nextMilestone, openEggs, phoneTrail } from '../../phone-adventure'
 import type { ActiveAdventure, Activity, PhoneRun } from '../../phone-adventure'
-import { clearAdventure, checkLocation, continueAdventure, currentAdventure, dismissHandOver, openLocationSettings, resumeAdventure, setScreenOnly, startAdventure, stopAdventure, useTracker } from '../../tracker'
+import { clearAdventure, checkLocation, continueAdventure, currentAdventure, dismissHandOver, openLocationSettings, resumeAdventure, seeForm, setScreenOnly, startAdventure, stopAdventure, useTracker } from '../../tracker'
 import { onWatch, sharedPace, sharedPokemon } from '../../shared-adventure'
 import type { SharedAdventure, SharedTrail } from '../../shared-adventure'
 import { usePreferences } from '../../preferences'
@@ -35,6 +35,7 @@ import { BottomSheet } from '../../BottomSheet'
 import { summary } from '../../journal-calendar'
 import { missions } from '../../progress'
 import { PixelSprite } from '../../games/TeamPicker'
+import { EvolutionScene } from '../../Evolution'
 import { useReducedMotion } from '../../games/hooks'
 import { Button, Chip, Copy, Eyebrow, GradientFill, Heading, Icon, IconBubble, Panel, PokeballLoader, Screen, Title, colors, displayFont, fonts, retro, styles, themedStyles, typeInks, typeTints, glass, useTheme } from '../../ui'
 
@@ -550,7 +551,14 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, []))
-  const form = currentForm(active.family, active.meters, active.mega)
+  // The Pokemon shows the form last seen here: a hatch or evolution reached with the screen off plays once this
+  // screen is in view with the app open, one form at a time. celebrating holds the one just played until Continue.
+  const onScreen = useOnScreen()
+  const [celebrating, setCelebrating] = useState<{ from: string, to: string } | null>(null)
+  const form = shownForm(active)
+  const pending = pendingForm(active)
+  const evolving = celebrating ?? (onScreen && pending ? { from: form, to: pending } : null)
+  const earned = earnedForms(active.family, active.meters, active.mega)
   const type = pokemonType(form === 'Egg' ? active.family[0] : form)
   const ink = typeInks[type] || colors.edge
   const elapsed = Math.max(0, (now - active.startedAt) / 1000)
@@ -650,7 +658,7 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
         </View>
         <View style={{ flex: 1, gap: 6 }}>
           <Text numberOfLines={1} style={adventure.heroName}>{name}</Text>
-          <Text style={adventure.heroNext}>{mystery(form, active.activity, next === null)}</Text>
+          <Text style={adventure.heroNext}>{mystery(form, active.activity, next === null && !pending)}</Text>
         </View>
       </View>
 
@@ -676,7 +684,8 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
         <Text accessibilityRole="header" style={adventure.heading}>Your egg</Text>
         <TimelineRow sprite="Egg" shiny={active.shiny} title={`${active.family[0]} egg`} detail={`Started ${started}`} done first last={!stages.length} ink={ink} />
         {stages.map((stage, i) => {
-          const done = active.meters >= stage.meters
+          // Reached and seen: one waiting to play here stays a surprise.
+          const done = active.meters >= stage.meters && earned.indexOf(stage.name) <= earned.indexOf(form)
           const at = done ? secondsAt(active, stage.meters) : null
           return <TimelineRow key={stage.name} sprite={stage.name} shiny={active.shiny} done={done} last={i === stages.length - 1} ink={ink}
             title={`${stage.verb} into ${stage.name}`}
@@ -721,7 +730,7 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
           <Text style={adventure.note}>{clock(elapsed)} · {name}</Text>
         </View>
       </View>
-      {form === 'Egg' && <Text style={adventure.note}>Under 5 km, so this one ends as an egg.</Text>}
+      {!earned.length && <Text style={adventure.note}>Under 5 km, so this one ends as an egg.</Text>}
       {!!error && <Text style={[adventure.note, { color: colors.danger }]}>{error}</Text>}
       <Button title="Save & finish" loading={busy} onPress={() => { void save() }} />
       <Button title={keepGoing} secondary disabled={busy} onPress={() => setConfirm(null)} />
@@ -731,7 +740,26 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
       <Button title="Discard" secondary onPress={() => { void clearAdventure().then(() => setPhoneAdventure(null)).catch(() => {}) }} />
       <Button title={keepGoing} onPress={() => setConfirm(null)} />
     </MapSheet>
+    {evolving && <EvolutionScene key={evolving.to} from={evolving.from} to={evolving.to} shiny={active.shiny} reduced={reduced}
+      label={shown => shown === 'Egg' ? `${active.family[0]} egg` : shown}
+      onEvolved={() => { setCelebrating(evolving); void seeForm(evolving.to) }} onClose={() => setCelebrating(null)} />}
   </View>
+}
+
+// Whether this screen is in view with the app open: the tab focused and the phone awake (AppState 'active'; on the
+// web, the page visible).
+function useOnScreen() {
+  const [focused, setFocused] = useState(false)
+  const [awake, setAwake] = useState(AppState.currentState === 'active')
+  useFocusEffect(useCallback(() => {
+    setFocused(true)
+    return () => setFocused(false)
+  }, []))
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', next => setAwake(next === 'active'))
+    return () => listener.remove()
+  }, [])
+  return focused && awake
 }
 
 // How fast a split was among the others, from 0 for the slowest to 1 for the fastest.

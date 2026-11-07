@@ -2,6 +2,7 @@ import { memo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { typeTheme } from '../HabitatScene'
+import { typeColors } from '../catalog'
 import { PATHS, pathHeading, pathPoint } from './battle'
 import type { PathId } from './battle'
 
@@ -19,6 +20,10 @@ const noise = (col: number, row: number, salt: number) => {
   return value - Math.floor(value)
 }
 const rotation = { E: '0deg', S: '90deg', W: '180deg', N: '270deg' }
+// Element tiles' marks, one per type, in text presentation (\uFE0E) so no phone turns them into emoji.
+export const TILE_MARKS: Record<string, string> = { water: '≈', grass: '✿', fire: '▲', electric: 'ϟ', ice: '❄\uFE0E', rock: '◆', ground: '▬',
+  steel: '⬢', dragon: '◈', psychic: '◉', ghost: '☾\uFE0E', dark: '●', fairy: '✦', fighting: '✊\uFE0E', poison: '☠\uFE0E', bug: '✱',
+  flying: '➶', normal: '○' }
 
 // Static ground for Trail Defense: textured grass, an edged dirt trail with direction chevrons, a cave where foes
 // enter and a Poke Ball goal where they leak. Drawn once per battle and never re-rendered by game ticks. Outlines
@@ -73,6 +78,21 @@ export const TrailTerrain = memo(function TrailTerrain({ path, cell, theme }: { 
     nodes.push(<Text key={`v${d}`} style={{ position: 'absolute', left: point.x * cell - cell * 0.25, top: point.y * cell - cell * 0.32,
       width: cell * 0.5, textAlign: 'center', fontSize: cell * 0.42, fontWeight: '900', color: mix(dirt, outline, 0.45), opacity: 0.55,
       transform: [{ rotate: rotation[pathHeading(path, d)] }] }}>›</Text>)
+  }
+
+  // Element tiles: an inset slab in the type's colour with its mark, so they read apart from grass at any zoom.
+  const { tiles } = PATHS[path]
+  for (const [key, type] of tiles) {
+    const [col, row] = key.split(',').map(Number)
+    const colour = typeColors[type] ?? '#cccccc'
+    const inset = cell * 0.08
+    nodes.push(<View key={`el${key}`} style={{ position: 'absolute', left: col * cell + inset, top: row * cell + inset, width: cell - inset * 2,
+      height: cell - inset * 2, borderRadius: Math.max(3, cell * 0.14), backgroundColor: mix(colour, theme.ground, 0.35),
+      borderWidth: line(3, 0.06), borderColor: mix(colour, outline, 0.45), alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', left: line(3, 0.06), right: line(3, 0.06), top: line(3, 0.06), height: (cell - inset * 2) * 0.32,
+        borderRadius: Math.max(2, cell * 0.1), backgroundColor: 'rgba(255, 255, 255, 0.22)' }} />
+      <Text style={{ fontSize: cell * 0.42, lineHeight: cell * 0.5, fontWeight: '900', color: mix(colour, outline, 0.62) }}>{TILE_MARKS[type] ?? '○'}</Text>
+    </View>)
   }
 
   // The cave mouth sits where the trail enters the board.

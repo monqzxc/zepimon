@@ -29,12 +29,47 @@ export type Layout = 'lanes' | 'trail'
 export type PathId = keyof typeof TRAIL_MAPS
 export type Effect = 'produce' | 'wall' | 'splash' | 'chain' | 'slow' | 'poison' | 'push' | 'line' | 'none'
 export type Kit = { label: string, effect: Effect, cost: number, hp: number, damage: number, cooldown: number, range: number, power: number }
-export type BattleSpec = { layout: Layout, waves: number, difficulty: number, habitat: string, foes: string[], path: PathId, boss?: string }
+export type BattleSpec = { layout: Layout, waves: number, difficulty: number, habitat: string, foes: string[], path: PathId, boss?: string, weather?: Weather }
+
+// Weather (Trail Defense's harder stages): it powers up foes of its types, as in the games, with more health and a
+// little more speed, and brings those types into the waves if the stage's foes lack them. Your Pokemon feel it too:
+// those of its types hit harder (WEATHER_POWER), and those it weakens (weakens) hit softer (WEATHER_WEAK): water and ice
+// moves in harsh sunlight and fire in rain, as in the games; and the types weak to what sand, hail and fog bring: flying
+// and bug pelted by sand, grass, flying and dragon in hail, psychic in a fog full of ghosts. Growers and blockers deal
+// no damage, so the weather leaves them be.
+export type Weather = 'sun' | 'rain' | 'sandstorm' | 'hail' | 'fog'
+export const WEATHER: Record<Weather, { name: string, mark: string, types: string[], weakens: string[] }> = {
+  sun: { name: 'Harsh sunlight', mark: '☀\uFE0E', types: ['fire'], weakens: ['water', 'ice'] },
+  rain: { name: 'Heavy rain', mark: '☂\uFE0E', types: ['water'], weakens: ['fire'] },
+  sandstorm: { name: 'Sandstorm', mark: '≋', types: ['rock', 'ground', 'steel'], weakens: ['flying', 'bug'] },
+  hail: { name: 'Hail', mark: '❄\uFE0E', types: ['ice'], weakens: ['grass', 'flying', 'dragon'] },
+  fog: { name: 'Thick fog', mark: '☁\uFE0E', types: ['ghost', 'dark'], weakens: ['psychic'] }
+}
+export const WEATHER_HEALTH = 1.3, WEATHER_SPEED = 1.1, WEATHER_POWER = 1.3, WEATHER_WEAK = 0.7
+// Whether the weather powers up a foe of this type.
+export const boostedBy = (weather: Weather | undefined, type: string) => !!weather && WEATHER[weather].types.includes(type)
+// What the weather does to one of your Pokemon of this type: 'boosted', 'weakened' or nothing.
+export function weatherOn(weather: Weather | undefined, type: string): 'boosted' | 'weakened' | null {
+  if (!weather) return null
+  return WEATHER[weather].types.includes(type) ? 'boosted' : WEATHER[weather].weakens.includes(type) ? 'weakened' : null
+}
+// The weather's factor on the damage your Pokemon of this type deal.
+export function weatherPower(weather: Weather | undefined, type: string): number {
+  const on = weatherOn(weather, type)
+  return on === 'boosted' ? WEATHER_POWER : on === 'weakened' ? WEATHER_WEAK : 1
+}
+// What the weather does to one of your Pokemon on the board, by its form: growers and blockers deal no damage, so none.
+export function unitWeather(weather: Weather | undefined, name: string, layout: Layout): 'boosted' | 'weakened' | null {
+  return ['produce', 'wall'].includes(kitFor(name, layout).effect) ? null : weatherOn(weather, battleType(name))
+}
 export type Spawn = { at: number, name: string, wave: number, boss: boolean, lane: number }
+// from and evolvedAt: the form it last evolved from, and when (game time), for the board's evolution animation.
 export type Unit = { id: number, name: string, shiny: boolean, col: number, row: number, hp: number, maxHp: number, ready: number,
-  family: string[], evolves: boolean, spent: number, egg: boolean }
+  family: string[], evolves: boolean, spent: number, egg: boolean, from?: string, evolvedAt?: number }
+// How long the board plays an evolution.
+export const EVOLVE_MS = 1500
 export type Enemy = { id: number, name: string, type: string, wave: number, boss: boolean, hp: number, maxHp: number, speed: number,
-  lane: number, progress: number, slowUntil: number, poisonUntil: number, poisonDps: number, reward: number }
+  lane: number, progress: number, slowUntil: number, poisonUntil: number, poisonDps: number, reward: number, boosted?: boolean }
 // move is the type whose move the shot shows: the attacker's own, or its egg move's when that hits the target harder.
 export type Shot = { id: number, x: number, y: number, target: number, damage: number, type: string, coverage: string | null, effect: Effect, move: string }
 export type Drop = { id: number, col: number, row: number, value: number, until: number }
@@ -163,8 +198,12 @@ function unitHealth(name: string, layout: Layout, egg: boolean): number {
 
 // Each trail map has its own board size (src/games/trails.ts); waypoints are cell centers.
 type Point = { x: number, y: number }
-export type TrailPath = { name: string, cols: number, rows: number, points: Point[], cells: Set<string>, length: number }
-export const PATHS = Object.fromEntries(Object.entries(TRAIL_MAPS).map(([id, { name, cols, rows, route }]) => {
+// tiles: element tiles by square ("col,row" to type), where only that type may stand.
+export type TrailPath = { name: string, cols: number, rows: number, points: Point[], cells: Set<string>, length: number, tiles: Map<string, string> }
+export const PATHS = Object.fromEntries(Object.entries(TRAIL_MAPS).map(([id, map]) => {
+  const { name, cols, rows, route } = map
+  const tiles = new Map<string, string>()
+  for (const [type, spots] of Object.entries(('tiles' in map ? map.tiles : undefined) ?? {})) for (const [col, row] of spots ?? []) tiles.set(col + ',' + row, type)
   const points = route.map(([x, y]) => ({ x, y }))
   const cells = new Set<string>()
   let length = 0
@@ -177,8 +216,12 @@ export const PATHS = Object.fromEntries(Object.entries(TRAIL_MAPS).map(([id, { n
       if (col >= 0 && col < cols && row >= 0 && row < rows) cells.add(col + ',' + row)
     }
   }
-  return [id, { name, cols, rows, points, cells, length }]
+  return [id, { name, cols, rows, points, cells, length, tiles }]
 })) as Record<PathId, TrailPath>
+
+// The element tile on a square, if any (Trail Defense only).
+export const tileAt = (game: Pick<Battle, 'layout' | 'spec'>, col: number, row: number): string | null =>
+  game.layout === 'trail' ? PATHS[game.spec.path].tiles.get(col + ',' + row) ?? null : null
 
 export function pathPoint(id: PathId, distance: number): Point {
   const { points } = PATHS[id]
@@ -265,10 +308,13 @@ export function planWaves(spec: BattleSpec, random = Math.random): Spawn[] {
 function makeEnemy(id: number, spawn: Spawn, spec: BattleSpec): Enemy {
   const stage = stageOf(spawn.name) - 1
   const lanes = spec.layout === 'lanes'
-  const hp = Math.round((lanes ? 70 : 50) * (1 + (lanes ? 0.25 : 0.22) * spawn.wave) * spec.difficulty * [1, 1.7, 2.6][stage] * (spawn.boss ? 7 : 1))
-  return { id, name: spawn.name, type: battleType(spawn.name), wave: spawn.wave, boss: spawn.boss, hp, maxHp: hp,
-    speed: (lanes ? 0.26 : 0.6) * [1.15, 1, 0.85][stage] * (spawn.boss ? 0.7 : 1), lane: spawn.lane, progress: lanes ? -0.5 : 0,
-    slowUntil: 0, poisonUntil: 0, poisonDps: 0, reward: lanes ? 0 : (10 + spawn.wave * 2) * (spawn.boss ? 5 : 1) }
+  const type = battleType(spawn.name)
+  const boosted = boostedBy(spec.weather, type)
+  const hp = Math.round((lanes ? 70 : 50) * (1 + (lanes ? 0.25 : 0.22) * spawn.wave) * spec.difficulty * [1, 1.7, 2.6][stage] * (spawn.boss ? 7 : 1) *
+    (boosted ? WEATHER_HEALTH : 1))
+  return { id, name: spawn.name, type, wave: spawn.wave, boss: spawn.boss, hp, maxHp: hp,
+    speed: (lanes ? 0.26 : 0.6) * [1.15, 1, 0.85][stage] * (spawn.boss ? 0.7 : 1) * (boosted ? WEATHER_SPEED : 1), lane: spawn.lane, progress: lanes ? -0.5 : 0,
+    slowUntil: 0, poisonUntil: 0, poisonDps: 0, reward: lanes ? 0 : (10 + spawn.wave * 2) * (spawn.boss ? 5 : 1), ...(boosted ? { boosted } : {}) }
 }
 
 export function startBattle(spec: BattleSpec, team: readonly TeamCard[], options: { bonus?: number, assist?: string | null }, now: number, random = Math.random): Battle {
@@ -284,10 +330,14 @@ export function gridSize(game: Pick<Battle, 'layout' | 'spec'>) {
   return { cols, rows }
 }
 
-export function canPlace(game: Battle, col: number, row: number): boolean {
+// A free square off the trail. Given the Pokemon to place, an element tile also needs its type; without one, any free
+// square counts (what the board shows before a card is chosen).
+export function canPlace(game: Battle, col: number, row: number, name?: string): boolean {
   const { cols, rows } = gridSize(game)
+  const tile = tileAt(game, col, row)
   return Number.isInteger(col) && Number.isInteger(row) && col >= 0 && col < cols && row >= 0 && row < rows &&
-    !game.units.some(unit => unit.col === col && unit.row === row) && !(game.layout === 'trail' && PATHS[game.spec.path].cells.has(col + ',' + row))
+    !game.units.some(unit => unit.col === col && unit.row === row) && !(game.layout === 'trail' && PATHS[game.spec.path].cells.has(col + ',' + row)) &&
+    (name === undefined || tile === null || battleType(name) === tile)
 }
 
 // Route Guard places the card's own form; Trail Defense starts every family at its first stage.
@@ -301,7 +351,7 @@ export function cardReadyAt(game: Battle, card: TeamCard): number {
 
 export function placeUnit(game: Battle, key: string, col: number, row: number): Battle {
   const card = game.team.find(item => cardKey(item) === key)
-  if (game.status !== 'playing' || !card || !canPlace(game, col, row) || cardReadyAt(game, card) > game.elapsed) return game
+  if (game.status !== 'playing' || !card || !canPlace(game, col, row, placedForm(game, card)) || cardReadyAt(game, card) > game.elapsed) return game
   const name = placedForm(game, card)
   const kit = kitFor(name, game.layout)
   if (game.berries < kit.cost) return game
@@ -336,7 +386,7 @@ export function evolveUnit(game: Battle, id: number): Battle {
   const next = unit && nextForm(unit)
   if (game.status !== 'playing' || !unit || !next || game.berries < next.cost) return game
   const hp = unitHealth(next.name, game.layout, unit.egg)
-  const evolved = { ...unit, name: next.name, hp, maxHp: hp, spent: unit.spent + next.cost }
+  const evolved = { ...unit, name: next.name, hp, maxHp: hp, spent: unit.spent + next.cost, from: unit.name, evolvedAt: game.elapsed }
   return { ...game, berries: game.berries - next.cost, units: game.units.map(item => item === unit ? evolved : item) }
 }
 
@@ -354,7 +404,7 @@ export function callAssist(game: Battle): Battle {
   const g = clone(game)
   const type = battleType(game.assist.name)
   for (const enemy of g.enemies) {
-    enemy.hp -= ASSIST_DAMAGE * effectiveness(type, enemy.type)
+    enemy.hp -= ASSIST_DAMAGE * effectiveness(type, enemy.type) * weatherPower(g.spec.weather, type)
     enemy.slowUntil = g.elapsed + 3000
   }
   for (const enemy of g.enemies) addStrike(g, type, 'hit', enemyPoint(g, enemy), enemy.id)
@@ -548,7 +598,7 @@ function step(g: Battle, dt: number, random: () => number) {
     const type = battleType(unit.name)
     const perk = unit.egg ? eggPerk(unit.name, g.layout) : null
     const coverage = perk?.kind === 'coverage' ? perk.type : null
-    const damage = kit.damage * (perk?.kind === 'power' ? EGG_POWER : 1)
+    const damage = kit.damage * (perk?.kind === 'power' ? EGG_POWER : 1) * weatherPower(g.spec.weather, type)
     if (kit.effect === 'line') {
       addStrike(g, type, 'wave', center, -1, kit.range)
       for (const target of targets) hit(g, target, damage, type, coverage, 'none')

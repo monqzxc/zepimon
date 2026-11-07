@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Image, Platform, Pressable, Text, TextInput, View } from 'react-native'
-import { spriteSource } from '../catalog'
+import { spriteSource, typeColors } from '../catalog'
 import { Button, Copy, Eyebrow, colors, fonts, styles, themedStyles } from '../ui'
-import { eggPerk, kitFor, placedForm } from './battle'
-import type { Layout } from './battle'
+import { WEATHER, WEATHER_POWER, WEATHER_WEAK, eggPerk, kitFor, placedForm, unitWeather } from './battle'
+import type { Layout, Weather } from './battle'
 import { TEAM_SIZE, autoTeam, battleType, cardKey } from './roster'
 import type { TeamCard } from './roster'
+import type { Suggestion } from './suggest'
+import { TILE_MARKS } from './TrailTerrain'
 
 const SHOWN = 24
 
@@ -16,7 +18,12 @@ export function PixelSprite({ name, shiny = false, size, tint }: { name: string,
     style={{ width: size, height: size, ...(tint ? { tintColor: tint } : {}), ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }} />
 }
 
-export function TeamPicker({ layout, choices, team, onChange }: { layout: Layout, choices: TeamCard[], team: TeamCard[], onChange: (team: TeamCard[]) => void }) {
+// suggestion: a team suggested for this level (src/games/suggest.ts), with why, shown above the picker; tiles: the map's
+// element tiles by type, with how many of each; weather: the level's, marked on the Pokemon it powers up or weakens.
+export function TeamPicker({ layout, choices, team, onChange, suggestion, tiles, weather }: {
+  layout: Layout, choices: TeamCard[], team: TeamCard[], onChange: (team: TeamCard[]) => void, suggestion?: Suggestion, tiles?: [string, number][],
+  weather?: Weather
+}) {
   const [query, setQuery] = useState('')
   const chosen = new Set(team.map(cardKey))
   const search = query.trim().toLowerCase()
@@ -26,10 +33,21 @@ export function TeamPicker({ layout, choices, team, onChange }: { layout: Layout
     if (chosen.has(cardKey(card))) onChange(team.filter(item => cardKey(item) !== cardKey(card)))
     else if (team.length < TEAM_SIZE) onChange([...team, card])
   }
+  const suggested = suggestion && suggestion.team.length === team.length && suggestion.team.every(card => chosen.has(cardKey(card)))
   return <View style={{ gap: 12 }}>
+    {suggestion && <View style={picker.suggest}>
+      <Eyebrow>SUGGESTED FOR THIS LEVEL</Eyebrow>
+      {!!tiles?.length && <View style={picker.tiles}>{tiles.map(([type, count]) =>
+        <View key={type} style={[picker.tile, { backgroundColor: typeColors[type] ?? colors.sunken }]}>
+          <Text style={picker.tileText}>{TILE_MARKS[type] ?? '○'} {type[0].toUpperCase() + type.slice(1)} ×{count}</Text>
+        </View>)}</View>}
+      {suggestion.notes.map(note => <Copy key={note} small color={colors.ink}>• {note}</Copy>)}
+      {suggestion.missing.length > 0 && <Copy small>{`No ${suggestion.missing.map(type => type[0].toUpperCase() + type.slice(1)).join(' or ')} Pokemon yet, so those tiles stay empty. Hatch or catch one (the Safari Zone) to use them.`}</Copy>}
+      <Button title={suggested ? 'Using the suggested team ✓' : 'Use the suggested team'} disabled={suggested} onPress={() => onChange(suggestion.team)} />
+    </View>}
     <Eyebrow>YOUR TEAM · {team.length} / {TEAM_SIZE}</Eyebrow>
     {team.length ? <View style={picker.grid}>{team.map(card =>
-      <TeamChip key={cardKey(card)} card={card} layout={layout} selected onPress={() => toggle(card)} />)}</View> :
+      <TeamChip key={cardKey(card)} card={card} layout={layout} weather={weather} selected onPress={() => toggle(card)} />)}</View> :
       <Copy>Choose up to six Pokemon below, or let the auto-pick build a balanced team.</Copy>}
     <Button title="Auto-pick a balanced team" secondary onPress={() => onChange(autoTeam(choices))} />
     <Eyebrow>AVAILABLE · {choices.length}</Eyebrow>
@@ -37,19 +55,25 @@ export function TeamPicker({ layout, choices, team, onChange }: { layout: Layout
     <TextInput accessibilityLabel="Search team choices by name, type or role" placeholder="Search name, type or role…" placeholderTextColor={colors.muted}
       value={query} onChangeText={setQuery} style={styles.input} autoCorrect={false} />
     <View style={picker.grid}>{matches.slice(0, SHOWN).map(card =>
-      <TeamChip key={cardKey(card)} card={card} layout={layout} selected={chosen.has(cardKey(card))}
+      <TeamChip key={cardKey(card)} card={card} layout={layout} weather={weather} selected={chosen.has(cardKey(card))}
         disabled={!chosen.has(cardKey(card)) && team.length >= TEAM_SIZE} onPress={() => toggle(card)} />)}</View>
     {matches.length > SHOWN && <Copy small>Showing {SHOWN} of {matches.length}. Search to find the rest.</Copy>}
     {!matches.length && <Copy small>No Pokemon match “{query}”.</Copy>}
   </View>
 }
 
-function TeamChip({ card, layout, selected, disabled = false, onPress }: { card: TeamCard, layout: Layout, selected: boolean, disabled?: boolean, onPress: () => void }) {
+function TeamChip({ card, layout, weather, selected, disabled = false, onPress }: {
+  card: TeamCard, layout: Layout, weather?: Weather, selected: boolean, disabled?: boolean, onPress: () => void
+}) {
   const form = placedForm({ layout }, card)
+  const sky = unitWeather(weather, form, layout)
+  const skyText = !weather || !sky ? '' : sky === 'boosted' ? `${WEATHER[weather].mark} ▲ +${Math.round((WEATHER_POWER - 1) * 100)}% damage`
+    : `${WEATHER[weather].mark} ▼ −${Math.round((1 - WEATHER_WEAK) * 100)}% damage`
   const kit = kitFor(form, layout)
   const evolves = layout === 'trail' && card.family.length > 1 ? card.family[card.family.length - 1] : ''
   const perk = card.hatched ? eggPerk(form, layout) : null
   const label = `${card.shiny ? 'Shiny ' : ''}${form}, ${battleType(form)} type, ${kit.label}, costs ${kit.cost} berries` +
+    `${sky && weather ? `, ${sky === 'boosted' ? 'powered up' : 'weakened'} by ${WEATHER[weather].name.toLowerCase()}` : ''}` +
     `${perk ? `, hatched, egg move ${perk.move}: ${perk.text}` : card.hatched ? ', hatched, no egg moves' : ''}${evolves ? `, can evolve to ${evolves}` : ''}${card.loaner ? ', loaner' : card.hatched ? '' : ', Safari catch'}`
   return <Pressable accessibilityRole="checkbox" accessibilityLabel={label} accessibilityState={{ checked: selected, disabled }}
     disabled={disabled} onPress={onPress}
@@ -58,6 +82,7 @@ function TeamChip({ card, layout, selected, disabled = false, onPress }: { card:
     <View style={{ flex: 1, gap: 1 }}>
       <Text numberOfLines={1} style={picker.name}>{form}{card.shiny ? ' ✦' : ''}</Text>
       <Text numberOfLines={2} style={picker.detail}>{kit.label} · ◉ {kit.cost}</Text>
+      {!!skyText && <Text numberOfLines={1} style={[picker.detail, picker.sky, sky === 'weakened' && picker.weak]}>{skyText}</Text>}
       {perk && <Text numberOfLines={2} style={[picker.detail, { color: colors.gold }]}>Egg move: {perk.move}</Text>}
       {!!evolves && <Text numberOfLines={1} style={[picker.detail, { color: colors.gold }]}>Evolves to {evolves}</Text>}
       {(card.loaner || !card.hatched) && <Text style={picker.detail}>{card.loaner ? 'Loaner' : '◎ Safari · no egg move'}</Text>}
@@ -68,10 +93,16 @@ function TeamChip({ card, layout, selected, disabled = false, onPress }: { card:
 
 const picker = themedStyles(() => ({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  suggest: { gap: 8, padding: 12, borderRadius: 18, borderWidth: 1.5, borderColor: colors.gold, backgroundColor: colors.goldTint },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tile: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  tileText: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontFamily: fonts.heavy },
   chip: { flexBasis: '48%', flexGrow: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, paddingRight: 14,
     borderWidth: 1.5, borderColor: colors.line, borderRadius: 16, backgroundColor: colors.panel },
   selected: { borderColor: colors.edge, backgroundColor: colors.mint },
   name: { color: colors.ink, fontSize: 14, lineHeight: 19, fontFamily: fonts.heavy },
   detail: { color: colors.muted, fontSize: 12, lineHeight: 16, fontFamily: fonts.body },
+  sky: { color: colors.gold, fontFamily: fonts.heavy },
+  weak: { color: colors.danger },
   check: { position: 'absolute', top: 3, right: 7, color: colors.edge, fontSize: 14, fontFamily: fonts.black }
 }))

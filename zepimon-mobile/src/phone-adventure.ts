@@ -45,7 +45,10 @@ export type ActiveAdventure = {
   altitude: number | null,      // the smoothed altitude so far, null until the GPS gives one
   pace: PaceLog,
   shareId: string,              // the adventure shared with the watch (see src/shared-adventure.ts)
-  deviceAt: number              // when this phone started it or took it over
+  deviceAt: number,             // when this phone started it or took it over
+  // The latest form seen on the Adventure screen: a hatch or evolution reached with the screen off waits for it, so
+  // it plays there (src/Evolution.tsx). Missing on adventures taken from the watch or saved before it was kept: seen.
+  seen?: string
 }
 // A saved phone adventure. record has the same shape the watch saves; path is the route as an encoded polyline.
 // movingSeconds and pace are kept beside the record, which the watch's format has no room for; older adventures have neither.
@@ -65,11 +68,30 @@ export const rollShiny = (random = Math.random) => Math.floor(random() * 50) ===
 
 export const currentForm = (family: string[], meters: number, mega: string | null) => earnedForms(family, meters, mega).at(-1) ?? 'Egg'
 
+// The form the adventure's Pokemon shows: the latest one seen on the Adventure screen, which can trail the distance.
+export function shownForm(active: ActiveAdventure): string {
+  const earned = earnedForms(active.family, active.meters, active.mega)
+  const seen = active.seen
+  return seen === 'Egg' || (seen !== undefined && earned.includes(seen)) ? seen : earned.at(-1) ?? 'Egg'
+}
+// The next form it hatches or evolves into on screen, or null once the shown form is the one reached.
+export function pendingForm(active: ActiveAdventure): string | null {
+  const earned = earnedForms(active.family, active.meters, active.mega)
+  return earned[earned.indexOf(shownForm(active)) + 1] ?? null
+}
+// How the Pokemon changed into a form: hatching from the egg, Mega Evolving, Dynamaxing, Gigantamaxing or evolving.
+export function changeVerb(from: string, to: string): 'hatched' | 'Mega Evolved' | 'Dynamaxed' | 'Gigantamaxed' | 'evolved' {
+  if (from === 'Egg') return 'hatched'
+  const at = formDistance(to)
+  return at === 21000 ? 'Mega Evolved' : at === 42000 ? 'Dynamaxed' : at === 50000 ? 'Gigantamaxed' : 'evolved'
+}
+
 // What the live notification shows while an adventure records (modules/zepimon-live): the kind of workout, the
 // distance and the Pokemon being raised, named as on the Adventure tab ("Shiny Bulbasaur egg", "Ivysaur"). sprite is
 // the form whose sprite goes beside it. The time ticks in the notification itself.
+// The form is the one shown on the Adventure screen, so the lock screen never gives an evolution away.
 export function liveText(active: ActiveAdventure): { activity: string, distance: string, pokemon: string, sprite: string } {
-  const form = currentForm(active.family, active.meters, active.mega)
+  const form = shownForm(active)
   const name = form === 'Egg' ? `${active.family[0]} egg` : form
   return { activity: active.activity === 'running' ? 'Run' : 'Walk', distance: `${(Math.max(0, active.meters) / 1000).toFixed(2)} km`,
     pokemon: (active.shiny ? 'Shiny ' : '') + name, sprite: form }
@@ -80,7 +102,7 @@ export function newAdventure(family: string[], activity: Activity, mega: string 
   return { family: [...family], activity, startedAt: now, shiny: rollShiny(random), mega: mega && choices.includes(mega) ? mega : choices[0] ?? null,
     meters: 0, hatchSeconds: null, points: [], anchor: null, last: null, recent: [], movingSeconds: 0, altitude: null,
     pace: { start: 0, at: [0], moving: [0], elev: [null] },
-    shareId: `adv-${now}`, deviceAt: now }
+    shareId: `adv-${now}`, deviceAt: now, seen: 'Egg' }
 }
 
 const EARTH_RADIUS = 6371008.8
@@ -349,7 +371,8 @@ export function restoreActive(text: string): ActiveAdventure | null {
       pace: validPace(pace) ? pace : { start: Math.floor(value.meters / 100) + 1, at: [], moving: [], elev: [] },
       // Adventures saved before sharing existed get the id they would have had.
       shareId: typeof value.shareId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value.shareId) ? value.shareId : `adv-${value.startedAt}`,
-      deviceAt: Number.isFinite(value.deviceAt) ? value.deviceAt : value.startedAt }
+      deviceAt: Number.isFinite(value.deviceAt) ? value.deviceAt : value.startedAt,
+      ...typeof value.seen === 'string' && value.seen.length < 80 ? { seen: value.seen } : {} }
   } catch {
     return null
   }
