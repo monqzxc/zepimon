@@ -12,6 +12,7 @@ import { LANES, PATHS, TICK, actedRecently, battleScore, battleStars, callAssist
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
 import type { Battle, BattleSpec, Heading as Facing, Layout } from './battle'
 import { ShotSprite, StrikeSprite } from './MoveFx'
+import { AssistMove } from './AssistMove'
 import { TrailTerrain } from './TrailTerrain'
 import { trailWalkers } from '../generated/trail-walkers.js'
 import { autoTeam, cardKey } from './roster'
@@ -68,6 +69,14 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
     }
   }, [])
   const act = (change: (game: Battle) => Battle) => { if (current.current) update(change(current.current)) }
+  // The Legendary's move plays over the board once, when it answers the call (src/games/AssistMove.tsx).
+  const [answer, setAnswer] = useState<{ name: string, id: number } | null>(null)
+  const endAnswer = useCallback(() => setAnswer(null), [])
+  const callFriend = () => {
+    const before = current.current
+    act(callAssist)
+    if (before?.assist && !before.assist.used && before.status === 'playing') setAnswer({ name: before.assist.name, id: Date.now() })
+  }
   const pause = () => act(battle => pauseBattle(battle, performance.now()))
   const resume = () => act(battle => resumeBattle(battle, performance.now()))
   useGameLoop(() => act(battle => tickBattle(battle, performance.now())), pause)
@@ -231,9 +240,11 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           style={[board.drop, { left: drop.col * cell + cell * 0.38, top: top + drop.row * cell - cell * 0.02, width: cell * 0.62, height: cell * 0.62 }]}>
           <BerryIcon />
         </Pressable>)}
-        {game.effects.map(fx => <Text key={fx.id} pointerEvents="none" accessible={false}
+        {/* While the Legendary's move plays, its banner says what the assist pop-up would. */}
+        {game.effects.filter(fx => !(answer && fx.kind === 'assist')).map(fx => <Text key={fx.id} pointerEvents="none" accessible={false}
           style={[board.fx, { left: fx.x * cell - cell, top: top + fx.y * cell - cell * 0.6, width: cell * 2, color: fxColors[fx.kind],
             fontSize: fx.kind === 'guard' || fx.kind === 'assist' ? 22 : 16 }]}>{fx.text}</Text>)}
+        {answer && <AssistMove key={answer.id} name={answer.name} width={fieldWidth} height={height} reduced={reduced} onDone={endAnswer} />}
       </View>
       </ScrollView>}
       {!!note && <View pointerEvents="none" style={play.note}><Text accessibilityLiveRegion="polite" style={play.noteText}>{note}</Text></View>}
@@ -281,7 +292,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       {(layout === 'trail' || game.assist) && <View style={play.actions}>
         {layout === 'trail' && <SmallButton title="Send next wave · +◉ 10" disabled={!playing || wait === null || wait <= 1000} onPress={() => act(sendNextWave)} />}
         {game.assist && <SmallButton primary title={game.assist.used ? `${game.assist.name} helped!` : `Call ${game.assist.name}`}
-          disabled={!playing || game.assist.used} onPress={() => act(callAssist)} />}
+          disabled={!playing || game.assist.used} onPress={callFriend} />}
       </View>}
     </View>}
   </View>

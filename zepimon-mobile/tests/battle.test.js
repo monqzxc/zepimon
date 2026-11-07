@@ -371,3 +371,11 @@ test('doing nothing loses; a simple player clears Route 1 and Pewter Trail with 
   assert.equal(defended.status, 'won')
   assert.ok(freePlaySpec('trail', seeded()).waves > STOPS[2].spec.waves)
 })
+
+test('every Legendary answers the call with a move of its own', async () => {
+  const { SIGNATURE_MOVES, signatureMove } = await import('../src/games/legendary-moves.ts')
+  const { legendarySpecies } = await import('../src/generated/expedition.js')
+  for (const name of legendarySpecies) assert.ok(SIGNATURE_MOVES[name], `${name} has a signature move`)
+  assert.equal(signatureMove('Lugia'), 'Aeroblast')
+  assert.equal(signatureMove('Pikachu'), 'Thunder Shock', 'Anyone else uses its type’s battle move')
+})
