@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useJournal } from '../../store'
 import { MemoryMatch } from '../../MemoryMatch'
-import { Image, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
+import { router } from 'expo-router'
 import { BerryCatch, BerryIcon } from '../../games/BerryCatch'
 import { PokemonQuiz } from '../../games/PokemonQuiz'
 import type { ArcadeGame } from '../../games/scores'
-import { spriteSource } from '../../catalog'
-import { Button, Copy, Eyebrow, Hero, IconBubble, IconButton, Panel, Screen, Sprite, colors, styles, typeTints, useTheme } from '../../ui'
+import { Button, Copy, Icon, IconButton, PokeballIcon, Screen, colors, displayFont, fonts, retro, styles, themedStyles, useTheme } from '../../ui'
 import { GameScreenContext } from '../../games/fullscreen'
 import { useImmersive } from '../../games/useImmersive'
 import { DefenseGame, starText } from '../../games/DefenseGame'
@@ -23,15 +23,23 @@ import { ArcadeAchievements } from '../../games/ArcadeAchievements'
 import { legendaryAssists, teamChoices } from '../../games/roster'
 import type { TeamCard } from '../../games/roster'
 import { PixelSprite } from '../../games/TeamPicker'
-import { GameGrid } from '../../games/GameGrid'
+import { GameGrid, MiniGames } from '../../games/GameGrid'
+import { AdventureArt, MemoryArt, QuizArt, RouteGuardArt, SafariArt, TrailArt } from '../../games/GameArt'
+import { OverworldSprite } from '../../games/OverworldSprite'
+import { legendaryPoints } from '../../games/achievements'
 
 type Launch = { game: 'guard' | 'trail' | 'safari', stop?: Stop, level?: Level }
 type Selected = 'memory' | 'quiz' | 'berries' | 'map' | 'levels' | Launch | null
 
 export default function PlayScreen() {
   useTheme()
-  const { dex, buddy, progress, adventure, trailLevels, bestMoves, recordWin, arcadeScores, recordArcadeScore, recordStars, recordLevelStars, recordSafariCatch } = useJournal()
+  const { dex, buddy, progress, adventure, trailLevels, bestMoves, recordWin, arcadeScores, recordArcadeScore, recordStars, recordLevelStars, recordSafariCatch,
+    trialRecords, safari, phoneRuns } = useJournal()
   const [message, setMessage] = useState('')
+  const [view, setView] = useState<'games' | 'achievements'>('games')
+  const [bonusOpen, setBonusOpen] = useState(false)
+  const points = useMemo(() => legendaryPoints({ arcadeScores, bestMoves, adventure, trailLevels, trialRecords, safari, progress, phoneRuns }).total,
+    [arcadeScores, bestMoves, adventure, trailLevels, trialRecords, safari, progress, phoneRuns])
   const [selected, setSelected] = useState<Selected>(null)
   // The team last used in Trail Defense, so moving from level to level keeps it.
   const [trailTeam, setTrailTeam] = useState<TeamCard[]>()
@@ -79,6 +87,8 @@ export default function PlayScreen() {
       .catch(() => setMessage('Could not save your stars. Please try again.'))
   }
   const best = (game: ArcadeGame, unit: string, limit: number) => `Best: ${arcadeScores[game] === undefined ? 'Not set' : `${arcadeScores[game]} / ${limit} ${unit}`}`
+  // The cards show a best only once there is one.
+  const shortBest = (game: ArcadeGame, limit: number) => arcadeScores[game] === undefined ? undefined : `Best ${arcadeScores[game]} / ${limit}`
   const stopRecord = (stop: Stop) => `Best here: ${starText(adventure[stop.id] || 0)}`
   const safariBest = `Best: ${arcadeScores.safari === undefined ? 'Not set' : `${arcadeScores.safari} caught in one hunt`}`
 
@@ -88,48 +98,65 @@ export default function PlayScreen() {
       <IconButton name="fullscreenExit" label="Exit full screen" onPress={() => setFull(false)} />
     </View> : <View style={[styles.row, { flexWrap: 'nowrap' }]}>
       <View style={{ flex: 1 }}>
-        <Button title={launch?.stop ? 'Back to the map' : launch?.game === 'trail' ? 'Back to levels' : 'Back to arcade'} secondary
+        <Button title={launch?.stop ? 'Back to the map' : launch?.game === 'trail' ? 'Back to levels' : 'Back to games'} secondary
           onPress={() => select(launch?.stop ? 'map' : launch?.game === 'trail' ? 'levels' : null)} />
       </View>
       {inGame && !fill && <IconButton name="fullscreen" label="Full screen" size={50} onPress={() => setFull(true)} />}
     </View> : <>
-      <Hero eyebrow="ZEPIMON · POCKET ARCADE" title="A little trail break.">
-        <Copy color={colors.onBrand}>Pick a game. Everything works offline and saves on this phone.</Copy>
-      </Hero>
-      <GameGrid games={[
-        { id: 'map', title: 'Adventure Map', tint: typeTints.flying, logo: <PixelSprite name="Dragonite" size={76} />,
-          record: `★ ${totalStars} / ${STOPS.length * 3}`, onPress: () => select('map'),
-          about: `Nine stops from Route 1 to Victory Road that mix the battle and hunting games.${nextStop ? ` Next: ${nextStop.title}, ${MODE_NAMES[nextStop.mode]}.` : ''}` },
-        { id: 'guard', title: 'Route Guard', tint: typeTints.ground, logo: <PixelSprite name="Snorlax" size={76} />,
-          record: best('guard', 'waves', 10), onPress: () => select({ game: 'guard' }),
-          about: 'Lane defense: hold five lanes against Shadow Pokemon with berries, Grass and Rock types.' },
-        { id: 'trail', title: 'Trail Defense', tint: typeTints.fire, logo: <PixelSprite name="Charizard" size={76} />,
-          record: `★ ${levelStars} / ${LEVELS.length * 3}`, onPress: () => select('levels'),
-          about: `Tower defense: ${LEVELS.length} levels in ${STAGES.length} stages; ${levelsCleared} cleared.${nextLevel ? ` Next: Level ${nextLevel.number}.` : ''} Evolve your team mid-battle with berries.` },
-        { id: 'safari', title: 'Safari Zone', tint: typeTints.grass, logo: <PixelSprite name="Kangaskhan" size={76} />,
-          record: `Best: ${arcadeScores.safari === undefined ? 'Not set' : `${arcadeScores.safari} caught`}`, onPress: () => select({ game: 'safari' }),
-          about: 'Walk Emerald’s Safari Zone with your buddy and catch Pokemon in the tall grass. Catches join your Dex.' },
-        { id: 'memory', title: 'Memory Match', tint: typeTints.fairy, logo: <><Sprite name="Bulbasaur" size={52} /><Sprite name="Bulbasaur" shiny size={52} /></>,
-          onPress: () => select('memory'),
-          about: 'Find matching Normal and Shiny pairs from your collection. Needs at least two variants.' },
-        { id: 'quiz', title: 'Who’s That Pokémon?', tint: typeTints.water,
-          logo: <Image source={spriteSource('Pikachu')} resizeMode="contain" accessible={false} style={{ width: 72, height: 72, tintColor: colors.ink }} />,
-          record: `Best: ${arcadeScores.quiz === undefined ? 'Not set' : `${arcadeScores.quiz} / 10`}`, onPress: () => select('quiz'),
-          about: 'Ten silhouettes, four choices each, from Gen 1 to 4.' },
-        { id: 'berries', title: 'Berry Catch', tint: typeTints.bug, logo: <BerryIcon />,
-          record: `Best: ${arcadeScores.berries === undefined ? 'Not set' : `${arcadeScores.berries} / 20`}`, onPress: () => select('berries'),
-          about: 'A 30-second garden game: tap each ripe berry before it hops away.' }
-      ]} />
-      <Panel style={{ backgroundColor: colors.mint, borderColor: colors.mintLine }}>
-        <View style={[styles.row, { flexWrap: 'nowrap' }]}>
-          <IconBubble name="walk" background={colors.panel} />
-          <View style={{ flex: 1 }}><Eyebrow>WALKING BONUS · THIS WEEK</Eyebrow><Text style={styles.stat}>{bonus.km} / {BONUS_KM_CAP} km</Text></View>
-        </View>
-        <Copy color={colors.ink}>{bonus.km ? `+◉ ${bonus.berries} starting berries, +${bonus.balls} Safari Balls and +${bonus.km * STEPS_PER_KM} Safari Zone steps this week.` : 'Every km you walk this week (Monday–Sunday) adds starting berries, Safari Balls and Safari Zone steps.'}</Copy>
-        <Copy small>A bonus, never a requirement: every game is fully playable without walking.</Copy>
-      </Panel>
-      <ArcadeAchievements place="arcade" />
-      <Copy small>Every game except Memory Match is available right away. Game points, stars and Safari catches stay on this phone; your walking distance, hatching and watch records come from your watch.</Copy>
+      <View style={look.header}>
+        <PokeballIcon size={30} color={colors.ink} />
+        <Text accessibilityRole="header" style={look.headerTitle}>Games</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${points} Legendary points. Show achievements`} hitSlop={4}
+          onPress={() => setView('achievements')} style={({ pressed }) => [look.points, { opacity: pressed ? 0.8 : 1 }]}>
+          <Icon name="star" size={18} color={colors.star} />
+          <Text style={look.pointsText}>{points}</Text>
+          <Icon name="chevron" size={18} color={colors.muted} />
+        </Pressable>
+      </View>
+      <View accessibilityRole="tablist" style={look.tabs}>
+        {([['games', 'Games', 'play'], ['achievements', 'Achievements', 'trophy']] as const).map(([id, label, icon]) => {
+          const on = view === id
+          return <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => setView(id)}
+            style={({ pressed }) => [look.tab, on && look.tabOn, { opacity: pressed && !on ? 0.75 : 1 }]}>
+            <Icon name={icon} size={20} color={on ? colors.onEdge : colors.muted} />
+            <Text style={[look.tabText, on && { color: colors.onEdge }]}>{label}</Text>
+          </Pressable>
+        })}
+      </View>
+      {view === 'games' ? <>
+        <GameGrid games={[
+          { id: 'map', title: 'Adventure Map', art: size => <AdventureArt {...size} />,
+            record: `★ ${totalStars} / ${STOPS.length * 3}`, onPress: () => select('map'),
+            about: `Nine stops from Route 1 to Victory Road that mix the battle and hunting games.${nextStop ? ` Next: ${nextStop.title}, ${MODE_NAMES[nextStop.mode]}.` : ''}` },
+          { id: 'guard', title: 'Route Guard', art: size => <RouteGuardArt {...size} />,
+            record: shortBest('guard', 10), onPress: () => select({ game: 'guard' }),
+            about: 'Lane defense: hold five lanes against Shadow Pokemon with berries, Grass and Rock types.' },
+          { id: 'trail', title: 'Trail Defense', art: size => <TrailArt {...size} />,
+            record: `★ ${levelStars} / ${LEVELS.length * 3}`, onPress: () => select('levels'),
+            about: `Tower defense: ${LEVELS.length} levels in ${STAGES.length} stages; ${levelsCleared} cleared.${nextLevel ? ` Next: Level ${nextLevel.number}.` : ''} Evolve your team mid-battle with berries.` },
+          { id: 'safari', title: 'Safari Zone', art: size => <SafariArt {...size} />,
+            record: arcadeScores.safari === undefined ? undefined : `Best ${arcadeScores.safari} caught`, onPress: () => select({ game: 'safari' }),
+            about: 'Walk Emerald’s Safari Zone with your buddy and catch Pokemon in the tall grass. Catches join your Dex.' },
+          { id: 'memory', title: 'Memory Match', art: size => <MemoryArt {...size} />,
+            onPress: () => select('memory'),
+            about: 'Find matching Normal and Shiny pairs from your collection. Needs at least two variants.' },
+          { id: 'quiz', title: 'Who’s That Pokémon?', art: size => <QuizArt {...size} />,
+            record: shortBest('quiz', 10), onPress: () => select('quiz'),
+            about: 'Ten silhouettes, four choices each, from Gen 1 to 4.' }
+        ]} />
+        <Text accessibilityRole="header" style={look.section}>More games</Text>
+        <MiniGames games={[
+          { id: 'berries', title: 'Berry Catch', icon: <BerryIcon />, onPress: () => select('berries'),
+            about: `A 30-second garden game: tap each ripe berry before it hops away.${arcadeScores.berries === undefined ? '' : ` Best ${arcadeScores.berries} / 20.`}` },
+          { id: 'expeditions', title: 'Legends', icon: <PixelSprite name="Rayquaza" size={52} />, onPress: () => router.push('/expeditions'),
+            about: 'Legendary Expeditions: trials, battles and catches.' },
+          { id: 'walk', title: `${bonus.km} / ${BONUS_KM_CAP} km`, icon: <OverworldSprite name={buddy ? buddy.replace(/^Shiny /, '') : 'Pikachu'}
+            shiny={!!buddy?.startsWith('Shiny ')} size={52} />, onPress: () => setBonusOpen(!bonusOpen),
+            about: `Walking bonus this week: ${bonus.km} of ${BONUS_KM_CAP} km.` }
+        ]} />
+        {bonusOpen && <Copy color={colors.ink}>{bonus.km ? `This week's walking bonus: +◉ ${bonus.berries} starting berries, +${bonus.balls} Safari Balls and +${bonus.km * STEPS_PER_KM} Safari Zone steps.`
+          : 'Each km you walk this week adds starting berries, Safari Balls and Safari Zone steps. Every game plays fine without it.'}</Copy>}
+      </> : <ArcadeAchievements place="arcade" />}
     </>}
     {!(immersive && fill) && !!message && <Copy color={colors.gold}>{message}</Copy>}
     {selected === 'map' && <AdventureMap stars={adventure} onPlay={stop => select({ game: stop.mode, stop })} />}
@@ -175,3 +202,17 @@ function LevelGame({ level, stars, choices, assists, bonus, bonusNote, team, onS
     record={`Best here: ${starText(stars)}`} initialTeam={team} onStart={onStart} onFinish={onFinish}
     next={next ? { title: `Next: Level ${next.number} · ${next.name}`, onPress: () => onNext(next) } : undefined} />
 }
+
+const look = themedStyles(() => ({
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 4 },
+  headerTitle: { flex: 1, fontFamily: displayFont(fonts.black), fontSize: retro() ? 30 : 32, lineHeight: 38, color: colors.ink },
+  points: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingLeft: 12, paddingRight: 6, borderRadius: 999,
+    backgroundColor: colors.panel, borderWidth: retro() ? 2 : 1, borderColor: retro() ? colors.frameOuter ?? colors.line : colors.line },
+  pointsText: { fontFamily: fonts.black, fontSize: 17, color: colors.ink, fontVariant: ['tabular-nums'] },
+  tabs: { flexDirection: 'row', padding: 4, gap: 4, borderRadius: retro() ? 12 : 999, backgroundColor: colors.sunken,
+    borderWidth: retro() ? 2 : 1, borderColor: retro() ? colors.frameOuter ?? colors.line : colors.line },
+  tab: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: retro() ? 8 : 999 },
+  tabOn: { backgroundColor: colors.edge },
+  tabText: { fontFamily: displayFont(fonts.heavy), fontSize: 15, color: colors.muted },
+  section: { fontFamily: displayFont(fonts.heavy), fontSize: 18, lineHeight: 24, color: colors.ink, marginTop: 4 }
+}))
