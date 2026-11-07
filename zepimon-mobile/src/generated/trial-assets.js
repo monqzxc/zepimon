@@ -170,6 +170,28 @@ export const trialChunks = {
     "1,0": { ground: require('../../assets/trials/sig-suicune-ground-1-0.png') },
     "0,1": { ground: require('../../assets/trials/sig-suicune-ground-0-1.png') },
     "1,1": { ground: require('../../assets/trials/sig-suicune-ground-1-1.png') }
+  },
+  "sig-regirock": {
+    "0,0": { ground: require('../../assets/trials/sig-regirock-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-regirock-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-regirock-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-regirock-ground-1-1.png') }
+  },
+  "sig-regice": {
+    "0,0": { ground: require('../../assets/trials/sig-regice-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-regice-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-regice-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-regice-ground-1-1.png') }
+  },
+  "sig-registeel": {
+    "0,0": { ground: require('../../assets/trials/sig-registeel-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-registeel-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-registeel-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-registeel-ground-1-1.png') }
+  },
+  "sig-regigigas": {
+    "0,0": { ground: require('../../assets/trials/sig-regigigas-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-regigigas-ground-1-0.png') }
   }
 }
 export const trialSprites = {

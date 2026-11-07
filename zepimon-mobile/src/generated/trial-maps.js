@@ -595,5 +595,73 @@ export const trialStages = {
     warps: { "1": "2", "2": "1", "3": "4", "4": "3" }, open: "", crackAll: false, dark: false, par: 50, hint: "Each spring links two islands, both ways. Set a boulder on every island before you open the shrine.",
     star: null, legendary: "Suicune", flavor: {"relic": "crystal droplet", "relics": "crystal droplets", "water": "The spring is clear, but far too deep to wade.", "clear": "The spring runs clear. Suicune appears on the water!"},
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-regirock": {
+    id: "sig-regirock", kind: "temple",
+    tiles: [
+      "###############",
+      "#@...#.......*#",
+      "#.O..A..O..B..#",
+      "#....#.....#..#",
+      "#..###.###.#b##",
+      "#a..._...._...#",
+      "######.=.######",
+      "#######X#######",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 50, hint: "Gates swing shut on their switches, and a boulder cannot pass a shut one. Open its lane before you push.",
+    star: null, legendary: "Regirock", flavor: {"relic": "stone tablet", "relics": "stone tablets", "clear": "The braille glows. Regirock stirs in the stone!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-regice": {
+    id: "sig-regice", kind: "dark",
+    tiles: [
+      "###############",
+      "#@..#....#...*#",
+      "#.O.#.O..#....#",
+      "#...!....!....#",
+      "#.#.#.##.#.##.#",
+      "#.._..#...._..#",
+      "#*.#..........#",
+      "######.=.######",
+      "#######X#######",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: true, par: 90, hint: "In the dark every frozen room looks alike. Each ice block has one plate it can reach: find it before you push.",
+    star: null, legendary: "Regice", flavor: {"relic": "ice shard", "relics": "ice shards", "clear": "The cold deepens. Regice wakes in the dark!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-registeel": {
+    id: "sig-registeel", kind: "warp",
+    tiles: [
+      "###############",
+      "#@.#..#.....*.#",
+      "#.....A.#.#b..#",
+      "#.1...#.#.#..2#",
+      "###B#####C#####",
+      "#*....#.#....*#",
+      "#.##c.#.#a##..#",
+      "#..4..#...3..X#",
+      "###############"
+    ],
+    warps: { "1": "3", "3": "1", "2": "4", "4": "2" }, open: "", crackAll: false, dark: false, par: 48, hint: "Every gate’s switch lies in another chamber. Ride the pads between them to unseal the tomb.",
+    star: null, legendary: "Registeel", flavor: {"relic": "iron seal", "relics": "iron seals", "clear": "The iron walls ring. Registeel wakes!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-regigigas": {
+    id: "sig-regigigas", kind: "temple",
+    tiles: [
+      "###############",
+      "######:*:######",
+      "#....#:::#..#*#",
+      "#..O.#:::#..A.#",
+      "#a.....@....###",
+      "#.._##.=.##...#",
+      "#######X#######",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 48, hint: "One key in each wing: thin ice to the north, a sealed pocket to the east, and a boulder to the west for the great door.",
+    star: null, legendary: "Regigigas", flavor: {"relic": "key", "relics": "keys", "clear": "Three keys turn. The colossus stirs!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false } }
   }
 }
