@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { ImageSourcePropType, ViewStyle } from 'react-native'
@@ -7,7 +7,7 @@ import { typeTheme } from '../HabitatScene'
 import { Button, Copy, Eyebrow, Heading, IconButton, Panel, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
-import { LANES, PATHS, TICK, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
+import { LANES, PATHS, TICK, tileAt, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
   facingToward, gridSize, unitTarget, moveOf,
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
 import type { Battle, BattleSpec, Heading as Facing, Layout } from './battle'
@@ -15,9 +15,11 @@ import { ShotSprite, StrikeSprite } from './MoveFx'
 import { AssistMove } from './AssistMove'
 import { TrailTerrain } from './TrailTerrain'
 import { trailWalkers } from '../generated/trail-walkers.js'
-import { autoTeam, cardKey } from './roster'
+import { autoTeam, battleType, cardKey } from './roster'
 import type { TeamCard } from './roster'
 import { PixelSprite, TeamPicker } from './TeamPicker'
+import { suggestTeam } from './suggest'
+import { ZoomPan } from './ZoomPan'
 import { useGameLoop, useReducedMotion } from './hooks'
 
 export type BattleResult = { won: boolean, score: number, stars: number }
@@ -32,6 +34,9 @@ type Props = {
 // The board fits between the top bar and the card tray. Squares never shrink below MIN_CELL so they stay easy to
 // tap: a map too tall for that scrolls on its own while the bar and the tray stay put.
 const MIN_CELL = 36
+// Trail Defense draws its squares at least this big, so zooming in stays crisp, and zooms in as far as MAX_CELL.
+const DRAWN_CELL = 48, MAX_CELL = 68
+const label = (type: string) => type[0].toUpperCase() + type.slice(1)
 const native = Platform.OS !== 'web'
 // The battle board keeps its own colors: its terrain art is darker than the light app theme around it.
 const onBoard = { ink: '#f4ebcf', gold: '#ffe08d', dark: '#071b2c' }
@@ -47,7 +52,15 @@ export function starText(stars: number) {
 
 export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, bonus, bonusNote, record, showStars = false, onFinish,
   preview, initialTeam, onStart, next }: Props) {
-  const [team, setTeam] = useState(() => initialTeam?.length ? initialTeam : autoTeam(choices))
+  // A level suggests a team for its map and foes (src/games/suggest.ts); one with element tiles starts on it.
+  const suggestion = useMemo(() => preview ? suggestTeam(choices, preview) : undefined, [preview, choices])
+  const tiles = useMemo(() => {
+    if (!preview) return undefined
+    const counts = new Map<string, number>()
+    for (const type of PATHS[preview.path].tiles.values()) counts.set(type, (counts.get(type) ?? 0) + 1)
+    return [...counts].sort((a, b) => b[1] - a[1])
+  }, [preview])
+  const [team, setTeam] = useState(() => initialTeam?.length ? initialTeam : suggestion && tiles?.length ? suggestion.team : autoTeam(choices))
   const [helper, setHelper] = useState<string | null>(assists[0] ?? null)
   const [game, setGame] = useState<Battle | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
@@ -113,7 +126,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       <Copy small>Once per battle, your Expedition friend strikes every foe on the field and slows them down.</Copy>
       <View style={styles.row}>{assists.map(name => <Button key={name} title={name} secondary={helper !== name} onPress={() => setHelper(name)} />)}</View>
     </Panel>}
-    <TeamPicker layout={layout} choices={choices} team={team} onChange={setTeam} />
+    <TeamPicker layout={layout} choices={choices} team={team} onChange={setTeam} suggestion={suggestion} tiles={tiles} />
     <Button title={team.length ? `Start ${title}` : 'Choose at least one Pokemon'} disabled={!team.length} onPress={start} />
     <HowTo layout={layout} />
   </View>
@@ -123,13 +136,19 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
   const { cols, rows } = gridSize(game)
   // Lanes add a strip of sky above the board (0.7 squares) and Snorlax's row below it (0.8).
   const units = layout === 'lanes' ? rows + 1.5 : rows
-  const cell = Math.min(area.width / cols, Math.max(area.height / units, MIN_CELL))
+  // Route Guard's board fits as it always has (a tall one scrolls). Trail Defense draws its board once at a crisp size
+  // and puts a camera over it (src/games/ZoomPan.tsx): it opens at the size it always had, and pinches out to the whole
+  // map or in to big squares.
+  const sized = Math.min(area.width / cols, Math.max(area.height / units, MIN_CELL))
+  const cell = layout === 'trail' ? Math.max(sized, DRAWN_CELL) : sized
+  const zoom = { start: sized / cell, least: Math.min(area.width / cols, area.height / units) / cell, most: Math.max(1, MAX_CELL / cell) }
   const fieldWidth = cols * cell
   const top = layout === 'lanes' ? cell * 0.7 : 0
   const height = top + rows * cell + (layout === 'lanes' ? cell * 0.8 : 0)
   const scrolls = height > area.height + 0.5
   // Where the board shows inside its area, for the pause screen to cover just the board.
-  const shown = { left: (area.width - fieldWidth) / 2, top: Math.max(0, (area.height - height) / 2), width: fieldWidth, height: Math.min(height, area.height) }
+  const shown = layout === 'trail' ? { left: 0, top: 0, width: area.width, height: area.height }
+    : { left: (area.width - fieldWidth) / 2, top: Math.max(0, (area.height - height) / 2), width: fieldWidth, height: Math.min(height, area.height) }
   const playing = game.status === 'playing'
   const over = game.status === 'won' || game.status === 'lost'
   const wait = nextWaveIn(game)
@@ -160,7 +179,9 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       return
     }
     const cost = kitFor(placedForm(battle, card), layout).cost
+    const tile = tileAt(battle, col, row)
     setNote(battle.status !== 'playing' ? 'Resume the battle to place Pokemon.' : !canPlace(battle, col, row) ? (pathCells?.has(col + ',' + row) ? 'Pokemon stand beside the trail, not on it.' : 'That square is taken.')
+      : tile && !canPlace(battle, col, row, placedForm(battle, card)) ? `Only ${label(tile)} Pokemon can stand on ${label(tile)} tiles.`
       : cardReadyAt(battle, card) > battle.elapsed ? `${card.name} is recharging.` : `You need ◉ ${cost - battle.berries} more berries.`)
   }
 
@@ -183,8 +204,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
     {/* The area takes whatever the bar and the tray leave. Its contents are all absolutely placed, so they never
         stretch it: a board measured in full screen would otherwise keep the area that tall after leaving it. */}
     <View style={play.area} onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}>
-      {area.width > 0 && <ScrollView style={StyleSheet.absoluteFill} scrollEnabled={scrolls} nestedScrollEnabled showsVerticalScrollIndicator={scrolls}
-        contentContainerStyle={{ minHeight: area.height, alignItems: 'center', justifyContent: 'center' }}>
+      {area.width > 0 && <BoardFrame camera={layout === 'trail'} area={area} width={fieldWidth} height={height} zoom={zoom} scrolls={scrolls} reduced={reduced}>
       <View style={[board.field, { width: fieldWidth, height, backgroundColor: theme.sky }]}>
         {layout === 'trail' && <TrailTerrain path={spec.path} cell={cell} theme={theme} />}
         {layout === 'trail' && selected && <View pointerEvents="none" style={[board.range, {
@@ -195,14 +215,17 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           const col = index % cols, row = Math.floor(index / cols)
           const onPath = !!pathCells?.has(col + ',' + row)
           const unit = game.units.find(item => item.col === col && item.row === row)
-          const free = !!picked && playing && !unit && !onPath
-          const where = layout === 'lanes' ? `Lane ${col + 1}, row ${row + 1}` : `Column ${col + 1}, row ${row + 1}`
+          const tile = tileAt(game, col, row)
+          // With a card picked, only squares it may take light up; element tiles of another type dim.
+          const fits = !pickedForm || tile === null || battleType(pickedForm) === tile
+          const free = !!picked && playing && !unit && !onPath && fits
+          const where = (layout === 'lanes' ? `Lane ${col + 1}, row ${row + 1}` : `Column ${col + 1}, row ${row + 1}`) + (tile ? `, ${label(tile)} tile` : '')
           return <Pressable key={index} disabled={onPath} onPress={() => pressCell(col, row)}
             accessibilityRole="button" accessibilityState={{ disabled: onPath, selected: unit?.id === inspect }}
             accessibilityLabel={`${where}: ${unit ? `${unit.name}, ${Math.ceil(unit.hp / unit.maxHp * 100)}% health` : onPath ? 'trail' : 'empty'}`}
             style={[board.cell, { left: col * cell, top: top + row * cell, width: cell, height: cell,
               backgroundColor: layout === 'trail' ? 'transparent' : (col + row) % 2 ? theme.ground : theme.near },
-              free && board.free, unit?.id === inspect && board.inspected]}>
+              free && board.free, !!picked && !unit && !fits && board.blocked, unit?.id === inspect && board.inspected]}>
             {unit && <>
               <View style={[board.shadow, { width: cell * 0.46, height: cell * 0.1, borderRadius: cell, bottom: cell * 0.14 }]} />
               <Ally unit={unit} game={game} size={cell * 0.82} reduced={reduced} />
@@ -246,7 +269,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
             fontSize: fx.kind === 'guard' || fx.kind === 'assist' ? 22 : 16 }]}>{fx.text}</Text>)}
         {answer && <AssistMove key={answer.id} name={answer.name} width={fieldWidth} height={height} reduced={reduced} onDone={endAnswer} />}
       </View>
-      </ScrollView>}
+      </BoardFrame>}
       {!!note && <View pointerEvents="none" style={play.note}><Text accessibilityLiveRegion="polite" style={play.noteText}>{note}</Text></View>}
       {/* Details float over the half of the board away from the Pokemon you tapped. */}
       {selected && <UnitPanel unit={selected} layout={layout} playing={playing} berries={game.berries}
@@ -351,6 +374,19 @@ function Health({ ratio, width }: { ratio: number, width: number }) {
   return <View style={[board.health, { width }]}>
     <View style={{ width: `${Math.max(0, Math.min(1, ratio)) * 100}%`, height: '100%', backgroundColor: ratio > 0.5 ? '#7ddc6b' : ratio > 0.25 ? onBoard.gold : '#ff6b5b' }} />
   </View>
+}
+
+// Where the board sits: Trail Defense's under a camera that pans and zooms; Route Guard's as it always was, scrolling
+// when it is taller than the room it has.
+function BoardFrame({ camera, area, width, height, zoom, scrolls, reduced, children }: {
+  camera: boolean, area: { width: number, height: number }, width: number, height: number,
+  zoom: { start: number, least: number, most: number }, scrolls: boolean, reduced: boolean, children: ReactNode
+}) {
+  if (camera) return <ZoomPan frame={area} width={width} height={height} start={zoom.start} least={zoom.least} most={zoom.most} reduced={reduced}>
+    {children}
+  </ZoomPan>
+  return <ScrollView style={StyleSheet.absoluteFill} scrollEnabled={scrolls} nestedScrollEnabled showsVerticalScrollIndicator={scrolls}
+    contentContainerStyle={{ minHeight: area.height, alignItems: 'center', justifyContent: 'center' }}>{children}</ScrollView>
 }
 
 // Moves smoothly from the previous position to the new one over one game step. Reduced motion jumps instead.
@@ -471,6 +507,7 @@ const board = themedStyles(() => ({
   field: { borderRadius: 16, overflow: 'hidden', ...shadows.card },
   cell: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   free: { borderWidth: 1, borderColor: 'rgba(255, 224, 141, 0.45)', backgroundColor: 'rgba(255, 224, 141, 0.12)' },
+  blocked: { backgroundColor: 'rgba(2, 8, 16, 0.45)' },
   shadow: { position: 'absolute', backgroundColor: 'rgba(2, 16, 27, 0.22)' },
   aura: { position: 'absolute', backgroundColor: 'rgba(96, 18, 150, 0.42)' },
   auraCore: { position: 'absolute', backgroundColor: 'rgba(36, 4, 60, 0.55)' },

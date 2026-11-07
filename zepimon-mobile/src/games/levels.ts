@@ -1,8 +1,9 @@
 import { PATHS } from './battle.ts'
 import type { BattleSpec, PathId } from './battle.ts'
 
-// Trail Defense levels: four stages of five. Maps grow from 6 x 8 to 9 x 16, waves get longer and foes tougher, and
-// every stage ends on a spiral with a Legendary boss at its heart. Each level unlocks once the one before has a star.
+// Trail Defense levels: five stages of five. Maps grow from 6 x 8 to 12 x 20, waves get longer and foes tougher, and
+// every stage ends on a spiral with a Legendary boss at its heart. Stage 5 adds element tiles (src/games/trails.ts),
+// squares where only a Pokemon of their type can stand. Each level unlocks once the one before has a star.
 // Difficulty is tuned per map (bigger maps leave more room to build), so it does not rise in a straight line.
 export type Stage = { name: string, habitat: string, foes: string[], blurb: string }
 export type Level = { id: string, number: number, stage: number, name: string, blurb: string, spec: BattleSpec }
@@ -12,7 +13,9 @@ export const STAGES: Stage[] = [
   { name: 'Viridian Meadows', habitat: 'grass', foes: ['normal', 'bug', 'flying', 'grass'], blurb: 'Gentle forest trails to learn the ropes.' },
   { name: 'Cerulean Coast', habitat: 'water', foes: ['water', 'electric', 'ice', 'flying'], blurb: 'Bigger shores and longer waves.' },
   { name: 'Ember Peaks', habitat: 'fire', foes: ['fire', 'rock', 'ground', 'fighting', 'poison'], blurb: 'Volcanic ridges where tough foes march.' },
-  { name: 'Shadow Summit', habitat: 'ghost', foes: ['ghost', 'psychic', 'dark', 'ice', 'dragon'], blurb: 'The biggest, twistiest trails of all.' }
+  { name: 'Shadow Summit', habitat: 'ghost', foes: ['ghost', 'psychic', 'dark', 'ice', 'dragon'], blurb: 'Big, twisting trails through the dark.' },
+  { name: 'Elemental Wilds', habitat: 'dragon', foes: ['dragon', 'steel', 'fairy', 'fighting', 'water', 'fire'],
+    blurb: 'The biggest maps, with element tiles only their own type can stand on.' }
 ]
 
 type Plan = [path: PathId, habitat: string, waves: number, difficulty: number, blurb: string, boss?: string]
@@ -36,7 +39,12 @@ const plans: Plan[] = [
   ['phantom-fork', 'ghost', 11, 3.8, 'Five short tunnels, then two long sweeps home.'],
   ['shadow-maze', 'dark', 12, 3.3, 'Sweeps on top, a maze of tunnels below. Ghost and Dark types are strong here.'],
   ['turnback-cave', 'psychic', 12, 3.85, 'Five long tunnels through the cave: the longest trail of all.'],
-  ['distortion-world', 'ghost', 13, 3.6, 'The final spiral. Shadow Giratina leads the last wave.', 'Giratina']
+  ['distortion-world', 'ghost', 13, 3.6, 'The spiral’s end. Shadow Giratina leads the last wave.', 'Giratina'],
+  ['verdant-delta', 'grass', 13, 3.3, 'Water and Grass tiles sit between the sweeps. Only their own types can stand on them.'],
+  ['thunder-plateau', 'electric', 13, 3.55, 'Three long columns. Electric tiles reach two of them at once; Rock tiles hold the turns.'],
+  ['glacier-pass', 'ice', 14, 3.75, 'Ice tiles line the pass and Fire tiles warm the middle. Bring both if you have them.'],
+  ['dragons-spine', 'dragon', 14, 4, 'Four ridges and the rarest tiles yet: Dragon, Fire and Rock.'],
+  ['hall-of-origin', 'psychic', 15, 4.2, 'One tile of seven types around the final spiral. Shadow Arceus waits at its heart.', 'Arceus']
 ]
 
 export const LEVELS: Level[] = plans.map(([path, habitat, waves, difficulty, blurb, boss], index) => {

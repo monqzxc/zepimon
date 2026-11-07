@@ -163,8 +163,12 @@ function unitHealth(name: string, layout: Layout, egg: boolean): number {
 
 // Each trail map has its own board size (src/games/trails.ts); waypoints are cell centers.
 type Point = { x: number, y: number }
-export type TrailPath = { name: string, cols: number, rows: number, points: Point[], cells: Set<string>, length: number }
-export const PATHS = Object.fromEntries(Object.entries(TRAIL_MAPS).map(([id, { name, cols, rows, route }]) => {
+// tiles: element tiles by square ("col,row" to type), where only that type may stand.
+export type TrailPath = { name: string, cols: number, rows: number, points: Point[], cells: Set<string>, length: number, tiles: Map<string, string> }
+export const PATHS = Object.fromEntries(Object.entries(TRAIL_MAPS).map(([id, map]) => {
+  const { name, cols, rows, route } = map
+  const tiles = new Map<string, string>()
+  for (const [type, spots] of Object.entries(('tiles' in map ? map.tiles : undefined) ?? {})) for (const [col, row] of spots ?? []) tiles.set(col + ',' + row, type)
   const points = route.map(([x, y]) => ({ x, y }))
   const cells = new Set<string>()
   let length = 0
@@ -177,8 +181,12 @@ export const PATHS = Object.fromEntries(Object.entries(TRAIL_MAPS).map(([id, { n
       if (col >= 0 && col < cols && row >= 0 && row < rows) cells.add(col + ',' + row)
     }
   }
-  return [id, { name, cols, rows, points, cells, length }]
+  return [id, { name, cols, rows, points, cells, length, tiles }]
 })) as Record<PathId, TrailPath>
+
+// The element tile on a square, if any (Trail Defense only).
+export const tileAt = (game: Pick<Battle, 'layout' | 'spec'>, col: number, row: number): string | null =>
+  game.layout === 'trail' ? PATHS[game.spec.path].tiles.get(col + ',' + row) ?? null : null
 
 export function pathPoint(id: PathId, distance: number): Point {
   const { points } = PATHS[id]
@@ -284,10 +292,14 @@ export function gridSize(game: Pick<Battle, 'layout' | 'spec'>) {
   return { cols, rows }
 }
 
-export function canPlace(game: Battle, col: number, row: number): boolean {
+// A free square off the trail. Given the Pokemon to place, an element tile also needs its type; without one, any free
+// square counts (what the board shows before a card is chosen).
+export function canPlace(game: Battle, col: number, row: number, name?: string): boolean {
   const { cols, rows } = gridSize(game)
+  const tile = tileAt(game, col, row)
   return Number.isInteger(col) && Number.isInteger(row) && col >= 0 && col < cols && row >= 0 && row < rows &&
-    !game.units.some(unit => unit.col === col && unit.row === row) && !(game.layout === 'trail' && PATHS[game.spec.path].cells.has(col + ',' + row))
+    !game.units.some(unit => unit.col === col && unit.row === row) && !(game.layout === 'trail' && PATHS[game.spec.path].cells.has(col + ',' + row)) &&
+    (name === undefined || tile === null || battleType(name) === tile)
 }
 
 // Route Guard places the card's own form; Trail Defense starts every family at its first stage.
@@ -301,7 +313,7 @@ export function cardReadyAt(game: Battle, card: TeamCard): number {
 
 export function placeUnit(game: Battle, key: string, col: number, row: number): Battle {
   const card = game.team.find(item => cardKey(item) === key)
-  if (game.status !== 'playing' || !card || !canPlace(game, col, row) || cardReadyAt(game, card) > game.elapsed) return game
+  if (game.status !== 'playing' || !card || !canPlace(game, col, row, placedForm(game, card)) || cardReadyAt(game, card) > game.elapsed) return game
   const name = placedForm(game, card)
   const kit = kitFor(name, game.layout)
   if (game.berries < kit.cost) return game

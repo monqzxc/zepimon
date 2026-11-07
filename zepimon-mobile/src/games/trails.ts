@@ -1,6 +1,7 @@
 // Trail Defense maps. Waypoints are cell centers: every trail enters from outside its board and ends on an edge, or in
 // the middle for spirals. Runs never touch, so there is always a free row or column to build on between two of them.
-export type TrailMap = { name: string, cols: number, rows: number, route: [number, number][] }
+// Element tiles (stage 5 onward): squares beside the trail, by type, where only a Pokemon of that type can stand.
+export type TrailMap = { name: string, cols: number, rows: number, route: [number, number][], tiles?: Partial<Record<string, [number, number][]>> }
 
 export const TRAIL_MAPS = {
   // The classic 6 x 8 trails: Adventure Map stops and free play.
@@ -50,5 +51,23 @@ export const TRAIL_MAPS = {
   'turnback-cave': { name: 'Turnback Cave', cols: 9, rows: 16,
     route: [[0.5, -0.5], [0.5, 14.5], [2.5, 14.5], [2.5, 1.5], [4.5, 1.5], [4.5, 14.5], [6.5, 14.5], [6.5, 1.5], [8.5, 1.5], [8.5, 16.5]] },
   'distortion-world': { name: 'Distortion World', cols: 9, rows: 16,
-    route: [[-0.5, 0.5], [7.5, 0.5], [7.5, 14.5], [1.5, 14.5], [1.5, 2.5], [5.5, 2.5], [5.5, 12.5], [3.5, 12.5], [3.5, 5.5]] }
+    route: [[-0.5, 0.5], [7.5, 0.5], [7.5, 14.5], [1.5, 14.5], [1.5, 2.5], [5.5, 2.5], [5.5, 12.5], [3.5, 12.5], [3.5, 5.5]] },
+
+  // Stage 5, the Elemental Wilds: the biggest boards (10 x 17 to 12 x 20, pinch to zoom) with element tiles on the best
+  // squares, most of them between two stretches of trail, where only a Pokemon of that type can stand.
+  'verdant-delta': { name: 'Verdant Delta', cols: 10, rows: 17,
+    route: [[-0.5, 1.5], [8.5, 1.5], [8.5, 5.5], [1.5, 5.5], [1.5, 9.5], [8.5, 9.5], [8.5, 13.5], [1.5, 13.5], [1.5, 17.5]],
+    tiles: { water: [[3, 3], [6, 3], [4, 11], [7, 11]], grass: [[2, 7], [5, 7], [7, 7]] } },
+  'thunder-plateau': { name: 'Thunder Plateau', cols: 10, rows: 18,
+    route: [[1.5, -0.5], [1.5, 15.5], [4.5, 15.5], [4.5, 2.5], [7.5, 2.5], [7.5, 18.5]],
+    tiles: { electric: [[3, 6], [3, 10], [6, 8], [6, 12]], rock: [[2, 12], [5, 5], [8, 10]] } },
+  'glacier-pass': { name: 'Glacier Pass', cols: 11, rows: 18,
+    route: [[11.5, 2.5], [1.5, 2.5], [1.5, 6.5], [9.5, 6.5], [9.5, 10.5], [1.5, 10.5], [1.5, 14.5], [9.5, 14.5], [9.5, 18.5]],
+    tiles: { ice: [[4, 4], [7, 4], [3, 12], [6, 12]], fire: [[5, 8], [8, 8], [2, 16]] } },
+  'dragons-spine': { name: 'Dragon’s Spine', cols: 11, rows: 19,
+    route: [[1.5, -0.5], [1.5, 16.5], [4.5, 16.5], [4.5, 2.5], [7.5, 2.5], [7.5, 16.5], [9.5, 16.5], [9.5, -0.5]],
+    tiles: { dragon: [[3, 9], [6, 6], [6, 12]], fire: [[2, 4], [5, 14]], rock: [[8, 8], [3, 14]] } },
+  'hall-of-origin': { name: 'Hall of Origin', cols: 12, rows: 20,
+    route: [[-0.5, 0.5], [10.5, 0.5], [10.5, 18.5], [1.5, 18.5], [1.5, 2.5], [8.5, 2.5], [8.5, 16.5], [3.5, 16.5], [3.5, 4.5], [6.5, 4.5], [6.5, 13.5]],
+    tiles: { psychic: [[5, 9]], dragon: [[7, 10]], water: [[2, 10]], electric: [[9, 9]], ghost: [[4, 14]], fire: [[9, 14]], fairy: [[5, 6]] } }
 } satisfies Record<string, TrailMap>
