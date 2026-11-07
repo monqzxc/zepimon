@@ -1,5 +1,5 @@
 // The Adventure tab's route: every kilometre you have walked or run, laid along one endless Hoenn-style path with a
-// milestone every 2 km. The trailhead (0 km, by a Pokemon Center) is at the bottom; above it two strips of route take
+// milestone every MILESTONE (3 km). The trailhead (0 km, by a Pokemon Center) is at the bottom; above it two strips of route take
 // turns, four milestones each (scripts/build-adventure-route.py). Positions here are in tiles, from the top of what is
 // drawn.
 import { kantoPlaces } from './kanto-map.ts'
@@ -15,7 +15,7 @@ export type Milestone = { meters: number, x: number, y: number }
 export type RouteLayout = { strips: PlacedStrip[], rows: number, milestones: Milestone[] }
 
 // Every milestone is a town, city or route, in the order the games visit them: Kanto, then Johto, Hoenn, Sinnoh and
-// Unova. 0 km is Pallet Town; the 2 km leading up to a milestone are that place, so you walk Route 1 to reach 2 km.
+// Unova. 0 km is Pallet Town; the 3 km leading up to a milestone are that place, so you walk Route 1 to reach 3 km.
 // Kanto and Johto follow the story's walkthrough across their own maps (src/kanto-map.ts, src/johto-map.ts). After
 // Unova the journey starts over in Pallet Town, one tour further on.
 export const regions: { name: string, places: string[] }[] = [
@@ -123,7 +123,7 @@ export function reachedBy<T extends { record: { meters: number, finishedAt: stri
 }
 
 // The route log: every stretch walked, from Route 1 on, with the adventures that walked it, oldest first. A stretch is
-// the milestone's distance leading up to its place (Route 1 is 0 to 2 km); one adventure can walk several stretches,
+// the milestone's distance leading up to its place (Route 1 is 0 to 3 km); one adventure can walk several stretches,
 // and one stretch can take several adventures, each with how far of it they walked. The last stretch may be under
 // way (walked short of the whole of it).
 export type Stretch<T> = { place: Place, from: number, to: number, walked: number, runs: { run: T, meters: number }[] }
