@@ -38,7 +38,7 @@ const TRIALS: Record<string, [string, TrialKind, string]> = {
   Uxie: ['Lake Acuity', 'warp', 'The cave remembers every step. Follow the warps inward to Uxie.'],
   Mesprit: ['Lake Verity', 'warp', 'Warm feelings guide the way. Follow the warps inward to Mesprit.'],
   Azelf: ['Lake Valor', 'warp', 'Only the brave keep going. Follow the warps inward to Azelf.'],
-  Dialga: ['Spear Pillar: Time', 'warp', 'Each column ticks like a clock. Walk between the moments to Dialga.'],
+  Dialga: ['Spear Pillar: Time', 'switch', 'Each column ticks like a clock. Walk between the moments to Dialga.'],
   Palkia: ['Spear Pillar: Space', 'warp', 'Space folds between the columns. Find the true way to Palkia.'],
   Heatran: ['Stark Mountain', 'crumble', 'Magma glows through cracks in the trail. Wind up the mountain to Heatran.'],
   Regigigas: ['Snowpoint Temple', 'temple', 'Three keys woke the temple. Cross its rooms to the colossus.'],

@@ -222,6 +222,24 @@ export const trialChunks = {
     "1,0": { ground: require('../../assets/trials/sig-azelf-ground-1-0.png') },
     "0,1": { ground: require('../../assets/trials/sig-azelf-ground-0-1.png') },
     "1,1": { ground: require('../../assets/trials/sig-azelf-ground-1-1.png') }
+  },
+  "sig-dialga": {
+    "0,0": { ground: require('../../assets/trials/sig-dialga-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-dialga-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-dialga-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-dialga-ground-1-1.png') }
+  },
+  "sig-palkia": {
+    "0,0": { ground: require('../../assets/trials/sig-palkia-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-palkia-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-palkia-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-palkia-ground-1-1.png') }
+  },
+  "sig-giratina": {
+    "0,0": { ground: require('../../assets/trials/sig-giratina-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-giratina-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-giratina-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-giratina-ground-1-1.png') }
   }
 }
 export const trialSprites = {

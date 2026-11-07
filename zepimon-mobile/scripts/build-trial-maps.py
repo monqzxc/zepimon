@@ -118,6 +118,15 @@ THEMES = {
     # Rusturf Tunnel (Azelf): the tunnel's ochre floor and mossy green rock.
     'tunnel': dict(map='RusturfTunnel', primary='general', secondary='rusturf_tunnel', ground=0x201, path=0x202, grass=0x203,
                    water=None, shore=0x201, rock=0x205, cap=0x209, face=0x219, fill=0x212, pond=True),
+    # The creation trio. Emerald has no Spear Pillar; Mt. Pyre's summit (terraced ridges, a stone path, its pillars as the
+    # rock, the sky beyond) stands in for it: graded steel blue for Dialga and pearl pink for Palkia. Giratina's Distortion
+    # World is the same summit with every wall and the sky turned to a deep violet void.
+    'pillar-time': dict(map='MtPyre_Summit', primary='general', secondary='facility', ground=0x001, path=0x1D9, grass=0x00D, water=0x0A1, shore=0x001, rock=0x32A,
+                        cap=0x069, face=0x079, fill=0x073, pond=False, tint=((90, 120, 200), 0.28)),
+    'pillar-space': dict(map='MtPyre_Summit', primary='general', secondary='facility', ground=0x001, path=0x1D9, grass=0x00D, water=0x0A1, shore=0x001, rock=0x32A,
+                         cap=0x069, face=0x079, fill=0x073, pond=False, tint=((225, 140, 200), 0.28)),
+    'distortion': dict(map='MtPyre_Summit', primary='general', secondary='facility', ground=0x001, path=0x1D9, grass=0x00D, water=0x0A1, shore=0x001, rock=0x32A,
+                       cap=0x0A1, face=0x0A1, fill=0x0A1, pond=False, tint=((80, 30, 100), 0.66)),
 }
 FLAVOR_KEYS = {'relic', 'relics', 'water', 'clear'}
 # The General tileset's pond by which sides are land: (north, south, west, east); other shapes use the middle.

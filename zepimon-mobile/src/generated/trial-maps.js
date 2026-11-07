@@ -757,5 +757,60 @@ export const trialStages = {
     warps: { "1": "2", "3": "4" }, open: "", crackAll: false, dark: true, par: 55, hint: "The pads only lead onward. Set each chamber’s boulder on its plate before you step on, for there is no going back.",
     star: null, legendary: "Azelf", flavor: {"relic": "valor stone", "relics": "valor stones", "clear": "Only the brave come this far. Azelf awaits!"},
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-dialga": {
+    id: "sig-dialga", kind: "switch",
+    tiles: [
+      "###############",
+      "#@....#...#..*#",
+      "#.###.A.#.B...#",
+      "#*..#.#.#.#.#.#",
+      "###.#.#ab.#.#.#",
+      "#...#.#.#.#...#",
+      "#.#.B.#.#.A.#.#",
+      "#.#.#.#...#.#.#",
+      "#X..#*....#*..#",
+      "###############"
+    ],
+    warps: {}, open: "A", crackAll: false, dark: false, par: 60, hint: "The clock’s two switches stand side by side: each time you pass, every gate flips. Count your ticks.",
+    star: null, legendary: "Dialga", flavor: {"relic": "adamant shard", "relics": "adamant shards", "water": "Only open sky lies beyond the pillars.", "clear": "Time flows again. Dialga roars across the pillars!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-palkia": {
+    id: "sig-palkia", kind: "warp",
+    tiles: [
+      "###############",
+      "#6###*######2##",
+      "#@.O.........##",
+      "#1##########.##",
+      "############.##",
+      "###########3.##",
+      "###_.........4#",
+      "#####5#=#####*#",
+      "#######X#######",
+      "###############"
+    ],
+    warps: { "1": "2", "2": "1", "3": "4", "4": "3", "5": "6", "6": "5" }, open: "", crackAll: false, dark: false, par: 55, hint: "The pads fold space for you, but never for the boulder. Fold to its far side to turn each corner.",
+    star: null, legendary: "Palkia", flavor: {"relic": "lustrous shard", "relics": "lustrous shards", "water": "Only open sky lies beyond the pillars.", "clear": "Space unfolds. Palkia appears between the pillars!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-giratina": {
+    id: "sig-giratina", kind: "dark",
+    tiles: [
+      "#####!#########",
+      "#@..1#2.3#4..*#",
+      "#.##.##.##.#..#",
+      "#*##.##A##..#.#",
+      "#8b..##5##7..a#",
+      "#########!#####",
+      "######6.......#",
+      "#############*#",
+      "#############.#",
+      "######..XB....#",
+      "###############"
+    ],
+    warps: { "1": "2", "3": "4", "5": "6", "7": "8" }, open: "", crackAll: false, dark: true, par: 50, hint: "Every pad leads one way only. The switch on your first platform flips the last gate each time you pass: count your laps.",
+    star: null, legendary: "Giratina", flavor: {"relic": "griseous shard", "relics": "griseous shards", "water": "Nothing lies there but the void.", "clear": "Up and down trade places. Giratina emerges from the shadows!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
   }
 }

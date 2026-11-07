@@ -825,5 +825,70 @@
     "par": 55,
     "hint": "The pads only lead onward. Set each chamber’s boulder on its plate before you step on, for there is no going back.",
     "flavor": {"relic": "valor stone", "relics": "valor stones", "clear": "Only the brave come this far. Azelf awaits!"}
+  },
+  "sig-dialga": {
+    "kind": "switch",
+    "legendary": "Dialga",
+    "theme": "pillar-time",
+    "open": "A",
+    "tiles": [
+      "###############",
+      "#@....#...#..*#",
+      "#.###.A.#.B...#",
+      "#*..#.#.#.#.#.#",
+      "###.#.#ab.#.#.#",
+      "#...#.#.#.#...#",
+      "#.#.B.#.#.A.#.#",
+      "#.#.#.#...#.#.#",
+      "#X..#*....#*..#",
+      "###############"
+    ],
+    "par": 60,
+    "hint": "The clock’s two switches stand side by side: each time you pass, every gate flips. Count your ticks.",
+    "flavor": {"relic": "adamant shard", "relics": "adamant shards", "water": "Only open sky lies beyond the pillars.", "clear": "Time flows again. Dialga roars across the pillars!"}
+  },
+  "sig-palkia": {
+    "kind": "warp",
+    "legendary": "Palkia",
+    "theme": "pillar-space",
+    "tiles": [
+      "###############",
+      "#6###*######2##",
+      "#@.O.........##",
+      "#1##########.##",
+      "############.##",
+      "###########3.##",
+      "###_.........4#",
+      "#####5#=#####*#",
+      "#######X#######",
+      "###############"
+    ],
+    "warps": {"1": "2", "2": "1", "3": "4", "4": "3", "5": "6", "6": "5"},
+    "par": 55,
+    "hint": "The pads fold space for you, but never for the boulder. Fold to its far side to turn each corner.",
+    "flavor": {"relic": "lustrous shard", "relics": "lustrous shards", "water": "Only open sky lies beyond the pillars.", "clear": "Space unfolds. Palkia appears between the pillars!"}
+  },
+  "sig-giratina": {
+    "kind": "dark",
+    "legendary": "Giratina",
+    "theme": "distortion",
+    "dark": true,
+    "tiles": [
+      "#####!#########",
+      "#@..1#2.3#4..*#",
+      "#.##.##.##.#..#",
+      "#*##.##A##..#.#",
+      "#8b..##5##7..a#",
+      "#########!#####",
+      "######6.......#",
+      "#############*#",
+      "#############.#",
+      "######..XB....#",
+      "###############"
+    ],
+    "warps": {"1": "2", "3": "4", "5": "6", "7": "8"},
+    "par": 50,
+    "hint": "Every pad leads one way only. The switch on your first platform flips the last gate each time you pass: count your laps.",
+    "flavor": {"relic": "griseous shard", "relics": "griseous shards", "water": "Nothing lies there but the void.", "clear": "Up and down trade places. Giratina emerges from the shadows!"}
   }
 }
