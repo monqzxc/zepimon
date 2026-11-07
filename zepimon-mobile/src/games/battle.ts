@@ -29,7 +29,21 @@ export type Layout = 'lanes' | 'trail'
 export type PathId = keyof typeof TRAIL_MAPS
 export type Effect = 'produce' | 'wall' | 'splash' | 'chain' | 'slow' | 'poison' | 'push' | 'line' | 'none'
 export type Kit = { label: string, effect: Effect, cost: number, hp: number, damage: number, cooldown: number, range: number, power: number }
-export type BattleSpec = { layout: Layout, waves: number, difficulty: number, habitat: string, foes: string[], path: PathId, boss?: string }
+export type BattleSpec = { layout: Layout, waves: number, difficulty: number, habitat: string, foes: string[], path: PathId, boss?: string, weather?: Weather }
+
+// Weather (Trail Defense's harder stages): it powers up foes of its types, as in the games, with more health and a
+// little more speed, and brings those types into the waves if the stage's foes lack them.
+export type Weather = 'sun' | 'rain' | 'sandstorm' | 'hail' | 'fog'
+export const WEATHER: Record<Weather, { name: string, mark: string, types: string[] }> = {
+  sun: { name: 'Harsh sunlight', mark: '☀\uFE0E', types: ['fire'] },
+  rain: { name: 'Heavy rain', mark: '☂\uFE0E', types: ['water'] },
+  sandstorm: { name: 'Sandstorm', mark: '≋', types: ['rock', 'ground', 'steel'] },
+  hail: { name: 'Hail', mark: '❄\uFE0E', types: ['ice'] },
+  fog: { name: 'Thick fog', mark: '☁\uFE0E', types: ['ghost', 'dark'] }
+}
+export const WEATHER_HEALTH = 1.3, WEATHER_SPEED = 1.1
+// Whether the weather powers up a foe of this type.
+export const boostedBy = (weather: Weather | undefined, type: string) => !!weather && WEATHER[weather].types.includes(type)
 export type Spawn = { at: number, name: string, wave: number, boss: boolean, lane: number }
 // from and evolvedAt: the form it last evolved from, and when (game time), for the board's evolution animation.
 export type Unit = { id: number, name: string, shiny: boolean, col: number, row: number, hp: number, maxHp: number, ready: number,
@@ -37,7 +51,7 @@ export type Unit = { id: number, name: string, shiny: boolean, col: number, row:
 // How long the board plays an evolution.
 export const EVOLVE_MS = 1500
 export type Enemy = { id: number, name: string, type: string, wave: number, boss: boolean, hp: number, maxHp: number, speed: number,
-  lane: number, progress: number, slowUntil: number, poisonUntil: number, poisonDps: number, reward: number }
+  lane: number, progress: number, slowUntil: number, poisonUntil: number, poisonDps: number, reward: number, boosted?: boolean }
 // move is the type whose move the shot shows: the attacker's own, or its egg move's when that hits the target harder.
 export type Shot = { id: number, x: number, y: number, target: number, damage: number, type: string, coverage: string | null, effect: Effect, move: string }
 export type Drop = { id: number, col: number, row: number, value: number, until: number }
@@ -276,10 +290,13 @@ export function planWaves(spec: BattleSpec, random = Math.random): Spawn[] {
 function makeEnemy(id: number, spawn: Spawn, spec: BattleSpec): Enemy {
   const stage = stageOf(spawn.name) - 1
   const lanes = spec.layout === 'lanes'
-  const hp = Math.round((lanes ? 70 : 50) * (1 + (lanes ? 0.25 : 0.22) * spawn.wave) * spec.difficulty * [1, 1.7, 2.6][stage] * (spawn.boss ? 7 : 1))
-  return { id, name: spawn.name, type: battleType(spawn.name), wave: spawn.wave, boss: spawn.boss, hp, maxHp: hp,
-    speed: (lanes ? 0.26 : 0.6) * [1.15, 1, 0.85][stage] * (spawn.boss ? 0.7 : 1), lane: spawn.lane, progress: lanes ? -0.5 : 0,
-    slowUntil: 0, poisonUntil: 0, poisonDps: 0, reward: lanes ? 0 : (10 + spawn.wave * 2) * (spawn.boss ? 5 : 1) }
+  const type = battleType(spawn.name)
+  const boosted = boostedBy(spec.weather, type)
+  const hp = Math.round((lanes ? 70 : 50) * (1 + (lanes ? 0.25 : 0.22) * spawn.wave) * spec.difficulty * [1, 1.7, 2.6][stage] * (spawn.boss ? 7 : 1) *
+    (boosted ? WEATHER_HEALTH : 1))
+  return { id, name: spawn.name, type, wave: spawn.wave, boss: spawn.boss, hp, maxHp: hp,
+    speed: (lanes ? 0.26 : 0.6) * [1.15, 1, 0.85][stage] * (spawn.boss ? 0.7 : 1) * (boosted ? WEATHER_SPEED : 1), lane: spawn.lane, progress: lanes ? -0.5 : 0,
+    slowUntil: 0, poisonUntil: 0, poisonDps: 0, reward: lanes ? 0 : (10 + spawn.wave * 2) * (spawn.boss ? 5 : 1), ...(boosted ? { boosted } : {}) }
 }
 
 export function startBattle(spec: BattleSpec, team: readonly TeamCard[], options: { bonus?: number, assist?: string | null }, now: number, random = Math.random): Battle {

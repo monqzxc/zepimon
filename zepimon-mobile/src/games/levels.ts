@@ -1,5 +1,5 @@
-import { PATHS } from './battle.ts'
-import type { BattleSpec, PathId } from './battle.ts'
+import { PATHS, WEATHER } from './battle.ts'
+import type { BattleSpec, PathId, Weather } from './battle.ts'
 
 // Trail Defense levels: five stages of five. Maps grow from 6 x 8 to 12 x 20, waves get longer and foes tougher, and
 // every stage ends on a spiral with a Legendary boss at its heart. Stage 5 adds element tiles (src/games/trails.ts),
@@ -19,6 +19,13 @@ export const STAGES: Stage[] = [
 ]
 
 type Plan = [path: PathId, habitat: string, waves: number, difficulty: number, blurb: string, boss?: string]
+// Weather from stage 3 on (src/games/battle.ts WEATHER), by level number: it powers up foes of its types and brings
+// them into the waves.
+const WEATHER_BY_LEVEL: Record<number, Weather> = {
+  11: 'sun', 12: 'sun', 13: 'sandstorm', 14: 'sun', 15: 'sun',
+  16: 'fog', 17: 'fog', 18: 'fog', 19: 'hail', 20: 'fog',
+  21: 'rain', 22: 'rain', 23: 'hail', 24: 'sandstorm', 25: 'sun'
+}
 const plans: Plan[] = [
   ['sprout-path', 'grass', 4, 0.8, 'A short trail through the trees. Place attackers right beside it.'],
   ['pidgey-bend', 'grass', 5, 1, 'Foes come in from the west this time. Cover both long straights.'],
@@ -49,8 +56,10 @@ const plans: Plan[] = [
 
 export const LEVELS: Level[] = plans.map(([path, habitat, waves, difficulty, blurb, boss], index) => {
   const stage = Math.floor(index / LEVELS_PER_STAGE)
+  const weather = WEATHER_BY_LEVEL[index + 1]
+  const foes = weather ? [...new Set([...STAGES[stage].foes, ...WEATHER[weather].types])] : STAGES[stage].foes
   return { id: `level-${index + 1}`, number: index + 1, stage, name: PATHS[path].name, blurb,
-    spec: { layout: 'trail', waves, difficulty, habitat, foes: STAGES[stage].foes, path, ...(boss ? { boss } : {}) } }
+    spec: { layout: 'trail', waves, difficulty, habitat, foes, path, ...(boss ? { boss } : {}), ...(weather ? { weather } : {}) } }
 })
 
 export function levelUnlocked(stars: Record<string, number>, index: number): boolean {

@@ -7,7 +7,7 @@ import { typeTheme } from '../HabitatScene'
 import { Button, Copy, Eyebrow, Heading, IconButton, Panel, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
-import { EVOLVE_MS, LANES, PATHS, TICK, tileAt, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
+import { EVOLVE_MS, LANES, PATHS, TICK, WEATHER, tileAt, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
   facingToward, gridSize, unitTarget, moveOf,
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
 import type { Battle, BattleSpec, Heading as Facing, Layout } from './battle'
@@ -21,6 +21,7 @@ import { PixelSprite, TeamPicker } from './TeamPicker'
 import { suggestTeam } from './suggest'
 import { ZoomPan } from './ZoomPan'
 import { EvolveFx, Impact } from './BattleFx'
+import { WeatherLayer } from './Weather'
 import { useGameLoop, useReducedMotion } from './hooks'
 
 export type BattleResult = { won: boolean, score: number, stars: number }
@@ -38,6 +39,8 @@ const MIN_CELL = 36
 // Trail Defense draws its squares at least this big, so zooming in stays crisp, and zooms in as far as MAX_CELL.
 const DRAWN_CELL = 48, MAX_CELL = 68
 const label = (type: string) => type[0].toUpperCase() + type.slice(1)
+// "Harsh sunlight: Fire foes are tougher."
+const weatherLine = (weather: keyof typeof WEATHER) => `${WEATHER[weather].name}: ${WEATHER[weather].types.map(label).join(', ')} foes are tougher.`
 const native = Platform.OS !== 'web'
 // The battle board keeps its own colors: its terrain art is darker than the light app theme around it.
 const onBoard = { ink: '#f4ebcf', gold: '#ffe08d', dark: '#071b2c' }
@@ -127,6 +130,10 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
       <Copy small>Once per battle, your Expedition friend strikes every foe on the field and slows them down.</Copy>
       <View style={styles.row}>{assists.map(name => <Button key={name} title={name} secondary={helper !== name} onPress={() => setHelper(name)} />)}</View>
     </Panel>}
+    {preview?.weather && <Panel style={play.weatherPanel}>
+      <Text style={play.weatherTitle}>{WEATHER[preview.weather].mark} {WEATHER[preview.weather].name}</Text>
+      <Copy small color={colors.ink}>{`${WEATHER[preview.weather].types.map(label).join(', ')} foes are powered up: more health, a little more speed, and the ${WEATHER[preview.weather].mark} mark.`}</Copy>
+    </Panel>}
     <TeamPicker layout={layout} choices={choices} team={team} onChange={setTeam} suggestion={suggestion} tiles={tiles} />
     <Button title={team.length ? `Start ${title}` : 'Choose at least one Pokemon'} disabled={!team.length} onPress={start} />
     <HowTo layout={layout} />
@@ -200,6 +207,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
         <IconButton name={full ? 'fullscreenExit' : 'fullscreen'} label={full ? 'Exit full screen' : 'Full screen'} size={40} onPress={() => setFull(!full)} />
       </View>
       <Text numberOfLines={1} style={play.status}>{status}</Text>
+      {spec.weather && <Text numberOfLines={1} style={play.weather}>{WEATHER[spec.weather].mark} {weatherLine(spec.weather)}</Text>}
     </View>
 
     {/* The area takes whatever the bar and the tray leave. Its contents are all absolutely placed, so they never
@@ -250,6 +258,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
           const step = reduced ? 0 : (Math.floor(game.elapsed / (slowed ? STEP_MS * 2 : STEP_MS)) + enemy.id) % 2
           return <Mover key={enemy.id} x={at.x * cell - size / 2} y={top + at.y * cell - size / 2} size={size} reduced={reduced}>
             <Foe name={enemy.name} size={size} ratio={enemy.hp / enemy.maxHp} boss={enemy.boss} slowed={slowed} reduced={reduced}
+              mark={enemy.boosted && spec.weather ? WEATHER[spec.weather].mark : ''}
               hurt={game.strikes.some(strike => strike.foe === enemy.id && strike.kind !== 'wave' && game.elapsed - strike.start < 200)}
               poisoned={enemy.poisonUntil > game.elapsed} heading={enemyHeading(game, enemy)} step={step} />
           </Mover>
@@ -270,6 +279,7 @@ export function DefenseGame({ layout, makeSpec, title, intro, choices, assists, 
         {game.effects.filter(fx => !(answer && fx.kind === 'assist')).map(fx => <Text key={fx.id} pointerEvents="none" accessible={false}
           style={[board.fx, { left: fx.x * cell - cell, top: top + fx.y * cell - cell * 0.6, width: cell * 2, color: fxColors[fx.kind],
             fontSize: fx.kind === 'guard' || fx.kind === 'assist' ? 22 : 16 }]}>{fx.text}</Text>)}
+        {spec.weather && <WeatherLayer weather={spec.weather} width={fieldWidth} height={height} reduced={reduced} />}
         {answer && <AssistMove key={answer.id} name={answer.name} width={fieldWidth} height={height} reduced={reduced} onDone={endAnswer} />}
       </View>
       </BoardFrame>}
@@ -436,8 +446,9 @@ function ShadowAura({ size, step, boss }: { size: number, step: number, boss: bo
 }
 
 // Shadow Pokemon are the normal strip under a dark tint, facing the way they walk; forms without walking art stay still.
-const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, heading, step, hurt, reduced }: {
-  name: string, size: number, ratio: number, boss: boolean, slowed: boolean, poisoned: boolean, heading: Facing, step: number, hurt: boolean, reduced: boolean
+const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, heading, step, hurt, reduced, mark }: {
+  name: string, size: number, ratio: number, boss: boolean, slowed: boolean, poisoned: boolean, heading: Facing, step: number, hurt: boolean, reduced: boolean,
+  mark: string
 }) {
   const strip = walkers[name]
   const sprite = { width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }
@@ -463,6 +474,8 @@ const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, headi
     </View>
     <View style={{ position: 'absolute', bottom: 0 }}><Health ratio={ratio} width={size * 0.7} /></View>
     {boss && <Text style={board.boss}>BOSS</Text>}
+    {/* Powered up by the weather: its mark on a gold chip. */}
+    {!!mark && <Text accessible={false} style={[board.weatherMark, { fontSize: Math.max(9, size * 0.24) }]}>{mark}</Text>}
     {(slowed || poisoned) && <Text style={board.status}>{slowed ? '❄' : ''}{poisoned ? '☠' : ''}</Text>}
   </View>
 })
@@ -544,6 +557,8 @@ const board = themedStyles(() => ({
   fx: { position: 'absolute', textAlign: 'center', fontFamily: fonts.black, textShadowColor: onBoard.dark, textShadowRadius: 3, textShadowOffset: { width: 1, height: 1 } },
   boss: { position: 'absolute', top: -2, fontSize: 10, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 5, borderRadius: 999, overflow: 'hidden' },
   status: { position: 'absolute', top: 0, right: 0, fontSize: 12 },
+  weatherMark: { position: 'absolute', top: 0, left: 0, color: '#1A1200', backgroundColor: onBoard.gold, borderRadius: 999, overflow: 'hidden',
+    paddingHorizontal: 3, fontFamily: fonts.black },
   egg: { position: 'absolute', top: 2, left: 2, fontSize: 8, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 3, borderRadius: 999, overflow: 'hidden' },
   stars: { color: colors.star, fontSize: 26, letterSpacing: 4 }
 }))
@@ -557,6 +572,9 @@ const play = themedStyles(() => ({
   statLabel: { fontFamily: fonts.heavy, color: colors.muted, fontSize: 10, lineHeight: 13, letterSpacing: 0.8 },
   statValue: { fontFamily: fonts.black, color: colors.ink, fontSize: 17, lineHeight: 22 },
   status: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 2 },
+  weather: { fontFamily: fonts.heavy, color: colors.gold, fontSize: 13, lineHeight: 18, paddingHorizontal: 2 },
+  weatherPanel: { gap: 4, borderColor: colors.gold, borderWidth: 1.5 },
+  weatherTitle: { fontFamily: fonts.black, color: colors.ink, fontSize: 17, lineHeight: 22 },
   area: { flex: 1, minHeight: 160 },
   note: { position: 'absolute', top: 8, left: 12, right: 12, alignItems: 'center' },
   noteText: { overflow: 'hidden', textAlign: 'center', fontFamily: fonts.bold, fontSize: 13, lineHeight: 18, color: '#FFFFFF',

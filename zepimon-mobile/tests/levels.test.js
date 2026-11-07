@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { battleType, cardKey, teamChoices } from '../src/games/roster.ts'
-import { PATHS, callAssist, canPlace, gridSize, placeUnit, planWaves, startBattle, tickBattle, tileAt } from '../src/games/battle.ts'
+import { PATHS, WEATHER, WEATHER_HEALTH, boostedBy, callAssist, canPlace, gridSize, placeUnit, planWaves, startBattle, tickBattle, tileAt } from '../src/games/battle.ts'
 import { LEVELS, LEVELS_PER_STAGE, STAGES, levelUnlocked, restoreLevelStars, saveLevelStars } from '../src/games/levels.ts'
 
 const seeded = (seed = 1) => () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296 }
@@ -22,7 +22,7 @@ test('twenty-five levels in five stages of five, on maps that grow from 6 x 8 to
     assert.equal(level.number, index + 1)
     assert.equal(level.stage, Math.floor(index / LEVELS_PER_STAGE))
     assert.equal(level.spec.layout, 'trail')
-    assert.deepEqual(level.spec.foes, STAGES[level.stage].foes)
+    assert.deepEqual(level.spec.foes.slice(0, STAGES[level.stage].foes.length), STAGES[level.stage].foes, 'The stage’s foes, then any the weather brings')
     assert.equal(level.name, size(level).name)
     if (!index) return
     const before = LEVELS[index - 1]
@@ -181,4 +181,30 @@ test('the suggested team covers the map’s tiles it can, grows berries, blocks 
   const small = suggestTeam(loaners.slice(0, 2), delta.spec)
   assert.equal(small.team.length, 2, 'Never more cards than you have')
   assert.equal(new Set(team).size, team.length, 'No card twice')
+})
+
+test('weather from stage 3 on powers up foes of its types, and brings them into the waves', () => {
+  for (const level of LEVELS) {
+    const { weather } = level.spec
+    if (level.stage < 2) { assert.equal(weather, undefined, `${level.name} has clear skies`); continue }
+    assert.ok(weather && WEATHER[weather], `${level.name} has weather`)
+    assert.ok(WEATHER[weather].types.some(type => level.spec.foes.includes(type)), `${level.name}: its ${weather} has foes to power up`)
+  }
+  const glacier = LEVELS.find(level => level.spec.path === 'glacier-pass')
+  assert.equal(glacier.spec.weather, 'hail')
+  assert.ok(glacier.spec.foes.includes('ice'), 'Hail brings Ice foes to a stage that has none')
+  assert.equal(boostedBy('sun', 'fire'), true)
+  assert.equal(boostedBy('sun', 'water'), false)
+  assert.equal(boostedBy(undefined, 'fire'), false)
+  // Same waves with and without the sun: Fire foes come with more health, others are unchanged.
+  const ember = LEVELS.find(level => level.spec.path === 'ember-climb')
+  const run = spec => { let game = startBattle(spec, loaners, {}, 0, seeded(7)); let now = 0
+    while (game.enemies.length < 10 && now < 90000) { now += 100; game = tickBattle(game, now, seeded(now)) } return game.enemies }
+  const sunny = run(ember.spec), clear = run({ ...ember.spec, weather: undefined })
+  for (const [a, b] of sunny.map((enemy, i) => [enemy, clear[i]])) {
+    assert.equal(a.name, b.name)
+    if (a.type === 'fire') { assert.equal(a.boosted, true); assert.equal(a.maxHp, Math.round(b.maxHp * WEATHER_HEALTH)); assert.ok(a.speed > b.speed) }
+    else { assert.equal(a.boosted, undefined); assert.equal(a.maxHp, b.maxHp) }
+  }
+  assert.ok(sunny.some(enemy => enemy.type === 'fire'), 'Ember Climb sends Fire foes')
 })

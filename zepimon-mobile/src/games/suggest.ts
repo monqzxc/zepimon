@@ -1,4 +1,4 @@
-import { PATHS, effectiveness, kitFor } from './battle.ts'
+import { PATHS, WEATHER, effectiveness, kitFor } from './battle.ts'
 import type { BattleSpec } from './battle.ts'
 import { TEAM_SIZE, battleType, stageOf } from './roster.ts'
 import type { TeamCard } from './roster.ts'
@@ -14,7 +14,8 @@ const BLOCKERS = ['rock', 'ground', 'steel']
 export function suggestTeam(choices: readonly TeamCard[], spec: BattleSpec, size = TEAM_SIZE): Suggestion {
   // Trail Defense places every family at its first stage, so that form's type is the one that counts.
   const typeOf = (card: TeamCard) => battleType(card.family[0])
-  const foes = [...spec.foes, ...(spec.boss ? [battleType(spec.boss)] : [])]
+  // Foes the weather powers up count twice: they are the ones to beat.
+  const foes = [...spec.foes, ...(spec.boss ? [battleType(spec.boss)] : []), ...(spec.weather ? WEATHER[spec.weather].types.filter(type => spec.foes.includes(type)) : [])]
   const strongAgainst = (card: TeamCard) => [...new Set(foes.filter(foe => effectiveness(typeOf(card), foe) > 1))]
   const offense = (card: TeamCard) => foes.reduce((sum, foe) => sum + effectiveness(typeOf(card), foe) - 1, 0)
   const rank = (card: TeamCard) => offense(card) * 3 + stageOf(card.name) + (card.hatched ? 0.5 : 0) - (card.loaner ? 0.25 : 0)
