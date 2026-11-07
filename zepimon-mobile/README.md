@@ -474,8 +474,8 @@ credited in `SPRITE-CREDITS.md`.
 `at`, `links`, `turns`, optional `opens`), `patterns`, `startLit`, the `target`, `resetOnFail`, `clues` (each with the
 crystals or `pattern` it `reveals`) and three `hints`. A new Legendary's kind and lore go in `TRIALS` in
 `src/games/trials.ts`. Then run `python scripts/build-trial-maps.py` (Pillow), which checks the room against the
-rules, bakes `assets/trials/` and writes `src/generated/trial-maps.js` and `trial-assets.js`, and `npm test`, which
-proves every room can be cleared within par by the real rules, keeps rooms to a 3–5 minute size and checks that a
+rules, bakes `assets/trials/` and writes `src/generated/trial-maps.js` and `trial-assets.js`, and `npm run test:rooms`
+(about a minute: it solves every room, so it is kept out of `npm test`), which proves every room can be cleared within par by the real rules, keeps rooms to a 3–5 minute size and checks that a
 star's clues cover its whole target and that it takes at least three crystal presses.
 
 **Shiny odds and older saves.** The canonical seeded draw in `hatdog-app/shared/expedition.js` (species and its
@@ -668,6 +668,7 @@ Expo Go has no background location, so the Adventure tab there (and on the web) 
 
 ```sh
 npm test
+npm run test:rooms   # solves every Legendary trial room; run after changing scripts/trials/stages.json
 npm run lint
 npm run typecheck
 npm run export
