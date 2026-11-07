@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { addFix, allEggs, currentForm, currentPace, decodePath, distanceBetween, earnedForms, eggOpen, eggs, encodePath, expeditionNews, finishAdventure, liveText, megaChoices,
+import { addFix, allEggs, changeVerb, currentForm, pendingForm, shownForm, currentPace, decodePath, distanceBetween, earnedForms, eggOpen, eggs, encodePath, expeditionNews, finishAdventure, liveText, megaChoices,
   newAdventure, nextMilestone, openEggs, phoneTrail, restoreActive, restorePhoneRuns, runsToShare, saveActive, simplifyPath, withPhoneRuns, withPhoneTrail } from '../src/phone-adventure.ts'
 import { parseJournal, personalBests } from '../src/journal.ts'
 import { emptyExpeditions } from '../src/expeditions.ts'
@@ -250,7 +250,30 @@ test('the adventure in progress survives a restart', () => {
 test('the live notification names the workout, the distance and the Pokemon being raised', () => {
   const egg = { ...newAdventure(bulbasaur, 'running', null, start, () => 0.5), meters: 1234 }
   assert.deepEqual(liveText(egg), { activity: 'Run', distance: '1.23 km', pokemon: 'Bulbasaur egg', sprite: 'Egg' })
-  const hatched = { ...newAdventure(bulbasaur, 'walking', null, start, () => 0), meters: 10400 }
+  const hatched = { ...newAdventure(bulbasaur, 'walking', null, start, () => 0), meters: 10400, seen: 'Ivysaur' }
   assert.deepEqual(liveText(hatched), { activity: 'Walk', distance: '10.40 km', pokemon: 'Shiny Ivysaur', sprite: 'Ivysaur' })
+  // An evolution not yet seen on the Adventure screen stays off the lock screen.
+  assert.deepEqual(liveText({ ...hatched, seen: 'Egg' }).pokemon, 'Shiny Bulbasaur egg')
   assert.equal(liveText({ ...egg, meters: 0 }).distance, '0.00 km')
+})
+
+test('a hatch or evolution reached with the screen off waits to be seen on the Adventure screen, one form at a time', () => {
+  const active = { ...newAdventure(bulbasaur, 'walking', null, start, () => 0.5), meters: 10400 }
+  assert.equal(active.seen, 'Egg')
+  assert.equal(shownForm(active), 'Egg')
+  assert.equal(pendingForm(active), 'Bulbasaur')
+  assert.equal(pendingForm({ ...active, seen: 'Bulbasaur' }), 'Ivysaur')
+  assert.equal(pendingForm({ ...active, seen: 'Ivysaur' }), null)
+  assert.equal(pendingForm({ ...active, meters: 1200 }), null)
+  // Taken over from the watch or saved before forms were seen: nothing waits.
+  const older = { ...active }
+  delete older.seen
+  assert.equal(shownForm(older), 'Ivysaur')
+  assert.equal(pendingForm(older), null)
+  // A seen form that is not one of this egg's falls back to the form reached.
+  assert.equal(shownForm({ ...active, seen: 'Pikachu' }), 'Ivysaur')
+  assert.equal(restoreActive(saveActive({ ...active, seen: 'Bulbasaur' })).seen, 'Bulbasaur')
+  assert.equal(changeVerb('Egg', 'Bulbasaur'), 'hatched')
+  assert.equal(changeVerb('Bulbasaur', 'Ivysaur'), 'evolved')
+  assert.equal(changeVerb('Venusaur', 'Mega Venusaur'), 'Mega Evolved')
 })
