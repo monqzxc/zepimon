@@ -812,5 +812,306 @@ export const trialStages = {
     warps: { "1": "2", "3": "4", "5": "6", "7": "8" }, open: "", crackAll: false, dark: true, par: 50, hint: "Every pad leads one way only. The switch on your first platform flips the last gate each time you pass: count your laps.",
     star: null, legendary: "Giratina", flavor: {"relic": "griseous shard", "relics": "griseous shards", "water": "Nothing lies there but the void.", "clear": "Up and down trade places. Giratina emerges from the shadows!"},
     chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-lugia": {
+    id: "sig-lugia", kind: "temple",
+    tiles: [
+      "###############",
+      "#@....*.*....1#",
+      "#.###.###.###.#",
+      "#~~~~~~~~~~~~~#",
+      "#2...........3#",
+      "#.###..*.###..#",
+      "#~~~~~~~~~~~~~#",
+      "#4.O....._.#..#",
+      "#*###......=X.#",
+      "###############"
+    ],
+    warps: { "1": "2", "3": "4" }, open: "", crackAll: false, dark: false, par: 47, hint: "The whirlpools pull only downward. Gather what lies above before you ride them into the deep.",
+    star: null, legendary: "Lugia", flavor: {"relic": "silver feather", "relics": "silver feathers", "water": "The current is far too strong to swim.", "clear": "The whirlpools stir. Lugia rises from the deep!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-ho-oh": {
+    id: "sig-ho-oh", kind: "switch",
+    tiles: [
+      "###############",
+      "#X....*C..b..4#",
+      "########A######",
+      "#3...B..*.....#",
+      "#######.#######",
+      "#2..*..cC....*#",
+      "###############",
+      "#@..a.....A..1#",
+      "###############"
+    ],
+    warps: { "1": "2", "2": "1", "3": "4", "4": "3" }, open: "", crackAll: false, dark: false, par: 52, hint: "Each floor’s gate is switched from another floor. Ride the stairs to set them before you climb.",
+    star: null, legendary: "Ho-Oh", flavor: {"relic": "rainbow feather", "relics": "rainbow feathers", "clear": "The bells ring out. Ho-Oh descends on a rainbow!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-heatran": {
+    id: "sig-heatran", kind: "crumble",
+    tiles: [
+      "###############",
+      "#@..:..#..:..*#",
+      "#.##.#.A.#.##.#",
+      "#..a:..#..:...#",
+      "##.###.#.###.##",
+      "#*.:...#...:b.#",
+      "#.##.#.B.#.##.#",
+      "#....:.#.:...X#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: true, dark: false, par: 54, hint: "Every cracked tile must give way, and the switches lie on cracked lanes. Plan each crossing once.",
+    star: null, legendary: "Heatran", flavor: {"relic": "magma stone", "relics": "magma stones", "clear": "The mountain rumbles. Heatran crawls from the magma!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-cresselia": {
+    id: "sig-cresselia", kind: "dark",
+    tiles: [
+      "###############",
+      "#@...#...!...*#",
+      "#.O..#...A..O.#",
+      "#....#.a.#....#",
+      "#..###...###.##",
+      "#._.....!..._.#",
+      "#*..##.=.##...#",
+      "#######X#######",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: true, par: 47, hint: "Under the moon, each boulder has one plate. The gate to the far grove opens from the middle.",
+    star: null, legendary: "Cresselia", flavor: {"relic": "lunar feather", "relics": "lunar feathers", "water": "The lake glitters, but it is deep.", "clear": "The full moon shines. Cresselia glides down!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-darkrai": {
+    id: "sig-darkrai", kind: "dark",
+    tiles: [
+      "###############",
+      "#9@.:...1#...*#",
+      "#.###.#.##.##.#",
+      "#*..#.:...3#.*#",
+      "###.#.##.###..#",
+      "#2..:...!..:.4#",
+      "#.###.#####.###",
+      "#*...:.....*.X#",
+      "###############"
+    ],
+    warps: { "1": "9", "2": "9", "3": "4" }, open: "", crackAll: false, dark: true, par: 50, hint: "Some pads are nightmares that throw you back to where you woke. Find the one true path.",
+    star: null, legendary: "Darkrai", flavor: {"relic": "dark shard", "relics": "dark shards", "water": "The lake is black and deep.", "clear": "You wake from the nightmare. Darkrai waits in the dark!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-mew": {
+    id: "sig-mew", kind: "warp",
+    tiles: [
+      "###############",
+      "#@..a#..**#..3#",
+      "#.##.A.##.B.#.#",
+      "#1..*#.b..#...#",
+      "######.##.##C##",
+      "#4...c.#2....*#",
+      "#.###.##.###.*#",
+      "#*.....C.....X#",
+      "#.###########.#",
+      "#......*......#",
+      "###############"
+    ],
+    warps: { "1": "2", "2": "1", "3": "4", "4": "3" }, open: "", crackAll: false, dark: false, par: 61, hint: "The hedges move when you play with the switches. Follow the giggles through the pads.",
+    star: null, legendary: "Mew", flavor: {"relic": "bubble", "relics": "bubbles", "water": "The pond is deep. Look for another way.", "clear": "A giggle and a pop of bubbles. Mew appears!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-mewtwo": {
+    id: "sig-mewtwo", kind: "warp",
+    tiles: [
+      "###!###########",
+      "#@....1#2....*#",
+      "#..a..###.....#",
+      "#.....7#3..b..#",
+      "#######*###!###",
+      "###!###8#######",
+      "#*#B#.5#6.....#",
+      "#.#.#.###...###",
+      "#*....4##*..AX#",
+      "###############",
+      "###############"
+    ],
+    warps: { "1": "2", "2": "1", "3": "4", "4": "3", "5": "6", "6": "5", "7": "8", "8": "7" }, open: "", crackAll: false, dark: true, par: 57, hint: "The teleporters are a maze of false turns, and one only leads to a closet. Find the lab’s last room.",
+    star: null, legendary: "Mewtwo", flavor: {"relic": "data chip", "relics": "data chips", "clear": "The lights flicker back on. Mewtwo is waiting!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-celebi": {
+    id: "sig-celebi", kind: "dark",
+    tiles: [
+      "###############",
+      "#@...:..A....*#",
+      "#.##.#.###.##.#",
+      "#*.#.:.#a..#..#",
+      "##.#.###.#.:.##",
+      "#..:...#.#...*#",
+      "#.###.##.###.##",
+      "#....:.A....:X#",
+      "#.#############",
+      "#.....*.......#",
+      "###############"
+    ],
+    warps: {}, open: "A", crackAll: false, dark: true, par: 59, hint: "The forest shifts between moments: one gate starts open, and its switch closes it. Keep to the path.",
+    star: null, legendary: "Celebi", flavor: {"relic": "leaf", "relics": "leaves", "clear": "The forest falls still. Celebi appears from another time!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-jirachi": {
+    id: "sig-jirachi", kind: "switch",
+    tiles: [
+      "###############",
+      "#@....*.......#",
+      "#.###########.#",
+      "#.#.....b...#.#",
+      "#.#.#######.#.#",
+      "#.#.#X..*.C.#.#",
+      "#.#.#####.#.#.#",
+      "#.#...c..B#.#a#",
+      "#.#########A#.#",
+      "#*...........*#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 78, hint: "The trail of stars curls inward, and each gate’s switch lies further in. Follow it to where Jirachi dreams.",
+    star: null, legendary: "Jirachi", flavor: {"relic": "wishing star", "relics": "wishing stars", "water": "The sea sparkles under the stars, but it is deep.", "clear": "Your wish is heard. Jirachi wakes!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-phione": {
+    id: "sig-phione", kind: "temple",
+    tiles: [
+      "###############",
+      "#@...*#~~#2..*#",
+      "#.....#~~#.O..#",
+      "#8..1.#~~#3.._#",
+      "#######~~######",
+      "#6...*#~~#4..5#",
+      "#.....#~~#...*#",
+      "#*...7#~~##=###",
+      "###########X###"
+    ],
+    warps: { "1": "2", "3": "4", "5": "6", "7": "8" }, open: "", crackAll: false, dark: false, par: 48, hint: "The currents run one way round the reef. Set the boulder while they carry you, and come round again.",
+    star: null, legendary: "Phione", flavor: {"relic": "sea pearl", "relics": "sea pearls", "water": "The current is far too strong to swim.", "clear": "The currents settle. Phione drifts to you!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-manaphy": {
+    id: "sig-manaphy", kind: "temple",
+    tiles: [
+      "###############",
+      "#@..........*.#",
+      "#.###########.#",
+      "#.#.O...:..*#.#",
+      "#.#.###.###.#.#",
+      "#.#._#X=#._.#.#",
+      "#.#.##.##.O.#.#",
+      "#*:.......:...#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 55, hint: "The temple’s halls spiral toward its heart. The cracked floor holds only once.",
+    star: null, legendary: "Manaphy", flavor: {"relic": "sea gem", "relics": "sea gems", "water": "The water is far too deep.", "clear": "The temple glows. Manaphy swims out to meet you!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-shaymin": {
+    id: "sig-shaymin", kind: "temple",
+    tiles: [
+      "###############",
+      "#@..:...#..:.*#",
+      "#.#.:.#.#.#:#.#",
+      "#..O..#...#...#",
+      "##.#.###.###.##",
+      "#*...:..:...._#",
+      "#.###.##.##.###",
+      "#...:....=X...#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: true, dark: false, par: 48, hint: "Every petal patch must scatter, once. Push the boulder to open the gate to the meadow’s heart.",
+    star: null, legendary: "Shaymin", flavor: {"relic": "gracidea", "relics": "gracideas", "water": "The lake is calm, but deep.", "clear": "The flowers bloom. Shaymin pops out of the meadow!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-arceus": {
+    id: "sig-arceus", kind: "switch",
+    tiles: [
+      "###############",
+      "#@..:...#...*.#",
+      "#.##.##.A.#...#",
+      "#*.a.#..#.O...#",
+      "####.#.##.##..#",
+      "#2...:..#..._.#",
+      "#.####.###.####",
+      "#*..1#.:..=X..#",
+      "###############"
+    ],
+    warps: { "1": "2" }, open: "", crackAll: false, dark: false, par: 52, hint: "The Hall asks for every trial at once: a switch, a one-way pad, a boulder for the plate and cracked floor.",
+    star: null, legendary: "Arceus", flavor: {"relic": "plate", "relics": "plates", "water": "Nothing but open sky lies that way.", "clear": "Light pours through the hall. Arceus appears!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-zygarde": {
+    id: "sig-zygarde", kind: "dark",
+    tiles: [
+      "###!####!###!##",
+      "#@...#...*#...#",
+      "#.#..A....#.O.#",
+      "#....#.#..#...#",
+      "#..#.#..#.#...#",
+      "#.a..#....B._.#",
+      "#*...#b...#..*#",
+      "##!####=###!###",
+      "#######X#######",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: true, par: 63, hint: "Follow the glowing cells through the dark. Each chamber’s gate opens from the one before.",
+    star: null, legendary: "Zygarde", flavor: {"relic": "Zygarde cell", "relics": "Zygarde cells", "water": "The river runs too fast to cross.", "clear": "The cells gather. Zygarde rises!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-diancie": {
+    id: "sig-diancie", kind: "temple",
+    tiles: [
+      "###############",
+      "#*..#..@..#..*#",
+      "#.O.#.....#.O.#",
+      "#...A.#.#.a...#",
+      "##.###...###.##",
+      "#._...#.#..._.#",
+      "#.....#=#.....#",
+      "#######X#######",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 57, hint: "Crystal rooms reflect every turn, but one gate breaks the mirror. Set a boulder on each side.",
+    star: null, legendary: "Diancie", flavor: {"relic": "diamond", "relics": "diamonds", "water": "The water under the crystal is freezing.", "clear": "The crystals sparkle. Diancie appears!"},
+    chunk: 8, chunks: { "0,0": { top: false }, "1,0": { top: false }, "0,1": { top: false }, "1,1": { top: false } }
+  },
+  "sig-magearna": {
+    id: "sig-magearna", kind: "switch",
+    tiles: [
+      "###############",
+      "#@..#*..A..#.*#",
+      "#.#.#.#.#.#.#.#",
+      "#.#...#ab.#..1#",
+      "#.###B#.#.##.##",
+      "#2..*.#.#.B...#",
+      "#.###.#.#.###.#",
+      "#*....#...A..X#",
+      "###############"
+    ],
+    warps: { "1": "2", "2": "1" }, open: "A", crackAll: false, dark: false, par: 47, hint: "The gears turn in two phases: one gate starts open, and the side-by-side switches flip every gate.",
+    star: null, legendary: "Magearna", flavor: {"relic": "cog", "relics": "cogs", "water": "The floor drops away into darkness.", "clear": "The clockwork clicks into place. Magearna wakes!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
+  },
+  "sig-zeraora": {
+    id: "sig-zeraora", kind: "switch",
+    tiles: [
+      "###############",
+      "#@.a..:..A...*#",
+      "#.###.###.###.#",
+      "#*..b.:.B..c..#",
+      "###.###.###.###",
+      "#...:..C..:..*#",
+      "#.#####.#######",
+      "#..c.......B.X#",
+      "#.#############",
+      "#............*#",
+      "###############"
+    ],
+    warps: {}, open: "", crackAll: false, dark: false, par: 94, hint: "The switches lie in the narrow trails, so every dash flips a gate. Cracked sand gives way behind you.",
+    star: null, legendary: "Zeraora", flavor: {"relic": "spark", "relics": "sparks", "water": "The sea is far too rough to cross.", "clear": "Thunder cracks along the shore. Zeraora is here!"},
+    chunk: 8, chunks: { "0,0": { top: true }, "1,0": { top: true }, "0,1": { top: true }, "1,1": { top: true } }
   }
 }

@@ -240,6 +240,108 @@ export const trialChunks = {
     "1,0": { ground: require('../../assets/trials/sig-giratina-ground-1-0.png') },
     "0,1": { ground: require('../../assets/trials/sig-giratina-ground-0-1.png') },
     "1,1": { ground: require('../../assets/trials/sig-giratina-ground-1-1.png') }
+  },
+  "sig-lugia": {
+    "0,0": { ground: require('../../assets/trials/sig-lugia-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-lugia-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-lugia-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-lugia-ground-1-1.png') }
+  },
+  "sig-ho-oh": {
+    "0,0": { ground: require('../../assets/trials/sig-ho-oh-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-ho-oh-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-ho-oh-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-ho-oh-ground-1-1.png') }
+  },
+  "sig-heatran": {
+    "0,0": { ground: require('../../assets/trials/sig-heatran-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-heatran-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-heatran-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-heatran-ground-1-1.png') }
+  },
+  "sig-cresselia": {
+    "0,0": { ground: require('../../assets/trials/sig-cresselia-ground-0-0.png'), top: require('../../assets/trials/sig-cresselia-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-cresselia-ground-1-0.png'), top: require('../../assets/trials/sig-cresselia-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-cresselia-ground-0-1.png'), top: require('../../assets/trials/sig-cresselia-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-cresselia-ground-1-1.png'), top: require('../../assets/trials/sig-cresselia-top-1-1.png') }
+  },
+  "sig-darkrai": {
+    "0,0": { ground: require('../../assets/trials/sig-darkrai-ground-0-0.png'), top: require('../../assets/trials/sig-darkrai-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-darkrai-ground-1-0.png'), top: require('../../assets/trials/sig-darkrai-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-darkrai-ground-0-1.png'), top: require('../../assets/trials/sig-darkrai-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-darkrai-ground-1-1.png'), top: require('../../assets/trials/sig-darkrai-top-1-1.png') }
+  },
+  "sig-mew": {
+    "0,0": { ground: require('../../assets/trials/sig-mew-ground-0-0.png'), top: require('../../assets/trials/sig-mew-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-mew-ground-1-0.png'), top: require('../../assets/trials/sig-mew-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-mew-ground-0-1.png'), top: require('../../assets/trials/sig-mew-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-mew-ground-1-1.png'), top: require('../../assets/trials/sig-mew-top-1-1.png') }
+  },
+  "sig-mewtwo": {
+    "0,0": { ground: require('../../assets/trials/sig-mewtwo-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-mewtwo-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-mewtwo-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-mewtwo-ground-1-1.png') }
+  },
+  "sig-celebi": {
+    "0,0": { ground: require('../../assets/trials/sig-celebi-ground-0-0.png'), top: require('../../assets/trials/sig-celebi-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-celebi-ground-1-0.png'), top: require('../../assets/trials/sig-celebi-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-celebi-ground-0-1.png'), top: require('../../assets/trials/sig-celebi-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-celebi-ground-1-1.png'), top: require('../../assets/trials/sig-celebi-top-1-1.png') }
+  },
+  "sig-jirachi": {
+    "0,0": { ground: require('../../assets/trials/sig-jirachi-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-jirachi-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-jirachi-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-jirachi-ground-1-1.png') }
+  },
+  "sig-phione": {
+    "0,0": { ground: require('../../assets/trials/sig-phione-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-phione-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-phione-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-phione-ground-1-1.png') }
+  },
+  "sig-manaphy": {
+    "0,0": { ground: require('../../assets/trials/sig-manaphy-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-manaphy-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-manaphy-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-manaphy-ground-1-1.png') }
+  },
+  "sig-shaymin": {
+    "0,0": { ground: require('../../assets/trials/sig-shaymin-ground-0-0.png'), top: require('../../assets/trials/sig-shaymin-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-shaymin-ground-1-0.png'), top: require('../../assets/trials/sig-shaymin-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-shaymin-ground-0-1.png'), top: require('../../assets/trials/sig-shaymin-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-shaymin-ground-1-1.png'), top: require('../../assets/trials/sig-shaymin-top-1-1.png') }
+  },
+  "sig-arceus": {
+    "0,0": { ground: require('../../assets/trials/sig-arceus-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-arceus-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-arceus-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-arceus-ground-1-1.png') }
+  },
+  "sig-zygarde": {
+    "0,0": { ground: require('../../assets/trials/sig-zygarde-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-zygarde-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-zygarde-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-zygarde-ground-1-1.png') }
+  },
+  "sig-diancie": {
+    "0,0": { ground: require('../../assets/trials/sig-diancie-ground-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-diancie-ground-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-diancie-ground-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-diancie-ground-1-1.png') }
+  },
+  "sig-magearna": {
+    "0,0": { ground: require('../../assets/trials/sig-magearna-ground-0-0.png'), top: require('../../assets/trials/sig-magearna-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-magearna-ground-1-0.png'), top: require('../../assets/trials/sig-magearna-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-magearna-ground-0-1.png'), top: require('../../assets/trials/sig-magearna-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-magearna-ground-1-1.png'), top: require('../../assets/trials/sig-magearna-top-1-1.png') }
+  },
+  "sig-zeraora": {
+    "0,0": { ground: require('../../assets/trials/sig-zeraora-ground-0-0.png'), top: require('../../assets/trials/sig-zeraora-top-0-0.png') },
+    "1,0": { ground: require('../../assets/trials/sig-zeraora-ground-1-0.png'), top: require('../../assets/trials/sig-zeraora-top-1-0.png') },
+    "0,1": { ground: require('../../assets/trials/sig-zeraora-ground-0-1.png'), top: require('../../assets/trials/sig-zeraora-top-0-1.png') },
+    "1,1": { ground: require('../../assets/trials/sig-zeraora-ground-1-1.png'), top: require('../../assets/trials/sig-zeraora-top-1-1.png') }
   }
 }
 export const trialSprites = {

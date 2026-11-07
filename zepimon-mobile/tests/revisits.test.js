@@ -16,7 +16,7 @@ const saved = () => ({
   quest: { ...emptyQuest(), permits: 1, unlocks: { '1767225600000:12345': 1 } },
   encounters: { '1767225600000:12345': { index: 2, name: 'Uxie', shiny: null, trial: false, resetPending: false,
     checkpoint: { stages: ['warp-1'], index: 0, results: {} } } },
-  trialRecords: { 'switch-1': 80, star: 120 },
+  trialRecords: { 'sig-jirachi': 80, star: 120 },
   rematchWins: { Jirachi: 2 }
 })
 // Everything a revisit must leave alone, by reference.
@@ -40,8 +40,8 @@ test('caught Legendaries are listed in species order, a Shiny catch as its own e
 })
 
 test('a Legendary revisits every room of its kind, and Deoxys only the island', () => {
-  assert.deepEqual(revisitRooms('Jirachi'), ['switch-tutorial', 'switch-1', 'switch-2', 'switch-3'])
-  assert.deepEqual(revisitRooms('Heatran'), ['crumble-tutorial', 'crumble-1', 'crumble-2', 'crumble-3'])
+  assert.deepEqual(revisitRooms('Jirachi'), ['switch-tutorial', 'sig-jirachi'])
+  assert.deepEqual(revisitRooms('Heatran'), ['crumble-tutorial', 'sig-heatran'])
   assert.deepEqual(revisitRooms('Articuno'), ['crumble-tutorial', 'sig-articuno'], 'A signature room replaces the main rooms')
   assert.deepEqual(revisitRooms('Zapdos'), ['switch-tutorial', 'sig-zapdos'])
   assert.deepEqual(revisitRooms('Deoxys'), ['star'])
@@ -54,11 +54,11 @@ test('a Legendary revisits every room of its kind, and Deoxys only the island', 
 
 test('rooms explored counts the rooms of its own shrine that have a best', () => {
   const { trialRecords } = saved()
-  assert.deepEqual(roomsExplored('Jirachi', trialRecords), { explored: 1, rooms: 4 })
-  assert.deepEqual(roomsExplored('Heatran', trialRecords), { explored: 0, rooms: 4 }, 'Another kind’s rooms do not count')
+  assert.deepEqual(roomsExplored('Jirachi', trialRecords), { explored: 1, rooms: 2 })
+  assert.deepEqual(roomsExplored('Heatran', trialRecords), { explored: 0, rooms: 2 }, 'Another Legendary’s rooms do not count')
   assert.deepEqual(roomsExplored('Moltres', { 'sig-moltres': 60 }), { explored: 1, rooms: 2 })
   assert.deepEqual(roomsExplored('Deoxys', trialRecords), { explored: 1, rooms: 1 })
-  assert.deepEqual(roomsExplored('Jirachi', {}), { explored: 0, rooms: 4 })
+  assert.deepEqual(roomsExplored('Jirachi', {}), { explored: 0, rooms: 2 })
 })
 
 test('only caught Legendaries can be revisited, in the form they were caught', () => {
@@ -83,28 +83,28 @@ test('each room shows its best and par when known', () => {
 
 test('a practice clear changes only trialRecords, keeping the lower moves', () => {
   const before = saved()
-  const better = practiceClear(before, 'Jirachi', false, { 'switch-1': 70 })
+  const better = practiceClear(before, 'Jirachi', false, { 'sig-jirachi': 70 })
   untouched(before, better)
   assert.equal(better.rematchWins, before.rematchWins)
-  assert.deepEqual(better.trialRecords, { 'switch-1': 70, star: 120 })
+  assert.deepEqual(better.trialRecords, { 'sig-jirachi': 70, star: 120 })
   assert.deepEqual(Object.keys(better).sort(), Object.keys(before).sort(), 'No new fields')
 
-  const worse = practiceClear(before, 'Jirachi', false, { 'switch-1': 95 })
-  assert.deepEqual(worse.trialRecords, { 'switch-1': 80, star: 120 }, 'A slower clear keeps the old best')
+  const worse = practiceClear(before, 'Jirachi', false, { 'sig-jirachi': 95 })
+  assert.deepEqual(worse.trialRecords, { 'sig-jirachi': 80, star: 120 }, 'A slower clear keeps the old best')
   const fresh = practiceClear(before, 'Jirachi', false, { 'switch-tutorial': 12 })
-  assert.deepEqual(fresh.trialRecords, { 'switch-1': 80, star: 120, 'switch-tutorial': 12 }, 'A first clear is saved')
+  assert.deepEqual(fresh.trialRecords, { 'sig-jirachi': 80, star: 120, 'switch-tutorial': 12 }, 'A first clear is saved')
   const island = practiceClear(before, 'Rayquaza', true, { 'sig-rayquaza': 140 })
   untouched(before, island)
-  assert.deepEqual(before.trialRecords, { 'switch-1': 80, star: 120 }, 'The old state is never mutated')
+  assert.deepEqual(before.trialRecords, { 'sig-jirachi': 80, star: 120 }, 'The old state is never mutated')
 })
 
 test('a practice clear for an uncaught Legendary or another kind of room is refused', () => {
   const before = saved()
   assert.throws(() => practiceClear(before, 'Mewtwo', false, { 'warp-1': 10 }), /caught/)
-  assert.throws(() => practiceClear(before, 'Jirachi', true, { 'switch-1': 10 }), /caught/, 'Shiny form not caught')
+  assert.throws(() => practiceClear(before, 'Jirachi', true, { 'sig-jirachi': 10 }), /caught/, 'Shiny form not caught')
   assert.throws(() => practiceClear(before, 'Jirachi', false, { 'warp-1': 10 }), /room/, "Not one of Jirachi's rooms")
-  assert.throws(() => practiceClear(before, 'Jirachi', false, { 'switch-1': -3 }), /room/)
-  assert.throws(() => practiceClear(before, 'Jirachi', false, { 'switch-1': 2.5 }), /room/)
+  assert.throws(() => practiceClear(before, 'Jirachi', false, { 'sig-jirachi': -3 }), /room/)
+  assert.throws(() => practiceClear(before, 'Jirachi', false, { 'sig-jirachi': 2.5 }), /room/)
   assert.deepEqual(before, saved(), 'Nothing changed')
 })
 
@@ -131,8 +131,7 @@ test('saved rematch wins keep only Legendary keys with positive whole counts', (
 test("a revisit's journey plays the Legendary's own room, never a tutorial, and its moves can be saved", () => {
   assert.equal(journeyRoom('Articuno', {}), 'sig-articuno', 'Its signature room, even before the tutorial is cleared')
   assert.equal(journeyRoom('Deoxys', {}), 'star')
-  assert.equal(journeyRoom('Jirachi', {}), 'switch-1', 'A shared trial plays the main room it would play next')
-  assert.equal(journeyRoom('Jirachi', { 'switch-tutorial': 9, 'switch-1': 70 }), 'switch-2')
+  assert.equal(journeyRoom('Jirachi', { 'switch-tutorial': 9, 'sig-jirachi': 70 }), 'sig-jirachi', 'The same room, whatever is cleared')
   for (const name of legendarySpecies) {
     const room = journeyRoom(name, {})
     assert.ok(!room.endsWith('-tutorial'), `${name}: ${room}`)
