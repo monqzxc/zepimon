@@ -6,8 +6,11 @@
 //   sleep: standing still.
 //   paralysis: moving at half speed.
 //   confusion: stumbling back the way it came.
-// A foe has one of the first six at a time, as in the games; confusion comes on top. Bosses shake every condition off
-// twice as fast. A foe that just thawed or woke cannot be frozen or put to sleep again for a moment (CALM_MS).
+// A foe can carry several at once, each once. Another hit of burn, frostbite, poison or paralysis resets its time; freeze,
+// sleep and confusion run their course without resetting, one of freeze and sleep at a time, and once over the foe
+// cannot get that again for a moment (CALM_MS), so nothing locks a foe down for good. Slows add up but never below
+// MIN_PACE. Bosses shake conditions off twice as fast, carry at most BOSS_MAX at once, and are immune to some by type,
+// the Legendaries and Mythicals to several (immunities).
 export type Condition = 'burn' | 'freeze' | 'frostbite' | 'paralysis' | 'sleep' | 'poison' | 'confusion'
 
 // The three-letter tag the games show, its colour, and the word called out when it lands.
@@ -37,12 +40,46 @@ export const INFLICTS: Record<string, [Condition, number][]> = {
 }
 
 // How long each lasts on a foe, in ms (a boss: half).
-export const LASTS: Record<Condition, number> = { burn: 4000, freeze: 1500, frostbite: 4000, paralysis: 3000, sleep: 2000, poison: 4000, confusion: 1500 }
+export const LASTS: Record<Condition, number> = { burn: 5000, freeze: 2000, frostbite: 5000, paralysis: 3500, sleep: 2000, poison: 5000, confusion: 2000 }
 // Damage each second, as a share of the hit that caused it.
-export const DOT: Partial<Record<Condition, number>> = { burn: 0.5, frostbite: 0.4, poison: 0.5 }
+export const DOT: Partial<Record<Condition, number>> = { burn: 0.375, frostbite: 0.3, poison: 0.375 }
 // How fast a foe moves under each (1 is its own speed; a negative one walks back).
 export const PACE: Partial<Record<Condition, number>> = { freeze: 0, sleep: 0, paralysis: 0.5, frostbite: 0.75, confusion: -0.5 }
 export const CALM_MS = 3000
+export const MIN_PACE = 0.35
+export const BOSS_MAX = 2
+// Conditions that reset their time on another hit; the rest run their course.
+export const REFRESHES: Condition[] = ['burn', 'frostbite', 'poison', 'paralysis']
+// The order a foe shows them in, the strongest first: what stops it, then what hurts it, then what slows or turns it.
+export const ORDER: Condition[] = ['freeze', 'sleep', 'burn', 'poison', 'frostbite', 'paralysis', 'confusion']
+
+// What a boss shrugs off, by type, after the games' own immunities and abilities: Fire cannot be burned or frozen, Ice
+// cannot be frozen or frostbitten, Electric and Ground cannot be paralyzed, Poison and Steel cannot be poisoned, Grass
+// shakes off sleep (powders), Water puts out burns, and the steadier types keep their heads (confusion).
+const BY_TYPE: Record<string, Condition[]> = {
+  fire: ['burn', 'freeze'], ice: ['freeze', 'frostbite'], electric: ['paralysis'], ground: ['paralysis'], poison: ['poison'], steel: ['poison'],
+  grass: ['sleep'], water: ['burn'], psychic: ['confusion'], fighting: ['confusion'], dark: ['confusion'], ghost: ['sleep'], fairy: ['poison'],
+  dragon: ['paralysis'], rock: ['burn'], bug: [], flying: [], normal: []
+}
+// The Legendary and Mythical bosses, each by its nature: Moltres, a bird of flame, can be neither burned nor chilled;
+// Celebi heals itself of what nature brings (Natural Cure); Arceus answers to almost nothing.
+const LEGENDARY: Record<string, Condition[]> = {
+  Celebi: ['sleep', 'poison', 'confusion'],
+  Lugia: ['confusion', 'sleep', 'paralysis'],
+  Moltres: ['burn', 'freeze', 'frostbite'],
+  Mewtwo: ['confusion', 'sleep', 'paralysis'],
+  Giratina: ['sleep', 'confusion', 'paralysis'],
+  Arceus: ['sleep', 'freeze', 'confusion', 'poison']
+}
+
+// What a foe is immune to: nothing for an ordinary foe; a boss by its type, a Legendary boss by the list above (or, for
+// one not listed, its type and sleep and confusion as well).
+export function immunities(name: string, type: string, boss: boolean, legendary: boolean): Condition[] {
+  if (!boss) return []
+  if (Object.hasOwn(LEGENDARY, name)) return LEGENDARY[name]
+  const own = BY_TYPE[type] ?? []
+  return legendary ? [...new Set<Condition>([...own, 'sleep', 'confusion'])] : own
+}
 
 // Rolls what one hit causes: the first of its type's conditions to come up, or null. random gives one number per roll.
 export function rollCondition(type: string, random: () => number): Condition | null {

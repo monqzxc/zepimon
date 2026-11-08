@@ -7,7 +7,7 @@ import { typeTheme } from '../HabitatScene'
 import { Button, Copy, Heading, IconButton, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
-import { EVOLVE_MS, LANES, bossCharging, conditionOf, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
+import { EVOLVE_MS, LANES, bossCharging, conditionsOf, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
   facingToward, gridSize, unitTarget, moveOf,
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
 import type { Battle, BattleSpec, Heading as Facing, Layout, Weather } from './battle'
@@ -25,7 +25,7 @@ import { WeatherLayer } from './Weather'
 import { BattleBrief } from './BattleBrief'
 import type { Brief } from './BattleBrief'
 import { BOSS_CHARGE, SKILL_MARKS, SKILL_TEXT } from './boss'
-import { CONDITIONS, inflictText } from './status'
+import { CONDITIONS, ORDER, inflictText } from './status'
 import type { Condition } from './status'
 import { useGameLoop, useReducedMotion } from './hooks'
 
@@ -246,17 +246,19 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
           const at = enemyPoint(game, enemy)
           const size = cell * (enemy.boss ? 1.25 : 0.9)
           const slowed = enemy.slowUntil > game.elapsed
-          const condition = conditionOf(game, enemy)
+          // Its conditions, strongest first, with the Toxic role's poison among them.
+          const held = conditionsOf(game, enemy)
+          const conditions = enemy.poisonUntil > game.elapsed && !held.includes('poison') ? ORDER.filter(item => item === 'poison' || held.includes(item)) : held
           // Two-step walk cycle from the game clock, offset per foe so a wave does not march in lockstep. Frozen or
           // asleep, it holds still.
-          const still = reduced || condition === 'freeze' || condition === 'sleep'
+          const still = reduced || conditions.includes('freeze') || conditions.includes('sleep')
           const step = still ? 0 : (Math.floor(game.elapsed / (slowed ? STEP_MS * 2 : STEP_MS)) + enemy.id) % 2
           return <Mover key={enemy.id} x={at.x * cell - size / 2} y={top + at.y * cell - size / 2} size={size} reduced={reduced}>
             <Foe name={enemy.name} size={size} ratio={enemy.hp / enemy.maxHp} boss={enemy.boss} slowed={slowed} reduced={reduced}
               mark={enemy.boosted && spec.weather ? WEATHER[spec.weather].mark : ''}
               hurt={game.strikes.some(strike => strike.foe === enemy.id && strike.kind !== 'wave' && game.elapsed - strike.start < 200)}
               poisoned={enemy.poisonUntil > game.elapsed} heading={enemyHeading(game, enemy)} step={step}
-              condition={condition ?? (enemy.poisonUntil > game.elapsed ? 'poison' : undefined)} confused={(enemy.confusedUntil ?? 0) > game.elapsed}
+              conditions={conditions.join(',')}
               flicker={reduced ? 1 : Math.floor(game.elapsed / 150) % 2}
               {...bossLook(game, enemy)} />
           </Mover>
@@ -428,11 +430,16 @@ const CONDITION_TINT: Record<Condition, [string, number, boolean]> = {
 }
 
 const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, heading, step, hurt, reduced, mark, charge = -1, chargeMark = '', shielded = false,
-  dashing = false, condition, confused = false, flicker = 0 }: {
+  dashing = false, conditions = '', flicker = 0 }: {
   name: string, size: number, ratio: number, boss: boolean, slowed: boolean, poisoned: boolean, heading: Facing, step: number, hurt: boolean, reduced: boolean,
-  mark: string, charge?: number, chargeMark?: string, shielded?: boolean, dashing?: boolean, condition?: Condition, confused?: boolean, flicker?: number
+  mark: string, charge?: number, chargeMark?: string, shielded?: boolean, dashing?: boolean, conditions?: string, flicker?: number
 }) {
-  const tint = condition && (!CONDITION_TINT[condition][2] || flicker) ? CONDITION_TINT[condition] : null
+  // conditions: its status conditions, strongest first, joined by commas (a string keeps this component memoized).
+  const held = (conditions ? conditions.split(',') : []) as Condition[]
+  const strongest = held[0]
+  // The strongest condition colours it; up to three tags show, then how many more.
+  const tint = strongest && (!CONDITION_TINT[strongest][2] || flicker) ? CONDITION_TINT[strongest] : null
+  const shown = held.slice(0, 3), more = held.length - shown.length
   const strip = walkers[name]
   const sprite = { width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }
   const px = Math.max(1, size / 44)
@@ -479,12 +486,14 @@ const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, headi
     {/* Powered up by the weather: its mark on a gold chip. */}
     {!!mark && <Text accessible={false} style={[board.weatherMark, { fontSize: Math.max(9, size * 0.24) }]}>{mark}</Text>}
     {/* Its status as the games tag it (BRN, FRZ...), with confusion's CNF beside it and slow or dash marks before. */}
-    {(slowed || dashing || !!condition || confused) && <View style={board.status}>
+    {(slowed || dashing || held.length > 0) && <View style={board.status}>
       {(slowed || dashing) && <Text style={board.statusMark}>{dashing ? '»' : ''}{slowed ? '❄' : ''}</Text>}
-      {condition && <Text style={[board.tag, { backgroundColor: CONDITIONS[condition].color }]}>{CONDITIONS[condition].tag}</Text>}
-      {confused && <Text style={[board.tag, { backgroundColor: CONDITIONS.confusion.color }]}>{CONDITIONS.confusion.tag}</Text>}
+      <View style={{ gap: 1, alignItems: 'flex-end' }}>
+        {shown.map(item => <Text key={item} style={[board.tag, { backgroundColor: CONDITIONS[item].color }]}>{CONDITIONS[item].tag}</Text>)}
+        {more > 0 && <Text style={[board.tag, { backgroundColor: '#4a4a5e' }]}>+{more}</Text>}
+      </View>
     </View>}
-    {condition === 'sleep' && <Text accessible={false} style={[board.zzz, { fontSize: Math.max(10, size * 0.24), top: -size * (flicker ? 0.12 : 0.04) }]}>z Z</Text>}
+    {held.includes('sleep') && <Text accessible={false} style={[board.zzz, { fontSize: Math.max(10, size * 0.24), top: -size * (flicker ? 0.12 : 0.04) }]}>z Z</Text>}
   </View>
 })
 

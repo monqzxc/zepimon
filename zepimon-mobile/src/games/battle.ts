@@ -1,10 +1,10 @@
-import { battleType, cardKey, eggMovesOf, pickWeighted, stageOf, wildPool } from './roster.ts'
+import { battleType, cardKey, eggMovesOf, isLegendary, pickWeighted, stageOf, wildPool } from './roster.ts'
 import type { TeamCard } from './roster.ts'
 import { TRAIL_MAPS } from './trails.ts'
 import { BLAST_DAMAGE, BLAST_REACH, BOSS_CHARGE, BOSS_DASH, BOSS_EVERY, BOSS_FIRST, DASH_MS, HEAL_SHARE, SHIELD_MS, SHIELD_SHARE, STUN_MS, STUN_REACH,
   SUMMONS, bossMoves } from './boss.ts'
 import type { BossMove } from './boss.ts'
-import { CALM_MS, CONDITIONS, DOT, LASTS, PACE, rollCondition } from './status.ts'
+import { BOSS_MAX, CALM_MS, CONDITIONS, DOT, LASTS, MIN_PACE, ORDER, PACE, REFRESHES, immunities, rollCondition } from './status.ts'
 import type { Condition } from './status.ts'
 
 // One engine for Route Guard (five lanes, enemies walk down) and Trail Defense (enemies follow a path).
@@ -80,9 +80,9 @@ export type Enemy = { id: number, name: string, type: string, wave: number, boss
   // (standing still), its shield and when that fades, until when it dashes, and the move it last used.
   nextSkill?: number, skillIndex?: number, chargeUntil?: number, shield?: number, shieldUntil?: number, dashUntil?: number,
   lastSkill?: BossMove & { at: number },
-  // A status condition from your Pokemon's attacks (src/games/status.ts): which, until when, and its damage each second;
-  // confusion on top until confusedUntil; and until when it cannot be frozen or put to sleep again.
-  status?: Condition, statusUntil?: number, statusDps?: number, confusedUntil?: number, calmUntil?: number }
+  // Status conditions from your Pokemon's attacks (src/games/status.ts), each until when and its damage each second;
+  // until when it cannot be frozen or put to sleep again, or confused again; and when it last showed it was immune.
+  conditions?: Partial<Record<Condition, { until: number, dps: number }>>, calmUntil?: number, unconfusedUntil?: number, immuneShownAt?: number }
 // move is the type whose move the shot shows: the attacker's own, or its egg move's when that hits the target harder.
 export type Shot = { id: number, x: number, y: number, target: number, damage: number, type: string, coverage: string | null, effect: Effect, move: string }
 export type Drop = { id: number, col: number, row: number, value: number, until: number }
@@ -568,8 +568,7 @@ function castBossMove(g: Battle, enemy: Enemy, { skill, move }: BossMove, random
     enemy.hp += gain
     enemy.slowUntil = 0
     enemy.poisonUntil = 0
-    enemy.status = undefined
-    enemy.confusedUntil = 0
+    enemy.conditions = {}
     if (gain > 0) addFx(g, 'heal', at.x, at.y - 0.4, `+${gain}`, 900)
   } else {
     // Two foes of the battle's own kinds, at most middle forms, appear just behind the boss.
@@ -582,27 +581,41 @@ function castBossMove(g: Battle, enemy: Enemy, { skill, move }: BossMove, random
   }
 }
 
-// Whether a foe is in a status condition (not confusion) now.
-export const conditionOf = (game: Battle, enemy: Enemy): Condition | null =>
-  enemy.status && (enemy.statusUntil ?? 0) > game.elapsed ? enemy.status : null
+// A foe's status conditions now, strongest first (src/games/status.ts ORDER).
+export const conditionsOf = (game: Battle, enemy: Enemy): Condition[] =>
+  ORDER.filter(condition => (enemy.conditions?.[condition]?.until ?? 0) > game.elapsed)
+const hasCondition = (enemy: Enemy, condition: Condition, t: number) => (enemy.conditions?.[condition]?.until ?? 0) > t
+// Sets or clears one condition. The record is replaced, never changed in place: game states share it until then.
+function setCondition(enemy: Enemy, condition: Condition, value: { until: number, dps: number } | null) {
+  const next = { ...enemy.conditions }
+  if (value) next[condition] = value
+  else delete next[condition]
+  enemy.conditions = next
+}
 
 // A hit's status condition: a Fire move thaws a frozen foe, then the move's type may leave one (src/games/status.ts).
 function inflict(g: Battle, enemy: Enemy, move: string, dealt: number, random: () => number) {
   const t = g.elapsed
-  if (move === 'fire' && conditionOf(g, enemy) === 'freeze') { enemy.status = undefined; enemy.calmUntil = t + CALM_MS }
+  if (move === 'fire' && hasCondition(enemy, 'freeze', t)) { setCondition(enemy, 'freeze', null); enemy.calmUntil = t + CALM_MS }
   const condition = rollCondition(move, random)
   if (!condition) return
-  const lasts = LASTS[condition] * (enemy.boss ? 0.5 : 1)
-  if (condition === 'confusion') {
-    if ((enemy.confusedUntil ?? 0) > t) return
-    enemy.confusedUntil = t + lasts
-  } else {
-    if (conditionOf(g, enemy) || enemy.poisonUntil > t) return
-    if ((condition === 'freeze' || condition === 'sleep') && (enemy.calmUntil ?? 0) > t) return
-    Object.assign(enemy, { status: condition, statusUntil: t + lasts, statusDps: (DOT[condition] ?? 0) * dealt })
-  }
   const at = enemyPoint(g, enemy)
-  addFx(g, 'status', at.x, at.y - 0.55, CONDITIONS[condition].word, 900, CONDITIONS[condition].color)
+  if (immunities(enemy.name, enemy.type, enemy.boss, isLegendary(enemy.name)).includes(condition)) {
+    // Shown now and then, not on every roll.
+    if (t - (enemy.immuneShownAt ?? -Infinity) >= 2000) { enemy.immuneShownAt = t; addFx(g, 'status', at.x, at.y - 0.55, 'Immune!', 900, '#d6d9ea') }
+    return
+  }
+  const active = hasCondition(enemy, condition, t)
+  if (active && !REFRESHES.includes(condition)) return
+  if (!active && enemy.boss && conditionsOf(g, enemy).length >= BOSS_MAX) return
+  if ((condition === 'freeze' || condition === 'sleep') &&
+      (hasCondition(enemy, 'freeze', t) || hasCondition(enemy, 'sleep', t) || (enemy.calmUntil ?? 0) > t)) return
+  if (condition === 'confusion' && (enemy.unconfusedUntil ?? 0) > t) return
+  if (condition === 'burn' && hasCondition(enemy, 'freeze', t)) return
+  // Another hit resets the time; the damage is the stronger of the two hits', never both.
+  const dps = Math.max(active ? enemy.conditions![condition]!.dps : 0, (DOT[condition] ?? 0) * dealt)
+  setCondition(enemy, condition, { until: t + LASTS[condition] * (enemy.boss ? 0.5 : 1), dps })
+  if (!active) addFx(g, 'status', at.x, at.y - 0.55, CONDITIONS[condition].word, 900, CONDITIONS[condition].color)
 }
 
 function hit(g: Battle, enemy: Enemy, damage: number, type: string, coverage: string | null, effect: Effect, random?: () => number) {
@@ -663,20 +676,28 @@ function step(g: Battle, dt: number, random: () => number) {
 
   for (const enemy of g.enemies) {
     if (enemy.poisonUntil > t) enemy.hp -= enemy.poisonDps * dt / 1000
-    // A status condition wears off, or burns (frostbite, poison) on.
-    if (enemy.status && (enemy.statusUntil ?? 0) <= t) {
-      if (enemy.status === 'freeze' || enemy.status === 'sleep') enemy.calmUntil = t + CALM_MS
-      enemy.status = undefined
-      enemy.statusDps = 0
+    // Status conditions wear off (freeze, sleep and confusion leave it calm for a while), or burn on.
+    if (enemy.conditions) {
+      const lasting = Object.entries(enemy.conditions).filter(([, value]) => value.until > t)
+      if (lasting.length !== Object.keys(enemy.conditions).length) {
+        for (const condition of Object.keys(enemy.conditions) as Condition[]) {
+          if (hasCondition(enemy, condition, t)) continue
+          if (condition === 'freeze' || condition === 'sleep') enemy.calmUntil = t + CALM_MS
+          if (condition === 'confusion') enemy.unconfusedUntil = t + CALM_MS
+        }
+        enemy.conditions = Object.fromEntries(lasting)
+      }
+      for (const [, value] of lasting) enemy.hp -= value.dps * dt / 1000
     }
-    if (enemy.status && enemy.statusDps) enemy.hp -= enemy.statusDps * dt / 1000
     if (enemy.hp <= 0) continue
     // Frozen or asleep, it does nothing at all: no moves, no steps, no bites.
-    const pace = enemy.status ? PACE[enemy.status] ?? 1 : 1
-    if (pace === 0) continue
+    if (hasCondition(enemy, 'freeze', t) || hasCondition(enemy, 'sleep', t)) continue
     if (enemy.boss && bossTurn(g, enemy, random)) continue
-    const confused = (enemy.confusedUntil ?? 0) > t
-    const move = enemy.speed * (enemy.slowUntil > t ? 0.5 : 1) * ((enemy.dashUntil ?? 0) > t ? BOSS_DASH : 1) * pace * (confused ? PACE.confusion! : 1) * dt / 1000
+    // Slows add up, never below MIN_PACE; confused, it walks back.
+    const pace = Math.max(MIN_PACE, (enemy.slowUntil > t ? 0.5 : 1) * (hasCondition(enemy, 'paralysis', t) ? PACE.paralysis! : 1) *
+      (hasCondition(enemy, 'frostbite', t) ? PACE.frostbite! : 1))
+    const confused = hasCondition(enemy, 'confusion', t)
+    const move = enemy.speed * pace * ((enemy.dashUntil ?? 0) > t ? BOSS_DASH : 1) * (confused ? PACE.confusion! : 1) * dt / 1000
     // Confused, it stumbles back the way it came, never past where it entered.
     if (move < 0) { enemy.progress = Math.max(lanes ? -0.5 : 0, enemy.progress + move); continue }
     if (!lanes) { enemy.progress += move; continue }
