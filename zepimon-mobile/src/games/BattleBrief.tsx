@@ -121,6 +121,7 @@ export function BattleBrief({ layout, brief, preview, bonus, assists, helper, on
       'A foe that reaches the Poke Ball costs a life; a boss costs three.'
     ]).concat([
       'Super-effective hits deal ×2. EGG Pokemon know an egg move.',
+      'Hits can leave a status: BRN burns, FRZ freezes, FRB frostbites, PAR slows, SLP sleeps, PSN poisons, CNF sends foes back.',
       'Leaving the app pauses the battle.'
     ]).map(line => <Copy key={line} small>• {line}</Copy>)}</View>}
   </View>
