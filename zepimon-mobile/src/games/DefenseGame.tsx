@@ -7,7 +7,7 @@ import { typeTheme } from '../HabitatScene'
 import { Button, Copy, Heading, IconButton, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
-import { EVOLVE_MS, LANES, bossCharging, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
+import { EVOLVE_MS, LANES, bossCharging, conditionsOf, untouchable, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
   facingToward, gridSize, unitTarget, moveOf,
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
 import type { Battle, BattleSpec, Heading as Facing, Layout, Weather } from './battle'
@@ -25,6 +25,8 @@ import { WeatherLayer } from './Weather'
 import { BattleBrief } from './BattleBrief'
 import type { Brief } from './BattleBrief'
 import { BOSS_CHARGE, SKILL_MARKS, SKILL_TEXT } from './boss'
+import { CONDITIONS, ORDER, inflictText } from './status'
+import type { Condition } from './status'
 import { useGameLoop, useReducedMotion } from './hooks'
 
 export type BattleResult = { won: boolean, score: number, stars: number }
@@ -51,7 +53,7 @@ const native = Platform.OS !== 'web'
 // The battle board keeps its own colors: its terrain art is darker than the light app theme around it.
 const onBoard = { ink: '#f4ebcf', gold: '#ffe08d', dark: '#071b2c' }
 const fxColors = { super: onBoard.gold, berries: '#ff92af', guard: onBoard.ink, assist: onBoard.gold, leak: '#ff8a8a', boss: '#ff8c42', hurt: '#ff6b6b',
-  heal: '#7ef29a' }
+  heal: '#7ef29a', status: '#ffffff' }
 // Walking strips (src/generated/trail-walkers.js), Normal and Shiny: two steps each facing south, north, west, east.
 const walkers = trailWalkers as Record<string, ImageSourcePropType>
 const facing: Record<Facing, number> = { S: 0, N: 2, W: 4, E: 6 }
@@ -244,13 +246,20 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
           const at = enemyPoint(game, enemy)
           const size = cell * (enemy.boss ? 1.25 : 0.9)
           const slowed = enemy.slowUntil > game.elapsed
-          // Two-step walk cycle from the game clock, offset per foe so a wave does not march in lockstep.
-          const step = reduced ? 0 : (Math.floor(game.elapsed / (slowed ? STEP_MS * 2 : STEP_MS)) + enemy.id) % 2
+          // Its conditions, strongest first, with the Toxic role's poison among them.
+          const held = conditionsOf(game, enemy)
+          const conditions = enemy.poisonUntil > game.elapsed && !held.includes('poison') ? ORDER.filter(item => item === 'poison' || held.includes(item)) : held
+          // Two-step walk cycle from the game clock, offset per foe so a wave does not march in lockstep. Frozen or
+          // asleep, it holds still.
+          const still = reduced || conditions.includes('freeze') || conditions.includes('sleep')
+          const step = still ? 0 : (Math.floor(game.elapsed / (slowed ? STEP_MS * 2 : STEP_MS)) + enemy.id) % 2
           return <Mover key={enemy.id} x={at.x * cell - size / 2} y={top + at.y * cell - size / 2} size={size} reduced={reduced}>
             <Foe name={enemy.name} size={size} ratio={enemy.hp / enemy.maxHp} boss={enemy.boss} slowed={slowed} reduced={reduced}
               mark={enemy.boosted && spec.weather ? WEATHER[spec.weather].mark : ''}
               hurt={game.strikes.some(strike => strike.foe === enemy.id && strike.kind !== 'wave' && game.elapsed - strike.start < 200)}
               poisoned={enemy.poisonUntil > game.elapsed} heading={enemyHeading(game, enemy)} step={step}
+              conditions={conditions.join(',')}
+              flicker={reduced ? 1 : Math.floor(game.elapsed / 150) % 2}
               {...bossLook(game, enemy)} />
           </Mover>
         })}
@@ -270,7 +279,7 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
         {game.effects.filter(fx => !(answer && fx.kind === 'assist')).map(fx => <Text key={fx.id} pointerEvents="none" accessible={false}
           // Kept inside the board's edges, so a callout by the side of the map reads in full.
           style={[board.fx, { left: Math.max(0, Math.min(fieldWidth - cell * 2.6, fx.x * cell - cell * 1.3)), top: top + fx.y * cell - cell * 0.6, width: cell * 2.6,
-            color: fxColors[fx.kind],
+            color: fx.tint ?? fxColors[fx.kind],
             fontSize: fx.kind === 'guard' || fx.kind === 'assist' ? 22 : fx.kind === 'boss' ? 17 : 16 }]}>{fx.text}</Text>)}
         {spec.weather && <WeatherLayer weather={spec.weather} width={fieldWidth} height={height} reduced={reduced} />}
         {answer && <AssistMove key={answer.id} name={answer.name} width={fieldWidth} height={height} reduced={reduced} onDone={endAnswer} />}
@@ -414,11 +423,23 @@ function bossLook(game: Battle, enemy: Battle['enemies'][number]) {
     shielded: (enemy.shield ?? 0) > 0, dashing: (enemy.dashUntil ?? 0) > game.elapsed }
 }
 
+// How a status condition tints a foe (src/games/status.ts): colour, strength, and whether it flickers on and off.
+const CONDITION_TINT: Record<Condition, [string, number, boolean]> = {
+  freeze: ['#9fdcff', 0.6, false], frostbite: ['#bfe4ff', 0.3, false], burn: ['#ff7a3c', 0.4, true], paralysis: ['#ffe14d', 0.45, true],
+  poison: ['#b25fd9', 0.35, true], sleep: ['#6b6b86', 0.25, false], confusion: ['#e26aa8', 0.2, true]
+}
+
 const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, heading, step, hurt, reduced, mark, charge = -1, chargeMark = '', shielded = false,
-  dashing = false }: {
+  dashing = false, conditions = '', flicker = 0 }: {
   name: string, size: number, ratio: number, boss: boolean, slowed: boolean, poisoned: boolean, heading: Facing, step: number, hurt: boolean, reduced: boolean,
-  mark: string, charge?: number, chargeMark?: string, shielded?: boolean, dashing?: boolean
+  mark: string, charge?: number, chargeMark?: string, shielded?: boolean, dashing?: boolean, conditions?: string, flicker?: number
 }) {
+  // conditions: its status conditions, strongest first, joined by commas (a string keeps this component memoized).
+  const held = (conditions ? conditions.split(',') : []) as Condition[]
+  const strongest = held[0]
+  // The strongest condition colours it; up to three tags show, then how many more.
+  const tint = strongest && (!CONDITION_TINT[strongest][2] || flicker) ? CONDITION_TINT[strongest] : null
+  const shown = held.slice(0, 3), more = held.length - shown.length
   const strip = walkers[name]
   const sprite = { width: size, height: size, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }
   const px = Math.max(1, size / 44)
@@ -446,6 +467,11 @@ const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, headi
         <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={sprite} />
         <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { position: 'absolute', tintColor: '#2a1240', opacity: 0.55 }]} />
       </>}
+      {/* A status condition's colour over it: frozen ice-blue, a burn's flicker of orange, and so on. */}
+      {tint && <View style={{ position: 'absolute', left: 0, top: 0, opacity: tint[1] }}>
+        {strip ? <Strip source={strip} size={size} frame={frame} tint={tint[0]} solid />
+          : <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { tintColor: tint[0] }]} />}
+      </View>}
       {hurt && <View style={{ position: 'absolute', left: 0, top: 0, opacity: 0.8 }}>
         {strip ? <Strip source={strip} size={size} frame={frame} tint="#ffffff" solid />
           : <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { tintColor: '#ffffff' }]} />}
@@ -459,7 +485,15 @@ const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, headi
     {!!chargeMark && <Text accessible={false} style={[board.chargeMark, { fontSize: Math.max(14, size * 0.36), top: size * 0.05, left: size * 0.92 }]}>{chargeMark}</Text>}
     {/* Powered up by the weather: its mark on a gold chip. */}
     {!!mark && <Text accessible={false} style={[board.weatherMark, { fontSize: Math.max(9, size * 0.24) }]}>{mark}</Text>}
-    {(slowed || poisoned || dashing) && <Text style={board.status}>{dashing ? '»' : ''}{slowed ? '❄' : ''}{poisoned ? '☠' : ''}</Text>}
+    {/* Its status as the games tag it (BRN, FRZ...), with confusion's CNF beside it and slow or dash marks before. */}
+    {(slowed || dashing || held.length > 0) && <View style={board.status}>
+      {(slowed || dashing) && <Text style={board.statusMark}>{dashing ? '»' : ''}{slowed ? '❄' : ''}</Text>}
+      <View style={{ gap: 1, alignItems: 'flex-end' }}>
+        {shown.map(item => <Text key={item} style={[board.tag, { backgroundColor: CONDITIONS[item].color }]}>{CONDITIONS[item].tag}</Text>)}
+        {more > 0 && <Text style={[board.tag, { backgroundColor: '#4a4a5e' }]}>+{more}</Text>}
+      </View>
+    </View>}
+    {held.includes('sleep') && <Text accessible={false} style={[board.zzz, { fontSize: Math.max(10, size * 0.24), top: -size * (flicker ? 0.12 : 0.04) }]}>z Z</Text>}
   </View>
 })
 
@@ -518,6 +552,10 @@ function UnitPanel({ unit, layout, weather, playing, berries, style, onEvolve, o
   const perk = eggPerk(unit.name, layout)
   const move = moveOf(unit.name, layout)
   const sky = unitWeather(weather, unit.name, layout)
+  // What its move can leave on a foe: "Ember may burn (20%)".
+  const causes = move ? inflictText(battleType(unit.name)) : ''
+  // The foes its moves cannot touch ("Can't hit Ghost foes"): it leaves them for the rest of the team.
+  const blind = move ? untouchable(unit.name, layout, unit.egg) : []
   return <View style={[play.floating, style]}>
     <View style={[styles.row, { flexWrap: 'nowrap' }]}>
       <PixelSprite name={unit.name} shiny={unit.shiny} size={44} />
@@ -528,6 +566,8 @@ function UnitPanel({ unit, layout, weather, playing, berries, style, onEvolve, o
     </View>
     <Copy small color={unit.egg && perk ? colors.gold : colors.muted}>{!unit.egg ? 'No egg moves: only Pokemon hatched on your watch know them.'
       : perk ? `Hatched from an egg · Egg move ${perk.move}: ${perk.text}.` : 'Hatched from an egg, but this family has no Gen II–IV egg moves.'}</Copy>
+    {!!causes && <Copy small color={colors.ink}>{`${move} ${causes}.`}</Copy>}
+    {blind.length > 0 && <Copy small color={colors.danger}>{`Can't hit ${types(blind)} foes.`}</Copy>}
     {weather && sky && <Copy small color={sky === 'boosted' ? colors.gold : colors.danger}>{sky === 'boosted'
       ? `${WEATHER[weather].mark} ${WEATHER[weather].name} powers it up: ${POWER_UP}% more damage.`
       : `${WEATHER[weather].mark} ${WEATHER[weather].name} weakens it: ${POWER_DOWN}% less damage.`}</Copy>}
@@ -555,7 +595,11 @@ const board = themedStyles(() => ({
   drop: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   fx: { position: 'absolute', textAlign: 'center', fontFamily: fonts.black, textShadowColor: onBoard.dark, textShadowRadius: 3, textShadowOffset: { width: 1, height: 1 } },
   boss: { position: 'absolute', top: -2, fontSize: 10, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 5, borderRadius: 999, overflow: 'hidden' },
-  status: { position: 'absolute', top: 0, right: 0, fontSize: 12 },
+  status: { position: 'absolute', top: 0, right: -4, flexDirection: 'row', alignItems: 'center', gap: 2 },
+  statusMark: { fontSize: 12 },
+  tag: { fontSize: 8, lineHeight: 11, fontFamily: fonts.black, color: '#ffffff', paddingHorizontal: 3, borderRadius: 3, overflow: 'hidden',
+    textShadowColor: 'rgba(0, 0, 0, 0.45)', textShadowRadius: 1 },
+  zzz: { position: 'absolute', right: 0, fontFamily: fonts.black, color: '#e8ecff', textShadowColor: onBoard.dark, textShadowRadius: 2 },
   charge: { position: 'absolute', borderColor: '#ff8c42', backgroundColor: 'rgba(255, 140, 66, 0.12)' },
   chargeMark: { position: 'absolute', fontFamily: fonts.black, color: '#ffb36b', textShadowColor: onBoard.dark, textShadowRadius: 3,
     textShadowOffset: { width: 1, height: 1 } },

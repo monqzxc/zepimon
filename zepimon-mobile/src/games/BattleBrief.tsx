@@ -7,7 +7,9 @@ import { PATHS, WEATHER, WEATHER_POWER, WEATHER_WEAK } from './battle'
 import type { BattleSpec, Layout } from './battle'
 import { SKILL_MARKS, bossMoves } from './boss'
 import type { BossSkill } from './boss'
+import { battleType, isLegendary } from './roster'
 import type { TeamCard } from './roster'
+import { CONDITIONS, immunities } from './status'
 import type { Suggestion } from './suggest'
 import { PixelSprite, TeamPicker } from './TeamPicker'
 import { TILE_MARKS, TrailTerrain } from './TrailTerrain'
@@ -46,6 +48,7 @@ export function BattleBrief({ layout, brief, preview, bonus, assists, helper, on
     ...tiles.length ? [['tiles', `◆ ${tiles.reduce((sum, [, count]) => sum + count, 0)} element tiles`] as [Tag, string]] : []
   ]
   const trail = preview?.layout === 'trail'
+  const immune = preview?.boss ? immunities(preview.boss, battleType(preview.boss), true, isLegendary(preview.boss)) : []
   const theme = preview ? typeTheme(preview.habitat) : null
 
   return <View style={{ gap: 18 }}>
@@ -82,6 +85,10 @@ export function BattleBrief({ layout, brief, preview, bonus, assists, helper, on
           <Text style={look.fact}>Shadow {preview.boss} · last wave</Text>
         </View>
         {bossMoves(preview.boss).map(({ skill, move }) => <Copy key={move} small color={colors.ink}>{`${SKILL_MARKS[skill]} ${move}: ${BOSS_TIPS[skill]}`}</Copy>)}
+        {immune.length > 0 && <View style={look.immune} accessible accessibilityLabel={`Immune to ${immune.join(', ')}`}>
+          <Text style={look.hint}>Immune to</Text>
+          {immune.map(item => <Text key={item} style={[look.statusTag, { backgroundColor: CONDITIONS[item].color }]}>{CONDITIONS[item].tag}</Text>)}
+        </View>}
       </View>}
       {open === 'tiles' && <View style={look.detail}>
         <View style={look.tags}>{tiles.map(([type, count]) => <View key={type} style={[look.tile, { backgroundColor: typeColors[type] ?? colors.sunken }]}>
@@ -120,7 +127,8 @@ export function BattleBrief({ layout, brief, preview, bonus, assists, helper, on
       'Tap a card, then a square beside the trail. Tap a placed Pokemon to evolve it.',
       'A foe that reaches the Poke Ball costs a life; a boss costs three.'
     ]).concat([
-      'Super-effective hits deal ×2. EGG Pokemon know an egg move.',
+      'Super-effective hits deal ×2; some types are immune (Ghost to Normal and Fighting, Ground to Electric…). EGG Pokemon know an egg move.',
+      'Hits can leave statuses, several at once: BRN burns, FRZ freezes, FRB frostbites, PAR slows, SLP sleeps, PSN poisons, CNF sends foes back. Bosses are immune to some.',
       'Leaving the app pauses the battle.'
     ]).map(line => <Copy key={line} small>• {line}</Copy>)}</View>}
   </View>
@@ -152,6 +160,8 @@ const look = themedStyles(() => ({
   tagOn: { backgroundColor: colors.edge },
   tagText: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16 },
   detail: { gap: 4, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.line },
+  immune: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 2 },
+  statusTag: { color: '#FFFFFF', fontFamily: fonts.black, fontSize: 10, lineHeight: 14, paddingHorizontal: 5, borderRadius: 4, overflow: 'hidden' },
   bossRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   tile: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   tileText: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontFamily: fonts.heavy },

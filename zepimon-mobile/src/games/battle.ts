@@ -1,9 +1,11 @@
-import { battleType, cardKey, eggMovesOf, pickWeighted, stageOf, wildPool } from './roster.ts'
+import { battleType, cardKey, eggMovesOf, isLegendary, pickWeighted, stageOf, wildPool } from './roster.ts'
 import type { TeamCard } from './roster.ts'
 import { TRAIL_MAPS } from './trails.ts'
 import { BLAST_DAMAGE, BLAST_REACH, BOSS_CHARGE, BOSS_DASH, BOSS_EVERY, BOSS_FIRST, DASH_MS, HEAL_SHARE, SHIELD_MS, SHIELD_SHARE, STUN_MS, STUN_REACH,
   SUMMONS, bossMoves } from './boss.ts'
 import type { BossMove } from './boss.ts'
+import { BOSS_MAX, CALM_MS, CONDITIONS, DOT, LASTS, MIN_PACE, ORDER, PACE, REFRESHES, immunities, rollCondition } from './status.ts'
+import type { Condition } from './status.ts'
 
 // One engine for Route Guard (five lanes, enemies walk down) and Trail Defense (enemies follow a path).
 // Positions are in grid cells; the game advances in fixed 100 ms steps so results do not depend on timer jitter.
@@ -77,11 +79,15 @@ export type Enemy = { id: number, name: string, type: string, wave: number, boss
   // A boss's skills (src/games/boss.ts): when it next charges one, which of its moves is next, until when it is charging
   // (standing still), its shield and when that fades, until when it dashes, and the move it last used.
   nextSkill?: number, skillIndex?: number, chargeUntil?: number, shield?: number, shieldUntil?: number, dashUntil?: number,
-  lastSkill?: BossMove & { at: number } }
+  lastSkill?: BossMove & { at: number },
+  // Status conditions from your Pokemon's attacks (src/games/status.ts), each until when and its damage each second;
+  // until when it cannot be frozen or put to sleep again, or confused again; and when it last showed it was immune.
+  conditions?: Partial<Record<Condition, { until: number, dps: number }>>, calmUntil?: number, unconfusedUntil?: number, immuneShownAt?: number }
 // move is the type whose move the shot shows: the attacker's own, or its egg move's when that hits the target harder.
 export type Shot = { id: number, x: number, y: number, target: number, damage: number, type: string, coverage: string | null, effect: Effect, move: string }
 export type Drop = { id: number, col: number, row: number, value: number, until: number }
-export type Fx = { id: number, kind: 'super' | 'berries' | 'guard' | 'assist' | 'leak' | 'boss' | 'hurt' | 'heal', x: number, y: number, until: number, text: string }
+export type Fx = { id: number, kind: 'super' | 'berries' | 'guard' | 'assist' | 'leak' | 'boss' | 'hurt' | 'heal' | 'status', x: number, y: number, until: number,
+  text: string, tint?: string }
 // A move landing, for the board to animate: a hit on a foe, a smaller one on a foe caught by a splash or chain, or a wave
 // around a Pokemon whose move strikes everything within reach (a grower's harvest has reach 0). foe is the foe hit, or -1.
 export type Strike = { id: number, move: string, kind: 'hit' | 'spread' | 'wave', x: number, y: number, foe: number, reach: number, start: number, until: number }
@@ -150,8 +156,19 @@ const weak: Record<string, string[]> = {
   rock: ['fighting', 'ground', 'steel'], ghost: ['dark', 'normal'], dragon: ['steel', 'fairy'], dark: ['fighting', 'dark', 'fairy'],
   steel: ['fire', 'water', 'electric', 'steel'], fairy: ['fire', 'poison', 'steel']
 }
+// The games' immunities: these moves do nothing at all to these types.
+const immune: Record<string, string[]> = {
+  normal: ['ghost'], fighting: ['ghost'], ghost: ['normal'], poison: ['steel'], ground: ['flying'], electric: ['ground'], psychic: ['dark'], dragon: ['fairy']
+}
 export function effectiveness(attack: string, defend: string): number {
-  return strong[attack]?.includes(defend) ? 2 : weak[attack]?.includes(defend) ? 0.5 : 1
+  return immune[attack]?.includes(defend) ? 0 : strong[attack]?.includes(defend) ? 2 : weak[attack]?.includes(defend) ? 0.5 : 1
+}
+// The types a Pokemon's moves cannot touch: its own type's immunities, less what its egg move (coverage) can hit.
+export function untouchable(name: string, layout: Layout, egg: boolean): string[] {
+  const type = battleType(name)
+  const perk = egg ? eggPerk(name, layout) : null
+  const coverage = perk?.kind === 'coverage' ? perk.type : null
+  return (immune[type] ?? []).filter(defend => !coverage || effectiveness(coverage, defend) === 0)
 }
 
 // A hatched attacker uses whichever of its own type and its egg move's type hits harder.
@@ -478,8 +495,8 @@ function clone(game: Battle): Battle {
     shots: game.shots.map(shot => ({ ...shot })), drops: [...game.drops], effects: [...game.effects], strikes: [...game.strikes], spawns: [...game.spawns] }
 }
 
-function addFx(g: Battle, kind: Fx['kind'], x: number, y: number, text: string, life = 600) {
-  g.effects.push({ id: g.nextId++, kind, x, y, until: g.elapsed + life, text })
+function addFx(g: Battle, kind: Fx['kind'], x: number, y: number, text: string, life = 600, tint?: string) {
+  g.effects.push({ id: g.nextId++, kind, x, y, until: g.elapsed + life, text, ...tint ? { tint } : {} })
 }
 
 const STRIKE_LIFE = { hit: 500, spread: 400, wave: 500 }
@@ -487,7 +504,13 @@ function addStrike(g: Battle, move: string, kind: Strike['kind'], at: Point, foe
   g.strikes.push({ id: g.nextId++, move, kind, x: at.x, y: at.y, foe, reach, start: g.elapsed, until: g.elapsed + STRIKE_LIFE[kind] })
 }
 
+// The foes a Pokemon can attack now, the furthest along first. It leaves alone any its moves cannot touch (a Ghost foe
+// for a Normal or Fighting Pokemon without another egg move), and attacks the next one instead.
 function targetsFor(g: Battle, unit: Unit, kit: Kit): Enemy[] {
+  const blind = untouchable(unit.name, g.layout, unit.egg)
+  return reachable(g, unit, kit).filter(enemy => !blind.includes(enemy.type))
+}
+function reachable(g: Battle, unit: Unit, kit: Kit): Enemy[] {
   const center = { x: unit.col + 0.5, y: unit.row + 0.5 }
   if (g.layout === 'lanes') {
     // Lane attackers cover everything above them. Short-range brawlers reach two rows, so one standing behind a
@@ -562,6 +585,7 @@ function castBossMove(g: Battle, enemy: Enemy, { skill, move }: BossMove, random
     enemy.hp += gain
     enemy.slowUntil = 0
     enemy.poisonUntil = 0
+    enemy.conditions = {}
     if (gain > 0) addFx(g, 'heal', at.x, at.y - 0.4, `+${gain}`, 900)
   } else {
     // Two foes of the battle's own kinds, at most middle forms, appear just behind the boss.
@@ -574,9 +598,53 @@ function castBossMove(g: Battle, enemy: Enemy, { skill, move }: BossMove, random
   }
 }
 
-function hit(g: Battle, enemy: Enemy, damage: number, type: string, coverage: string | null, effect: Effect) {
+// A foe's status conditions now, strongest first (src/games/status.ts ORDER).
+export const conditionsOf = (game: Battle, enemy: Enemy): Condition[] =>
+  ORDER.filter(condition => (enemy.conditions?.[condition]?.until ?? 0) > game.elapsed)
+const hasCondition = (enemy: Enemy, condition: Condition, t: number) => (enemy.conditions?.[condition]?.until ?? 0) > t
+// Sets or clears one condition. The record is replaced, never changed in place: game states share it until then.
+function setCondition(enemy: Enemy, condition: Condition, value: { until: number, dps: number } | null) {
+  const next = { ...enemy.conditions }
+  if (value) next[condition] = value
+  else delete next[condition]
+  enemy.conditions = next
+}
+
+// A hit's status condition: a Fire move thaws a frozen foe, then the move's type may leave one (src/games/status.ts).
+function inflict(g: Battle, enemy: Enemy, move: string, dealt: number, random: () => number) {
+  const t = g.elapsed
+  if (move === 'fire' && hasCondition(enemy, 'freeze', t)) { setCondition(enemy, 'freeze', null); enemy.calmUntil = t + CALM_MS }
+  const condition = rollCondition(move, random)
+  if (!condition) return
+  const at = enemyPoint(g, enemy)
+  if (immunities(enemy.name, enemy.type, enemy.boss, isLegendary(enemy.name)).includes(condition)) {
+    // Shown now and then, not on every roll.
+    if (t - (enemy.immuneShownAt ?? -Infinity) >= 2000) { enemy.immuneShownAt = t; statusCallout(g, at, 'Immune!', '#d6d9ea') }
+    return
+  }
+  const active = hasCondition(enemy, condition, t)
+  if (active && !REFRESHES.includes(condition)) return
+  if (!active && enemy.boss && conditionsOf(g, enemy).length >= BOSS_MAX) return
+  if ((condition === 'freeze' || condition === 'sleep') &&
+      (hasCondition(enemy, 'freeze', t) || hasCondition(enemy, 'sleep', t) || (enemy.calmUntil ?? 0) > t)) return
+  if (condition === 'confusion' && (enemy.unconfusedUntil ?? 0) > t) return
+  if (condition === 'burn' && hasCondition(enemy, 'freeze', t)) return
+  // Another hit resets the time; the damage is the stronger of the two hits', never both.
+  const dps = Math.max(active ? enemy.conditions![condition]!.dps : 0, (DOT[condition] ?? 0) * dealt)
+  setCondition(enemy, condition, { until: t + LASTS[condition] * (enemy.boss ? 0.5 : 1), dps })
+  if (!active) statusCallout(g, at, CONDITIONS[condition].word, CONDITIONS[condition].color)
+}
+
+// A status callout above a foe, stacked over any other said there just now, so two landing together both read.
+function statusCallout(g: Battle, at: Point, text: string, tint: string) {
+  const near = g.effects.filter(fx => fx.kind === 'status' && fx.until - g.elapsed > 600 && Math.abs(fx.x - at.x) < 1.2 && Math.abs(fx.y - (at.y - 0.55)) < 1.5).length
+  addFx(g, 'status', at.x, at.y - 0.55 - 0.4 * near, text, 900, tint)
+}
+
+function hit(g: Battle, enemy: Enemy, damage: number, type: string, coverage: string | null, effect: Effect, random?: () => number) {
   const multiplier = bestOf(type, coverage, enemy.type)
   harm(g, enemy, damage * multiplier)
+  if (random && enemy.hp > 0) inflict(g, enemy, hitType(type, coverage, enemy.type), damage * multiplier, random)
   const at = enemyPoint(g, enemy)
   addStrike(g, hitType(type, coverage, enemy.type), 'hit', at, enemy.id)
   if (multiplier > 1) addFx(g, 'super', at.x, at.y, '×2')
@@ -631,9 +699,30 @@ function step(g: Battle, dt: number, random: () => number) {
 
   for (const enemy of g.enemies) {
     if (enemy.poisonUntil > t) enemy.hp -= enemy.poisonDps * dt / 1000
+    // Status conditions wear off (freeze, sleep and confusion leave it calm for a while), or burn on.
+    if (enemy.conditions) {
+      const lasting = Object.entries(enemy.conditions).filter(([, value]) => value.until > t)
+      if (lasting.length !== Object.keys(enemy.conditions).length) {
+        for (const condition of Object.keys(enemy.conditions) as Condition[]) {
+          if (hasCondition(enemy, condition, t)) continue
+          if (condition === 'freeze' || condition === 'sleep') enemy.calmUntil = t + CALM_MS
+          if (condition === 'confusion') enemy.unconfusedUntil = t + CALM_MS
+        }
+        enemy.conditions = Object.fromEntries(lasting)
+      }
+      for (const [, value] of lasting) enemy.hp -= value.dps * dt / 1000
+    }
     if (enemy.hp <= 0) continue
+    // Frozen or asleep, it does nothing at all: no moves, no steps, no bites.
+    if (hasCondition(enemy, 'freeze', t) || hasCondition(enemy, 'sleep', t)) continue
     if (enemy.boss && bossTurn(g, enemy, random)) continue
-    const move = enemy.speed * (enemy.slowUntil > t ? 0.5 : 1) * ((enemy.dashUntil ?? 0) > t ? BOSS_DASH : 1) * dt / 1000
+    // Slows add up, never below MIN_PACE; confused, it walks back.
+    const pace = Math.max(MIN_PACE, (enemy.slowUntil > t ? 0.5 : 1) * (hasCondition(enemy, 'paralysis', t) ? PACE.paralysis! : 1) *
+      (hasCondition(enemy, 'frostbite', t) ? PACE.frostbite! : 1))
+    const confused = hasCondition(enemy, 'confusion', t)
+    const move = enemy.speed * pace * ((enemy.dashUntil ?? 0) > t ? BOSS_DASH : 1) * (confused ? PACE.confusion! : 1) * dt / 1000
+    // Confused, it stumbles back the way it came, never past where it entered.
+    if (move < 0) { enemy.progress = Math.max(lanes ? -0.5 : 0, enemy.progress + move); continue }
     if (!lanes) { enemy.progress += move; continue }
     // A foe stops at the first Pokemon below it in its lane and nibbles until that Pokemon faints.
     const blocker = g.units.filter(unit => unit.col === enemy.lane && unit.hp > 0 && unit.row + 1 > enemy.progress).sort((a, b) => a.row - b.row)[0]
@@ -687,7 +776,7 @@ function step(g: Battle, dt: number, random: () => number) {
     const damage = kit.damage * (perk?.kind === 'power' ? EGG_POWER : 1) * weatherPower(g.spec.weather, type)
     if (kit.effect === 'line') {
       addStrike(g, type, 'wave', center, -1, kit.range)
-      for (const target of targets) hit(g, target, damage, type, coverage, 'none')
+      for (const target of targets) hit(g, target, damage, type, coverage, 'none', random)
     } else {
       g.shots.push({ id: g.nextId++, x: center.x, y: center.y, target: targets[0].id, damage, type, coverage, effect: kit.effect,
         move: hitType(type, coverage, targets[0].type) })
@@ -700,7 +789,7 @@ function step(g: Battle, dt: number, random: () => number) {
     if (!target) { shot.target = -1; continue }
     const at = enemyPoint(g, target)
     const gap = distance(at, shot)
-    if (gap <= travel + 0.2) { hit(g, target, shot.damage, shot.type, shot.coverage, shot.effect); shot.target = -1 }
+    if (gap <= travel + 0.2) { hit(g, target, shot.damage, shot.type, shot.coverage, shot.effect, random); shot.target = -1 }
     else { shot.x += (at.x - shot.x) / gap * travel; shot.y += (at.y - shot.y) / gap * travel }
   }
   g.shots = g.shots.filter(shot => shot.target !== -1)
