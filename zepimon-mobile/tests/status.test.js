@@ -120,10 +120,14 @@ test('bosses shake conditions off twice as fast and carry at most two', () => {
 })
 
 test('bosses are immune to some conditions, Legendaries and Mythicals to several', () => {
-  assert.deepEqual(immunities('Rattata', 'normal', false, false), [], 'Ordinary foes are immune to nothing')
-  assert.deepEqual(immunities('Charizard', 'fire', true, false), ['burn', 'freeze'])
-  assert.deepEqual(immunities('Raichu', 'electric', true, false), ['paralysis'])
-  assert.deepEqual(immunities('Moltres', 'fire', true, true), ['burn', 'freeze', 'frostbite'])
+  const set = list => [...list].sort()
+  assert.deepEqual(immunities('Rattata', 'normal', false, false), [], 'A Normal foe is immune to nothing')
+  assert.deepEqual(set(immunities('Charmander', 'fire', false, false)), ['burn', 'freeze'], 'Every Fire foe: no burns, no freezing')
+  assert.deepEqual(set(immunities('Magnemite', 'steel', false, false)), ['poison'])
+  assert.deepEqual(set(immunities('Diglett', 'ground', false, false)), [], 'A Ground foe...')
+  assert.deepEqual(set(immunities('Dugtrio', 'ground', true, false)), ['paralysis'], '...and a Ground boss, which stays grounded')
+  assert.deepEqual(set(immunities('Raichu', 'electric', true, false)), ['paralysis'])
+  assert.deepEqual(set(immunities('Moltres', 'fire', true, true)), ['burn', 'freeze', 'frostbite'])
   assert.equal(immunities('Arceus', 'normal', true, true).length, 4)
   for (const name of ['Celebi', 'Lugia', 'Mewtwo', 'Giratina']) assert.ok(immunities(name, 'psychic', true, true).length >= 3, name)
   const other = immunities('Kyogre', 'water', true, true)
@@ -132,4 +136,20 @@ test('bosses are immune to some conditions, Legendaries and Mythicals to several
   const moltres = tick(arena(['Charmander'], { name: 'Moltres', type: 'fire' }), 700, always)
   assert.ok(!has(moltres, 'burn'))
   assert.ok(moltres.effects.some(fx => fx.text === 'Immune!'))
+})
+
+test('every foe is immune to the conditions its type rules out', () => {
+  const fiery = arena(['Charmander'])
+  const game = tick({ ...fiery, enemies: fiery.enemies.map(enemy => ({ ...enemy, type: 'fire' })) }, 700, always)
+  assert.ok(!has(game, 'burn'), 'A Fire foe is never burned')
+  assert.ok(game.effects.some(fx => fx.text === 'Immune!'))
+})
+
+test('a Pokemon leaves alone a foe its moves cannot touch', () => {
+  const base = arena(['Pikachu'])
+  const ground = tick({ ...base, enemies: base.enemies.map(enemy => ({ ...enemy, type: 'ground' })) }, 800, always)
+  assert.equal(ground.units[0].ready, 0, 'Electric moves do nothing to Ground: Pikachu holds its fire')
+  assert.equal(ground.shots.length + ground.strikes.filter(strike => strike.kind === 'hit').length, 0)
+  const normal = tick(base, 800, always)
+  assert.ok(normal.units[0].ready > 0, 'and attacks a Normal foe as usual')
 })

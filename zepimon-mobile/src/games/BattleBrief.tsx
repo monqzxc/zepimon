@@ -127,7 +127,7 @@ export function BattleBrief({ layout, brief, preview, bonus, assists, helper, on
       'Tap a card, then a square beside the trail. Tap a placed Pokemon to evolve it.',
       'A foe that reaches the Poke Ball costs a life; a boss costs three.'
     ]).concat([
-      'Super-effective hits deal ×2. EGG Pokemon know an egg move.',
+      'Super-effective hits deal ×2; some types are immune (Ghost to Normal and Fighting, Ground to Electric…). EGG Pokemon know an egg move.',
       'Hits can leave statuses, several at once: BRN burns, FRZ freezes, FRB frostbites, PAR slows, SLP sleeps, PSN poisons, CNF sends foes back. Bosses are immune to some.',
       'Leaving the app pauses the battle.'
     ]).map(line => <Copy key={line} small>• {line}</Copy>)}</View>}

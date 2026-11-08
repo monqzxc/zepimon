@@ -9,8 +9,8 @@
 // A foe can carry several at once, each once. Another hit of burn, frostbite, poison or paralysis resets its time; freeze,
 // sleep and confusion run their course without resetting, one of freeze and sleep at a time, and once over the foe
 // cannot get that again for a moment (CALM_MS), so nothing locks a foe down for good. Slows add up but never below
-// MIN_PACE. Bosses shake conditions off twice as fast, carry at most BOSS_MAX at once, and are immune to some by type,
-// the Legendaries and Mythicals to several (immunities).
+// MIN_PACE. Every foe is immune to some by type, as in the games. Bosses shake conditions off twice as fast, carry at
+// most BOSS_MAX at once and are immune to more, the Legendaries and Mythicals to several (immunities).
 export type Condition = 'burn' | 'freeze' | 'frostbite' | 'paralysis' | 'sleep' | 'poison' | 'confusion'
 
 // The three-letter tag the games show, its colour, and the word called out when it lands.
@@ -53,13 +53,17 @@ export const REFRESHES: Condition[] = ['burn', 'frostbite', 'poison', 'paralysis
 // The order a foe shows them in, the strongest first: what stops it, then what hurts it, then what slows or turns it.
 export const ORDER: Condition[] = ['freeze', 'sleep', 'burn', 'poison', 'frostbite', 'paralysis', 'confusion']
 
-// What a boss shrugs off, by type, after the games' own immunities and abilities: Fire cannot be burned or frozen, Ice
-// cannot be frozen or frostbitten, Electric and Ground cannot be paralyzed, Poison and Steel cannot be poisoned, Grass
-// shakes off sleep (powders), Water puts out burns, and the steadier types keep their heads (confusion).
-const BY_TYPE: Record<string, Condition[]> = {
-  fire: ['burn', 'freeze'], ice: ['freeze', 'frostbite'], electric: ['paralysis'], ground: ['paralysis'], poison: ['poison'], steel: ['poison'],
-  grass: ['sleep'], water: ['burn'], psychic: ['confusion'], fighting: ['confusion'], dark: ['confusion'], ghost: ['sleep'], fairy: ['poison'],
-  dragon: ['paralysis'], rock: ['burn'], bug: [], flying: [], normal: []
+// What every foe of a type shrugs off, as in the games: Fire cannot be burned or frozen, Ice cannot be frozen or
+// frostbitten, Electric cannot be paralyzed, Poison and Steel cannot be poisoned, and Grass shakes off sleep powders.
+const TYPE_IMMUNE: Record<string, Condition[]> = {
+  fire: ['burn', 'freeze'], ice: ['freeze', 'frostbite'], electric: ['paralysis'], poison: ['poison'], steel: ['poison'], grass: ['sleep']
+}
+// And what a boss of a type shrugs off besides, after the abilities its kind tends to have: Ground stays grounded
+// (paralysis), Water puts out burns, Rock is too hard to burn, the steadier types keep their heads (confusion), Ghosts
+// do not sleep, Fairies shake off poison, and Dragons stay on their feet (paralysis).
+const BOSS_TYPE: Record<string, Condition[]> = {
+  ground: ['paralysis'], water: ['burn'], rock: ['burn'], psychic: ['confusion'], fighting: ['confusion'], dark: ['confusion'], ghost: ['sleep'],
+  fairy: ['poison'], dragon: ['paralysis']
 }
 // The Legendary and Mythical bosses, each by its nature: Moltres, a bird of flame, can be neither burned nor chilled;
 // Celebi heals itself of what nature brings (Natural Cure); Arceus answers to almost nothing.
@@ -72,13 +76,13 @@ const LEGENDARY: Record<string, Condition[]> = {
   Arceus: ['sleep', 'freeze', 'confusion', 'poison']
 }
 
-// What a foe is immune to: nothing for an ordinary foe; a boss by its type, a Legendary boss by the list above (or, for
-// one not listed, its type and sleep and confusion as well).
+// What a foe is immune to: its type's (TYPE_IMMUNE); a boss, its type's boss ones besides; a Legendary boss, the list
+// above as well (or, for one not listed, sleep and confusion).
 export function immunities(name: string, type: string, boss: boolean, legendary: boolean): Condition[] {
-  if (!boss) return []
-  if (Object.hasOwn(LEGENDARY, name)) return LEGENDARY[name]
-  const own = BY_TYPE[type] ?? []
-  return legendary ? [...new Set<Condition>([...own, 'sleep', 'confusion'])] : own
+  const own = TYPE_IMMUNE[type] ?? []
+  if (!boss) return own
+  const extra = Object.hasOwn(LEGENDARY, name) ? LEGENDARY[name] : legendary ? ['sleep', 'confusion'] as Condition[] : []
+  return ORDER.filter(condition => [...own, ...BOSS_TYPE[type] ?? [], ...extra].includes(condition))
 }
 
 // Rolls what one hit causes: the first of its type's conditions to come up, or null. random gives one number per roll.

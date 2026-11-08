@@ -89,7 +89,9 @@ test('kits follow type, scale with stage, and Route Guard prices evolved forms h
   assert.equal(kitFor('Charizard', 'trail').cost, kitFor('Charmander', 'trail').cost)
   assert.equal(effectiveness('water', 'fire'), 2)
   assert.equal(effectiveness('fire', 'water'), 0.5)
-  assert.equal(effectiveness('normal', 'ghost'), 0.5, 'Immunities are softened')
+  assert.equal(effectiveness('normal', 'ghost'), 0, 'Immunities as in the games')
+  assert.deepEqual([['fighting', 'ghost'], ['ghost', 'normal'], ['poison', 'steel'], ['ground', 'flying'], ['electric', 'ground'], ['psychic', 'dark'],
+    ['dragon', 'fairy']].map(([attack, defend]) => effectiveness(attack, defend)), [0, 0, 0, 0, 0, 0, 0])
   assert.equal(effectiveness('normal', 'normal'), 1)
 })
 

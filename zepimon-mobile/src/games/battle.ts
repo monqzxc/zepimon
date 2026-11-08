@@ -156,8 +156,19 @@ const weak: Record<string, string[]> = {
   rock: ['fighting', 'ground', 'steel'], ghost: ['dark', 'normal'], dragon: ['steel', 'fairy'], dark: ['fighting', 'dark', 'fairy'],
   steel: ['fire', 'water', 'electric', 'steel'], fairy: ['fire', 'poison', 'steel']
 }
+// The games' immunities: these moves do nothing at all to these types.
+const immune: Record<string, string[]> = {
+  normal: ['ghost'], fighting: ['ghost'], ghost: ['normal'], poison: ['steel'], ground: ['flying'], electric: ['ground'], psychic: ['dark'], dragon: ['fairy']
+}
 export function effectiveness(attack: string, defend: string): number {
-  return strong[attack]?.includes(defend) ? 2 : weak[attack]?.includes(defend) ? 0.5 : 1
+  return immune[attack]?.includes(defend) ? 0 : strong[attack]?.includes(defend) ? 2 : weak[attack]?.includes(defend) ? 0.5 : 1
+}
+// The types a Pokemon's moves cannot touch: its own type's immunities, less what its egg move (coverage) can hit.
+export function untouchable(name: string, layout: Layout, egg: boolean): string[] {
+  const type = battleType(name)
+  const perk = egg ? eggPerk(name, layout) : null
+  const coverage = perk?.kind === 'coverage' ? perk.type : null
+  return (immune[type] ?? []).filter(defend => !coverage || effectiveness(coverage, defend) === 0)
 }
 
 // A hatched attacker uses whichever of its own type and its egg move's type hits harder.
@@ -493,7 +504,13 @@ function addStrike(g: Battle, move: string, kind: Strike['kind'], at: Point, foe
   g.strikes.push({ id: g.nextId++, move, kind, x: at.x, y: at.y, foe, reach, start: g.elapsed, until: g.elapsed + STRIKE_LIFE[kind] })
 }
 
+// The foes a Pokemon can attack now, the furthest along first. It leaves alone any its moves cannot touch (a Ghost foe
+// for a Normal or Fighting Pokemon without another egg move), and attacks the next one instead.
 function targetsFor(g: Battle, unit: Unit, kit: Kit): Enemy[] {
+  const blind = untouchable(unit.name, g.layout, unit.egg)
+  return reachable(g, unit, kit).filter(enemy => !blind.includes(enemy.type))
+}
+function reachable(g: Battle, unit: Unit, kit: Kit): Enemy[] {
   const center = { x: unit.col + 0.5, y: unit.row + 0.5 }
   if (g.layout === 'lanes') {
     // Lane attackers cover everything above them. Short-range brawlers reach two rows, so one standing behind a

@@ -7,7 +7,7 @@ import { typeTheme } from '../HabitatScene'
 import { Button, Copy, Heading, IconButton, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
-import { EVOLVE_MS, LANES, bossCharging, conditionsOf, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
+import { EVOLVE_MS, LANES, bossCharging, conditionsOf, untouchable, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
   facingToward, gridSize, unitTarget, moveOf,
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
 import type { Battle, BattleSpec, Heading as Facing, Layout, Weather } from './battle'
@@ -554,6 +554,8 @@ function UnitPanel({ unit, layout, weather, playing, berries, style, onEvolve, o
   const sky = unitWeather(weather, unit.name, layout)
   // What its move can leave on a foe: "Ember may burn (20%)".
   const causes = move ? inflictText(battleType(unit.name)) : ''
+  // The foes its moves cannot touch ("Can't hit Ghost foes"): it leaves them for the rest of the team.
+  const blind = move ? untouchable(unit.name, layout, unit.egg) : []
   return <View style={[play.floating, style]}>
     <View style={[styles.row, { flexWrap: 'nowrap' }]}>
       <PixelSprite name={unit.name} shiny={unit.shiny} size={44} />
@@ -565,6 +567,7 @@ function UnitPanel({ unit, layout, weather, playing, berries, style, onEvolve, o
     <Copy small color={unit.egg && perk ? colors.gold : colors.muted}>{!unit.egg ? 'No egg moves: only Pokemon hatched on your watch know them.'
       : perk ? `Hatched from an egg · Egg move ${perk.move}: ${perk.text}.` : 'Hatched from an egg, but this family has no Gen II–IV egg moves.'}</Copy>
     {!!causes && <Copy small color={colors.ink}>{`${move} ${causes}.`}</Copy>}
+    {blind.length > 0 && <Copy small color={colors.danger}>{`Can't hit ${types(blind)} foes.`}</Copy>}
     {weather && sky && <Copy small color={sky === 'boosted' ? colors.gold : colors.danger}>{sky === 'boosted'
       ? `${WEATHER[weather].mark} ${WEATHER[weather].name} powers it up: ${POWER_UP}% more damage.`
       : `${WEATHER[weather].mark} ${WEATHER[weather].name} weakens it: ${POWER_DOWN}% less damage.`}</Copy>}
