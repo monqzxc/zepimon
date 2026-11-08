@@ -602,7 +602,7 @@ function inflict(g: Battle, enemy: Enemy, move: string, dealt: number, random: (
   const at = enemyPoint(g, enemy)
   if (immunities(enemy.name, enemy.type, enemy.boss, isLegendary(enemy.name)).includes(condition)) {
     // Shown now and then, not on every roll.
-    if (t - (enemy.immuneShownAt ?? -Infinity) >= 2000) { enemy.immuneShownAt = t; addFx(g, 'status', at.x, at.y - 0.55, 'Immune!', 900, '#d6d9ea') }
+    if (t - (enemy.immuneShownAt ?? -Infinity) >= 2000) { enemy.immuneShownAt = t; statusCallout(g, at, 'Immune!', '#d6d9ea') }
     return
   }
   const active = hasCondition(enemy, condition, t)
@@ -615,7 +615,13 @@ function inflict(g: Battle, enemy: Enemy, move: string, dealt: number, random: (
   // Another hit resets the time; the damage is the stronger of the two hits', never both.
   const dps = Math.max(active ? enemy.conditions![condition]!.dps : 0, (DOT[condition] ?? 0) * dealt)
   setCondition(enemy, condition, { until: t + LASTS[condition] * (enemy.boss ? 0.5 : 1), dps })
-  if (!active) addFx(g, 'status', at.x, at.y - 0.55, CONDITIONS[condition].word, 900, CONDITIONS[condition].color)
+  if (!active) statusCallout(g, at, CONDITIONS[condition].word, CONDITIONS[condition].color)
+}
+
+// A status callout above a foe, stacked over any other said there just now, so two landing together both read.
+function statusCallout(g: Battle, at: Point, text: string, tint: string) {
+  const near = g.effects.filter(fx => fx.kind === 'status' && fx.until - g.elapsed > 600 && Math.abs(fx.x - at.x) < 1.2 && Math.abs(fx.y - (at.y - 0.55)) < 1.5).length
+  addFx(g, 'status', at.x, at.y - 0.55 - 0.4 * near, text, 900, tint)
 }
 
 function hit(g: Battle, enemy: Enemy, damage: number, type: string, coverage: string | null, effect: Effect, random?: () => number) {
