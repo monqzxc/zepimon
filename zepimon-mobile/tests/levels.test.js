@@ -13,7 +13,7 @@ const run = (game, act = g => g) => {
 }
 const size = level => PATHS[level.spec.path]
 
-test('twenty-five levels in five stages of five, on maps that grow from 6 x 8 to 12 x 20', () => {
+test('twenty-five levels in five stages of five, on maps that grow from 10 x 13 to 19 x 32', () => {
   assert.equal(LEVELS.length, 25)
   assert.equal(STAGES.length, 5)
   assert.equal(new Set(LEVELS.map(level => level.id)).size, LEVELS.length)
@@ -29,8 +29,8 @@ test('twenty-five levels in five stages of five, on maps that grow from 6 x 8 to
     assert.ok(size(level).cols >= size(before).cols && size(level).rows >= size(before).rows, `Level ${level.number} map never shrinks`)
     assert.ok(level.spec.waves >= before.spec.waves, `Level ${level.number} has at least as many waves`)
   })
-  assert.deepEqual([size(LEVELS[0]).cols, size(LEVELS[0]).rows], [6, 8])
-  assert.deepEqual([size(LEVELS.at(-1)).cols, size(LEVELS.at(-1)).rows], [12, 20])
+  assert.deepEqual([size(LEVELS[0]).cols, size(LEVELS[0]).rows], [10, 13])
+  assert.deepEqual([size(LEVELS.at(-1)).cols, size(LEVELS.at(-1)).rows], [19, 32])
   assert.ok(!['switchback', 'canyon', 'spiral'].some(path => LEVELS.some(level => level.spec.path === path)), 'Classic trails stay with the Adventure Map')
 })
 
@@ -106,15 +106,15 @@ test('levels unlock one at a time and keep the best stars', () => {
 test('bigger maps use their whole board for placement and the Legendary assist', () => {
   const finale = LEVELS[19]
   const game = startBattle(finale.spec, loaners, { assist: 'Kyogre' }, 0, seeded())
-  assert.deepEqual(gridSize(game), { cols: 9, rows: 16 })
-  assert.deepEqual(gridSize(startBattle(LEVELS[0].spec, loaners, {}, 0)), { cols: 6, rows: 8 })
-  assert.equal(canPlace(game, 8, 15), true, 'The far corner of a 9 x 16 map')
-  assert.equal(canPlace(game, 9, 0), false)
-  assert.equal(canPlace(game, 0, 16), false)
-  assert.equal(canPlace(game, 7, 5), false, 'On the trail')
-  assert.deepEqual(placeUnit(game, cardKey(loaners[1]), 8, 15).units.map(unit => [unit.col, unit.row]), [[8, 15]])
+  assert.deepEqual(gridSize(game), { cols: 14, rows: 26 })
+  assert.deepEqual(gridSize(startBattle(LEVELS[0].spec, loaners, {}, 0)), { cols: 10, rows: 13 })
+  assert.equal(canPlace(game, 13, 25), true, 'The far corner of a 14 x 26 map')
+  assert.equal(canPlace(game, 14, 0), false)
+  assert.equal(canPlace(game, 0, 26), false)
+  assert.equal(canPlace(game, 0, 0), false, 'On the trail')
+  assert.deepEqual(placeUnit(game, cardKey(loaners[1]), 13, 25).units.map(unit => [unit.col, unit.row]), [[13, 25]])
   const helped = callAssist(game)
-  assert.deepEqual(helped.effects.map(fx => [fx.kind, fx.x, fx.y]), [['assist', 4.5, 8]], 'The assist bursts in the middle of the big map')
+  assert.deepEqual(helped.effects.map(fx => [fx.kind, fx.x, fx.y]), [['assist', 7, 13]], 'The assist bursts in the middle of the big map')
 })
 
 test('doing nothing loses every level; a simple builder clears level 1 but not the final level', () => {
@@ -153,15 +153,15 @@ test('element tiles: only stage 5 has them, near the trail, and only their own t
   }
   const delta = LEVELS.find(level => level.spec.path === 'verdant-delta')
   const game = startBattle(delta.spec, loaners, {}, 0, seeded())
-  assert.equal(tileAt(game, 3, 3), 'water')
+  assert.equal(tileAt(game, 5, 4), 'water')
   assert.equal(tileAt(game, 0, 0), null)
-  assert.equal(canPlace(game, 3, 3), true, 'Free, before a Pokemon is chosen')
-  assert.equal(canPlace(game, 3, 3, 'Squirtle'), true)
-  assert.equal(canPlace(game, 3, 3, 'Charmander'), false, 'Only Water types stand on water')
+  assert.equal(canPlace(game, 5, 4), true, 'Free, before a Pokemon is chosen')
+  assert.equal(canPlace(game, 5, 4, 'Squirtle'), true)
+  assert.equal(canPlace(game, 5, 4, 'Charmander'), false, 'Only Water types stand on water')
   assert.equal(canPlace(game, 0, 0, 'Charmander'), true, 'Plain squares take anyone')
   const card = type => cardKey(loaners.find(item => battleType(item.family[0]) === type))
-  assert.strictEqual(placeUnit(game, card('fire'), 3, 3), game, 'Refused, nothing changes')
-  assert.deepEqual(placeUnit(game, card('water'), 3, 3).units.map(unit => [unit.name, unit.col, unit.row]), [['Squirtle', 3, 3]])
+  assert.strictEqual(placeUnit(game, card('fire'), 5, 4), game, 'Refused, nothing changes')
+  assert.deepEqual(placeUnit(game, card('water'), 5, 4).units.map(unit => [unit.name, unit.col, unit.row]), [['Squirtle', 5, 4]])
   assert.equal(tileAt(startBattle(LEVELS[0].spec, loaners, {}, 0), 1, 1), null)
 })
 

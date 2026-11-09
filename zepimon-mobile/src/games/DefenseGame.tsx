@@ -7,7 +7,7 @@ import { typeTheme } from '../HabitatScene'
 import { Button, Copy, Heading, IconButton, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
-import { EVOLVE_MS, LANES, bossCharging, conditionsOf, untouchable, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
+import { EVOLVE_MS, LANES, bossCharging, pathPoint, conditionsOf, untouchable, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
   facingToward, gridSize, unitTarget, moveOf,
   kitFor, nextForm, nextWaveIn, pauseBattle, placeUnit, placedForm, refundFor, removeUnit, resumeBattle, sendNextWave, startBattle, tickBattle } from './battle'
 import type { Battle, BattleSpec, Heading as Facing, Layout, Weather } from './battle'
@@ -20,6 +20,8 @@ import type { TeamCard } from './roster'
 import { PixelSprite } from './TeamPicker'
 import { suggestTeam } from './suggest'
 import { ZoomPan } from './ZoomPan'
+import type { Camera } from './ZoomPan'
+import { CameraAids } from './CameraAids'
 import { EvolveFx, Impact } from './BattleFx'
 import { WeatherLayer } from './Weather'
 import { BattleBrief } from './BattleBrief'
@@ -41,8 +43,9 @@ type Props = {
 // The board fits between the top bar and the card tray. Squares never shrink below MIN_CELL so they stay easy to
 // tap: a map too tall for that scrolls on its own while the bar and the tray stay put.
 const MIN_CELL = 36
-// Trail Defense draws its squares at least this big, so zooming in stays crisp, and zooms in as far as MAX_CELL.
-const DRAWN_CELL = 48, MAX_CELL = 68
+// Trail Defense draws its squares at least this big, so zooming in stays crisp, and zooms in as far as MAX_CELL. A battle
+// opens at COMFY-sized squares, easy to tap, so a level's map is bigger than the screen and the camera pans over it.
+const DRAWN_CELL = 48, MAX_CELL = 68, COMFY = 46
 const label = (type: string) => type[0].toUpperCase() + type.slice(1)
 // "Harsh sunlight: Fire foes are tougher."
 const types = (list: string[]) => list.map(label).join(', ')
@@ -92,6 +95,12 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
   const act = (change: (game: Battle) => Battle) => { if (current.current) update(change(current.current)) }
   // The Legendary's move plays over the board once, when it answers the call (src/games/AssistMove.tsx).
   const [answer, setAnswer] = useState<{ name: string, id: number } | null>(null)
+  // The camera over a big Trail Defense map, and whether it follows the foe closest to the Poke Ball (src/games/CameraAids.tsx).
+  const camera = useRef<Camera | null>(null)
+  const [follow, setFollow] = useState(false)
+  const stopFollowing = useCallback(() => setFollow(false), [])
+  const keepCamera = useCallback((handle: Camera | null) => { camera.current = handle }, [])
+
   const endAnswer = useCallback(() => setAnswer(null), [])
   const callFriend = () => {
     const before = current.current
@@ -134,7 +143,10 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
   // map or in to big squares.
   const sized = Math.min(area.width / cols, Math.max(area.height / units, MIN_CELL))
   const cell = layout === 'trail' ? Math.max(sized, DRAWN_CELL) : sized
-  const zoom = { start: sized / cell, least: Math.min(area.width / cols, area.height / units) / cell, most: Math.max(1, MAX_CELL / cell) }
+  const least = Math.min(area.width / cols, area.height / units) / cell, most = Math.max(1, MAX_CELL / cell)
+  const zoom = { start: layout === 'trail' ? Math.min(most, Math.max(least, COMFY / cell)) : sized / cell, least, most }
+  // The camera first looks at the cave, where the foes come from.
+  const cave = layout === 'trail' ? pathPoint(spec.path, 0.5) : null
   const fieldWidth = cols * cell
   const top = layout === 'lanes' ? cell * 0.7 : 0
   const height = top + rows * cell + (layout === 'lanes' ? cell * 0.8 : 0)
@@ -204,7 +216,8 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
     {/* The area takes whatever the bar and the tray leave. Its contents are all absolutely placed, so they never
         stretch it: a board measured in full screen would otherwise keep the area that tall after leaving it. */}
     <View style={play.area} onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}>
-      {area.width > 0 && <BoardFrame camera={layout === 'trail'} area={area} width={fieldWidth} height={height} zoom={zoom} scrolls={scrolls} reduced={reduced}>
+      {area.width > 0 && <BoardFrame camera={layout === 'trail'} area={area} width={fieldWidth} height={height} zoom={zoom} scrolls={scrolls} reduced={reduced}
+        focus={cave ? { x: cave.x * cell, y: cave.y * cell } : undefined} onCamera={keepCamera} onUserMove={stopFollowing}>
       <View style={[board.field, { width: fieldWidth, height, backgroundColor: theme.sky }]}>
         {layout === 'trail' && <TrailTerrain path={spec.path} cell={cell} theme={theme} />}
         {layout === 'trail' && selected && <View pointerEvents="none" style={[board.range, {
@@ -285,6 +298,7 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
         {answer && <AssistMove key={answer.id} name={answer.name} width={fieldWidth} height={height} reduced={reduced} onDone={endAnswer} />}
       </View>
       </BoardFrame>}
+      {layout === 'trail' && area.width > 0 && <CameraAids game={game} cell={cell} area={area} camera={camera} follow={follow} onFollow={setFollow} />}
       {!!note && <View pointerEvents="none" style={play.note}><Text accessibilityLiveRegion="polite" style={play.noteText}>{note}</Text></View>}
       {/* Details float over the half of the board away from the Pokemon you tapped. */}
       {selected && <UnitPanel unit={selected} layout={layout} weather={spec.weather} playing={playing} berries={game.berries}
@@ -360,11 +374,13 @@ function Health({ ratio, width }: { ratio: number, width: number }) {
 
 // Where the board sits: Trail Defense's under a camera that pans and zooms; Route Guard's as it always was, scrolling
 // when it is taller than the room it has.
-function BoardFrame({ camera, area, width, height, zoom, scrolls, reduced, children }: {
+function BoardFrame({ camera, area, width, height, zoom, scrolls, reduced, focus, onCamera, onUserMove, children }: {
   camera: boolean, area: { width: number, height: number }, width: number, height: number,
-  zoom: { start: number, least: number, most: number }, scrolls: boolean, reduced: boolean, children: ReactNode
+  zoom: { start: number, least: number, most: number }, scrolls: boolean, reduced: boolean,
+  focus?: { x: number, y: number }, onCamera?: (camera: Camera | null) => void, onUserMove?: () => void, children: ReactNode
 }) {
-  if (camera) return <ZoomPan frame={area} width={width} height={height} start={zoom.start} least={zoom.least} most={zoom.most} reduced={reduced}>
+  if (camera) return <ZoomPan frame={area} width={width} height={height} start={zoom.start} least={zoom.least} most={zoom.most} reduced={reduced}
+    focus={focus} onCamera={onCamera} onUserMove={onUserMove}>
     {children}
   </ZoomPan>
   return <ScrollView style={StyleSheet.absoluteFill} scrollEnabled={scrolls} nestedScrollEnabled showsVerticalScrollIndicator={scrolls}

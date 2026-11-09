@@ -18,6 +18,9 @@ export const STAGES: Stage[] = [
     blurb: 'The biggest maps, with element tiles only their own type can stand on.' }
 ]
 
+// The level maps are drawn bigger than the screen, so foes have farther to walk. From stage 2 on they walk faster to make
+// up for it (stage 1 is for learning and keeps its pace), never quite as much as the longer walk adds.
+const STAGE_PACE = [1, 1.1, 1.2, 1.25, 1.3]
 type Plan = [path: PathId, habitat: string, waves: number, difficulty: number, blurb: string, boss?: string]
 // Weather from stage 3 on (src/games/battle.ts WEATHER), by level number: it powers up foes of its types and brings
 // them into the waves.
@@ -59,7 +62,7 @@ export const LEVELS: Level[] = plans.map(([path, habitat, waves, difficulty, blu
   const weather = WEATHER_BY_LEVEL[index + 1]
   const foes = weather ? [...new Set([...STAGES[stage].foes, ...WEATHER[weather].types])] : STAGES[stage].foes
   return { id: `level-${index + 1}`, number: index + 1, stage, name: PATHS[path].name, blurb,
-    spec: { layout: 'trail', waves, difficulty, habitat, foes, path, ...(boss ? { boss } : {}), ...(weather ? { weather } : {}) } }
+    spec: { layout: 'trail', waves, difficulty, habitat, foes, path, ...(boss ? { boss } : {}), ...(weather ? { weather } : {}), pace: STAGE_PACE[stage] } }
 })
 
 export function levelUnlocked(stars: Record<string, number>, index: number): boolean {

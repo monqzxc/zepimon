@@ -34,7 +34,9 @@ export type Layout = 'lanes' | 'trail'
 export type PathId = keyof typeof TRAIL_MAPS
 export type Effect = 'produce' | 'wall' | 'splash' | 'chain' | 'slow' | 'poison' | 'push' | 'line' | 'none'
 export type Kit = { label: string, effect: Effect, cost: number, hp: number, damage: number, cooldown: number, range: number, power: number }
-export type BattleSpec = { layout: Layout, waves: number, difficulty: number, habitat: string, foes: string[], path: PathId, boss?: string, weather?: Weather }
+// pace: how much faster than usual foes walk (the levels' big maps, src/games/levels.ts).
+export type BattleSpec = { layout: Layout, waves: number, difficulty: number, habitat: string, foes: string[], path: PathId, boss?: string, weather?: Weather,
+  pace?: number }
 
 // Weather (Trail Defense's harder stages): it powers up foes of its types, as in the games, with more health and a
 // little more speed, and brings those types into the waves if the stage's foes lack them. Your Pokemon feel it too:
@@ -338,7 +340,7 @@ function makeEnemy(id: number, spawn: Spawn, spec: BattleSpec): Enemy {
   const hp = Math.round((lanes ? 70 : 50) * (1 + (lanes ? 0.25 : 0.22) * spawn.wave) * spec.difficulty * [1, 1.7, 2.6][stage] * (spawn.boss ? 7 : 1) *
     (boosted ? WEATHER_HEALTH : 1))
   return { id, name: spawn.name, type, wave: spawn.wave, boss: spawn.boss, hp, maxHp: hp,
-    speed: (lanes ? 0.26 : 0.6) * [1.15, 1, 0.85][stage] * (spawn.boss ? 0.7 : 1) * (boosted ? WEATHER_SPEED : 1), lane: spawn.lane, progress: lanes ? -0.5 : 0,
+    speed: (lanes ? 0.26 : 0.6) * (spec.pace ?? 1) * [1.15, 1, 0.85][stage] * (spawn.boss ? 0.7 : 1) * (boosted ? WEATHER_SPEED : 1), lane: spawn.lane, progress: lanes ? -0.5 : 0,
     slowUntil: 0, poisonUntil: 0, poisonDps: 0, reward: lanes ? 0 : (10 + spawn.wave * 2) * (spawn.boss ? 5 : 1), ...(boosted ? { boosted } : {}) }
 }
 
