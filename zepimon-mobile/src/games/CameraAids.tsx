@@ -11,11 +11,13 @@ import type { Camera } from './ZoomPan'
 // Helpers for a Trail Defense map bigger than the screen, over the camera (src/games/ZoomPan.tsx):
 // - arrows on the edges point at foes out of view, grouped by where they are, red when one is close to the Poke Ball;
 //   tap one to look there;
-// - a mini-map of the whole trail in the corner, with foes, your Pokemon and the part in view; tap it to look there;
+// - a mini-map of the whole trail in the bottom corner (clear of the cave, where foes come in), with foes, your Pokemon and the part in view; tap it to look there;
 // - buttons to follow the lead foe (any pan stops following), and to look at the cave or the Poke Ball.
 // cell is a square's size on the board, in board pixels. They all hide while the whole map is in view.
 
-const EDGE = 20
+const EDGE = 20, RIGHT = 40
+// Foes whose arrows would sit within this many pixels of each other share one arrow, with how many.
+const GROUP = 80
 // A foe this far along the trail (a share of it) is close to the Poke Ball.
 const CLOSE = 0.75
 const MINI = { width: 84, height: 128 }
@@ -50,8 +52,9 @@ export function CameraAids({ game, cell, area, camera, follow, onFollow }: {
     const at = enemyPoint(game, enemy)
     const sx = (at.x * cell - view.left) * view.zoom, sy = (at.y * cell - view.top) * view.zoom
     if (sx >= 0 && sx <= area.width && sy >= 0 && sy <= area.height) continue
-    const x = Math.min(area.width - EDGE, Math.max(EDGE, sx)), y = Math.min(area.height - EDGE, Math.max(EDGE, sy))
-    const key = Math.round(x / 36) + ',' + Math.round(y / 36)
+    // Kept clear of the button column on the right.
+    const x = Math.min(area.width - EDGE - RIGHT, Math.max(EDGE, sx)), y = Math.min(area.height - EDGE, Math.max(EDGE, sy))
+    const key = Math.round(x / GROUP) + ',' + Math.round(y / GROUP)
     const close = enemy.progress / length >= CLOSE || enemy.boss
     const group = groups.get(key)
     if (group) { group.count++; group.close ||= close; if (close) group.at = at }
@@ -113,7 +116,7 @@ const aids = StyleSheet.create({
   arrowMark: { color: '#FFFFFF', fontSize: 13, lineHeight: 16, fontFamily: fonts.black },
   count: { position: 'absolute', top: -6, right: -6, minWidth: 16, paddingHorizontal: 3, borderRadius: 8, overflow: 'hidden', textAlign: 'center',
     backgroundColor: '#ffe08d', color: '#1A1200', fontSize: 10, lineHeight: 15, fontFamily: fonts.black },
-  mini: { position: 'absolute', left: 8, top: 8, borderRadius: 8, overflow: 'hidden', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.6)',
+  mini: { position: 'absolute', left: 8, bottom: 8, borderRadius: 8, overflow: 'hidden', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.6)',
     backgroundColor: 'rgba(8, 14, 24, 0.6)' },
   dot: { position: 'absolute', width: 4, height: 4, borderRadius: 4 },
   ally: { backgroundColor: '#FFFFFF' },
