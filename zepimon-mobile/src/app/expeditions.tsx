@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { router } from 'expo-router'
-import { Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { useJournal } from '../store'
 import { expeditionKey } from '../expeditions'
 import type { Trail } from '../expeditions'
-import { QUEST_SESSIONS, QUEST_SESSION_METERS, distanceLeg, encounterReady, questSessions, trailUnlocked } from '../expedition-quest'
+import { distanceLeg, encounterReady, trailUnlocked } from '../expedition-quest'
 import { nextLegendaries, readyToBattle, readyToCapture, resetDue } from '../expedition-encounter'
 import type { ActiveEncounter } from '../expedition-encounter'
 import { clueMilestones, expeditionGoal } from '../generated/expedition.js'
-import { km } from '../journal'
 import { pokemonType } from '../catalog'
 import { useReducedMotion } from '../games/hooks'
 import { GameScreenContext } from '../games/fullscreen'
@@ -20,14 +19,12 @@ import { ResonanceTrial } from '../games/ResonanceTrial'
 import { arenaFor } from '../games/resonance'
 import { walkingBonus } from '../games/adventure'
 import { ShrineLanterns } from '../games/ShrineLanterns'
-import { ArcadeAchievements } from '../games/ArcadeAchievements'
-import { RunningTickets } from '../games/RunningTickets'
+import { ExpeditionRoutes, useRoutes } from '../games/ExpeditionRoutes'
 import { KIND_NAMES, trialFor } from '../games/trials'
-import { questTheme } from '../games/lanterns'
 import { canRevisit, journeyRoom, revisitKey, revisitRooms, roomLine } from '../games/revisits'
 import { ShrineRevisits } from '../games/ShrineRevisits'
-import { BallButton, BigName, FactRow, Footnote, SceneFrame, StatusLine, StatusNote } from '../games/ExpeditionParts'
-import { Button, Copy, Eyebrow, HabitatScene, Heading, Panel, Screen, colors, gradient, styles, useTheme } from '../ui'
+import { BallButton, BigName, ColorBall, SceneFrame, StatusLine } from '../games/ExpeditionParts'
+import { Button, Copy, Eyebrow, HabitatScene, Heading, Icon, Panel, Screen, colors, displayFont, fonts, retro, themedStyles, useTheme } from '../ui'
 import { LegendaryGate } from '../LegendaryGate'
 
 const stories: Record<string, { title: string, clues: string[] }> = {
@@ -51,6 +48,11 @@ type Step = { kind: 'overview' } | { kind: 'lanterns' }
   | { kind: 'revisit-lair', name: string, shiny: boolean, attempt: number }
   | { kind: 'rematch', name: string, shiny: boolean }
 
+// The overview is three tabs, each about a screen: Expedition (the gate, the encounter and its clues, one action), Routes
+// (the ways to the next encounter, src/games/ExpeditionRoutes.tsx) and Shrines (Shrine Revisits and your friends).
+type Tab = 'expedition' | 'routes' | 'shrines'
+const TABS: [Tab, string][] = [['expedition', 'Expedition'], ['routes', 'Routes'], ['shrines', 'Shrines']]
+
 // Legendary Expeditions. Three ways open the next encounter: 25 km of saved walks and runs, the Expedition Quest
 // (three saved sessions and a shrine challenge), achievement points (arcade and running) or running tickets; all but
 // distance give an Expedition Permit.
@@ -66,6 +68,7 @@ export default function ExpeditionsScreen() {
   const { journal, expeditions, quest, encounters, progress, buddy } = store
   const reduced = useReducedMotion()
   const [step, setStep] = useState<Step>({ kind: 'overview' })
+  const [tab, setTab] = useState<Tab>('expedition')
   const [friend, setFriend] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
@@ -195,52 +198,60 @@ export default function ExpeditionsScreen() {
   // The trial fills the screen without scrolling, so the map and the D-pad are on screen together, as in the Safari Zone.
   return <Screen key={step.kind} fill={playing || step.kind === 'resonance' || step.kind === 'revisit-lair'} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
     {content ?? <>
-      {/* The header is the inside of the Legendary Gate, showing what waits as the gate does on Home. */}
-      <LegendaryGate variant="banner" title="Follow a little mystery.">
-        <Copy color={colors.onBrand}>Walk 25 km, finish an Expedition Quest or earn achievement points. Then clear the shrine trial and catch the Legendary waiting inside.</Copy>
-      </LegendaryGate>
+      <View accessibilityRole="tablist" style={look.tabs}>{TABS.map(([id, label]) =>
+        <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} onPress={() => { setTab(id); setMessage('') }}
+          style={[look.tab, tab === id && look.tabOn]}>
+          <Text style={[look.tabText, tab === id && { color: colors.ink }]}>{label}</Text>
+        </Pressable>)}</View>
       {!!friend && <Panel><Heading>Gotcha!</Heading><Copy color={colors.gold}>{friend} is now in your Dex.</Copy>
         <Button title="View my new friend" onPress={() => router.push({ pathname: '/pokemon', params: { name: friend.replace(/^Shiny /, '') } })} /></Panel>}
       {!!message && <Copy color={colors.gold}>{message}</Copy>}
-      {pending > 0 && <Panel><Copy color={colors.gold}>{pending} encounter{pending === 1 ? '' : 's'} ready to meet. Take your time: they will wait.</Copy></Panel>}
-      {selected && selected[1].claimed < 4000 ? <Encounter key={`${selected[0]}:${selected[1].claimed}`} trailKey={selected[0]} trail={selected[1]} name={names[selected[0]]}
-        encounter={encounters[selected[0]]?.index === selected[1].claimed ? encounters[selected[0]] : undefined} busy={busy}
-        onBegin={() => { setMessage(''); setStep({ kind: 'trial', key: selected[0], index: selected[1].claimed,
-          trial: trialFor(names[selected[0]], store.trialRecords) }) }}
-        onEnter={() => { void enterLair(selected[0], selected[1].claimed) }}
-        onPermit={() => { void act(() => store.unlockWithPermit(selected[0]), () => setMessage('Your Expedition Permit opened the next encounter!')) }} /> :
-        <Panel><Heading>{selected ? 'Every recorded trail explored' : 'Your first clue awaits'}</Heading>
-          <Copy>Save an adventure on this phone, or with watch version 1.11.0 or later, to start an expedition trail. Permits from quests and achievement points open encounters on it.</Copy>
-          <Button title="Sync my watch" onPress={() => router.push('/import')} /></Panel>}
-      <Routes busy={busy} onLanterns={() => setStep({ kind: 'lanterns' })}
-        onPermit={() => { void act(store.earnPermit, () => setMessage('Quest complete! You received an Expedition Permit.')) }}
-        sessions={questSessions(quest, progress, expeditions)} leg={selected ? distanceLeg(quest, selected[0], selected[1]) : 0} />
-      <ShrineRevisits busy={busy} onJourney={journey} onLair={enterPracticeLair} onRevisit={revisit}
-        onRematch={(name, shiny) => { setMessage(''); setStep({ kind: 'rematch', name, shiny }) }} />
-      <ArcadeAchievements place="expeditions" />
-      <RunningTickets place="expeditions" />
-      <Panel><Eyebrow>YOUR EXPEDITION FRIENDS</Eyebrow>
-        <Copy>{Object.keys(expeditions.dex).length} Normal / Shiny discoveries kept on this phone.</Copy>
-        <Button title="Open my Dex" secondary onPress={() => router.push('/dex')} />
-      </Panel>
-      <Copy small>Clearing a shrine trial opens a one-way portal into the Legendary’s lair, where it may be Shiny. The portal never leads back out, but until you switch on a seal, stepping back onto it resets the encounter for a new Shiny chance. Steady the Legendary with four seals and the battle begins. Leaving, reopening or syncing never changes it, and you pick up right where you were.</Copy>
-      <Copy small>Distance counts only saved adventures, never live distance. A failed catch or leaving uses nothing up. Befriending records, quests and permits are kept on this phone; reinstalling requires befriending unlocked encounters again.</Copy>
+      {tab === 'expedition' && <>
+        {/* The inside of the Legendary Gate, showing what waits as the gate does on Home. */}
+        <LegendaryGate variant="banner" />
+        {pending > 1 && <Copy color={colors.gold}>{pending} encounters ready. They will wait.</Copy>}
+        {selected && selected[1].claimed < 4000 ? <Encounter key={`${selected[0]}:${selected[1].claimed}`} trailKey={selected[0]} trail={selected[1]} name={names[selected[0]]}
+          encounter={encounters[selected[0]]?.index === selected[1].claimed ? encounters[selected[0]] : undefined} busy={busy}
+          onBegin={() => { setMessage(''); setStep({ kind: 'trial', key: selected[0], index: selected[1].claimed,
+            trial: trialFor(names[selected[0]], store.trialRecords) }) }}
+          onEnter={() => { void enterLair(selected[0], selected[1].claimed) }}
+          onRoutes={() => setTab('routes')}
+          onPermit={() => { void act(() => store.unlockWithPermit(selected[0]), () => setMessage('Your permit opened the next encounter!')) }} /> :
+          <Panel><Heading>{selected ? 'Every trail explored' : 'Your first clue awaits'}</Heading>
+            <Copy>Save an adventure to start a trail.</Copy>
+            <Button title="Sync my watch" onPress={() => router.push('/import')} /></Panel>}
+      </>}
+      {tab === 'routes' && <ExpeditionRoutes busy={busy} leg={selected ? distanceLeg(quest, selected[0], selected[1]) : 0}
+        onLanterns={() => setStep({ kind: 'lanterns' })}
+        onQuestPermit={() => { void act(store.earnPermit, () => setMessage('Quest complete! You received an Expedition Permit.')) }} />}
+      {tab === 'shrines' && <>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${Object.keys(expeditions.dex).length} Legendaries caught. Open my Dex`}
+          onPress={() => router.push('/dex')} style={({ pressed }) => [look.friends, { opacity: pressed ? 0.7 : 1 }]}>
+          <Text style={look.friendsCount}>{Object.keys(expeditions.dex).length}</Text>
+          <Text style={look.friendsText}>caught · Open my Dex</Text>
+          <Icon name="chevron" size={18} color={colors.muted} />
+        </Pressable>
+        <ShrineRevisits busy={busy} onJourney={journey} onLair={enterPracticeLair} onRevisit={revisit}
+          onRematch={(name, shiny) => { setMessage(''); setStep({ kind: 'rematch', name, shiny }) }} />
+      </>}
     </>}
   </GameScreenContext.Provider></Screen>
 }
 
-function Encounter({ trailKey, trail, name, encounter, busy, onBegin, onEnter, onPermit }: {
+function Encounter({ trailKey, trail, name, encounter, busy, onBegin, onEnter, onPermit, onRoutes }: {
   trailKey: string, trail: Trail, name: string, encounter: ActiveEncounter | undefined, busy: boolean, onBegin: () => void, onEnter: () => void,
-  onPermit: () => void
+  onPermit: () => void, onRoutes: () => void
 }) {
   const { quest, trialRecords } = useJournal()
   const trial = trialFor(name, trialRecords)
   const meters = distanceLeg(quest, trailKey, trail)
+  const { closest } = useRoutes(meters)
   const ready = encounterReady(quest, trailKey, trail)
   const byPermit = ready && meters < expeditionGoal
   const shiny = encounter?.shiny === true
   const story = storyOf(name)
   const clues = byPermit ? expeditionGoal : meters
+  const found = clueMilestones.filter(milestone => clues >= milestone).length
   const lair = arenaFor(name).label
   const resonance = encounter?.resonance
   // After walking out, the entrance stays sealed for a moment (src/expedition-encounter.ts RESET_COOLDOWN).
@@ -252,8 +263,8 @@ function Encounter({ trailKey, trail, name, encounter, busy, onBegin, onEnter, o
     return () => clearInterval(timer)
   }, [encounter?.resetPending])
   const enter = resonance?.stabilized ? 'Begin the catch' : resonance?.started ? `Return to the ${lair} · ${resonance.seals.length} / 4 seals`
-    : sealedFor > 0 ? `The entrance is sealed · ${sealedFor.toFixed(1)} s` : `${encounter?.resetPending ? 'Go back into' : 'Enter'} the ${lair}`
-  // The card holds the status, the name and the habitat; the clues, the note and the action follow as their own rows.
+    : sealedFor > 0 ? `Sealed · ${sealedFor.toFixed(1)} s` : `Enter the ${lair}`
+  // One card: the status, the name, the habitat and the clues as three steps; then the one thing to do next.
   return <>
     <Panel style={{ gap: 12 }}>
       <StatusLine eyebrow={`EXPEDITION ${trail.claimed + 1}`} status={ready ? byPermit ? 'OPENED WITH A PERMIT' : 'ENCOUNTER READY' : 'FOLLOW THE CLUES'} />
@@ -261,54 +272,28 @@ function Encounter({ trailKey, trail, name, encounter, busy, onBegin, onEnter, o
       <SceneFrame>
         <HabitatScene name={clues >= 5000 ? name : 'Egg'} shiny={shiny} discovery={ready ? 'revealed' : meters >= 15000 ? 'silhouette' : 'hidden'} />
       </SceneFrame>
+      <View accessible accessibilityLabel={`${found} of ${clueMilestones.length} clues found. ${found ? story.clues[found - 1] : ''}`} style={{ gap: 8 }}>
+        <View style={look.steps}>{clueMilestones.map((milestone, i) => <View key={milestone} style={look.step}>
+          {i > 0 && <View style={[look.rail, i < found && { backgroundColor: colors.edge }]} />}
+          <ColorBall size={26} dim={i >= found} />
+          <Text style={[look.stepText, i >= found && { color: colors.muted }]}>{milestone / 1000} km</Text>
+        </View>)}</View>
+        <Text style={look.clue}>{found ? story.clues[found - 1] : 'No clues yet. Keep walking.'}</Text>
+      </View>
     </Panel>
-    <View style={{ gap: 10 }}>
-      {clueMilestones.map((milestone, i) => <FactRow key={milestone} dim={clues < milestone}
-        label={`${clues >= milestone ? 'CLUE FOUND' : 'MYSTERY'} · ${milestone / 1000} KM`}
-        text={clues >= milestone ? story.clues[i] : 'Keep exploring to reveal this clue.'} />)}
-    </View>
     {ready ? <>
-      {encounter?.trial ? <StatusNote tone="success">Your trial is done. {name} waits in the {lair}.</StatusNote>
-        : <StatusNote tone="info" detail={trial.lore}>{trial.title} · {KIND_NAMES[trial.kind]}: {encounter?.checkpoint ? 'pick up the trial where you left it' : 'clear the trial'} to reach {name}.</StatusNote>}
-      <BallButton title={encounter?.trial ? enter : 'Begin the trial'} loading={busy} disabled={sealedFor > 0} onPress={encounter?.trial ? onEnter : onBegin} />
-      {encounter?.trial && !resonance?.started && <Footnote>{`Coming in shows whether ${name} is Shiny. Until you switch on a seal, step back onto the portal to meet it anew.`}</Footnote>}
-      {!encounter?.trial && <Footnote>{`The trial’s last door is a one-way portal: it takes you straight into the ${lair}, then on to the battle once ${name} is steady.`}</Footnote>}
+      <BallButton title={encounter?.trial ? enter : encounter?.checkpoint ? 'Continue the trial' : 'Begin the trial'} loading={busy} disabled={sealedFor > 0}
+        onPress={encounter?.trial ? onEnter : onBegin} />
+      {!encounter?.trial && <Text style={look.under}>{trial.title} · {KIND_NAMES[trial.kind]}</Text>}
     </> : <>
-      <StatusNote tone="info">Save another adventure on your watch or this phone to continue, or open this encounter early with an Expedition Permit.</StatusNote>
-      {quest.permits > 0 && <BallButton title={`Use an Expedition Permit (${quest.permits} held)`} loading={busy} onPress={onPermit} />}
+      {quest.permits > 0 && <BallButton title={`Use a permit · ${quest.permits} held`} loading={busy} onPress={onPermit} />}
+      <Pressable accessibilityRole="button" accessibilityLabel={`Closest route: ${closest.name}, ${closest.value}. See all routes`} onPress={onRoutes}
+        style={({ pressed }) => [look.friends, { opacity: pressed ? 0.7 : 1 }]}>
+        <Text style={look.friendsText}><Text style={{ color: colors.edge }}>Closest · </Text>{closest.name}</Text>
+        <Text style={look.closestValue}>{closest.value}</Text>
+        <Icon name="chevron" size={18} color={colors.muted} />
+      </Pressable>
     </>}
-  </>
-}
-
-// The ways to the next encounter, side by side. Any one of them is enough.
-function Routes({ sessions, leg, busy, onLanterns, onPermit }: {
-  sessions: ReturnType<typeof questSessions>, leg: number, busy: boolean, onLanterns: () => void, onPermit: () => void
-}) {
-  const { quest } = useJournal()
-  const counted = sessions.slice(0, QUEST_SESSIONS)
-  const complete = quest.challenge && counted.length >= QUEST_SESSIONS
-  return <>
-    <Heading>Ways to your next Legendary</Heading>
-    <Copy>Any one route is enough. Quests, achievement points (from the arcade and your running feats and milestones) and running tickets give an Expedition Permit instead of walking the 25 km; a permit opens the same next encounter, with the same trial, battle and catch.{quest.permits ? ` Permits held: ${quest.permits}.` : ''}</Copy>
-    <Panel>
-      <Eyebrow>ROUTE A · DISTANCE</Eyebrow>
-      <Text style={styles.stat}>{km(leg)} / 25 km</Text>
-      <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 25, now: leg / 1000 }} style={styles.track}>
-        <View style={[styles.fill, gradient(), { width: `${leg / expeditionGoal * 100}%` }]} />
-      </View>
-      <Copy small>{leg >= expeditionGoal ? 'Reached: your encounter is open.' : `${km(expeditionGoal - leg)} of saved walks and runs to go. Clues appear at 5 and 15 km.`}</Copy>
-    </Panel>
-    <Panel>
-      <Eyebrow>ROUTE B · EXPEDITION QUEST {quest.number + 1}</Eyebrow>
-      <Copy color={colors.ink}>{Math.min(counted.length, QUEST_SESSIONS)} / {QUEST_SESSIONS} saved sessions · shrine challenge {quest.challenge ? 'done ✓' : 'not done yet'}</Copy>
-      <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: QUEST_SESSIONS + 1, now: Math.min(counted.length, QUEST_SESSIONS) + Number(quest.challenge) }} style={styles.track}>
-        <View style={[styles.fill, gradient(), { width: `${(Math.min(counted.length, QUEST_SESSIONS) + Number(quest.challenge)) / (QUEST_SESSIONS + 1) * 100}%` }]} />
-      </View>
-      {counted.map(run => <Copy key={run.id} small>✓ {km(run.record.meters)} · {new Date(run.record.finishedAt).toLocaleDateString()}</Copy>)}
-      <Copy small>Sessions are walks or runs of at least {km(QUEST_SESSION_METERS)}, saved on your watch or this phone{quest.since === null ? ' since your expedition began' : ' since your last quest'}. Each one counts once.</Copy>
-      {!quest.challenge && <Button title={`Play the shrine challenge: ${questTheme(quest.number).title}`} secondary disabled={busy} onPress={onLanterns} />}
-      {complete && <Button title="Receive your Expedition Permit" loading={busy} onPress={onPermit} />}
-    </Panel>
   </>
 }
 
@@ -327,3 +312,22 @@ function RevisitRooms({ name, shiny, message, onRoom, onBack }: {
     <Button title="Back to Expeditions" onPress={onBack} />
   </Panel>
 }
+
+const look = themedStyles(() => ({
+  tabs: { flexDirection: 'row', padding: 4, borderRadius: retro() ? 10 : 999, backgroundColor: colors.sunken },
+  tab: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: retro() ? 8 : 999 },
+  tabOn: { backgroundColor: colors.panel, boxShadow: `0px 1px 4px ${colors.shadow}` },
+  tabText: { fontFamily: displayFont(fonts.heavy), color: colors.muted, fontSize: 14, lineHeight: 19 },
+  steps: { flexDirection: 'row' },
+  step: { flex: 1, alignItems: 'center', gap: 4 },
+  // The line back to the step before, behind the balls.
+  rail: { position: 'absolute', top: 12, right: '50%', width: '100%', height: 2, backgroundColor: colors.line },
+  stepText: { fontFamily: fonts.heavy, color: colors.ink, fontSize: 12, lineHeight: 16 },
+  clue: { textAlign: 'center', fontFamily: fonts.bold, color: colors.ink, fontSize: 15, lineHeight: 21 },
+  under: { textAlign: 'center', fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18 },
+  friends: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 18, borderRadius: retro() ? 10 : 22,
+    backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line },
+  friendsCount: { fontFamily: fonts.black, color: colors.ink, fontSize: 20, lineHeight: 26 },
+  friendsText: { flex: 1, fontFamily: fonts.heavy, color: colors.ink, fontSize: 15, lineHeight: 21 },
+  closestValue: { fontFamily: fonts.black, color: colors.ink, fontSize: 15, lineHeight: 21 }
+}))

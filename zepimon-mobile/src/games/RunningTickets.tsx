@@ -8,9 +8,9 @@ import { ticketsLeft } from '../expedition-quest'
 import { Button, Copy, Eyebrow, Panel, colors, fonts, gradient, styles, themedStyles } from '../ui'
 
 // Running tickets (src/running.ts runningTickets), each an Expedition Permit to claim: a Sub-4 marathon, the Ultra
-// explorer and every 4 weeks in a row. Expeditions shows it as the fourth unlock route; the achievements screen shows it
-// with a way to Expeditions. Both can claim.
-export function RunningTickets({ place }: { place: 'achievements' | 'expeditions' }) {
+// explorer and every 4 weeks in a row, on the achievements screen, with a way to Expeditions (which lists it among its
+// routes: src/games/ExpeditionRoutes.tsx). Both can claim.
+export function RunningTickets({ place }: { place: 'achievements' }) {
   const store = useJournal()
   const { progress, phoneRuns, quest } = store
   const [busy, setBusy] = useState(false)
@@ -28,7 +28,7 @@ export function RunningTickets({ place }: { place: 'achievements' | 'expeditions
     finally { setBusy(false) }
   }
   return <Panel style={place === 'achievements' ? { backgroundColor: colors.goldTint } : undefined}>
-    <Eyebrow>{place === 'expeditions' ? 'ROUTE D · RUNNING TICKETS' : 'RUNNING TICKETS'}</Eyebrow>
+    <Eyebrow>RUNNING TICKETS</Eyebrow>
     <Text style={styles.stat}>{left ? `${plural(left, 'ticket')} to claim` : `${plural(tickets.length, 'ticket')} earned`}</Text>
     <Copy color={colors.ink}>{streak ? `${plural(streak, 'week')} in a row · ${plural(TICKET_STREAK_WEEKS - along, 'week')} to your next ticket`
       : 'Go on an adventure this week to start a streak'}</Copy>
