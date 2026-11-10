@@ -18,26 +18,30 @@ export type Camera = {
   // What part of the board is in view, in board pixels, and the zoom.
   view: () => { left: number, top: number, width: number, height: number, zoom: number }
 }
-export function ZoomPan({ frame, width, height, start, least, most, reduced, focus, onCamera, onUserMove, children }: {
+// pad: room at the frame's top and bottom taken by things floating over it (the battle's counters and card dock). The
+// board can be panned out from under them, and "in view" means the part between them.
+export function ZoomPan({ frame, width, height, start, least, most, reduced, focus, onCamera, onUserMove, padTop = 0, padBottom = 0, children }: {
   frame: { width: number, height: number }, width: number, height: number, start: number, least: number, most: number, reduced: boolean,
-  focus?: { x: number, y: number }, onCamera?: (camera: Camera | null) => void, onUserMove?: () => void, children: ReactNode
+  focus?: { x: number, y: number }, onCamera?: (camera: Camera | null) => void, onUserMove?: () => void, padTop?: number, padBottom?: number,
+  children: ReactNode
 }) {
+  const open = frame.height - padTop - padBottom, middle = padTop + open / 2
   const x = useSharedValue(0), y = useSharedValue(0), zoom = useSharedValue(start)
   // Keeps the board's top-left corner where the board covers the frame, or centred along an axis it does not fill.
   const clampTo = (cx: number, cy: number, z: number) => {
     'worklet'
     const w = width * z, h = height * z
     const nx = w <= frame.width ? (frame.width - w) / 2 : Math.min(0, Math.max(frame.width - w, cx))
-    const ny = h <= frame.height ? (frame.height - h) / 2 : Math.min(0, Math.max(frame.height - h, cy))
+    const ny = h <= open ? padTop + (open - h) / 2 : Math.min(padTop, Math.max(frame.height - padBottom - h, cy))
     return { x: nx, y: ny }
   }
   // Starts at `start`, centred on `focus` (or the board's middle); again whenever the board or the frame changes size.
   const focusX = focus?.x ?? width / 2, focusY = focus?.y ?? height / 2
   useEffect(() => {
     const z = Math.min(most, Math.max(least, start))
-    const at = clampTo(frame.width / 2 - focusX * z, frame.height / 2 - focusY * z, z)
+    const at = clampTo(frame.width / 2 - focusX * z, middle - focusY * z, z)
     x.set(at.x); y.set(at.y); zoom.set(z)
-  }, [frame.width, frame.height, width, height, start, least, most]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [frame.width, frame.height, width, height, start, least, most, padTop > 0, padBottom > 0]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The game's handle: glide to centre a board point, or read what is in view.
   useEffect(() => {
@@ -45,16 +49,16 @@ export function ZoomPan({ frame, width, height, start, least, most, reduced, foc
     onCamera({
       centerOn: (px, py) => {
         const z = zoom.get()
-        const at = clampTo(frame.width / 2 - px * z, frame.height / 2 - py * z, z)
+        const at = clampTo(frame.width / 2 - px * z, middle - py * z, z)
         x.set(reduced ? at.x : withTiming(at.x, { duration: 260 })); y.set(reduced ? at.y : withTiming(at.y, { duration: 260 }))
       },
       view: () => {
         const z = zoom.get()
-        return { left: -x.get() / z, top: -y.get() / z, width: frame.width / z, height: frame.height / z, zoom: z }
+        return { left: -x.get() / z, top: (padTop - y.get()) / z, width: frame.width / z, height: open / z, zoom: z }
       }
     })
     return () => onCamera(null)
-  }, [onCamera, frame.width, frame.height, width, height, reduced]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [onCamera, frame.width, frame.height, width, height, reduced, padTop, padBottom]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const gesture = useMemo(() => {
     const move = (cx: number, cy: number, z: number) => {
@@ -77,12 +81,12 @@ export function ZoomPan({ frame, width, height, start, least, most, reduced, foc
         move(event.focalX - (event.focalX - x.get()) * k, event.focalY - (event.focalY - y.get()) * k, z)
       })
     return Gesture.Simultaneous(pan, pinch)
-  }, [frame.width, frame.height, width, height, least, most, onUserMove]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [frame.width, frame.height, width, height, least, most, onUserMove, padTop, padBottom]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The buttons zoom about the middle of the frame.
   const step = (to: number) => {
     const z = Math.max(least, Math.min(most, to)), k = z / zoom.get()
-    const at = clampTo(frame.width / 2 - (frame.width / 2 - x.get()) * k, frame.height / 2 - (frame.height / 2 - y.get()) * k, z)
+    const at = clampTo(frame.width / 2 - (frame.width / 2 - x.get()) * k, middle - (middle - y.get()) * k, z)
     const glide = (value: typeof x, target: number) => value.set(reduced ? target : withTiming(target, { duration: 180 }))
     glide(x, at.x); glide(y, at.y); glide(zoom, z)
   }
@@ -96,7 +100,7 @@ export function ZoomPan({ frame, width, height, start, least, most, reduced, foc
         <Reanimated.View style={[{ position: 'absolute', left: 0, top: 0, width, height, transformOrigin: 'left top' }, lens]}>{children}</Reanimated.View>
       </View>
     </GestureDetector>
-    {!fits && <View style={look.controls}>
+    {!fits && <View style={[look.controls, { bottom: 8 + padBottom }]}>
       <Zoom label="Zoom out" text="−" onPress={() => step(zoom.get() / 1.35)} />
       <Zoom label="Zoom in" text="+" onPress={() => step(zoom.get() * 1.35)} />
       <Zoom label="Show the whole map" text="⤢" onPress={() => step(least)} />

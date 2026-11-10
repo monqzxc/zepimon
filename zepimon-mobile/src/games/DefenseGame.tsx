@@ -1,10 +1,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Easing, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import type { ImageSourcePropType, ViewStyle } from 'react-native'
+import type { ImageSourcePropType } from 'react-native'
 import { spriteSource } from '../catalog'
 import { typeTheme } from '../HabitatScene'
-import { Button, Copy, Heading, IconButton, Title, colors, fonts, shadows, styles, themedStyles } from '../ui'
+import { Button, Copy, Heading, Icon, Title, colors, fonts, shadows, themedStyles } from '../ui'
 import { useGameScreen } from './fullscreen'
 import { BerryIcon } from './BerryCatch'
 import { EVOLVE_MS, LANES, bossCharging, pathPoint, conditionsOf, untouchable, PATHS, TICK, WEATHER, WEATHER_POWER, WEATHER_WEAK, tileAt, unitWeather, actedRecently, battleScore, battleStars, callAssist, canPlace, cardReadyAt, collectDrop, eggPerk, enemyHeading, enemyPoint, evolveUnit,
@@ -52,7 +52,7 @@ const CROWD = 14, HITS_SHOWN = 12
 const label = (type: string) => type[0].toUpperCase() + type.slice(1)
 // "Harsh sunlight: Fire foes are tougher."
 const types = (list: string[]) => list.map(label).join(', ')
-const weatherLine = (weather: Weather) => `${WEATHER[weather].name}: ${types(WEATHER[weather].types)} foes tougher · your ${types(WEATHER[weather].types)} ▲, ${types(WEATHER[weather].weakens)} ▼`
+const weatherLine = (weather: Weather) => `${WEATHER[weather].name} · ${types(WEATHER[weather].types)} ▲ · ${types(WEATHER[weather].weakens)} ▼`
 // What the weather does to your Pokemon, for the level's panel and a Pokemon's details.
 const POWER_UP = Math.round((WEATHER_POWER - 1) * 100), POWER_DOWN = Math.round((1 - WEATHER_WEAK) * 100)
 const native = Platform.OS !== 'web'
@@ -101,6 +101,9 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
   // The camera over a big Trail Defense map, and whether it follows the foe closest to the Poke Ball (src/games/CameraAids.tsx).
   const camera = useRef<Camera | null>(null)
   const [follow, setFollow] = useState(false)
+  // How tall the counters and the dock are, for the camera to keep the map clear of them.
+  const [hudHeight, setHudHeight] = useState(0)
+  const [dockHeight, setDockHeight] = useState(0)
   const stopFollowing = useCallback(() => setFollow(false), [])
   const keepCamera = useCallback((handle: Camera | null) => { camera.current = handle }, [])
 
@@ -174,7 +177,9 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
   // map or in to big squares.
   const sized = Math.min(area.width / cols, Math.max(area.height / units, MIN_CELL))
   const cell = layout === 'trail' ? Math.max(sized, DRAWN_CELL) : sized
-  const least = Math.min(area.width / cols, area.height / units) / cell, most = Math.max(1, MAX_CELL / cell)
+  // Trail Defense's counters and dock float over the map; the whole map fits in the room between them.
+  const padTop = layout === 'trail' ? hudHeight + 12 : 0, padBottom = layout === 'trail' && game.status !== 'won' && game.status !== 'lost' ? dockHeight + 12 : 0
+  const least = Math.min(area.width / cols, (area.height - padTop - padBottom) / units) / cell, most = Math.max(1, MAX_CELL / cell)
   const zoom = { start: layout === 'trail' ? Math.min(most, Math.max(least, COMFY / cell)) : sized / cell, least, most }
   // The camera first looks at the cave, where the foes come from.
   const cave = layout === 'trail' ? pathPoint(spec.path, 0.5) : null
@@ -204,28 +209,62 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
     : wait !== null ? `${game.wave ? 'Next wave' : 'First wave'} in ${Math.ceil(wait / 1000)}s${game.wave ? '' : ' — place your team!'}`
     : game.spawns.length ? 'A wave is arriving!' : 'The last foes are on the field!'
 
-  // The top bar and the card tray stay on screen; only an oversized board scrolls between them.
-  return <View style={play.root}>
-    <View style={play.bar}>
-      <View style={play.barRow}>
-        <View style={play.stats}>
-          <Stat label="BERRIES" value={`◉ ${game.berries}`} spoken={`${game.berries} berries`} />
-          <Stat label="WAVE" value={`${Math.max(1, game.wave)}/${spec.waves}`} spoken={`Wave ${Math.max(1, game.wave)} of ${spec.waves}`} />
-          {layout === 'lanes' ? <Stat label="SNORLAX" value={`${guards}/${LANES}`} spoken={`${guards} of ${LANES} Snorlax awake`} />
-            : <Stat label="LIVES" value={`♥ ${game.lives}`} spoken={`${game.lives} lives`} />}
-        </View>
-        {!over && <IconButton name={playing ? 'pause' : 'resume'} label={playing ? 'Pause' : 'Resume battle'} size={40} onPress={playing ? pause : resume} />}
-        <IconButton name={full ? 'fullscreenExit' : 'fullscreen'} label={full ? 'Exit full screen' : 'Full screen'} size={40} onPress={() => setFull(!full)} />
+  // Trail Defense plays on the whole area: the counters float over the map's top and the dock over its bottom, and the
+  // camera can pan the map out from under both. Route Guard's board is fitted, so there they sit above and below it.
+  const floating = layout === 'trail'
+  const hud = <View pointerEvents="box-none" style={[play.hud, floating && play.hudFloat]} onLayout={event => setHudHeight(event.nativeEvent.layout.height)}>
+    <View pointerEvents="box-none" style={play.hudRow}>
+      <View style={play.chips}>
+        {layout === 'lanes' ? <Counter mark="z" tint="#9fd0ff" value={`${guards}/${LANES}`} spoken={`${guards} of ${LANES} Snorlax asleep`} />
+          : <Counter mark="♥" tint="#ff6b6b" value={String(game.lives)} spoken={`${game.lives} lives`} />}
+        <Counter mark="◉" tint={onBoard.gold} value={String(game.berries)} spoken={`${game.berries} berries`} />
+        <Counter mark="WAVE" value={`${Math.max(1, game.wave)}/${spec.waves}`} spoken={`Wave ${Math.max(1, game.wave)} of ${spec.waves}`} />
       </View>
-      <Text numberOfLines={2} style={play.status}>{status}</Text>
-      {spec.weather && <Text numberOfLines={2} style={play.weather}>{WEATHER[spec.weather].mark} {weatherLine(spec.weather)}</Text>}
+      {!over && <Pressable accessibilityRole="button" accessibilityLabel={playing ? 'Pause' : 'Resume battle'} hitSlop={6} onPress={playing ? pause : resume}
+        style={({ pressed }) => [play.round, { opacity: pressed ? 0.7 : 1 }]}>
+        <Icon name={playing ? 'pause' : 'resume'} size={18} color="#FFFFFF" />
+      </Pressable>}
     </View>
+    <Text numberOfLines={1} style={play.status}>{status}</Text>
+    {spec.weather && <Text numberOfLines={1} style={[play.status, { color: onBoard.gold }]}>{WEATHER[spec.weather].mark} {weatherLine(spec.weather)}</Text>}
+  </View>
+  // The dock: your cards, with Next wave and the Legendary's call above them; a tapped Pokemon's details take its place.
+  const dock = over ? null : <View style={[play.dock, floating && play.dockFloat]} onLayout={event => setDockHeight(event.nativeEvent.layout.height)}>
+    {selected ? <UnitDock unit={selected} layout={layout} weather={spec.weather} playing={playing} berries={game.berries}
+      onEvolve={() => act(battle => evolveUnit(battle, selected.id))}
+      onRelease={() => { act(battle => removeUnit(battle, selected.id)); setInspect(null) }} onClose={() => setInspect(null)} /> : <>
+      <View style={play.dockTop}>
+        <Text numberOfLines={1} style={play.hint}>{hint}</Text>
+        {layout === 'trail' && <DockButton title="Next wave +◉10" disabled={!playing || wait === null || wait <= 1000} onPress={() => act(sendNextWave)} />}
+        {game.assist && <DockButton gold title={game.assist.used ? `${game.assist.name} ✓` : `Call ${game.assist.name}`}
+          disabled={!playing || game.assist.used} onPress={callFriend} />}
+      </View>
+      <View style={play.cards}>{game.team.map(card => {
+        const key = cardKey(card)
+        const form = placedForm(game, card)
+        const kit = kitFor(form, layout)
+        const recharge = Math.max(0, cardReadyAt(game, card) - game.elapsed)
+        const ready = playing && !recharge && game.berries >= kit.cost
+        return <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: picked === key, disabled: !playing }} disabled={!playing}
+          accessibilityLabel={`${form}, ${kit.label}, ${kit.cost} berries${recharge ? `, recharging for ${Math.ceil(recharge / 1000)} seconds` : game.berries < kit.cost ? ', not enough berries yet' : ''}`}
+          onPress={() => { setInspect(null); setNote(''); setPicked(picked === key ? null : key) }}
+          style={({ pressed }) => [play.card, picked === key && play.picked, { opacity: pressed ? 0.7 : ready ? 1 : 0.45 }]}>
+          <PixelSprite name={form} shiny={card.shiny} size={34} />
+          <Text numberOfLines={1} style={play.cost}>{recharge ? `${Math.ceil(recharge / 1000)}s` : `◉ ${kit.cost}`}</Text>
+        </Pressable>
+      })}</View>
+    </>}
+  </View>
+
+  return <View style={play.root}>
+    {!floating && hud}
 
     {/* The area takes whatever the bar and the tray leave. Its contents are all absolutely placed, so they never
         stretch it: a board measured in full screen would otherwise keep the area that tall after leaving it. */}
-    <View style={play.area} onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}>
+    <View style={[play.area, floating && play.stage]} onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}>
       {area.width > 0 && <BoardFrame camera={layout === 'trail'} area={area} width={fieldWidth} height={height} zoom={zoom} scrolls={scrolls} reduced={reduced}
-        focus={cave ? { x: cave.x * cell, y: cave.y * cell } : undefined} onCamera={keepCamera} onUserMove={stopFollowing}>
+        focus={cave ? { x: cave.x * cell, y: cave.y * cell } : undefined} onCamera={keepCamera} onUserMove={stopFollowing}
+        padTop={padTop} padBottom={padBottom}>
       <View style={[board.field, { width: fieldWidth, height, backgroundColor: theme.sky }]}>
         {layout === 'trail' && <TrailTerrain path={spec.path} cell={cell} theme={theme} />}
         {layout === 'trail' && selected && <View pointerEvents="none" style={[board.range, {
@@ -294,18 +333,18 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
         {answer && <AssistMove key={answer.id} name={answer.name} width={fieldWidth} height={height} reduced={reduced} onDone={endAnswer} />}
       </View>
       </BoardFrame>}
-      {layout === 'trail' && area.width > 0 && <CameraAids game={game} cell={cell} area={area} camera={camera} follow={follow} onFollow={setFollow} />}
-      {!!note && <View pointerEvents="none" style={play.note}><Text accessibilityLiveRegion="polite" style={play.noteText}>{note}</Text></View>}
-      {/* Details float over the half of the board away from the Pokemon you tapped. */}
-      {selected && <UnitPanel unit={selected} layout={layout} weather={spec.weather} playing={playing} berries={game.berries}
-        style={selected.row >= rows / 2 ? { top: 8 } : { bottom: 8 }}
-        onEvolve={() => act(battle => evolveUnit(battle, selected.id))}
-        onRelease={() => { act(battle => removeUnit(battle, selected.id)); setInspect(null) }} onClose={() => setInspect(null)} />}
+      {layout === 'trail' && area.width > 0 && <CameraAids game={game} cell={cell} area={area} camera={camera} follow={follow} onFollow={setFollow}
+        padTop={padTop} padBottom={padBottom} />}
+      {floating && hud}
+      {!!note && <View pointerEvents="none" style={[play.note, { top: padTop + 8 }]}><Text accessibilityLiveRegion="polite" style={play.noteText}>{note}</Text></View>}
+      {floating && dock}
       {game.status === 'paused' && <View style={[play.scrim, shown]}>
         <View style={play.sheet}>
           <Title>Paused</Title>
-          <Copy small>Your team, berries and the next wave are waiting.</Copy>
-          <Button title="Resume battle" onPress={resume} />
+          <Button title="Resume" onPress={resume} />
+          <Button title="Restart" secondary onPress={start} />
+          <Button title="Give up" secondary onPress={() => update(null)} />
+          <Button title={full ? 'Exit full screen' : 'Full screen'} secondary onPress={() => setFull(!full)} />
         </View>
       </View>}
       {over && <View style={[play.scrim, StyleSheet.absoluteFill]}><ScrollView contentContainerStyle={play.scrimScroll}>
@@ -320,45 +359,23 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
       </ScrollView></View>}
     </View>
 
-    {!over && <View style={play.tray}>
-      <Text numberOfLines={1} style={play.hint}>{hint}</Text>
-      <View style={play.cards}>{game.team.map(card => {
-        const key = cardKey(card)
-        const form = placedForm(game, card)
-        const kit = kitFor(form, layout)
-        const recharge = Math.max(0, cardReadyAt(game, card) - game.elapsed)
-        const ready = playing && !recharge && game.berries >= kit.cost
-        return <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: picked === key, disabled: !playing }} disabled={!playing}
-          accessibilityLabel={`${form}, ${kit.label}, ${kit.cost} berries${recharge ? `, recharging for ${Math.ceil(recharge / 1000)} seconds` : game.berries < kit.cost ? ', not enough berries yet' : ''}`}
-          onPress={() => { setInspect(null); setNote(''); setPicked(picked === key ? null : key) }}
-          style={({ pressed }) => [play.card, picked === key && play.picked, { opacity: pressed ? 0.7 : ready ? 1 : 0.5 }]}>
-          <PixelSprite name={form} shiny={card.shiny} size={34} />
-          <Text numberOfLines={1} style={play.cost}>{recharge ? `${Math.ceil(recharge / 1000)}s` : `◉ ${kit.cost}`}</Text>
-        </Pressable>
-      })}</View>
-      {/* Always laid out, so the board does not jump when a button comes and goes. */}
-      {(layout === 'trail' || game.assist) && <View style={play.actions}>
-        {layout === 'trail' && <SmallButton title="Send next wave · +◉ 10" disabled={!playing || wait === null || wait <= 1000} onPress={() => act(sendNextWave)} />}
-        {game.assist && <SmallButton primary title={game.assist.used ? `${game.assist.name} helped!` : `Call ${game.assist.name}`}
-          disabled={!playing || game.assist.used} onPress={callFriend} />}
-      </View>}
-    </View>}
+    {!floating && dock}
   </View>
 }
 
-// A compact counter in the battle's top bar.
-function Stat({ label, value, spoken }: { label: string, value: string, spoken: string }) {
-  return <View accessible accessibilityLabel={spoken}>
-    <Text style={play.statLabel}>{label}</Text>
-    <Text style={play.statValue}>{value}</Text>
+// A counter over the board: a mark (a heart, a berry, WAVE) and its number on a dark chip.
+function Counter({ mark, value, spoken, tint = '#c9d3e6' }: { mark: string, value: string, spoken: string, tint?: string }) {
+  return <View accessible accessibilityLabel={spoken} style={play.chip}>
+    <Text style={[mark.length > 1 ? play.chipLabel : play.chipMark, { color: tint }]}>{mark}</Text>
+    <Text style={play.chipValue}>{value}</Text>
   </View>
 }
 
-// A pill button small enough for the card tray and the floating details panel.
-function SmallButton({ title, onPress, primary = false, disabled = false }: { title: string, onPress: () => void, primary?: boolean, disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [play.button, primary ? play.primary : play.secondary, { opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }]}>
-    <Text numberOfLines={1} style={[play.buttonText, primary && { color: colors.onEdge }]}>{title}</Text>
+// A small pill in the dock. gold marks the one that matters most (the Legendary's call, an evolution).
+function DockButton({ title, onPress, gold = false, disabled = false, grow = false }: { title: string, onPress: () => void, gold?: boolean, disabled?: boolean, grow?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} hitSlop={4}
+    style={({ pressed }) => [play.pill, gold && play.pillGold, grow && { flex: 1 }, { opacity: disabled ? 0.4 : pressed ? 0.75 : 1 }]}>
+    <Text numberOfLines={1} style={[play.pillText, gold && { color: '#1A1200' }]}>{title}</Text>
   </Pressable>
 }
 
@@ -370,13 +387,14 @@ function Health({ ratio, width }: { ratio: number, width: number }) {
 
 // Where the board sits: Trail Defense's under a camera that pans and zooms; Route Guard's as it always was, scrolling
 // when it is taller than the room it has.
-function BoardFrame({ camera, area, width, height, zoom, scrolls, reduced, focus, onCamera, onUserMove, children }: {
+function BoardFrame({ camera, area, width, height, zoom, scrolls, reduced, focus, onCamera, onUserMove, padTop, padBottom, children }: {
   camera: boolean, area: { width: number, height: number }, width: number, height: number,
   zoom: { start: number, least: number, most: number }, scrolls: boolean, reduced: boolean,
-  focus?: { x: number, y: number }, onCamera?: (camera: Camera | null) => void, onUserMove?: () => void, children: ReactNode
+  focus?: { x: number, y: number }, onCamera?: (camera: Camera | null) => void, onUserMove?: () => void, padTop?: number, padBottom?: number,
+  children: ReactNode
 }) {
   if (camera) return <ZoomPan frame={area} width={width} height={height} start={zoom.start} least={zoom.least} most={zoom.most} reduced={reduced}
-    focus={focus} onCamera={onCamera} onUserMove={onUserMove}>
+    focus={focus} onCamera={onCamera} onUserMove={onUserMove} padTop={padTop} padBottom={padBottom}>
     {children}
   </ZoomPan>
   return <ScrollView style={StyleSheet.absoluteFill} scrollEnabled={scrolls} nestedScrollEnabled showsVerticalScrollIndicator={scrolls}
@@ -580,40 +598,42 @@ function WeatherArrow({ sky, size }: { sky: 'boosted' | 'weakened' | null, size:
     {sky === 'boosted' ? '▲' : '▼'}</Text>
 }
 
-function UnitPanel({ unit, layout, weather, playing, berries, style, onEvolve, onRelease, onClose }: {
-  unit: Battle['units'][number], layout: Layout, weather?: Weather, playing: boolean, berries: number, style: ViewStyle,
+// A tapped Pokemon in the dock, in place of the cards: who it is, what its move does here, and Evolve and Release.
+function UnitDock({ unit, layout, weather, playing, berries, onEvolve, onRelease, onClose }: {
+  unit: Battle['units'][number], layout: Layout, weather?: Weather, playing: boolean, berries: number,
   onEvolve: () => void, onRelease: () => void, onClose: () => void
 }) {
   const kit = kitFor(unit.name, layout)
   const next = nextForm(unit)
-  const perk = eggPerk(unit.name, layout)
+  const perk = unit.egg ? eggPerk(unit.name, layout) : null
   const move = moveOf(unit.name, layout)
   const sky = unitWeather(weather, unit.name, layout)
-  // What its move can leave on a foe: "Ember may burn (20%)".
   const causes = move ? inflictText(battleType(unit.name)) : ''
-  // The foes its moves cannot touch ("Can't hit Ghost foes"): it leaves them for the rest of the team.
+  // The foes its moves cannot touch: it leaves them for the rest of the team.
   const blind = move ? untouchable(unit.name, layout, unit.egg) : []
-  return <View style={[play.floating, style]}>
-    <View style={[styles.row, { flexWrap: 'nowrap' }]}>
+  const facts = [
+    causes && `${move} ${causes}`,
+    blind.length > 0 && `Can't hit ${types(blind)}`,
+    weather && sky && `${WEATHER[weather].mark} ${sky === 'boosted' ? `+${POWER_UP}` : `−${POWER_DOWN}`}%`,
+    perk && `Egg: ${perk.move}`
+  ].filter(Boolean).join(' · ')
+  return <>
+    <View style={play.unitRow}>
       <PixelSprite name={unit.name} shiny={unit.shiny} size={44} />
       <View style={{ flex: 1 }}>
-        <Title>{unit.shiny ? 'Shiny ' : ''}{unit.name}</Title>
-        <Copy small>{kit.label}{move ? ` · ${move}` : ''}{unit.egg && perk?.kind === 'coverage' ? ` or ${perk.move}` : ''} · Health {Math.ceil(unit.hp)} / {unit.maxHp}{layout === 'trail' && !next ? ' · Fully evolved' : ''}</Copy>
+        <Text numberOfLines={1} style={play.unitName}>{unit.shiny ? 'Shiny ' : ''}{unit.name}</Text>
+        <Text numberOfLines={1} style={play.unitLine}>{kit.label} · ♥ {Math.ceil(unit.hp)}/{unit.maxHp}{layout === 'trail' ? next ? ` · → ${next.name}` : ' · Final form' : ''}</Text>
+        {!!facts && <Text numberOfLines={1} style={[play.unitLine, { color: onBoard.gold }]}>{facts}</Text>}
       </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close" hitSlop={8} onPress={onClose} style={play.round}>
+        <Icon name="close" size={16} color="#FFFFFF" />
+      </Pressable>
     </View>
-    <Copy small color={unit.egg && perk ? colors.gold : colors.muted}>{!unit.egg ? 'No egg moves: only Pokemon hatched on your watch know them.'
-      : perk ? `Hatched from an egg · Egg move ${perk.move}: ${perk.text}.` : 'Hatched from an egg, but this family has no Gen II–IV egg moves.'}</Copy>
-    {!!causes && <Copy small color={colors.ink}>{`${move} ${causes}.`}</Copy>}
-    {blind.length > 0 && <Copy small color={colors.danger}>{`Can't hit ${types(blind)} foes.`}</Copy>}
-    {weather && sky && <Copy small color={sky === 'boosted' ? colors.gold : colors.danger}>{sky === 'boosted'
-      ? `${WEATHER[weather].mark} ${WEATHER[weather].name} powers it up: ${POWER_UP}% more damage.`
-      : `${WEATHER[weather].mark} ${WEATHER[weather].name} weakens it: ${POWER_DOWN}% less damage.`}</Copy>}
-    <View style={play.actions}>
-      {layout === 'trail' && next && <SmallButton primary title={`Evolve to ${next.name} · ◉ ${next.cost}`} disabled={!playing || berries < next.cost} onPress={onEvolve} />}
-      <SmallButton title={`Release · +◉ ${refundFor(unit)}`} disabled={!playing} onPress={onRelease} />
-      <SmallButton title="Close" onPress={onClose} />
+    <View style={play.dockTop}>
+      {layout === 'trail' && next && <DockButton gold grow title={`Evolve ◉${next.cost}`} disabled={!playing || berries < next.cost} onPress={onEvolve} />}
+      <DockButton grow title={`Release +◉${refundFor(unit)}`} disabled={!playing} onPress={onRelease} />
     </View>
-  </View>
+  </>
 }
 
 const board = themedStyles(() => ({
@@ -653,35 +673,45 @@ const board = themedStyles(() => ({
 }))
 
 // The running battle's screen: a top bar, the board area (with anything that floats over it) and the card tray.
+// The battle's counters, dock and their buttons sit on the board, so they keep its dark glass look in every theme.
+const glass = 'rgba(8, 14, 24, 0.8)', glassLine = 'rgba(255, 255, 255, 0.16)'
 const play = themedStyles(() => ({
   root: { flex: 1, gap: 8 },
-  bar: { backgroundColor: colors.panel, borderColor: colors.line, borderWidth: 1, borderRadius: 18, paddingHorizontal: 10, paddingVertical: 8, gap: 4, ...shadows.card },
-  barRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  stats: { flex: 1, flexDirection: 'row', gap: 16, paddingLeft: 4 },
-  statLabel: { fontFamily: fonts.heavy, color: colors.muted, fontSize: 10, lineHeight: 13, letterSpacing: 0.8 },
-  statValue: { fontFamily: fonts.black, color: colors.ink, fontSize: 17, lineHeight: 22 },
-  status: { fontFamily: fonts.bold, color: colors.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 2 },
-  weather: { fontFamily: fonts.heavy, color: colors.gold, fontSize: 13, lineHeight: 18, paddingHorizontal: 2 },
+  hud: { gap: 4 },
+  hudFloat: { position: 'absolute', left: 8, right: 8, top: 8 },
+  hudRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  chips: { flexDirection: 'row', gap: 6 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 34, paddingHorizontal: 11, borderRadius: 17, backgroundColor: glass,
+    borderWidth: 1, borderColor: glassLine },
+  chipMark: { fontSize: 14, lineHeight: 18, fontFamily: fonts.black },
+  chipLabel: { fontSize: 9, lineHeight: 12, letterSpacing: 0.8, fontFamily: fonts.black },
+  chipValue: { color: '#FFFFFF', fontSize: 15, lineHeight: 20, fontFamily: fonts.black },
+  round: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: glass, borderWidth: 1, borderColor: glassLine },
+  status: { alignSelf: 'flex-start', maxWidth: '100%', overflow: 'hidden', fontFamily: fonts.heavy, color: '#FFFFFF', fontSize: 12, lineHeight: 16,
+    paddingHorizontal: 9, paddingVertical: 3, borderRadius: 10, backgroundColor: 'rgba(8, 14, 24, 0.62)' },
   area: { flex: 1, minHeight: 160 },
+  // Trail Defense's map, counters and dock share one dark stage.
+  stage: { backgroundColor: '#0b1220', borderRadius: 18, overflow: 'hidden' },
   note: { position: 'absolute', top: 8, left: 12, right: 12, alignItems: 'center' },
   noteText: { overflow: 'hidden', textAlign: 'center', fontFamily: fonts.bold, fontSize: 13, lineHeight: 18, color: '#FFFFFF',
     backgroundColor: 'rgba(31, 42, 54, 0.88)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  scrim: { position: 'absolute', backgroundColor: 'rgba(31, 42, 54, 0.45)', borderRadius: 16, justifyContent: 'center', padding: 12 },
+  scrim: { position: 'absolute', backgroundColor: 'rgba(8, 14, 24, 0.55)', borderRadius: 16, justifyContent: 'center', padding: 24 },
   scrimScroll: { flexGrow: 1, justifyContent: 'center' },
   sheet: { backgroundColor: colors.panel, borderRadius: 20, padding: 16, gap: 10, ...shadows.card },
-  floating: { position: 'absolute', left: 8, right: 8, backgroundColor: colors.panel, borderRadius: 18, borderWidth: 1, borderColor: colors.line,
-    padding: 12, gap: 8, boxShadow: '0px 8px 24px rgba(31, 61, 89, 0.22)' },
-  tray: { backgroundColor: colors.panel, borderColor: colors.line, borderWidth: 1, borderRadius: 18, padding: 8, gap: 6,
-    boxShadow: '0px -2px 16px rgba(31, 61, 89, 0.10)' },
-  hint: { fontFamily: fonts.heavy, color: colors.edge, fontSize: 12, lineHeight: 16, paddingHorizontal: 4 },
+  dock: { gap: 6, padding: 8, borderRadius: 18, backgroundColor: glass, borderWidth: 1, borderColor: glassLine },
+  dockFloat: { position: 'absolute', left: 8, right: 8, bottom: 8 },
+  dockTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  hint: { flex: 1, fontFamily: fonts.heavy, color: '#c9d3e6', fontSize: 11, lineHeight: 15, paddingHorizontal: 4 },
+  pill: { height: 32, paddingHorizontal: 12, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1, borderColor: glassLine },
+  pillGold: { backgroundColor: onBoard.gold, borderColor: onBoard.gold },
+  pillText: { fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16, color: '#FFFFFF' },
   cards: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
-  card: { flex: 1, maxWidth: 76, minHeight: 60, alignItems: 'center', justifyContent: 'center', gap: 1, paddingVertical: 4,
-    borderWidth: 1.5, borderColor: colors.line, borderRadius: 14, backgroundColor: colors.panel },
-  picked: { borderColor: colors.edge, borderWidth: 2.5, backgroundColor: colors.mint },
-  cost: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  button: { flexGrow: 1, minHeight: 40, borderRadius: 999, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
-  primary: { backgroundColor: colors.edge },
-  secondary: { backgroundColor: colors.panel, borderWidth: 1.5, borderColor: colors.line },
-  buttonText: { fontFamily: fonts.heavy, fontSize: 13, lineHeight: 17, color: colors.edge }
+  card: { flex: 1, maxWidth: 76, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 1, paddingVertical: 4,
+    borderWidth: 1.5, borderColor: glassLine, borderRadius: 14, backgroundColor: 'rgba(255, 255, 255, 0.08)' },
+  picked: { borderColor: onBoard.gold, borderWidth: 2, backgroundColor: 'rgba(255, 224, 141, 0.2)' },
+  cost: { color: '#FFFFFF', fontFamily: fonts.heavy, fontSize: 12, lineHeight: 16 },
+  unitRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  unitName: { color: '#FFFFFF', fontFamily: fonts.black, fontSize: 16, lineHeight: 21 },
+  unitLine: { color: '#c9d3e6', fontFamily: fonts.bold, fontSize: 12, lineHeight: 16 }
 }))

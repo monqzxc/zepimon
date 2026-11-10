@@ -22,9 +22,10 @@ const GROUP = 80
 const CLOSE = 0.75
 const MINI = { width: 84, height: 128 }
 
-export function CameraAids({ game, cell, area, camera, follow, onFollow }: {
+// padTop and padBottom: the room the battle's counters and dock take over the map; the aids keep clear of both.
+export function CameraAids({ game, cell, area, camera, follow, onFollow, padTop = 0, padBottom = 0 }: {
   game: Battle, cell: number, area: { width: number, height: number }, camera: MutableRefObject<Camera | null>,
-  follow: boolean, onFollow: (on: boolean) => void
+  follow: boolean, onFollow: (on: boolean) => void, padTop?: number, padBottom?: number
 }) {
   // The camera moves without the battle knowing (a finger, a glide): look again a few times a second, paused or not.
   const [, setLook] = useState(0)
@@ -50,15 +51,15 @@ export function CameraAids({ game, cell, area, camera, follow, onFollow }: {
   const groups = new Map<string, { x: number, y: number, angle: number, count: number, close: boolean, at: { x: number, y: number } }>()
   for (const enemy of game.enemies) {
     const at = enemyPoint(game, enemy)
-    const sx = (at.x * cell - view.left) * view.zoom, sy = (at.y * cell - view.top) * view.zoom
-    if (sx >= 0 && sx <= area.width && sy >= 0 && sy <= area.height) continue
+    const sx = (at.x * cell - view.left) * view.zoom, sy = padTop + (at.y * cell - view.top) * view.zoom
+    if (sx >= 0 && sx <= area.width && sy >= padTop && sy <= area.height - padBottom) continue
     // Kept clear of the button column on the right.
-    const x = Math.min(area.width - EDGE - RIGHT, Math.max(EDGE, sx)), y = Math.min(area.height - EDGE, Math.max(EDGE, sy))
+    const x = Math.min(area.width - EDGE - RIGHT, Math.max(EDGE, sx)), y = Math.min(area.height - padBottom - EDGE, Math.max(padTop + EDGE, sy))
     const key = Math.round(x / GROUP) + ',' + Math.round(y / GROUP)
     const close = enemy.progress / length >= CLOSE || enemy.boss
     const group = groups.get(key)
     if (group) { group.count++; group.close ||= close; if (close) group.at = at }
-    else groups.set(key, { x, y, angle: Math.atan2(sy - area.height / 2, sx - area.width / 2), count: 1, close, at })
+    else groups.set(key, { x, y, angle: Math.atan2(sy - (padTop + (area.height - padTop - padBottom) / 2), sx - area.width / 2), count: 1, close, at })
   }
 
   const scale = Math.min(MINI.width / cols, MINI.height / rows)
@@ -74,7 +75,7 @@ export function CameraAids({ game, cell, area, camera, follow, onFollow }: {
 
     {!all && <Pressable accessibilityRole="button" accessibilityLabel="Map of the whole trail. Tap a spot to look there"
       onPress={event => look(event.nativeEvent.locationX / scale, event.nativeEvent.locationY / scale)}
-      style={[aids.mini, { width: cols * scale, height: rows * scale }]}>
+      style={[aids.mini, { width: cols * scale, height: rows * scale, bottom: 8 + padBottom }]}>
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <MiniTerrain path={game.spec.path} habitat={game.spec.habitat} scale={scale} />
         {game.units.map(unit => <View key={unit.id} style={[aids.dot, aids.ally, { left: (unit.col + 0.5) * scale - 2, top: (unit.row + 0.5) * scale - 2 }]} />)}
@@ -84,7 +85,7 @@ export function CameraAids({ game, cell, area, camera, follow, onFollow }: {
       </View>
     </Pressable>}
 
-    {!all && <View style={aids.buttons}>
+    {!all && <View style={[aids.buttons, { top: 8 + padTop }]}>
       <AidButton label={follow ? 'Stop following the lead foe' : 'Follow the lead foe'} on={follow} onPress={() => onFollow(!follow)}>
         <Text style={[aids.glyph, follow && { color: '#1A1200' }]}>◎</Text>
       </AidButton>
