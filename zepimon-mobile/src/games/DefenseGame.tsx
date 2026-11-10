@@ -46,6 +46,9 @@ const MIN_CELL = 36
 // Trail Defense draws its squares at least this big, so zooming in stays crisp, and zooms in as far as MAX_CELL. A battle
 // opens at COMFY-sized squares, easy to tap, so a level's map is bigger than the screen and the camera pans over it.
 const DRAWN_CELL = 48, MAX_CELL = 68, COMFY = 46
+// With more foes than this on the field, each is drawn lighter (no red outline, no wisps) and hits lose their sparks,
+// so a big wave stays smooth; the dark aura under a foe still marks it.
+const CROWD = 14, HITS_SHOWN = 12
 const label = (type: string) => type[0].toUpperCase() + type.slice(1)
 // "Harsh sunlight: Fire foes are tougher."
 const types = (list: string[]) => list.map(label).join(', ')
@@ -130,6 +133,34 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
     update(startBattle(makeSpec(), team, { bonus, assist: helper }, performance.now()))
   }
 
+  function pressCell(col: number, row: number) {
+    const battle = current.current
+    if (!battle) return
+    const unit = battle.units.find(item => item.col === col && item.row === row)
+    if (unit) { setPicked(null); setInspect(unit.id); setNote(''); return }
+    setInspect(null)
+    if (!picked) { setNote('Choose a Pokemon card below, then tap a free square.'); return }
+    const card = battle.team.find(item => cardKey(item) === picked)!
+    const next = placeUnit(battle, picked, col, row)
+    if (next !== battle) {
+      update(next)
+      setNote('')
+      if (layout === 'lanes') setPicked(null)
+      return
+    }
+    const cost = kitFor(placedForm(battle, card), layout).cost
+    const tile = tileAt(battle, col, row)
+    setNote(battle.status !== 'playing' ? 'Resume the battle to place Pokemon.' : !canPlace(battle, col, row) ? ((layout === 'trail' && PATHS[battle.spec.path].cells.has(col + ',' + row)) ? 'Pokemon stand beside the trail, not on it.' : 'That square is taken.')
+      : tile && !canPlace(battle, col, row, placedForm(battle, card)) ? `Only ${label(tile)} Pokemon can stand on ${label(tile)} tiles.`
+      : cardReadyAt(battle, card) > battle.elapsed ? `${card.name} is recharging.` : `You need ◉ ${cost - battle.berries} more berries.`)
+  }
+
+  // The squares are drawn once and kept (Cells), so they call the latest pressCell through a ref.
+  const pressRef = useRef(pressCell)
+  useEffect(() => { pressRef.current = pressCell })
+  const press = useCallback((col: number, row: number) => pressRef.current(col, row), [])
+
+
   if (!game) return <BattleBrief layout={layout} brief={brief} preview={preview} bonus={bonus} assists={assists} helper={helper} onHelper={setHelper}
     choices={choices} team={team} onTeam={setTeam} suggestion={suggestion} onStart={start} />
 
@@ -157,7 +188,6 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
   const playing = game.status === 'playing'
   const over = game.status === 'won' || game.status === 'lost'
   const wait = nextWaveIn(game)
-  const pathCells = layout === 'trail' ? PATHS[spec.path].cells : null
   const selected = game.units.find(unit => unit.id === inspect)
   const guards = game.guards.filter(Boolean).length
   const pickedCard = game.team.find(card => cardKey(card) === picked)
@@ -173,28 +203,6 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
     : boss && used ? `${boss.name} used ${used.move}: ${SKILL_TEXT[used.skill]}!`
     : wait !== null ? `${game.wave ? 'Next wave' : 'First wave'} in ${Math.ceil(wait / 1000)}s${game.wave ? '' : ' — place your team!'}`
     : game.spawns.length ? 'A wave is arriving!' : 'The last foes are on the field!'
-
-  function pressCell(col: number, row: number) {
-    const battle = current.current
-    if (!battle) return
-    const unit = battle.units.find(item => item.col === col && item.row === row)
-    if (unit) { setPicked(null); setInspect(unit.id); setNote(''); return }
-    setInspect(null)
-    if (!picked) { setNote('Choose a Pokemon card below, then tap a free square.'); return }
-    const card = battle.team.find(item => cardKey(item) === picked)!
-    const next = placeUnit(battle, picked, col, row)
-    if (next !== battle) {
-      update(next)
-      setNote('')
-      if (layout === 'lanes') setPicked(null)
-      return
-    }
-    const cost = kitFor(placedForm(battle, card), layout).cost
-    const tile = tileAt(battle, col, row)
-    setNote(battle.status !== 'playing' ? 'Resume the battle to place Pokemon.' : !canPlace(battle, col, row) ? (pathCells?.has(col + ',' + row) ? 'Pokemon stand beside the trail, not on it.' : 'That square is taken.')
-      : tile && !canPlace(battle, col, row, placedForm(battle, card)) ? `Only ${label(tile)} Pokemon can stand on ${label(tile)} tiles.`
-      : cardReadyAt(battle, card) > battle.elapsed ? `${card.name} is recharging.` : `You need ◉ ${cost - battle.berries} more berries.`)
-  }
 
   // The top bar and the card tray stay on screen; only an oversized board scrolls between them.
   return <View style={play.root}>
@@ -224,30 +232,18 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
           left: (selected.col + 0.5 - kitFor(selected.name, layout).range) * cell, top: (selected.row + 0.5 - kitFor(selected.name, layout).range) * cell,
           width: kitFor(selected.name, layout).range * 2 * cell, height: kitFor(selected.name, layout).range * 2 * cell,
           borderRadius: kitFor(selected.name, layout).range * cell }]} />}
-        {Array.from({ length: cols * rows }, (_, index) => {
-          const col = index % cols, row = Math.floor(index / cols)
-          const onPath = !!pathCells?.has(col + ',' + row)
-          const unit = game.units.find(item => item.col === col && item.row === row)
-          const tile = tileAt(game, col, row)
-          // With a card picked, only squares it may take light up; element tiles of another type dim.
-          const fits = !pickedForm || tile === null || battleType(pickedForm) === tile
-          const free = !!picked && playing && !unit && !onPath && fits
-          const where = (layout === 'lanes' ? `Lane ${col + 1}, row ${row + 1}` : `Column ${col + 1}, row ${row + 1}`) + (tile ? `, ${label(tile)} tile` : '')
-          return <Pressable key={index} disabled={onPath} onPress={() => pressCell(col, row)}
-            accessibilityRole="button" accessibilityState={{ disabled: onPath, selected: unit?.id === inspect }}
-            accessibilityLabel={`${where}: ${unit ? `${unit.name}, ${Math.ceil(unit.hp / unit.maxHp * 100)}% health${skyNote(unitWeather(spec.weather, unit.name, layout))}${(unit.stunnedUntil ?? 0) > game.elapsed ? ', stunned' : ''}` : onPath ? 'trail' : 'empty'}`}
-            style={[board.cell, { left: col * cell, top: top + row * cell, width: cell, height: cell,
-              backgroundColor: layout === 'trail' ? 'transparent' : (col + row) % 2 ? theme.ground : theme.near },
-              free && board.free, !!picked && !unit && !fits && board.blocked, unit?.id === inspect && board.inspected]}>
-            {unit && <>
-              <View style={[board.shadow, { width: cell * 0.46, height: cell * 0.1, borderRadius: cell, bottom: cell * 0.14 }]} />
-              <Ally unit={unit} game={game} size={cell * 0.82} reduced={reduced} />
-              {unit.hp < unit.maxHp && <Health ratio={unit.hp / unit.maxHp} width={cell * 0.7} />}
-              {unit.egg && <Text accessible={false} style={board.egg}>EGG</Text>}
-              <WeatherArrow sky={unitWeather(spec.weather, unit.name, layout)} size={cell} />
-            </>}
-          </Pressable>
-        })}
+        <Cells cols={cols} rows={rows} cell={cell} top={top} lanes={layout === 'lanes'} path={layout === 'trail' ? spec.path : null}
+          ground={theme.ground} near={theme.near} occupied={game.units.map(unit => `${unit.col},${unit.row}:${unit.name}`).join('|')}
+          picking={!!picked && playing} pickedType={pickedForm ? battleType(pickedForm) : ''}
+          inspected={selected ? `${selected.col},${selected.row}` : ''} onPress={press} />
+        {game.units.map(unit => <View key={unit.id} pointerEvents="none"
+          style={[board.cell, { left: unit.col * cell, top: top + unit.row * cell, width: cell, height: cell }]}>
+          <View style={[board.shadow, { width: cell * 0.46, height: cell * 0.1, borderRadius: cell, bottom: cell * 0.14 }]} />
+          <Ally unit={unit} game={game} size={cell * 0.82} reduced={reduced} />
+          {unit.hp < unit.maxHp && <Health ratio={unit.hp / unit.maxHp} width={cell * 0.7} />}
+          {unit.egg && <Text accessible={false} style={board.egg}>EGG</Text>}
+          <WeatherArrow sky={unitWeather(spec.weather, unit.name, layout)} size={cell} />
+        </View>)}
         {layout === 'lanes' && game.guards.map((awake, lane) => <View key={lane} pointerEvents="none"
           style={[board.snorlax, { left: lane * cell, top: top + rows * cell, width: cell, height: cell * 0.8, opacity: awake ? 1 : 0.25 }]}>
           <PixelSprite name="Snorlax" size={cell * 0.7} />
@@ -271,7 +267,7 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
               mark={enemy.boosted && spec.weather ? WEATHER[spec.weather].mark : ''}
               hurt={game.strikes.some(strike => strike.foe === enemy.id && strike.kind !== 'wave' && game.elapsed - strike.start < 200)}
               poisoned={enemy.poisonUntil > game.elapsed} heading={enemyHeading(game, enemy)} step={step}
-              conditions={conditions.join(',')}
+              conditions={conditions.join(',')} lite={game.enemies.length > CROWD}
               flicker={reduced ? 1 : Math.floor(game.elapsed / 150) % 2}
               {...bossLook(game, enemy)} />
           </Mover>
@@ -279,8 +275,8 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
         {game.shots.map(shot => <Mover key={shot.id} x={shot.x * cell} y={top + shot.y * cell} size={0} reduced={reduced}>
           <ShotSprite shot={shot} game={game} cell={cell} reduced={reduced} />
         </Mover>)}
-        {game.strikes.filter(strike => strike.kind !== 'wave').map(strike => <Mover key={strike.id} x={strike.x * cell} y={top + strike.y * cell} size={0} reduced={reduced}>
-          <Impact move={strike.move} cell={cell} small={strike.kind === 'spread'} reduced={reduced} />
+        {game.strikes.filter(strike => strike.kind !== 'wave').slice(game.enemies.length > CROWD ? -HITS_SHOWN : 0).map(strike => <Mover key={strike.id} x={strike.x * cell} y={top + strike.y * cell} size={0} reduced={reduced}>
+          <Impact move={strike.move} cell={cell} small={strike.kind === 'spread'} reduced={reduced || game.enemies.length > CROWD} />
           <StrikeSprite strike={strike} elapsed={game.elapsed} cell={cell} reduced={reduced} />
         </Mover>)}
         {game.drops.map(drop => <Pressable key={drop.id} accessibilityRole="button" accessibilityLabel={`Collect ${drop.value} berries`}
@@ -412,12 +408,38 @@ function Strip({ source, size, frame, tint, solid = false }: { source: ImageSour
   </View>
 }
 
+// The board's squares, as tap targets: free ones light up while a card is picked, and an element tile of another type
+// dims. Kept apart from everything that moves, so the battle's ten steps a second never redraw them: it only renders
+// again when a Pokemon is placed or released, a card is picked, or one is tapped. occupied lists the Pokemon as
+// "col,row:name|...", inspected is the tapped one's "col,row".
+const Cells = memo(function Cells({ cols, rows, cell, top, lanes, path, ground, near, occupied, picking, pickedType, inspected, onPress }: {
+  cols: number, rows: number, cell: number, top: number, lanes: boolean, path: BattleSpec['path'] | null, ground: string, near: string,
+  occupied: string, picking: boolean, pickedType: string, inspected: string, onPress: (col: number, row: number) => void
+}) {
+  const names = new Map(occupied ? occupied.split('|').map(entry => entry.split(':') as [string, string]) : [])
+  const trail = path ? PATHS[path] : null
+  return <>{Array.from({ length: cols * rows }, (_, index) => {
+    const col = index % cols, row = Math.floor(index / cols), key = col + ',' + row
+    const onPath = !!trail?.cells.has(key)
+    const unit = names.get(key)
+    const tile = trail?.tiles.get(key) ?? null
+    const fits = !pickedType || tile === null || pickedType === tile
+    const where = (lanes ? `Lane ${col + 1}, row ${row + 1}` : `Column ${col + 1}, row ${row + 1}`) + (tile ? `, ${label(tile)} tile` : '')
+    return <Pressable key={index} disabled={onPath} onPress={() => onPress(col, row)}
+      accessibilityRole="button" accessibilityState={{ disabled: onPath, selected: key === inspected }}
+      accessibilityLabel={`${where}: ${unit ?? (onPath ? 'trail' : 'empty')}`}
+      style={[board.cell, { left: col * cell, top: top + row * cell, width: cell, height: cell,
+        backgroundColor: lanes ? (col + row) % 2 ? ground : near : 'transparent' },
+        picking && !unit && !onPath && fits && board.free, !!pickedType && !unit && !fits && board.blocked, key === inspected && board.inspected]} />
+  })}</>
+})
+
 // What marks a foe as an enemy at a glance, whatever its species: a dark violet aura on the ground with wisps rising
 // off it (they flicker with the walk cycle; still with reduced motion), and a red outline - the silhouette drawn in red
 // one sprite pixel out in each direction, under the sprite itself.
 const OUTLINE: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]]
 const FOE_RED = '#ff2a3d'
-function ShadowAura({ size, step, boss }: { size: number, step: number, boss: boolean }) {
+function ShadowAura({ size, step, boss, lite = false }: { size: number, step: number, boss: boolean, lite?: boolean }) {
   const glow = size * (boss ? 1.05 : 0.9)
   const wisp = (x: number, rise: number, scale: number, key: string) => <View key={key} style={[board.wisp, {
     left: size / 2 + x * size - size * 0.05 * scale, top: size * (0.18 - rise), width: size * 0.1 * scale, height: size * 0.22 * scale,
@@ -425,7 +447,7 @@ function ShadowAura({ size, step, boss }: { size: number, step: number, boss: bo
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     <View style={[board.aura, { left: (size - glow) / 2, top: size * 0.32, width: glow, height: glow * 0.62, borderRadius: glow }]} />
     <View style={[board.auraCore, { left: size * 0.22, top: size * 0.5, width: size * 0.56, height: size * 0.3, borderRadius: size }]} />
-    {step ? [wisp(-0.28, 0.02, 1, 'a'), wisp(0.22, 0.1, 0.8, 'b'), wisp(-0.02, -0.04, 0.7, 'c')]
+    {lite ? null : step ? [wisp(-0.28, 0.02, 1, 'a'), wisp(0.22, 0.1, 0.8, 'b'), wisp(-0.02, -0.04, 0.7, 'c')]
       : [wisp(-0.22, 0.1, 0.8, 'a'), wisp(0.28, 0.02, 1, 'b'), wisp(0.04, 0.06, 0.7, 'c')]}
   </View>
 }
@@ -446,9 +468,9 @@ const CONDITION_TINT: Record<Condition, [string, number, boolean]> = {
 }
 
 const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, heading, step, hurt, reduced, mark, charge = -1, chargeMark = '', shielded = false,
-  dashing = false, conditions = '', flicker = 0 }: {
+  dashing = false, conditions = '', flicker = 0, lite = false }: {
   name: string, size: number, ratio: number, boss: boolean, slowed: boolean, poisoned: boolean, heading: Facing, step: number, hurt: boolean, reduced: boolean,
-  mark: string, charge?: number, chargeMark?: string, shielded?: boolean, dashing?: boolean, conditions?: string, flicker?: number
+  mark: string, charge?: number, chargeMark?: string, shielded?: boolean, dashing?: boolean, conditions?: string, flicker?: number, lite?: boolean
 }) {
   // conditions: its status conditions, strongest first, joined by commas (a string keeps this component memoized).
   const held = (conditions ? conditions.split(',') : []) as Condition[]
@@ -462,7 +484,7 @@ const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, headi
   const frame = facing[heading] + step
   const [backX, backY] = lungeOffset[heading]
   return <View style={{ width: size, height: size, alignItems: 'center' }}>
-    <ShadowAura size={size} step={step} boss={boss} />
+    <ShadowAura size={size} step={step} boss={boss} lite={lite} />
     {/* Charging a move: a ring closing in on it, brighter as the move comes, with the move's mark above. */}
     {charge >= 0 && <View pointerEvents="none" style={[board.charge, { width: size * 1.5, height: size * 1.5, borderRadius: size, left: -size * 0.25, top: -size * 0.25,
       borderWidth: Math.max(2, size * 0.05), opacity: 0.45 + 0.55 * charge, transform: [{ scale: reduced ? 1 : 1.35 - 0.4 * charge }] }]} />}
@@ -473,7 +495,7 @@ const Foe = memo(function Foe({ name, size, ratio, boss, slowed, poisoned, headi
         : <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { tintColor: '#ff8c42' }]} />}
     </View>)}
     <View style={[board.shadow, { width: size * 0.5, height: size * 0.11, borderRadius: size, bottom: size * 0.04 }]} />
-    {OUTLINE.map(([dx, dy]) => <View key={`${dx},${dy}`} style={{ position: 'absolute', left: dx * px, top: dy * px }}>
+    {(lite && !boss ? [] : OUTLINE).map(([dx, dy]) => <View key={`${dx},${dy}`} style={{ position: 'absolute', left: dx * px, top: dy * px }}>
       {strip ? <Strip source={strip} size={size} frame={frame} tint={FOE_RED} solid />
         : <Image source={spriteSource(name)} resizeMode="contain" fadeDuration={0} style={[sprite, { tintColor: FOE_RED }]} />}
     </View>)}
@@ -551,7 +573,6 @@ const AllySprite = memo(function AllySprite({ name, shiny, size, frame, dx, dy }
   </View>
 })
 
-const skyNote = (sky: 'boosted' | 'weakened' | null) => sky === 'boosted' ? ', powered up by the weather' : sky === 'weakened' ? ', weakened by the weather' : ''
 // The weather's mark on one of your Pokemon: a gold ▲ when it powers it up, a blue ▼ when it weakens it.
 function WeatherArrow({ sky, size }: { sky: 'boosted' | 'weakened' | null, size: number }) {
   if (!sky) return null

@@ -1,6 +1,8 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Image, Platform, Text, View } from 'react-native'
+import type { ImageSourcePropType } from 'react-native'
+import { trailScenes } from '../generated/trail-scenes.js'
 import { typeTheme } from '../HabitatScene'
 import { typeColors } from '../catalog'
 import { PATHS, pathHeading, pathPoint } from './battle'
@@ -8,6 +10,8 @@ import type { PathId } from './battle'
 
 type Theme = ReturnType<typeof typeTheme>
 const outline = '#02101b'
+// The levels' maps painted as places (scripts/build-trail-scenes.py), by trail.
+const scenes = trailScenes as Record<string, ImageSourcePropType>
 
 // Blends two #rrggbb colors; t = 0 keeps a, 1 gives b.
 function mix(a: string, b: string, t: number) {
@@ -25,8 +29,9 @@ export const TILE_MARKS: Record<string, string> = { water: '≈', grass: '✿', 
   steel: '⬢', dragon: '◈', psychic: '◉', ghost: '☾\uFE0E', dark: '●', fairy: '✦', fighting: '✊\uFE0E', poison: '☠\uFE0E', bug: '✱',
   flying: '➶', normal: '○' }
 
-// Static ground for Trail Defense: textured grass, an edged dirt trail with direction chevrons, a cave where foes
-// enter and a Poke Ball goal where they leak. Drawn once per battle and never re-rendered by game ticks. Outlines
+// Static ground for Trail Defense. A level's map is one painted picture of its place (forest, shore, volcano...); the
+// classic trails are drawn here as textured grass and an edged dirt trail. Over either: direction chevrons, element
+// tiles, a cave where foes enter and a Poke Ball goal where they leak. Drawn once per battle and never re-rendered by game ticks. Outlines
 // scale with the cell so small boards (big maps on a phone, map previews) stay readable.
 export const TrailTerrain = memo(function TrailTerrain({ path, cell, theme }: { path: PathId, cell: number, theme: Theme }) {
   const { cells, length, cols, rows } = PATHS[path]
@@ -46,7 +51,10 @@ export const TrailTerrain = memo(function TrailTerrain({ path, cell, theme }: { 
   const box = (key: string, x: number, y: number, w: number, h: number, color: string, extra: object = {}) =>
     nodes.push(<View key={key} style={{ position: 'absolute', left: x, top: y, width: w, height: h, backgroundColor: color, ...extra }} />)
 
-  for (let row = 0; row < rows; row++) {
+  const scene = scenes[path]
+  if (scene) nodes.push(<Image key="scene" source={scene} resizeMode="stretch" fadeDuration={0} accessible={false}
+    style={{ position: 'absolute', left: 0, top: 0, width: cols * cell, height: rows * cell, ...(Platform.OS === 'web' ? { imageRendering: 'pixelated' } : {}) }} />)
+  for (let row = 0; row < (scene ? 0 : rows); row++) {
     for (let col = 0; col < cols; col++) {
       const x = col * cell, y = row * cell
       if (!onPath(col, row)) {
