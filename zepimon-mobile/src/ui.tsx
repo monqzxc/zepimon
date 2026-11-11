@@ -172,11 +172,13 @@ export function PokeballIcon({ size = 22, color = colors.ink, stroke = Math.max(
 // full is for full-screen games with the tab bar hidden: it keeps clear of the bottom safe area and trims the padding.
 // fill: lay out to the screen instead of scrolling. full: full-screen play, inside every safe-area edge. edge: full
 // screen with no padding at all, for a map that fills the safe area (PlayOverlay). On a tab the page runs on behind the
-// floating tab bar, so its end is padded clear of it.
-export function Screen({ children, fill = false, full = false, edge = false }: React.PropsWithChildren<{ fill?: boolean, full?: boolean, edge?: boolean }>) {
+// floating tab bar, so its end is padded clear of it. A new page value scrolls back to the top, for a tab that swaps
+// what it shows in place.
+export function Screen({ children, fill = false, full = false, edge = false, page }: React.PropsWithChildren<{ fill?: boolean, full?: boolean, edge?: boolean, page?: string }>) {
   const scroll = useRef<ScrollView>(null)
   const tabBar = useContext(BottomTabBarHeightContext) ?? 0
   useEffect(() => { if (fill) scroll.current?.scrollTo({ y: 0, animated: false }) }, [fill])
+  useEffect(() => { if (page !== undefined) scroll.current?.scrollTo({ y: 0, animated: false }) }, [page])
   const content = [styles.content, fill && styles.contentFill, full && styles.contentFull, edge && styles.contentEdge]
   return <SafeAreaView style={styles.screen} edges={full || edge ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
     <ScrollView ref={scroll} scrollEnabled={!fill && !edge} keyboardShouldPersistTaps="handled"

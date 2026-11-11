@@ -43,6 +43,8 @@ export default function PlayScreen() {
   const [selected, setSelected] = useState<Selected>(null)
   // The team last used in Trail Defense, so moving from level to level keeps it.
   const [trailTeam, setTrailTeam] = useState<TeamCard[]>()
+  // The Trail Defense stage open on the level select; null shows every stage.
+  const [trailStage, setTrailStage] = useState<number | null>(null)
   const entries = Object.keys(dex).map(key => ({ key, name: key.replace(/^Shiny /, ''), shiny: key.startsWith('Shiny ') }))
   const dexKeys = Object.keys(dex).sort().join('|')
   // Safari catches (and Expedition friends) did not hatch from a watch egg, so they have no egg move.
@@ -90,14 +92,17 @@ export default function PlayScreen() {
   const stopRecord = (stop: Stop) => `Best here: ${starText(adventure[stop.id] || 0)}`
   const safariBest = `Best: ${arcadeScores.safari === undefined ? 'Not set' : `${arcadeScores.safari} caught in one hunt`}`
 
-  return <Screen fill={fill && inGame} full={immersive} edge={overlay}><GameScreenContext.Provider value={screen}>
+  const stageOpen = selected === 'levels' && trailStage !== null
+  function playLevel(level: Level) { setTrailStage(level.stage); select({ game: 'trail', level }) }
+
+  return <Screen fill={fill && inGame} full={immersive} edge={overlay} page={selected === 'levels' ? `levels-${trailStage}` : undefined}><GameScreenContext.Provider value={screen}>
     {/* A running battle and the Safari Zone's hunt have the full-screen toggle in their own top bar. */}
     {selected ? immersive ? !fill && <View style={{ alignItems: 'flex-end' }}>
       <IconButton name="fullscreenExit" label="Exit full screen" onPress={() => setFull(false)} />
     </View> : <View style={[styles.row, { flexWrap: 'nowrap' }]}>
       <View style={{ flex: 1 }}>
-        <Button title={launch?.stop ? 'Back to the map' : launch?.game === 'trail' ? 'Back to levels' : 'Back to games'} secondary
-          onPress={() => select(launch?.stop ? 'map' : launch?.game === 'trail' ? 'levels' : null)} />
+        <Button title={launch?.stop ? 'Back to the map' : stageOpen ? 'Back to stages' : launch?.game === 'trail' ? 'Back to levels' : 'Back to games'} secondary
+          onPress={() => stageOpen ? setTrailStage(null) : select(launch?.stop ? 'map' : launch?.game === 'trail' ? 'levels' : null)} />
       </View>
       {inGame && !fill && <IconButton name="fullscreen" label="Full screen" size={50} onPress={() => setFull(true)} />}
     </View> : <>
@@ -130,7 +135,7 @@ export default function PlayScreen() {
             record: shortBest('guard', 10), onPress: () => select({ game: 'guard' }),
             about: 'Lane defense: hold five lanes against Shadow Pokemon with berries, Grass and Rock types.' },
           { id: 'trail', title: 'Trail Defense', art: size => <TrailArt {...size} />,
-            record: `★ ${levelStars} / ${LEVELS.length * 3}`, onPress: () => select('levels'),
+            record: `★ ${levelStars} / ${LEVELS.length * 3}`, onPress: () => { setTrailStage(null); select('levels') },
             about: `Tower defense: ${LEVELS.length} levels in ${STAGES.length} stages; ${levelsCleared} cleared.${nextLevel ? ` Next: Level ${nextLevel.number}.` : ''} Evolve your team mid-battle with berries.` },
           { id: 'safari', title: 'Safari Zone', art: size => <SafariArt {...size} />,
             record: arcadeScores.safari === undefined ? undefined : `Best ${arcadeScores.safari} caught`, onPress: () => select({ game: 'safari' }),
@@ -158,11 +163,11 @@ export default function PlayScreen() {
     </>}
     {!(immersive && fill) && !!message && <Copy color={colors.gold}>{message}</Copy>}
     {selected === 'map' && <AdventureMap stars={adventure} onPlay={stop => select({ game: stop.mode, stop })} />}
-    {selected === 'levels' && <TrailLevels stars={trailLevels} freeBest={best('trail', 'waves', 12)}
-      onPlay={level => select({ game: 'trail', level })} onFreePlay={() => select({ game: 'trail' })} />}
+    {selected === 'levels' && <TrailLevels stars={trailLevels} stage={trailStage} freeBest={best('trail', 'waves', 12)}
+      onStage={setTrailStage} onPlay={playLevel} onFreePlay={() => { setTrailStage(null); select({ game: 'trail' }) }} />}
     {launch?.level && <LevelGame key={launch.level.id} level={launch.level} stars={trailLevels[launch.level.id] || 0}
       choices={choices} assists={assists} bonus={bonus.berries} team={trailTeam} onStart={setTrailTeam}
-      onFinish={result => saveLevel(launch.level!, result.stars)} onNext={next => select({ game: 'trail', level: next })} />}
+      onFinish={result => saveLevel(launch.level!, result.stars)} onNext={playLevel} />}
     {launch && launch.game !== 'safari' && !launch.level && <DefenseGame key={launch.stop?.id ?? launch.game}
       layout={launch.game === 'guard' ? 'lanes' : 'trail'}
       makeSpec={() => launch.stop && launch.stop.mode !== 'safari' ? launch.stop.spec : freePlaySpec(launch.game === 'guard' ? 'lanes' : 'trail')}

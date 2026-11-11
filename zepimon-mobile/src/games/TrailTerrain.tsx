@@ -14,7 +14,7 @@ const outline = '#02101b'
 const scenes = trailScenes as Record<string, ImageSourcePropType>
 
 // Blends two #rrggbb colors; t = 0 keeps a, 1 gives b.
-function mix(a: string, b: string, t: number) {
+export function mix(a: string, b: string, t: number) {
   const channel = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16)
   return '#' + [0, 1, 2].map(i => Math.round(channel(a, i) * (1 - t) + channel(b, i) * t).toString(16).padStart(2, '0')).join('')
 }
