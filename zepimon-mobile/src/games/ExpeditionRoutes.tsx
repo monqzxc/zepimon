@@ -126,8 +126,8 @@ export function ExpeditionRoutes({ leg, busy, onLanterns, onQuestPermit }: { leg
     {help && <View style={{ gap: 4 }}>{[
       'Walk 25 km, or use an Expedition Permit, to open the next encounter.',
       'Quests, 100 points and tickets each give a permit.',
-      'Then: trial → lair → four seals → battle → catch.',
-      'Before the first seal, stepping back onto the portal re-rolls Shiny.',
+      'Then: trial → the lair → battle it there → catch.',
+      'Before your first move, stepping back onto the portal re-rolls Shiny.',
       'Leaving never loses your place. Only saved adventures count.'
     ].map(line => <Copy key={line} small>• {line}</Copy>)}</View>}
   </View>

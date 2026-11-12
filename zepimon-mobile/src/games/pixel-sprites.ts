@@ -1,8 +1,8 @@
-// Hand-drawn pixel sprites for the expedition's puzzle pieces (the lair's seals and marks, the shrine lanterns) and the
+// Hand-drawn pixel sprites for the expedition's puzzle pieces (the lair's danger marks, the shrine lanterns) and the
 // mission badges, drawn on the GBA's 16-pixel grid so they sit beside the Emerald art. Kept free of React so their
 // shapes can be tested: each sprite is layers of equal-length rows, one character per pixel, '.' transparent, and a
 // palette maps every other character to a colour. Later layers draw over earlier ones. Swapping the palette gives a
-// sprite's states (a seal off and on, a lantern dark and lit), so the outline never changes between them.
+// sprite's states (a lantern dark and lit), so the outline never changes between them.
 export type Palette = Record<string, string>
 export type PixelSprite = { width: number, height: number, layers: string[][] }
 // One horizontal run of a colour: what the renderer draws, so a 16 x 16 sprite is a few dozen rectangles, not 256.
@@ -26,106 +26,7 @@ export function runsOf(art: PixelSprite): Run[] {
   return runs
 }
 
-// An 8 x 8 glyph set into the middle of a 16 x 16 sprite.
-const centred = (glyph: string[]) => [
-  ...Array.from({ length: 4 }, () => '.'.repeat(16)),
-  ...glyph.map(row => `....${row}....`),
-  ...Array.from({ length: 4 }, () => '.'.repeat(16))
-]
-// A 3 x 5 digit doubled to 6 x 10, set into the middle of a 16 x 16 sprite.
-const DIGITS: Record<string, string[]> = {
-  1: ['.#.', '##.', '.#.', '.#.', '###'],
-  2: ['##.', '..#', '.#.', '#..', '###'],
-  3: ['##.', '..#', '.#.', '..#', '##.']
-}
-const digit = (n: number, char: string) => {
-  const big = DIGITS[n].flatMap(row => {
-    const wide = [...row].map(cell => (cell === '#' ? char : '.').repeat(2)).join('')
-    return [wide, wide]
-  })
-  return [
-    ...Array.from({ length: 3 }, () => '.'.repeat(16)),
-    ...big.map(row => `.....${row}.....`),
-    ...Array.from({ length: 3 }, () => '.'.repeat(16))
-  ]
-}
-
-// ---- The lair (src/games/ResonanceTrial.tsx) ----
-
-// A carved seal tablet: outline o, lit edge L, face M, shadow side D; the seal's own glyph (g, highlight h) on top.
-const TABLET = [
-  '................',
-  '.....oooooo.....',
-  '...ooLLLLLLoo...',
-  '..oLLLLLLLLLLo..',
-  '.oLLMMMMMMMMLLo.',
-  '.oLMMMMMMMMMMDo.',
-  'oLLMMMMMMMMMMDDo',
-  'oLMMMMMMMMMMMMDo',
-  'oLMMMMMMMMMMMMDo',
-  'oLMMMMMMMMMMMMDo',
-  'oLLMMMMMMMMMMDDo',
-  '.oLMMMMMMMMMMDo.',
-  '.oDDMMMMMMMMDDo.',
-  '..oDDDDDDDDDDo..',
-  '...ooDDDDDDoo...',
-  '.....oooooo.....'
-]
-const SEAL_GLYPHS = {
-  wave: ['........', '.gg..gg.', 'g..gg..g', '........', '.gg..gg.', 'g..gg..g', '........', '........'],
-  runes: ['...gg...', '..g..g..', '.g....g.', '..g..g..', '...gg...', '..g..g..', '.g....g.', 'g......g'],
-  pulse: ['..gggg..', '.g....g.', 'g..hh..g', 'g.h..h.g', 'g.h..h.g', 'g..hh..g', '.g....g.', '..gggg..'],
-  stones: ['...gg...', '...hg...', '..ghgg..', '..hggg..', '.ghgggg.', '.hggggg.', 'gggggggg', '........']
-}
-export const SEAL_SPRITES = Object.fromEntries(Object.entries(SEAL_GLYPHS).map(([id, glyph]) => [id, sprite(TABLET, centred(glyph))])) as
-  Record<keyof typeof SEAL_GLYPHS, PixelSprite>
-export const SEAL_OFF: Palette = { o: '#2C3833', L: '#C3CDBF', M: '#93A196', D: '#5D6B62', g: '#3E4A44', h: '#2C3833' }
-export const SEAL_ON: Palette = { o: '#5A3A00', L: '#FFE9A0', M: '#F2C230', D: '#B7861A', g: '#FFFFFF', h: '#FFF4B8' }
-
-// A rune circle on the floor (ring q, outline p, a dim fill f) with its number n.
-const RUNE_PLATE = [
-  '................',
-  '.....pppppp.....',
-  '...ppqqqqqqpp...',
-  '..pqqffffffqqp..',
-  '..pqffffffffqp..',
-  '.pqffffffffffqp.',
-  '.pqffffffffffqp.',
-  '.pqffffffffffqp.',
-  '.pqffffffffffqp.',
-  '.pqffffffffffqp.',
-  '.pqffffffffffqp.',
-  '..pqffffffffqp..',
-  '..pqqffffffqqp..',
-  '...ppqqqqqqpp...',
-  '.....pppppp.....',
-  '................'
-]
-export const RUNE_SPRITES = [1, 2, 3].map(n => sprite(RUNE_PLATE, digit(n, 'n')))
-export const RUNE_WAITING: Palette = { p: '#2A1550', q: '#B58CFF', f: 'rgba(60, 30, 110, 0.6)', n: '#FFFFFF' }
-export const RUNE_DONE: Palette = { p: '#173D22', q: '#7FE0A0', f: 'rgba(30, 90, 50, 0.6)', n: '#D8FFE4' }
-
-// A guardian stone: a standing obelisk with an eye e that wakes, on a shadow s.
-export const GUARDIAN_STONE = sprite([
-  '................',
-  '......oooo......',
-  '.....oLLMDo.....',
-  '.....oLMMDo.....',
-  '....oLLMMDDo....',
-  '....oLMMMMDo....',
-  '....oLMeeMDo....',
-  '....oLMeeMDo....',
-  '....oLMMMMDo....',
-  '...oLLMMMMDDo...',
-  '...oLMMMMMMDo...',
-  '...oLMMMMMMDo...',
-  '..oLLMMMMMMDDo..',
-  '..oooooooooooo..',
-  '.ssssssssssssss.',
-  '................'
-])
-export const STONE_ASLEEP: Palette = { o: '#2C3833', L: '#A9B3A6', M: '#7D8A80', D: '#4E5A52', e: '#3A453F', s: 'rgba(0, 0, 0, 0.3)' }
-export const STONE_AWAKE: Palette = { o: '#0E3B36', L: '#B8F5E6', M: '#5FCDB4', D: '#2E8C7A', e: '#FFFFFF', s: 'rgba(95, 205, 180, 0.35)' }
+// ---- The lair (src/games/LairBattle.tsx) ----
 
 // Danger: a warning sign (⚠, marked before an attack lands) and the strike's burst (✸, as it lands).
 export const WARNING = sprite([
@@ -166,26 +67,6 @@ export const STRIKE = sprite([
   '................'
 ])
 export const STRIKE_COLOURS: Palette = { w: '#FFE27A', W: '#FFFFFF', R: '#FF5A3C', r: '#C8261E' }
-// The wave's safe tile (◎): two bright rings around a calm centre.
-export const SAFE = sprite([
-  '................',
-  '.....cccccc.....',
-  '...ccCCCCCCcc...',
-  '..cCC......CCc..',
-  '..cC..cccc..Cc..',
-  '.cC..cCCCCc..Cc.',
-  '.cC.cC....Cc.Cc.',
-  '.cC.cC.WW.Cc.Cc.',
-  '.cC.cC.WW.Cc.Cc.',
-  '.cC.cC....Cc.Cc.',
-  '.cC..cCCCCc..Cc.',
-  '..cC..cccc..Cc..',
-  '..cCC......CCc..',
-  '...ccCCCCCCcc...',
-  '.....cccccc.....',
-  '................'
-])
-export const SAFE_COLOURS: Palette = { c: '#0F5F4A', C: '#7FFFD4', W: '#FFFFFF' }
 
 // ---- The shrine lanterns (src/games/ShrineLanterns.tsx) ----
 

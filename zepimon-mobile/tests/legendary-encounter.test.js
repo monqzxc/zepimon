@@ -1,15 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RESET_COOLDOWN, RESONANCE_SEALS, SHINY_ODDS, activateSeal, activeEncounter, catchEncounter, enterLair, finishTrial, leaveLair, legacyEncounters,
-  nextLegendaries, readyToBattle, resetInLair, restoreEncounters, rollLegendaryShiny, saveCheckpoint, stabilizeResonance } from '../src/expedition-encounter.ts'
+import { RESET_COOLDOWN, SHINY_ODDS, activeEncounter, catchEncounter, engageLegendary, enterLair, finishTrial, leaveLair, legacyEncounters,
+  nextLegendaries, readyToBattle, resetInLair, restoreEncounters, rollLegendaryShiny, saveCheckpoint } from '../src/expedition-encounter.ts'
 import { emptyQuest } from '../src/expedition-quest.ts'
 import { startRun } from '../src/games/trials.ts'
 import { stepRoom } from '../src/games/trial.ts'
 import { trialStages } from '../src/generated/trial-maps.js'
 import { expeditionEncounter, expeditionKey, legendarySpecies } from '../src/generated/expedition.js'
 import { LANTERN_SIDE, lanternBoard, lanternsLit, pressLantern, questTheme } from '../src/games/lanterns.ts'
-import { BATTLE_BALLS, FOE_HP, attackWith, catchChance, chooseMenu, finishAttack, finishIntro, finishThrow, runFromBattle, startBattle,
-  throwBall } from '../src/games/legendary-battle.ts'
 
 const NOW = Date.UTC(2026, 9, 28, 12)
 const trail = { seed: 11, startedAt: 1000, meters: 30000, claimed: 0 }
@@ -20,9 +18,6 @@ const NORMAL = () => 0.5
 const lair = (random = NORMAL) => enterLair(play(finishTrial(play(), key, 0)), key, 0, NOW, random)
 // Writing to storage and reading back, as reopening the app does.
 const reopen = encounters => restoreEncounters(JSON.parse(JSON.stringify(encounters)), play().expeditions, emptyQuest())
-// The Resonance Trial in the lair, before the catch: switch on every seal and stabilize (tests/resonance-encounter.test.js).
-const resonated = encounters => stabilizeResonance(play(RESONANCE_SEALS.reduce((saved, seal) => activateSeal(play(saved), key, 0, seal),
-  encounters)), key, 0)
 
 test('the trial must be finished first, and the first entry into the lair makes exactly one 1-in-100 roll', () => {
   assert.throws(() => enterLair(play(), key, 0, NOW, NORMAL), /trial/)
@@ -94,7 +89,7 @@ test('the shiny reset at the portal meets the Legendary anew in one save, paced 
   const again = resetInLair(play(reset), key, 0, true, NOW + 1500, NORMAL)
   assert.deepEqual([again[key].shiny, again[key].attempt], [false, 3])
   assert.equal(resetInLair(play(reset), key, 0, true, NOW - 3600000, NORMAL)[key].attempt, 3, 'A turned-back clock never blocks')
-  assert.throws(() => resetInLair(play(activateSeal(play(again), key, 0, 'wave')), key, 0, true, NOW + 9000), /seal/, 'The first seal sets it for good')
+  assert.throws(() => resetInLair(play(engageLegendary(play(again), key, 0)), key, 0, true, NOW + 9000), /begun/, 'The first move sets it for good')
   assert.deepEqual(play(again).expeditions, play().expeditions, 'Distance and claims are untouched')
 })
 
@@ -104,11 +99,31 @@ test('leaving a Shiny behind needs its own confirmation', () => {
   assert.equal(leaveLair(play(shiny), key, 0, true, NOW)[key].resetPending, true)
 })
 
-test('the first seal sets the result: walking out after that rerolls nothing', () => {
-  const sealed = activateSeal(play(lair(SHINY)), key, 0, 'pulse')
-  assert.deepEqual(sealed[key].resonance, { started: true, seals: ['pulse'], stabilized: false })
-  assert.throws(() => leaveLair(play(sealed), key, 0, true, NOW), /seal/)
-  assert.equal(enterLair(play(sealed), key, 0, NOW + 60000, NORMAL), sealed, 'Coming back finds the same Shiny')
+test('the first move of the battle sets the result: walking out after that rerolls nothing', () => {
+  assert.throws(() => engageLegendary(play(), key, 0), /lair/, 'Not before the trial')
+  assert.throws(() => engageLegendary(play(finishTrial(play(), key, 0)), key, 0), /lair/, 'Not before the first roll')
+  assert.throws(() => engageLegendary(play(leaveLair(play(lair()), key, 0, false, NOW)), key, 0), /lair/, 'Not after walking out')
+  const opened = lair(SHINY)
+  const begun = engageLegendary(play(opened), key, 0)
+  assert.deepEqual(begun[key], { ...opened[key], engaged: true }, 'Only the flag is added')
+  assert.equal(engageLegendary(play(begun), key, 0), begun, 'Beginning twice changes nothing')
+  assert.throws(() => leaveLair(play(begun), key, 0, true, NOW), /begun/)
+  assert.equal(enterLair(play(begun), key, 0, NOW + 60000, NORMAL), begun, 'Coming back finds the same Shiny')
+  assert.deepEqual(reopen(begun), begun, 'Reopening the app keeps it')
+  assert.equal(Object.hasOwn(reopen(opened)[key], 'engaged'), false)
+})
+
+test('saves from the four seals carry over: a started Resonance Trial counts as a battle begun', () => {
+  const opened = lair(SHINY)
+  const old = seals => ({ [key]: { ...opened[key], resonance: { started: true, seals, stabilized: seals.length === 4 } } })
+  for (const seals of [['wave'], ['wave', 'runes', 'pulse', 'stones']]) {
+    assert.deepEqual(reopen(old(seals))[key], { ...opened[key], engaged: true })
+  }
+  assert.throws(() => resetInLair(play(reopen(old(['wave']))), key, 0, true, NOW + 9000), /begun/, 'Its Shiny still cannot be rerolled')
+  assert.ok(catchEncounter(play(reopen(old(['wave']))), key, 0, NOW).expeditions.dex, 'And it can be caught without the other seals')
+  // Not yet in the lair, nothing has begun, whatever the save says.
+  const outside = { [key]: { ...finishTrial(play(), key, 0)[key], engaged: true } }
+  assert.equal(Object.hasOwn(reopen(outside)[key], 'engaged'), false)
 })
 
 test('only a successful catch claims, once, with the result from the lair; failing or leaving keeps everything', () => {
@@ -117,8 +132,7 @@ test('only a successful catch claims, once, with the result from the lair; faili
   assert.throws(() => catchEncounter(play(leaveLair(play(shiny), key, 0, true, NOW)), key, 0, NOW), /lair/, 'No catch after walking out')
   // A failed catch or leaving does not call the claim at all: the saved encounter is unchanged and can be caught later.
   assert.deepEqual(reopen(shiny), shiny)
-  assert.throws(() => catchEncounter(play(shiny), key, 0, NOW), /Resonance/, 'No catch before the Resonance Trial')
-  const { expeditions, encounters } = catchEncounter(play(resonated(shiny)), key, 0, NOW)
+  const { expeditions, encounters } = catchEncounter(play(engageLegendary(play(shiny), key, 0)), key, 0, NOW)
   const name = expeditionEncounter(trail, 0).name
   assert.equal(expeditions.trails[key].claimed, 1)
   assert.deepEqual(Object.keys(expeditions.dex), [`Shiny ${name}`])
@@ -186,42 +200,6 @@ test('the shrine lanterns start dimmed, the same each time, and can always be li
   assert.equal(pressLantern(dark, 9), dark)
 })
 
-test('the battle never knocks the Legendary out and reaches a catch only through a Poké Ball', () => {
-  let battle = startBattle({ name: 'Rayquaza', shiny: true }, { name: 'Pikachu', shiny: false })
-  assert.deepEqual([battle.phase, battle.foe.hp, battle.balls, battle.foe.level], ['intro', FOE_HP, BATTLE_BALLS, 70])
-  assert.equal(attackWith(battle, 0, () => 0.99), battle, 'Nothing happens during the intro')
-  battle = finishIntro(battle)
-  assert.equal(attackWith(battle, 0), battle, 'Moves need the FIGHT menu')
-  assert.deepEqual(battle.moves.map(move => move.name), ['Thunder Shock', 'False Swipe'])
-  for (let turn = 0; turn < 20; turn++) {
-    battle = attackWith(chooseMenu(battle, 'fight'), turn % 2, () => 0.99)
-    assert.equal(battle.phase, 'attack')
-    assert.ok(battle.foe.hp >= 1)
-    assert.equal(finishThrow(battle), battle)
-    battle = finishAttack(battle)
-  }
-  assert.equal(battle.foe.hp, 1)
-  assert.ok(catchChance(1) > catchChance(50) && catchChance(50) > catchChance(FOE_HP))
-  assert.equal(throwBall(battle, () => 0), battle, 'Balls come from the Bag')
-  let missed = throwBall(chooseMenu(battle, 'bag'), () => 0.999)
-  assert.deepEqual([missed.phase, missed.balls, missed.ball.caught], ['throw', BATTLE_BALLS - 1, false])
-  missed = finishThrow(missed)
-  assert.deepEqual([missed.phase, missed.foe.hp], ['choose', 1], 'A failed throw keeps the battle going')
-  let out = missed
-  for (let i = 0; i < BATTLE_BALLS - 1; i++) out = finishThrow(throwBall(chooseMenu(out, 'bag'), () => 0.999))
-  assert.equal(out.phase, 'out')
-  assert.equal(chooseMenu(out, 'bag'), out)
-  const caught = finishThrow(throwBall(chooseMenu(missed, 'bag'), () => 0))
-  assert.deepEqual([caught.phase, caught.ball.shakes], ['caught', 3])
-  assert.match(caught.message, /Gotcha! Shiny Rayquaza/)
-  for (const action of [b => runFromBattle(b), b => chooseMenu(b, 'fight'), b => throwBall(b, () => 0), b => finishThrow(b)]) {
-    assert.equal(action(caught), caught, 'Caught is final')
-  }
-  const fled = runFromBattle(missed)
-  assert.equal(fled.phase, 'fled')
-  assert.equal(throwBall(chooseMenu(fled, 'bag'), () => 0), fled, 'Running ends the battle without a catch')
-})
-
 const stepRun = (run, ...directions) => directions.reduce((current, direction) => ({ ...current, room: stepRoom(current.room, trialStages[current.stages[current.index]], direction).room }), run)
 const TRIAL_RUN = () => stepRun(startRun(['switch-tutorial', 'sig-zapdos']), 'east', 'east')
 
@@ -287,8 +265,7 @@ test('the catch records the Legendary the encounter was opened with', () => {
   const met = enterLair(state(finishTrial(state({}), key, 0)), key, 0, NOW, NORMAL)
   const name = met[key].name
   assert.equal(name, legendarySpecies[(trail.seed + 1) % legendarySpecies.length], 'Skips the one already caught')
-  const ready = stabilizeResonance(state(RESONANCE_SEALS.reduce((saved, seal) => activateSeal(state(saved), key, 0, seal), met)), key, 0)
-  const { expeditions } = catchEncounter(state(ready), key, 0, NOW)
+  const { expeditions } = catchEncounter(state(engageLegendary(state(met), key, 0)), key, 0, NOW)
   assert.ok(expeditions.dex[name], 'The new Legendary is in the Dex')
   assert.equal(Object.keys(expeditions.dex).length, 2)
 })

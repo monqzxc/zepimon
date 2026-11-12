@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { claimExpedition, emptyExpeditions, importExpeditions, restoreExpeditions } from '../src/expeditions.ts'
 import { QUEST_SESSIONS, arcadePointsLeft, claimTickets, ticketsLeft, completeChallenge, distanceLeg, earnArcadePermit, earnPermit, emptyQuest, encounterReady, questSessions, restoreQuest, spendPermit,
   trailUnlocked } from '../src/expedition-quest.ts'
-import { RESONANCE_SEALS, activateSeal, catchEncounter, enterLair, finishTrial, stabilizeResonance } from '../src/expedition-encounter.ts'
+import { catchEncounter, engageLegendary, enterLair, finishTrial } from '../src/expedition-encounter.ts'
 import { emptyProgress, importProgress } from '../src/progress.ts'
 import { parseJournal } from '../src/journal.ts'
 import { ARCADE_PERMIT_POINTS, achieved, arcadeAchievements, arcadePoints, legendaryPoints } from '../src/games/achievements.ts'
@@ -25,12 +25,8 @@ const journalOf = (runs, meters = 0) => parseJournal(JSON.stringify({
     recent: runs.map(([at, runMeters]) => ({ route: 0, meters: runMeters, steps: 100, shiny: false, startedAt: at - 3600000, finishedAt: new Date(at).toISOString() })) }
 }))
 const sessionsFor = (quest, progress, expeditions) => questSessions(quest, progress, expeditions, NOW)
-// The Resonance Trial in the lair, before the catch: switch on every seal (the first starts it) and stabilize.
-function resonated(play, key) {
-  let encounters = play.encounters
-  for (const seal of RESONANCE_SEALS) encounters = activateSeal({ ...play, encounters }, key, 0, seal)
-  return stabilizeResonance({ ...play, encounters }, key, 0)
-}
+// The battle in the lair, begun by the first move, before the catch.
+const battled = (play, key) => engageLegendary(play, key, 0)
 
 test('the distance route opens at exactly 25,000 m of saved distance', () => {
   for (const [meters, ready] of [[24999, false], [25000, true]]) {
@@ -98,7 +94,7 @@ test('a permit opens the same next encounter below 25 km, once, and keeps claim 
   encounters = finishTrial({ expeditions, quest, encounters }, key, 0)
   encounters = enterLair({ expeditions, quest, encounters }, key, 0, NOW, () => 0.5)
   assert.equal(encounters[key].name, expeditionEncounter(trail, 0).name)
-  encounters = resonated({ expeditions, quest, encounters }, key)
+  encounters = battled({ expeditions, quest, encounters }, key)
   const caught = catchEncounter({ expeditions, quest, encounters }, key, 0, NOW)
   expeditions = caught.expeditions
   assert.equal(expeditions.trails[key].claimed, 1)
@@ -119,7 +115,7 @@ test('permit claims survive saving, reopening and repeated imports, and nothing 
   const quest = spendPermit({ ...emptyQuest(), permits: 2 }, progressWith(trail), key)
   let expeditions = progressWith(trail)
   const met = enterLair({ expeditions, quest, encounters: finishTrial({ expeditions, quest, encounters: {} }, key, 0) }, key, 0, NOW, () => 0.5)
-  const encounters = resonated({ expeditions, quest, encounters: met }, key)
+  const encounters = battled({ expeditions, quest, encounters: met }, key)
   expeditions = catchEncounter({ expeditions, quest, encounters }, key, 0, NOW).expeditions
   const savedQuest = restoreQuest(JSON.parse(JSON.stringify(quest)))
   assert.deepEqual(savedQuest, quest)

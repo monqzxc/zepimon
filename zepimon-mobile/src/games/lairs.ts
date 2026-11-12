@@ -3,7 +3,7 @@ import { pokemonTypes } from '../generated/types.js'
 import type { Direction, Point } from './safari-zone.ts'
 
 // Each Legendary's lair: a room from Pokemon Emerald (scripts/build-lairs.py), the Legendary waiting in it and the
-// entrance the player comes in by. Walking back out of that entrance before any seal is on means the next entry rolls
+// entrance the player comes in by. Stepping back onto it before the battle begins means the next entry rolls
 // the Legendary's Shiny chance again (src/expedition-encounter.ts). Rooms are Emerald's own: the Seafloor Cavern pool
 // where Kyogre sleeps, the Cave of Origin's magma chamber, the top of Sky Pillar, the Regis' sealed chambers, Southern
 // Island, Faraway Island and Birth Island, with fitting Emerald places standing in for Legendaries Emerald doesn't have.

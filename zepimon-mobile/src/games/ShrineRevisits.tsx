@@ -25,14 +25,15 @@ const STEP_EVERY = 500
 const OUTLINE: [x: number, y: number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]]
 
 type Pick = (name: string, shiny: boolean) => void
-type Actions = { busy: boolean, onJourney: Pick, onLair: Pick, onRevisit: Pick, onRematch: Pick }
+type Actions = { busy: boolean, onJourney: Pick, onRevisit: Pick, onRematch: Pick }
 
 // Shrine Revisits: every Legendary caught on an expedition, in species order (a Shiny catch is its own stop), as little
 // action figures along a winding path. Each stands on its stand in a bubble of its habitat, facing you and stepping in
 // place; the ring around the bubble fills with the shrine rooms explored. Tapping one opens its sheet: relive the whole
-// journey (trial room, the portal into its lair, the lair's seals, then a rematch), enter the lair alone, practice a
-// trial room, or battle it again, any time. All practice: nothing is caught. With reduced motion the figures hold still.
-export function ShrineRevisits({ busy, onJourney, onLair, onRevisit, onRematch }: Actions) {
+// journey (trial room, then the portal into its lair for a rematch), practice a trial room, or battle it again in its
+// lair, any time. All practice: nothing is caught. With reduced motion the figures hold still. Under the path, caught
+// Legendaries can be released for permits (onRelease; src/games/ReleaseLegendaries.tsx).
+export function ShrineRevisits({ busy, onJourney, onRevisit, onRematch, onRelease }: Actions & { onRelease: () => void }) {
   const { expeditions } = useJournal()
   const reduced = useReducedMotion()
   const caught = caughtLegendaries(expeditions.dex)
@@ -44,9 +45,13 @@ export function ShrineRevisits({ busy, onJourney, onLair, onRevisit, onRematch }
     <ShrinePath caught={caught} step={step} reduced={reduced} onChoose={setChosen} />
     <ShrineSheet revisit={chosen} reduced={reduced} busy={busy} onClose={() => setChosen(null)}
       onJourney={(name, shiny) => { setChosen(null); onJourney(name, shiny) }}
-      onLair={(name, shiny) => { setChosen(null); onLair(name, shiny) }}
       onRevisit={(name, shiny) => { setChosen(null); onRevisit(name, shiny) }}
       onRematch={(name, shiny) => { setChosen(null); onRematch(name, shiny) }} />
+    {caught.length > 0 && <Panel style={{ gap: 10 }}>
+      <Text accessibilityRole="header" style={look.headerTitle}>Release for permits</Text>
+      <Copy small>Send Legendaries you’ve caught back to the wild. Each one gives an Expedition Permit, and you can meet it again on a later expedition.</Copy>
+      <Button title="Choose Legendaries to release" secondary disabled={busy} onPress={onRelease} />
+    </Panel>}
   </>
 }
 
@@ -92,7 +97,7 @@ function ShrineHeader({ count, open, onToggle }: { count: number, open: boolean,
           <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}><Icon name="chevronDown" size={22} color={colors.edge} /></View>
         </Pressable>
       </View>
-      {open && <Copy small>Come back to any Legendary you’ve caught: relive the whole journey from its trial room through the portal into its lair and on to a rematch, enter the lair alone, practice a trial room or battle it again. Revisits are practice: nothing is caught. They need no permit and never change your Dex; a cleared room can only improve your best moves. The ring around each figure fills as you explore its shrine’s rooms.</Copy>}
+      {open && <Copy small>Come back to any Legendary you’ve caught: relive the whole journey from its trial room through the portal into its lair for a rematch, practice a trial room or battle it again in its lair. Revisits are practice: nothing is caught. They need no permit and never change your Dex; a cleared room can only improve your best moves. The ring around each figure fills as you explore its shrine’s rooms.</Copy>}
     </Panel>
   </Pressable>
 }
@@ -232,7 +237,7 @@ function Sparkle({ shiny, size, side, phase, reduced }: { shiny: boolean, size: 
 // The chosen Legendary's sheet, rising from the bottom over a scrim and laid out like a waiting encounter
 // (src/games/ExpeditionParts.tsx): its shrine's status and name, the Pokemon in its habitat (tap it to say hello), its
 // trial, rooms explored and rematch wins as rows, and the two ways back in. It scrolls when it is taller than the screen.
-function ShrineSheet({ revisit, reduced, busy, onClose, onJourney, onLair, onRevisit, onRematch }: Actions & {
+function ShrineSheet({ revisit, reduced, busy, onClose, onJourney, onRevisit, onRematch }: Actions & {
   revisit: Revisit | null, reduced: boolean, onClose: () => void
 }) {
   const { trialRecords, rematchWins } = useJournal()
@@ -270,11 +275,10 @@ function ShrineSheet({ revisit, reduced, busy, onClose, onJourney, onLair, onRev
           <FactRow dim={!wins} label={`REMATCH WINS · ${wins}`} text={wins ? `You have beaten ${name} again ${wins === 1 ? 'once' : `${wins} times`}.` : `Battle ${name} again to win your first rematch.`} />
         </View>
         <BallButton title="Relive the journey" disabled={busy} onPress={() => onJourney(name, shiny)} />
-        <Footnote>{`${trial.title}, then the portal into ${name}’s lair: switch on its four seals and face it in a rematch. Nothing is caught.`}</Footnote>
-        <Button title="Enter the lair" secondary disabled={busy} onPress={() => onLair(name, shiny)} />
+        <Footnote>{`${trial.title}, then the portal into ${name}’s lair to face it in a rematch. Nothing is caught.`}</Footnote>
         <Button title="Practice a trial room" secondary disabled={busy} onPress={() => onRevisit(name, shiny)} />
         <Button title="Battle again" secondary disabled={busy} onPress={() => onRematch(name, shiny)} />
-        <Footnote>Revisits are practice. They need no permit, never change your Dex and never save the lair’s seals.</Footnote>
+        <Footnote>Revisits are practice. They need no permit and never change your Dex.</Footnote>
       </ScrollView>
     </Animated.View>
   </Modal>

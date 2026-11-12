@@ -170,12 +170,8 @@ test('hand-drawn sprites are rectangular grids whose every pixel has a colour in
     const used = new Set(art.runsOf(sprite).map(run => run.char))
     for (const [label, palette] of Object.entries(palettes)) for (const char of used) assert.ok(palette[char], `${name} (${label}) has a colour for ${char}`)
   }
-  for (const [id, seal] of Object.entries(art.SEAL_SPRITES)) check(`seal ${id}`, seal, { off: art.SEAL_OFF, on: art.SEAL_ON })
-  art.RUNE_SPRITES.forEach((rune, i) => check(`rune ${i + 1}`, rune, { waiting: art.RUNE_WAITING, done: art.RUNE_DONE }))
-  check('guardian stone', art.GUARDIAN_STONE, { asleep: art.STONE_ASLEEP, awake: art.STONE_AWAKE })
   check('warning', art.WARNING, { colours: art.WARNING_COLOURS })
   check('strike', art.STRIKE, { colours: art.STRIKE_COLOURS })
-  check('safe', art.SAFE, { colours: art.SAFE_COLOURS })
   art.LANTERN_FRAMES.forEach((frame, i) => check(`lantern ${i}`, frame, { lit: art.lanternColours('#000', true), dark: art.lanternColours('#000', false) }))
   check('medal', art.MEDAL, art.MEDAL_COLOURS)
   check('padlock', art.PADLOCK, { locked: art.PADLOCK_COLOURS })

@@ -17,14 +17,10 @@ export const RESET_COOLDOWN = 1500
 // shiny is null until the first roll; resetPending is set while the player is out and the next entry should roll.
 // nextResetAllowedAt is a clock time, so leaving, refreshing or reopening the app cannot skip the wait or reroll, and
 // leaving any other way (the Leave button, closing the app) keeps the result. checkpoint is the trial in progress and
-// exists only until the trial is finished. resonance is the Legendary Resonance Trial in the lair
-// (src/games/resonance.ts): started when the first seal switches on, which sets the result for good; the seals
-// switched on so far, kept whatever happens; and stabilized once all four are on, which is what unlocks the catch.
-export const RESONANCE_SEALS = ['wave', 'runes', 'pulse', 'stones'] as const
-export type SealId = typeof RESONANCE_SEALS[number]
-export type ResonanceProgress = { started: boolean, seals: SealId[], stabilized: boolean }
+// exists only until the trial is finished. engaged is set by the first move or Poke Ball of the battle in the lair
+// (src/games/lair-battle.ts), which sets the result for good: no more resets. The battle itself is never saved.
 export type ActiveEncounter = { index: number, name: string, trial: boolean, shiny: boolean | null, attempt: number,
-  resetPending: boolean, nextResetAllowedAt: number, checkpoint?: TrialRun, resonance?: ResonanceProgress }
+  resetPending: boolean, nextResetAllowedAt: number, checkpoint?: TrialRun, engaged?: true }
 export type Encounters = Record<string, ActiveEncounter>
 type Play = { expeditions: ExpeditionProgress, quest: Quest, encounters: Encounters }
 
@@ -35,22 +31,6 @@ export const resetDue = (encounter: ActiveEncounter, now: number) =>
   now >= encounter.nextResetAllowedAt || encounter.nextResetAllowedAt - now > RESET_COOLDOWN
 export const readyToBattle = (encounter: ActiveEncounter | undefined): encounter is ActiveEncounter & { shiny: boolean } =>
   !!encounter && encounter.trial && encounter.shiny !== null && !encounter.resetPending
-// The catch opens only after the Resonance Trial has stabilized.
-export const readyToCapture = (encounter: ActiveEncounter | undefined): encounter is ActiveEncounter & { shiny: boolean } =>
-  readyToBattle(encounter) && !!encounter.resonance?.stabilized
-
-// Where the Resonance Trial stands: locked until the Legendary has been met in its lair, ready while no seal is on yet
-// (the result can still be rerolled), active while seals remain, stabilizing once all four are on, and capture-ready
-// after that. (Captured encounters are gone from the saved list.)
-export type ResonanceStage = 'locked' | 'ready' | 'active' | 'stabilizing' | 'capture-ready'
-export function resonanceStage(encounter: ActiveEncounter | undefined): ResonanceStage {
-  if (!readyToBattle(encounter)) return 'locked'
-  const progress = encounter.resonance
-  if (!progress?.started) return 'ready'
-  if (progress.stabilized) return 'capture-ready'
-  return progress.seals.length === RESONANCE_SEALS.length ? 'stabilizing' : 'active'
-}
-
 const plain = (key: string) => key.replace(/^Shiny /, '')
 
 // The Legendary waiting at each trail's next encounter. The canonical draw (generated/expedition.js) is where the trail
@@ -127,56 +107,41 @@ export function enterLair(play: Play, key: string, index: number, now = Date.now
 }
 
 // Walking back out through the lair's entrance: the entrance seals for RESET_COOLDOWN, and the next entry rolls once.
-// Leaving a Shiny behind needs its own confirmation. Once a seal is on, the result is set and walking out rerolls nothing.
+// Leaving a Shiny behind needs its own confirmation. Once the battle has begun, the result is set and walking out rerolls nothing.
 export function leaveLair(play: Play, key: string, index: number, discardShiny: boolean, now = Date.now()): Encounters {
   const encounter = activeEncounter(play, key, index)
   if (!encounter.trial || encounter.shiny === null) throw new Error('Enter the lair first.')
-  if (encounter.resonance?.started) throw new Error('A seal is on, so this Legendary stays as it is.')
+  if (encounter.engaged) throw new Error('The battle has begun, so this Legendary stays as it is.')
   if (encounter.resetPending) return play.encounters
   if (encounter.shiny && !discardShiny) throw new Error('Confirm that you want to leave this Shiny behind.')
   return save(play, key, { ...encounter, resetPending: true, nextResetAllowedAt: now + RESET_COOLDOWN })
 }
 
-// The shiny reset, from inside the lair: stepping back onto the sealed portal you came through, before any seal is on,
+// The shiny reset, from inside the lair: stepping back onto the sealed portal you came through, before the battle begins,
 // meets the Legendary anew there and then, in one save (so closing the app midway can never leave it half reset).
 // A Shiny needs discardShiny. Resets are paced by RESET_COOLDOWN from the last one; a clock turned back never blocks.
 export function resetInLair(play: Play, key: string, index: number, discardShiny: boolean, now = Date.now(), random = Math.random): Encounters {
   const encounter = activeEncounter(play, key, index)
   if (!encounter.trial || encounter.shiny === null) throw new Error('Enter the lair first.')
-  if (encounter.resonance?.started) throw new Error('A seal is on, so this Legendary stays as it is.')
+  if (encounter.engaged) throw new Error('The battle has begun, so this Legendary stays as it is.')
   if (encounter.shiny && !discardShiny) throw new Error('Confirm that you want to leave this Shiny behind.')
   if (!resetDue(encounter, now)) throw new Error('The portal is still settling. Try again in a moment.')
   return save(play, key, { ...encounter, shiny: rollLegendaryShiny(random), attempt: encounter.attempt + 1, resetPending: false,
     nextResetAllowedAt: now + RESET_COOLDOWN })
 }
 
-// A seal switched on stays on: leaving, losing focus or a failed catch never turns it off. Switching it on again
-// changes nothing. The first one starts the Resonance Trial, which sets the result: no more rerolls.
-export function activateSeal(play: Play, key: string, index: number, seal: SealId): Encounters {
+// The first move or Poke Ball begins the battle, which sets the result for good. Doing it again changes nothing.
+export function engageLegendary(play: Play, key: string, index: number): Encounters {
   const encounter = activeEncounter(play, key, index)
-  if (!RESONANCE_SEALS.includes(seal)) throw new Error('There is no such seal.')
   if (!readyToBattle(encounter)) throw new Error('Enter the lair first.')
-  const progress = encounter.resonance ?? { started: true, seals: [], stabilized: false }
-  if (progress.seals.includes(seal)) return play.encounters
-  return save(play, key, { ...encounter, resonance: { ...progress, seals: [...progress.seals, seal] } })
-}
-
-// With every seal on, the Legendary steadies and the catch opens, once.
-export function stabilizeResonance(play: Play, key: string, index: number): Encounters {
-  const encounter = activeEncounter(play, key, index)
-  const progress = encounter.resonance
-  if (!readyToBattle(encounter) || !progress?.started || progress.seals.length !== RESONANCE_SEALS.length) throw new Error('Switch on every seal first.')
-  if (progress.stabilized) return play.encounters
-  return save(play, key, { ...encounter, resonance: { ...progress, stabilized: true } })
+  return encounter.engaged ? play.encounters : save(play, key, { ...encounter, engaged: true })
 }
 
 // A successful catch is the only thing that claims an encounter: once, with the rolled result, and only after the
-// trial, a settled roll in the lair and a stabilized Resonance Trial. The claim advances the trail, so a second call throws
-// instead of adding twice.
+// trial and a settled roll in the lair. The claim advances the trail, so a second call throws instead of adding twice.
 export function catchEncounter(play: Play, key: string, index: number, now = Date.now()): Pick<Play, 'expeditions' | 'encounters'> {
   const encounter = activeEncounter(play, key, index)
   if (!readyToBattle(encounter)) throw new Error('Finish the trial and meet the Legendary in its lair before the battle.')
-  if (!readyToCapture(encounter)) throw new Error('Stabilize the Resonance Trial before the catch.')
   const expeditions = claimExpedition(play.expeditions, key, index, now, { name: encounter.name, shiny: encounter.shiny,
     permits: trailPermits(play.quest, key) })
   const { [key]: _caught, ...encounters } = play.encounters
@@ -216,18 +181,9 @@ export function restoreEncounters(raw: unknown, expeditions: ExpeditionProgress,
     const checkpoint = value.trial ? null : restoreRun(value.checkpoint)
     const restored: ActiveEncounter = { index: value.index, name: value.name, trial: value.trial, shiny: value.shiny, attempt: value.attempt,
       resetPending: value.resetPending, nextResetAllowedAt: value.nextResetAllowedAt, ...(checkpoint && { checkpoint }) }
-    const resonance = readyToBattle(restored) ? restoreResonance(value.resonance) : null
-    encounters[key] = resonance ? { ...restored, resonance } : restored
+    // Saves from the Resonance Trial (four seals in the lair) had begun once their first seal was on.
+    const engaged = readyToBattle(restored) && (value.engaged === true || (value as { resonance?: { started?: unknown } }).resonance?.started === true)
+    encounters[key] = engaged ? { ...restored, engaged: true } : restored
   }
   return encounters
-}
-
-// Saved Resonance Trial progress, kept only if it adds up: started, known seals each once, and stabilized only with all four.
-function restoreResonance(raw: unknown): ResonanceProgress | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
-  const { started, seals, stabilized } = raw as Record<string, unknown>
-  if (started !== true || typeof stabilized !== 'boolean' || !Array.isArray(seals)) return null
-  if (seals.some((seal, i) => !RESONANCE_SEALS.includes(seal) || seals.indexOf(seal) !== i)) return null
-  if (stabilized && seals.length !== RESONANCE_SEALS.length) return null
-  return { started, seals: seals as SealId[], stabilized }
 }

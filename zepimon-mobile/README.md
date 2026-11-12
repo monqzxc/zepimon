@@ -311,28 +311,28 @@ never grants a free catch. Permits are kept beside the trails (`quest` in the ph
 trail contract `{ seed, startedAt, meters }` and its merge rules are unchanged. Distance keeps counting toward the
 next 25 km after a permit encounter.
 
-**Each encounter: trial → the Legendary's lair (Resonance Trial) → battle → catch.**
+**Each encounter: trial → the Legendary's lair, where the battle happens → catch.**
 
 1. **Trial:** a species-themed Legendary Trial (for example Sky Pillar Ascent for Rayquaza), one or two rooms walked
    like the Safari Zone. See **Legendary Trials** below. Once finished, it stays finished.
 2. **Lair:** you walk into the Legendary's lair, a room from Pokemon Emerald or one drawn for it, and see it waiting there, Shiny or not
-   (a **1 in 100** chance each time it is met). Until you switch on a seal it only watches: walk back out of the
+   (a **1 in 100** chance each time it is met). Until your first move it only watches: walk back out of the
    entrance and the next time you come in it is met anew. The entrance then stays sealed for **1.5 seconds**, and
    walking out of a lair with a Shiny asks twice first. The wait is saved as a clock time. Leaving any other way
    (**Leave**, the back button, closing the app), refreshing or syncing never changes the result, and walking out
    never changes the species, the trial, distance or claim order.
-3. **Resonance Trial:** in the lair, you switch on four ancient seals to steady the Legendary. The first seal sets the
-   result for good. See **Legendary Resonance Trials** below. The catch opens once it is stabilized.
-4. **Battle:** an Emerald-style FIGHT / BAG / POKéMON / RUN battle with your buddy (or Pikachu). Moves (your
-   buddy's type move and False Swipe) lower HP but always leave the Legendary at 1 HP or more.
-5. **Catch:** five Poké Balls per battle; lower HP makes a catch likelier. A failed catch, running or running out of
-   balls uses nothing up. Only a successful catch claims the encounter and adds the Legendary to the Dex, once.
+3. **Battle:** right there in the lair, with no cut to a battle screen. Your buddy's (or Pikachu's) moves are listed
+   on the right: its type move, False Swipe and its two strongest egg moves, four at most. Tap one and it lands; each
+   needs a moment before it can be used again. The first move or ball sets the result for good. Moves lower HP but
+   always leave the Legendary at 1 HP or more. See **The battle in the lair** below.
+4. **Catch:** five Poké Balls per battle; lower HP makes a catch likelier. A failed catch or running out of balls uses
+   nothing up. Only a successful catch claims the encounter and adds the Legendary to the Dex, once.
 
-Battle animations (entrances, idle bob, lunge, hit flashes with Gen III move strips, ball arc, shakes and capture)
-respect the phone's or the app's reduce-motion setting. They reuse the Emerald battle backgrounds and move sprites
-already credited in `SPRITE-CREDITS.md`; the Poké Ball is the app's own vector icon.
+The battle's motion (the hit flicker with Gen III move strips, the ball's arc and shakes) respects the phone's or the
+app's reduce-motion setting. It reuses the move sprites already credited in `SPRITE-CREDITS.md`; the Poké Ball is the
+app's own vector icon.
 
-#### Legendary Resonance Trials
+#### The battle in the lair
 
 After the trial, each Legendary waits in its own lair: a room from Pokemon Emerald, drawn from Emerald's own tiles and
 walked and collided by its rules (Emerald's collision, water, height and stairs), or, where no Emerald room fits its
@@ -368,41 +368,50 @@ story, a lair drawn for it in Emerald's pixel style. The lairs and who lives the
 
 Mt. Pyre (the graveyard) stays as the lair for a future ghost, dark or poison Legendary.
 
-The whole lair fits the screen. You come in by its entrance (marked OUT) and the Legendary waits where it lives in
-that room, as its Emerald overworld sprite, turning to watch you; a Shiny stands in a gold glow with stars twinkling around it
-and sparkles every few seconds (they hold still with reduced motion). Each lair has its own air drifting
-over the art (bubbles, embers, wind, dust, snow, falling petals, twinkling motes or stars), which stays off with reduced motion. Until a
-seal is on, the Legendary only watches, and stepping back out of the entrance (or tapping it with Tap to walk) leaves
-so the next entry meets it anew. Four ancient seals ◇ sit around the lair:
+The whole lair fits the screen. You come in by a one-way portal and the Legendary waits where it lives in that room,
+as its Emerald overworld sprite, turning to watch you, **at its real size** beside your trainer: 0.9 of a tile per
+metre of its Pokédex height, so Mewtwo (2 m) stands a head taller than you, Lugia (5.2 m) close to five tiles and
+Rayquaza (7 m) six, the tallest that still leaves the lair in view. The smallest (Shaymin, 0.2 m) are drawn no smaller
+than 0.8 of a tile. It is drawn under your trainer, so a towering one never hides you. Its name, height and HP sit in
+the lair's top corner and your hearts in the bottom one. A Shiny stands in a gold glow with stars twinkling around it
+and sparkles every few seconds (they hold still with reduced motion). Each lair has its own air drifting over the art
+(bubbles, embers, wind, dust, snow, falling petals, twinkling motes or stars), which stays off with reduced motion.
 
-- **Wave:** an energy wave fills the whole lair but one safe tile ◎; stand on it before it lands (3.2 s).
-- **Rune:** three numbered runes light up; step on 1, 2, then 3. A rune out of turn simply doesn't count.
-- **Pulse:** stand on the seal and press **Resonate** (or Space / Enter) while the shrinking ring is inside the gold band.
-  The Legendary holds still while you focus.
-- **Stone:** three guardian stones ▲ stir; step on each, in any order.
+Until your first move the Legendary only watches, and stepping back onto the portal (or tapping it with Tap to walk)
+meets it anew, with a new chance to be Shiny. Then:
 
-Every lair has the same plan: a seal towards each corner of the open ground, runes around the middle, stones in three
-corners, each on the nearest open tile. A seal never sits in a narrow pass, and Tap to walk goes round seals on the way,
-so crossing a lair never wakes one by accident. The wave's safe tiles are a short walk (three to six steps) from its seal.
+- **Moves** are on the right of the D-pad (keys 1 to 4 on the web). Each shows its damage, then counts down until it
+  is ready again; no two land in the same breath.
+- **The Legendary answers** with its own move (Rayquaza's Dragon Ascent, Mewtwo's Psystrike): a ring around you or a
+  line through you, marked ⚠ on the ground for 1.8 s before it lands ✸. That's time for about eight steps, and one or
+  two always get you clear: where rocks or water leave a nook a line would fill, it aims another way. Only the marked
+  tiles count, at the moment the attack lands.
+- **A hit** costs one heart and a short stagger. You start with 3, plus 1 for each km of saved walks and runs this
+  week, up to 5 (the arcade's walking bonus: only saved, finished adventures count). At 0 you catch your breath while
+  the Legendary holds back, then you're back to full. Nothing faints.
+- **Poké Ball** (Space or Enter on the web) throws one of five. The Legendary holds still while it shakes.
 
-Runes and stones keep their progress while you walk around; the wave and the pulse simply start again if missed.
-Once the first seal is on, the Legendary sends gentle attacks: a ring around you or a line through you, marked ⚠ on the
-ground for 1.8 s before it lands ✸. That's time for about eight steps, and one or two always get you clear: where rocks
-or water leave a nook a line would fill, the Legendary aims another way. Only the marked tiles count, at the moment the
-attack lands. A hit costs one **resonance** and a short stagger. You start with 3, plus 1 for each km of saved walks and
-runs this week, up to 5 (the arcade's walking bonus: only saved, finished adventures count). At 0 you catch your breath
-while the Legendary holds back, then you're back to full. Nothing ever turns a seal off, and walking out is always
-possible from the doorway.
+Leaving, pausing (or the app going to the background) or restarting the app keeps the encounter waiting with its
+result; the battle itself is never saved, so coming back starts it afresh at full HP. Only a successful catch claims
+the encounter. Saves from the earlier Resonance Trial (four seals in the lair) carry over: one with a seal on counts
+as a battle begun. The lairs are built by `scripts/build-lairs.py` (which lists each Emerald room, the window, where
+the Legendary waits, the way out, and the few boulders cleared from Sky Pillar's summit; the drawn lairs' layouts and
+painters are in `scripts/drawn_lairs.py`) into `assets/lairs/` and `src/generated/lair-maps.js`; who lives where and
+each lair's air are in `src/games/lairs.ts`, the rules, heights and sizes in `src/games/lair-battle.ts`, the saved
+progress (`engaged` on the waiting encounter) in `src/expedition-encounter.ts`, and the screen is
+`src/games/LairBattle.tsx`. They're covered by `tests/lair-battle.test.js` (every lair) and
+`tests/legendary-encounter.test.js`.
 
-With all four seals on, **Steady the Legendary** plays a short stabilization and opens the catch: the battle and
-catch above, unchanged. Leaving, pausing (or the app going to the background), restarting the app or a failed catch
-keeps every seal; each one is saved the moment it switches on, and the first one sets the result, so walking out after
-that just leaves. Only a successful catch claims the encounter. The lairs are built by `scripts/build-lairs.py` (which lists each
-Emerald room, the window, where the Legendary waits, the way out, and the few boulders cleared from Sky Pillar's summit; the drawn lairs' layouts and
-painters are in `scripts/drawn_lairs.py`) into `assets/lairs/` and `src/generated/lair-maps.js`; who lives where and each lair's air are in `src/games/lairs.ts`,
-the rules in `src/games/resonance.ts`, the saved progress (`resonance` on the waiting encounter) in
-`src/expedition-encounter.ts`, and the screen is `src/games/ResonanceTrial.tsx`. They're covered by
-`tests/resonance-arena.test.js` (every lair), `tests/resonance-encounter.test.js` and `tests/legendary-encounter.test.js`.
+#### Release for permits
+
+On the **Shrines** tab, **Release for permits** sends Legendaries you've caught back to the wild, **one Expedition
+Permit each**. Tick the ones to release; **Select all** ticks the Normal ones only, so a Shiny is never released
+without being picked by hand, and the button asks once more before anything leaves. A released Legendary leaves your
+Dex with its shrine, its rematch wins and, when none of its family is left, its Legendary egg; a buddy that was
+released walks on alone. It can then be met again on a later expedition. Trails, claims, distance and any waiting
+encounter stay exactly as they are. It cannot be undone, so make a backup first if you're unsure. The rules are in
+`src/expedition-release.ts` (tests in `tests/expedition-release.test.js`) and the screen is
+`src/games/ReleaseLegendaries.tsx`.
 
 #### Legendary Trials
 
@@ -513,8 +522,8 @@ species order. A Shiny catch gets its own row, marked ✦. You can come back any
   moves and par. Deoxys goes straight to the Shattered Star island, reveal included. Practice is never saved mid-room,
   so leaving drops the run. A clear saves the room's moves to your trial records only if they're lower ("Room cleared
   in N moves (best M)"), which also counts toward the trial achievements.
-- **Battle again** is a rematch in the same battle, against the form you caught. If the ball holds, you win the rematch
-  ("You won the rematch! Zapdos returns to your team.") and the row counts your rematch wins. Running away or running out
+- **Battle again** is a rematch in its lair, the same battle against the form you caught. If the ball holds, you win the rematch
+  ("You won the rematch! Zapdos returns to your team.") and the row counts your rematch wins. Leaving or running out
   of balls just ends it.
 
 Revisits are practice. They never claim an encounter, add or change a Dex entry, roll a Shiny, use or give a permit,

@@ -14,9 +14,9 @@ import { legendaryPoints } from './games/achievements'
 import { allAdventures } from './adventures'
 import { runningTickets } from './running'
 import type { Quest } from './expedition-quest'
-import { activateSeal, catchEncounter, enterLair, finishTrial, leaveLair, legacyEncounters, resetInLair, restoreEncounters, saveCheckpoint,
-  stabilizeResonance } from './expedition-encounter'
-import type { Encounters, SealId } from './expedition-encounter'
+import { catchEncounter, engageLegendary, enterLair, finishTrial, leaveLair, legacyEncounters, resetInLair, restoreEncounters, saveCheckpoint } from './expedition-encounter'
+import type { Encounters } from './expedition-encounter'
+import { releaseLegendaries } from './expedition-release'
 import { addSafariCatch, restoreSafariDex, withSafariCatches } from './games/safari'
 import type { SafariDex } from './games/safari'
 import { restoreStars, saveStars } from './games/adventure'
@@ -36,8 +36,8 @@ type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<
 type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRecord>, importText: (text: string) => Promise<void>, importCloud: (text: string, owner: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void>, befriend: (key: string, index: number) => Promise<void>,
   finishTrial: (key: string, index: number, results: Record<string, number>) => Promise<void>,
   recordPracticeClear: (name: string, shiny: boolean, results: Record<string, number>) => Promise<void>, recordRematchWin: (name: string, shiny: boolean) => Promise<void>, saveTrialCheckpoint: (key: string, index: number, run: TrialRun) => Promise<void>, enterLair: (key: string, index: number) => Promise<void>,
-  leaveLair: (key: string, index: number, discardShiny: boolean) => Promise<void>, resetLair: (key: string, index: number, discardShiny: boolean) => Promise<void>, activateSeal: (key: string, index: number, seal: SealId) => Promise<void>,
-  stabilizeResonance: (key: string, index: number) => Promise<void>,
+  leaveLair: (key: string, index: number, discardShiny: boolean) => Promise<void>, resetLair: (key: string, index: number, discardShiny: boolean) => Promise<void>, engageLegendary: (key: string, index: number) => Promise<void>,
+  releaseLegendaries: (keys: string[]) => Promise<void>,
   completeQuestChallenge: () => Promise<void>, earnPermit: () => Promise<void>, earnArcadePermit: () => Promise<void>, claimRunningTickets: () => Promise<void>, unlockWithPermit: (key: string) => Promise<void>, recordSafariCatch: (name: string, shiny: boolean) => Promise<void>, recordStars: (stop: string, stars: number) => Promise<void>,
   recordLevelStars: (level: string, stars: number) => Promise<void>, savePhoneRun: (run: PhoneRun) => Promise<void>, chooseEgg: (family: string[], mega: string | null) => Promise<void>,
   setPhoneAdventure: (phone: Plan['phone']) => Promise<void>, dropEgg: () => Promise<void>, receivePlan: (plan: unknown) => Promise<void>, makeBackup: () => string, backupInfo: ReturnType<typeof backupSummary> }
@@ -153,10 +153,13 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     persist(current => ({ ...current, encounters: leaveLair(current, key, index, discardShiny) }))
   const resetEncounterLair = (key: string, index: number, discardShiny: boolean) =>
     persist(current => ({ ...current, encounters: resetInLair(current, key, index, discardShiny) }))
-  // The Legendary Resonance Trial (src/games/resonance.ts) in the lair, before the catch. Each step saves at once and is
-  // safe to repeat: a seal already on or stabilizing twice changes nothing. Only the catch claims.
-  const switchOnSeal = (key: string, index: number, seal: SealId) => persist(current => ({ ...current, encounters: activateSeal(current, key, index, seal) }))
-  const steadyResonance = (key: string, index: number) => persist(current => ({ ...current, encounters: stabilizeResonance(current, key, index) }))
+  // The first move or Poke Ball of the battle in the lair (src/games/lair-battle.ts) sets the result for good. Safe to repeat.
+  const beginBattle = (key: string, index: number) => persist(current => ({ ...current, encounters: engageLegendary(current, key, index) }))
+  // Caught Legendaries released for a permit each (src/expedition-release.ts). A buddy that was released walks on alone.
+  const release = (keys: string[]) => persist(current => {
+    const next = releaseLegendaries(current, keys)
+    return { ...next, buddy: next.buddy && collectionOf(next).dex[next.buddy] ? next.buddy : null }
+  })
   // The Expedition Quest (src/expedition-quest.ts): the shrine challenge, the permit it earns and spending it on a trail.
   const completeQuestChallenge = () => persist(current => ({ ...current, quest: completeChallenge(current.quest) }))
   const earnQuestPermit = () => persist(current => ({ ...current, quest: earnPermit(current.quest, questSessions(current.quest, current.progress, current.expeditions)) }))
@@ -187,7 +190,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   const makeBackup = () => createBackup(latest.current, Date.now(), Constants.expoConfig?.version ?? '')
   return <Context.Provider value={{ ...saved, ...collectionOf(saved), ready, error, importText, importCloud, chooseBuddy, recordWin, recordArcadeScore,
     befriend, finishTrial: finishEncounterTrial, recordPracticeClear, recordRematchWin, saveTrialCheckpoint, enterLair: enterEncounterLair, leaveLair: leaveEncounterLair, resetLair: resetEncounterLair,
-    activateSeal: switchOnSeal, stabilizeResonance: steadyResonance,
+    engageLegendary: beginBattle, releaseLegendaries: release,
     completeQuestChallenge, earnPermit: earnQuestPermit, earnArcadePermit: earnPointsPermit, claimRunningTickets, unlockWithPermit, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
     backupInfo: backupSummary(saved) }}>{children}</Context.Provider>
 }
