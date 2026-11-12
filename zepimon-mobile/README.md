@@ -368,7 +368,10 @@ story, a lair drawn for it in Emerald's pixel style. The lairs and who lives the
 
 Mt. Pyre (the graveyard) stays as the lair for a future ghost, dark or poison Legendary.
 
-The whole lair fits the screen. You come in by a one-way portal and the Legendary waits where it lives in that room,
+Every lair is played at **twice its size**: each tile of the Emerald room (or drawn lair) is a 2 x 2 block, so there
+is twice the room to move in each way, with your trainer, your partner and the Legendary at the same size beside each
+other. A lair that would be drawn with tiles under 28 px to fit whole (most of them, on a phone) follows your trainer
+instead. You come in by a one-way portal and the Legendary waits where it lives in that room,
 as its Emerald overworld sprite, turning to watch you, **at its real size** beside your trainer: 0.9 of a tile per
 metre of its Pokédex height, so Mewtwo (2 m) stands a head taller than you, Lugia (5.2 m) close to five tiles and
 Rayquaza (7 m) six, the tallest that still leaves the lair in view. The smallest (Shaymin, 0.2 m) are drawn no smaller
@@ -384,17 +387,21 @@ meets it anew, with a new chance to be Shiny. Then:
   toward the Legendary, and attacks from there: a ring flares under it, the move flies across (its type's Gen III
   projectile) and lands 0.45 s in, then the hit plays on the Legendary. The attack lasts 1.2 s. You are free to keep
   walking; your partner holds its ground until it is done, then runs back to your heels. One attack at a time.
-- **The Legendary is the boss of its lair.** Once the battle begins it comes down from its perch and prowls the open
-  ground a tile every 0.9 s, closing on you but never nearer than two tiles, so it cannot pen you in. You cannot walk
-  through it. It holds still while it charges and strikes.
+- **The Legendary is the boss of its lair, and it hunts you.** Once the battle begins it comes down from its perch and
+  closes on you a tile every 0.6 s, never nearer than three tiles, so it cannot pen you in. You cannot walk through it.
+  It holds still while it charges and strikes. It has 150 HP.
 - **Its signature move** (Rayquaza's Dragon Ascent, Kyogre's Origin Pulse, Mewtwo's Psystrike): it glows in its type's
-  colour and the move's name is called out over its head while a ring around you or a line through you is marked ⚠ on
-  the ground for 1.8 s. Then the move lands ✸ and its type's animation plays on every marked tile. That's time for
-  about eight steps, and one or two always get you clear: where rocks or water leave a nook a line would fill, it aims
-  another way. Only the marked tiles count, at the moment the attack lands.
+  colour and the move's name is called out over its head while the ground is marked ⚠ for 1.3 s: a ring two tiles
+  round you, a beam from it straight through you, or a band three tiles wide along your row or column. Then the move
+  lands ✸ and its type's animation plays on every marked tile. 1.3 s is time for about six steps, and three always get
+  you clear: where rocks or water leave a nook a band would fill, it aims another way. Only the marked tiles count, at
+  the moment the attack lands. Attacks come every 1.5 to 2.4 s.
+- **Enraged** at half HP or less: it attacks every 0.9 to 1.4 s, its ring grows to three tiles round you, and it can
+  strike a cross along your row and column.
 - **A hit** costs one heart and a short stagger. You start with 3, plus 1 for each km of saved walks and runs this
   week, up to 5 (the arcade's walking bonus: only saved, finished adventures count). At 0 you catch your breath while
-  the Legendary holds back, then you're back to full. You never faint.
+  the Legendary holds back, but it gets its breath back too: it **recovers 30 HP**. Then you're back to full. You
+  never faint.
 - **Weakened:** at 0 HP the Legendary slumps and holds still, stars circle its head, its HP box reads WEAKENED and it
   stops attacking. The moves switch off and the Poké Ball lights up. Before that the ball only says to wear it down.
 - **Poké Ball** (Space or Enter on the web): your trainer turns to the Legendary and throws from wherever they stand.
@@ -405,7 +412,8 @@ meets it anew, with a new chance to be Shiny. Then:
 
 **Full screen.** The ⤢ button fills the screen with the lair, as in the Legendary Trial: the tiles are as big as the
 Safari Zone's and the camera follows your trainer, with the D-pad, the moves, the Poké Ball, Pause and Leave over the
-map and the Legendary's HP and your hearts in the strip at the top. The rotate button turns it to landscape or back
+map and the Legendary's HP and your hearts in the strip at the top. Like the D-pad, the buttons are see-through until
+pressed, as on an emulator, so the fight shows through them. The rotate button turns it to landscape or back
 (on a phone; in a browser it follows the window). A trial played in full screen carries on into the lair in full
 screen. The rooms themselves are the same Emerald rooms as before.
 
