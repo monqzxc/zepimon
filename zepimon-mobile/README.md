@@ -383,13 +383,22 @@ and sparkles every few seconds (they hold still with reduced motion). Each lair 
 Until your first move the Legendary only watches, and stepping back onto the portal (or tapping it with Tap to walk)
 meets it anew, with a new chance to be Shiny. Then:
 
-- **Moves** are on the right of the D-pad (keys 1 to 4 on the web). Tap one and your partner runs out in front,
-  toward the Legendary, and attacks from there: a ring flares under it, the move flies across (its type's Gen III
-  projectile) and lands 0.45 s in, then the hit plays on the Legendary. The attack lasts 1.2 s. You are free to keep
-  walking; your partner holds its ground until it is done, then runs back to your heels. One attack at a time.
+- **Your partner** follows a step behind you at its true size too, from its Pokédex height (`src/generated/heights.js`,
+  built by `scripts/build-heights.mjs` from the PokeAPI CSVs): never under 1.2 tiles so it can be seen, and always
+  smaller than the boss (at most 80% of its size, or 3.5 tiles). So Pikachu stands at 1.2 tiles, Charizard at 1.5, and
+  an Onix at 3.5 under a six-tile Rayquaza. It is drawn in front of you when it stands below you and behind you
+  otherwise. Its legs step only while it moves, it faces the way it goes, and standing still it breathes gently.
+- **Moves** are on the right of the D-pad (keys 1 to 4 on the web). Tap one and your partner sprints out in front,
+  toward the Legendary, and attacks from there. It crouches to wind up as a ring flares under it, then lets go:
+  - a **contact move** (False Swipe, Fake Out, Thunder Punch, Bite, Crunch and the like) has it dash in, strike up
+    close, and hop back;
+  - any other move pushes it forward as the move's Gen III projectile flies across.
+  The move lands 0.6 s in and the hit plays on the Legendary. The attack lasts 1.2 s. You are free to keep walking;
+  your partner holds its ground until it is done, then sprints back to your heels. One attack at a time.
 - **The Legendary is the boss of its lair, and it hunts you.** Once the battle begins it comes down from its perch and
   closes on you a tile every 0.6 s, never nearer than three tiles, so it cannot pen you in. You cannot walk through it.
-  It holds still while it charges and strikes. It has 150 HP.
+  It walks heavily, dipping as each foot lands, and its legs step quicker while it moves. It holds still while it
+  charges, rearing back away from you, and lunges at you as the move lands. It has 150 HP.
 - **Its signature move** (Rayquaza's Dragon Ascent, Kyogre's Origin Pulse, Mewtwo's Psystrike): it glows in its type's
   colour and the move's name is called out over its head while the ground is marked ⚠ for 1.3 s: a ring two tiles
   round you, a beam from it straight through you, or a band three tiles wide along your row or column. Then the move

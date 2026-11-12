@@ -8,8 +8,10 @@ import { Button, Chip, Copy, IconButton, Panel, PokeballIcon, colors, fonts, ret
 import { lairArt } from '../generated/lair-art.js'
 import { planWalk } from './safari-zone'
 import type { Direction, Point } from './safari-zone'
-import { fitTile, tileSizeFor } from './safari-view'
-import { TileWorld } from './TileWorld'
+import { STEP_MS, buddyFrame, fitTile, tileSizeFor } from './safari-view'
+import { Frame, TileWorld } from './TileWorld'
+import { PixelSprite } from './TeamPicker'
+import { trailWalkers } from '../generated/trail-walkers.js'
 import type { TileChunks } from './TileWorld'
 import { useStepWalker } from './step-walker'
 import { DPad, useKeyboardDirections } from './DPad'
@@ -27,12 +29,13 @@ import { useGameScreen } from './fullscreen'
 import { signatureMove } from './legendary-moves'
 import { battleType } from './roster'
 import type { LairId } from './lairs'
-import { ATTACK_MS, CAPTURE, CAPTURE_MS, FOE_HP, LAND_MS, ROAM_MS, STRIKE_MS, battleOver, battleTick, battleWalk, facingToward, legendaryHeight, legendarySize,
+import { ATTACK_MS, CAPTURE, CAPTURE_MS, FOE_HP, LAND_MS, RELEASE_MS, ROAM_MS, STRIKE_MS, WINDUP_MS, buddySize, buddyTravelMs, isContact, battleOver, battleTick, battleWalk, facingToward, legendaryHeight, legendarySize,
   maxHearts, moveWait, partnerOut, pauseBattle, resumeBattle, startBattle, strikeWith, throwBall, weakened } from './lair-battle'
 import type { LairBattle as Battle, LairLayout } from './lair-battle'
 
 type Strip = { source: ImageSourcePropType, frames: number, width: number, height: number }
 const art = lairArt as Record<LairId, { ground: number, top: number }>
+const walkers = trailWalkers as Record<string, ImageSourcePropType>
 const typeColor = typeColors as Record<string, string>
 const native = Platform.OS !== 'web'
 const pixelated = Platform.OS === 'web' ? { imageRendering: 'pixelated' as const } : {}
@@ -144,7 +147,8 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
   useGameLoop(() => {
     const now = Date.now()
     update(battleTick(current.current, now, Math.random))
-    if (current.current.phase !== 'watch' && !battleOver(current.current)) { saveBegan(); setClock(now) }
+    if (current.current.phase !== 'watch' && !battleOver(current.current)) saveBegan()
+    setClock(now)
   }, () => { walker.drop(); update(pauseBattle(current.current, Date.now())) })
   // On the web, 1 to 4 use a move and Space or Enter throws a ball.
   const keys = useRef({ use, throwIt })
@@ -166,6 +170,9 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
   }, [])
 
   const chunks: TileChunks = { '0,0': art[layout.lair] }
+  // The partner's motion lives here, in tiles, so it carries on smoothly when it is drawn in front of or behind you.
+  const motion = usePartnerMotion(battle, reduced)
+  const partnerSize = buddySize(partner.name, foe.name)
   const over = battleOver(battle)
   const begun = battle.phase !== 'watch'
   const down = weakened(battle)
@@ -197,24 +204,33 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
     const reach = Math.hypot(thrower.x - battle.foeAt.x, thrower.y - battle.foeAt.y) || 1
     const hover = { x: body.x + (thrower.x - battle.foeAt.x) / reach * tile * 1.4, y: body.y + (thrower.y - battle.foeAt.y) / reach * tile * 0.6 - tile * 0.9 }
     const strike = battle.strike
+    const foeMoving = clock < battle.foeMovedAt + ROAM_MS * 0.7
+    const legendary = <Legendary at={battle.foeAt} name={foe.name} shiny={foe.shiny} tile={tile}
+      facing={begun && !down && foeMoving ? battle.foeFacing : facingToward(battle.foeAt, battle.at)}
+      hidden={inBall} struck={strike?.landed ? strike.id : 0} weak={down || battle.phase === 'throw'} drawnTo={battle.ball ? hover : null}
+      charge={charging ? typeColor[type] ?? '#FFFFFF' : null} moving={foeMoving}
+      lunge={battle.danger && clock >= battle.danger.warnUntil ? battle.danger.warnUntil : 0} toward={battle.at} reduced={reduced} />
+    const partnerSprite = <Partner name={partner.name} shiny={partner.shiny} size={partnerSize} tile={tile} motion={motion} clock={clock} battle={battle} reduced={reduced} />
     return <>
       <TileWorld map={layout.map} chunks={chunks} at={battle.at} facing={battle.facing} buddyAt={battle.buddy} buddyFacing={battle.buddyFacing}
-        move={move} trainer={safariTrainer} buddy={partner} onGrass={false} width={width} height={height}
+        move={move} trainer={safariTrainer} buddy={null} onGrass={false} width={width} height={height}
         reduced={reduced} jump={extra} background={layout.background} fit={!follow} fitHeight={follow} tapToWalk={safariControls === 'tap' && acting}
         onTapTile={tapTile}
         cover={<>
           <SealedPortal layout={layout} tile={tile} reduced={reduced} open={!begun && !practice} />
+          {/* Whoever stands nearer the bottom of the screen than you is drawn in front of you. */}
+          {battle.foeAt.y > battle.at.y && legendary}
+          {battle.buddy.y > battle.at.y && partnerSprite}
           {battle.danger && clock >= battle.danger.warnUntil && <SignatureStrike key={battle.danger.warnUntil} tiles={battle.danger.tiles} tile={tile}
             sheet={hitSheet(type) as Strip} reduced={reduced} />}
-          {strike && partnerOut(battle) && !battle.ball && <PartnerAttack key={strike.id} type={strike.move.type} tile={tile} reduced={reduced}
-            from={{ x: (strike.at.x + 0.5) * tile, y: (strike.at.y + 0.4) * tile }} to={chest} />}
+          {strike && partnerOut(battle) && !battle.ball && <PartnerAttack key={strike.id} type={strike.move.type} contact={isContact(strike.move.name)} tile={tile}
+            reduced={reduced} from={{ x: (strike.at.x + 0.5) * tile, y: (strike.at.y + 0.4) * tile }} to={chest} />}
           {charging && <Callout at={{ x: body.x, y: (battle.foeAt.y + 1) * tile - size }} tile={tile} color={typeColor[type] ?? '#FFFFFF'}>{signature}!</Callout>}
           {battle.ball && <Capture key={battle.ball.since} from={{ x: (battle.ball.from.x + 0.5) * tile, y: (battle.ball.from.y + 0.2) * tile }}
             body={body} hover={hover} ground={ground} tile={tile} reduced={reduced} />}
         </>}>
-        <Legendary at={battle.foeAt} name={foe.name} shiny={foe.shiny} tile={tile} facing={begun && !down ? battle.foeFacing : facingToward(battle.foeAt, battle.at)}
-          hidden={inBall} struck={strike?.landed ? strike.id : 0} weak={down || battle.phase === 'throw'} drawnTo={battle.ball ? hover : null}
-          charge={charging ? typeColor[type] ?? '#FFFFFF' : null} reduced={reduced} />
+        {battle.foeAt.y <= battle.at.y && legendary}
+        {battle.buddy.y <= battle.at.y && partnerSprite}
         <Marks battle={battle} tile={tile} clock={clock} reduced={reduced} />
       </TileWorld>
       <LairAmbience lair={layout.lair} width={width} height={height} reduced={reduced} />
@@ -378,9 +394,11 @@ function Marks({ battle, tile, clock, reduced }: { battle: Battle, tile: number,
 // A Shiny stands in a gold glow with stars around it and sparkles every few seconds. It flickers when a move lands.
 // weak: its HP is gone, so it slumps, holds still and stars circle its head. drawnTo: a Poké Ball hangs open there; once
 // the ball has bounced the Legendary turns to red light and is drawn into it. hidden: it is inside the ball.
-function Legendary({ at, name, shiny, tile, facing, hidden, struck, weak, drawnTo, charge, reduced }: {
+// moving: it is between tiles, so it strides quicker and each stride lands with a heavy bob. While it charges it rears
+// back, away from you; when the move lands (lunge, the landing's time) it lunges at you and settles back.
+function Legendary({ at, name, shiny, tile, facing, hidden, struck, weak, drawnTo, charge, moving, lunge, toward, reduced }: {
   at: Point, name: string, shiny: boolean, tile: number, facing: Direction, hidden: boolean, struck: number, weak: boolean, drawnTo: Point | null,
-  charge: string | null, reduced: boolean
+  charge: string | null, moving: boolean, lunge: number, toward: Point, reduced: boolean
 }) {
   const size = tile * legendarySize(name)
   const left = at.x * tile + tile / 2 - size / 2, top = (at.y + 1) * tile - size
@@ -394,6 +412,35 @@ function Legendary({ at, name, shiny, tile, facing, hidden, struck, weak, drawnT
     return () => glide.stop()
   }, [place, left, top, reduced])
   const charging = !!charge
+  const [bob] = useState(() => new Animated.Value(0))
+  const [lean] = useState(() => new Animated.Value(0))
+  const [pounce] = useState(() => new Animated.Value(0))
+  // A heavy stride: it dips as each foot comes down, twice per tile.
+  useEffect(() => {
+    if (reduced) return
+    const stride = (duration: number) => Animated.sequence([Animated.timing(bob, { toValue: 1, duration: duration * 0.4, easing: Easing.out(Easing.quad), useNativeDriver: native }),
+      Animated.timing(bob, { toValue: 0, duration: duration * 0.6, easing: Easing.in(Easing.quad), useNativeDriver: native })])
+    const run = Animated.sequence([stride(ROAM_MS * 0.35), stride(ROAM_MS * 0.35)])
+    run.start()
+    return () => run.stop()
+  }, [left, top, reduced, bob])
+  useEffect(() => {
+    const run = Animated.timing(lean, { toValue: charging ? 1 : 0, duration: reduced ? 1 : charging ? 450 : 200, easing: Easing.out(Easing.quad), useNativeDriver: native })
+    run.start()
+    return () => run.stop()
+  }, [charging, reduced, lean])
+  useEffect(() => {
+    if (!lunge || reduced) return
+    const run = Animated.sequence([Animated.timing(pounce, { toValue: 1, duration: 110, easing: Easing.out(Easing.cubic), useNativeDriver: native }),
+      Animated.timing(pounce, { toValue: 0, duration: 380, easing: Easing.inOut(Easing.quad), useNativeDriver: native })])
+    run.start()
+    return () => { run.stop(); pounce.setValue(0) }
+  }, [lunge, reduced, pounce])
+  // The way toward you, as a unit step, for rearing back and lunging.
+  const dx = toward.x - at.x, dy = toward.y - at.y, far = Math.hypot(dx, dy) || 1
+  const ux = dx / far, uy = dy / far
+  const shove = (axis: number) => Animated.add(lean.interpolate({ inputRange: [0, 1], outputRange: [0, -axis * tile * 0.3] }),
+    pounce.interpolate({ inputRange: [0, 1], outputRange: [0, axis * tile * 0.6] }))
   useEffect(() => {
     if (!charging || reduced) { aura.setValue(charging ? 1 : 0); return }
     const half = (toValue: number) => Animated.timing(aura, { toValue, duration: 220, easing: Easing.inOut(Easing.sin), useNativeDriver: native })
@@ -441,13 +488,98 @@ function Legendary({ at, name, shiny, tile, facing, hidden, struck, weak, drawnT
     {!red && <View style={{ position: 'absolute', left: size * 0.2, top: size * 0.86, width: size * 0.6, height: size * 0.16, borderRadius: size, backgroundColor: 'rgba(0, 0, 0, 0.3)' }} />}
     {shiny && !weak && <ShinyGlow size={size} reduced={reduced} />}
     {/* Weakened, it leans over and sinks a little, and stops stepping. */}
-    <View style={weak && !red ? { opacity: 0.85, transform: [{ translateY: size * 0.04 }, { rotate: '9deg' }] } : null}>
-      <OverworldSprite name={name} shiny={shiny} size={size} facing={facing} still={weak} tint={red ? '#FF3B30' : undefined} />
-    </View>
+    <Animated.View style={weak && !red ? { opacity: 0.85, transform: [{ translateY: size * 0.04 }, { rotate: '9deg' }] }
+      : { transform: [{ translateX: shove(ux) }, { translateY: Animated.add(shove(uy), bob.interpolate({ inputRange: [0, 1], outputRange: [0, size * 0.035] })) },
+        { scale: lean.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) }] }}>
+      <OverworldSprite name={name} shiny={shiny} size={size} facing={facing} still={weak} tint={red ? '#FF3B30' : undefined} stepMs={moving ? 160 : 650} />
+    </Animated.View>
     {shiny && !weak && <ShinyStars size={size} reduced={reduced} />}
     {shiny && !weak && <Sparkles key={glint} centre={{ x: size / 2, y: size / 2 }} size={size} reduced={reduced} />}
     {weak && !red && <DizzyStars size={size} tile={tile} reduced={reduced} />}
   </Animated.View>
+  </Animated.View>
+}
+
+// The partner's motion, in tiles, on its own clock: where it stands (gliding there at a walk to keep up with you, or a
+// sprint when it runs out to attack or back), and its attack: a crouch as it winds up, then for a contact move a dash
+// in to the Legendary and a hop back, or for a ranged move a short push forward as it lets go. Nothing moves with
+// reduced motion: it simply stands where it is.
+function usePartnerMotion(battle: Battle, reduced: boolean) {
+  const [place] = useState(() => new Animated.ValueXY(battle.buddy))
+  const [reach] = useState(() => new Animated.Value(0))
+  const [crouch] = useState(() => new Animated.Value(0))
+  const [hop] = useState(() => new Animated.Value(0))
+  const { buddy, buddyFrom, buddyMovedAt, strike, foeAt } = battle
+  useEffect(() => {
+    const duration = buddyTravelMs(buddyFrom, buddy)
+    if (reduced) { place.setValue(buddy); return }
+    const run = Animated.timing(place, { toValue: buddy, duration, easing: duration === STEP_MS ? Easing.linear : Easing.out(Easing.quad), useNativeDriver: native })
+    run.start()
+    return () => run.stop()
+  }, [place, buddy.x, buddy.y, buddyMovedAt, reduced]) // eslint-disable-line react-hooks/exhaustive-deps
+  const id = strike?.id ?? 0
+  const contact = !!strike && isContact(strike.move.name)
+  // How far it dashes in for a contact move: up to just short of the Legendary.
+  const distance = strike ? Math.max(0, Math.hypot(foeAt.x - strike.at.x, foeAt.y - strike.at.y) - 0.9) : 0
+  useEffect(() => {
+    if (!id || reduced) return
+    const timing = (value: Animated.Value, toValue: number, duration: number, easing = Easing.out(Easing.quad)) =>
+      Animated.timing(value, { toValue, duration, easing, useNativeDriver: native })
+    const windup = Animated.sequence([Animated.delay(WINDUP_MS), timing(crouch, 1, RELEASE_MS - WINDUP_MS)])
+    const release = contact
+      ? Animated.sequence([Animated.parallel([timing(crouch, -0.6, 80), timing(reach, distance, LAND_MS - RELEASE_MS, Easing.in(Easing.quad))]),
+        timing(crouch, 0, 120),
+        Animated.parallel([timing(reach, 0, 300, Easing.inOut(Easing.quad)),
+          Animated.sequence([timing(hop, 1, 150), timing(hop, 0, 150, Easing.in(Easing.quad))])])])
+      : Animated.sequence([Animated.parallel([timing(crouch, -0.5, 90), timing(reach, 0.35, 90)]),
+        Animated.parallel([timing(crouch, 0, 260), timing(reach, 0, 260, Easing.inOut(Easing.quad))])])
+    const run = Animated.sequence([windup, release])
+    run.start()
+    return () => { run.stop(); reach.setValue(0); crouch.setValue(0); hop.setValue(0) }
+  }, [id, reduced]) // eslint-disable-line react-hooks/exhaustive-deps
+  return { place, reach, crouch, hop }
+}
+
+// The partner in the lair at its true size (buddySize), its feet on its tile with a shadow. It walks with you, its legs
+// stepping only while it moves (quicker when it sprints), and faces the way it goes; standing, it faces you, or the
+// Legendary while it attacks, and breathes gently. Its attack moves it along the way to the Legendary.
+function Partner({ name, shiny, size, tile, motion, clock, battle, reduced }: {
+  name: string, shiny: boolean, size: number, tile: number, motion: ReturnType<typeof usePartnerMotion>, clock: number, battle: Battle, reduced: boolean
+}) {
+  const { buddy, buddyFrom, buddyMovedAt, foeAt } = battle
+  const travel = buddyTravelMs(buddyFrom, buddy)
+  const moving = !reduced && clock < buddyMovedAt + travel && (buddy.x !== buddyFrom.x || buddy.y !== buddyFrom.y)
+  const sprinting = moving && travel !== STEP_MS
+  const facing = moving ? facingToward(buddyFrom, buddy) : battle.buddyFacing
+  const step = moving ? (Math.floor(clock / (sprinting ? 70 : 110)) % 2) as 0 | 1 : 0
+  const [breath] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    if (reduced) return
+    const half = (toValue: number) => Animated.timing(breath, { toValue, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: native })
+    const loop = Animated.loop(Animated.sequence([half(1), half(0)]))
+    loop.start()
+    return () => loop.stop()
+  }, [reduced, breath])
+  const px = size * tile
+  const attackAt = battle.strike?.at ?? buddy
+  const dx = foeAt.x - attackAt.x, dy = foeAt.y - attackAt.y, far = Math.hypot(dx, dy) || 1
+  const strip = walkers[(shiny ? 'Shiny ' : '') + name]
+  // Squash and stretch about its feet: crouching (1) is lower and wider, letting go (below 0) taller and thinner.
+  const squash = { inputRange: [-1, 0, 1], outputRange: [1.18, 1, 0.8] }
+  const widen = { inputRange: [-1, 0, 1], outputRange: [0.9, 1, 1.12] }
+  return <Animated.View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0,
+    transform: [{ translateX: Animated.multiply(motion.place.x, tile) }, { translateY: Animated.multiply(motion.place.y, tile) }] }}>
+    <Animated.View style={{ position: 'absolute', left: tile / 2 - px / 2, top: tile - px, width: px, height: px,
+      transform: [{ translateX: Animated.multiply(motion.reach, dx / far * tile) },
+        { translateY: Animated.add(Animated.multiply(motion.reach, dy / far * tile), Animated.multiply(motion.hop, -tile * 0.45)) }] }}>
+      <View style={{ position: 'absolute', left: px * 0.22, top: px * 0.88, width: px * 0.56, height: px * 0.14, borderRadius: px, backgroundColor: 'rgba(0, 0, 0, 0.28)' }} />
+      <Animated.View style={{ width: px, height: px, transform: [{ translateY: px / 2 },
+        { scaleY: Animated.add(motion.crouch.interpolate(squash), breath.interpolate({ inputRange: [0, 1], outputRange: [0, 0.03] })) },
+        { scaleX: motion.crouch.interpolate(widen) }, { translateY: -px / 2 }] }}>
+        {strip ? <Frame strip={{ source: strip, frames: 8, width: 44, height: 44 }} frame={buddyFrame(facing, step)} width={px} height={px} />
+          : <PixelSprite name={name} shiny={shiny} size={px} />}
+      </Animated.View>
+    </Animated.View>
   </Animated.View>
 }
 
@@ -478,10 +610,11 @@ function SignatureStrike({ tiles, tile, sheet, reduced }: { tiles: string[], til
   })}</>
 }
 
-// Your partner's attack, from where it stands out in front: a ring flares under it, its move flies to the Legendary
-// (the move type's Gen III projectile, or a streak of its colour) and lands at LAND_MS, then the type's hit strip plays
-// on the Legendary until the attack is over (ATTACK_MS, more than a second in all). With reduced motion only the hit shows.
-function PartnerAttack({ type, from, to, tile, reduced }: { type: string, from: Point, to: Point, tile: number, reduced: boolean }) {
+// Your partner's attack, from where it stands out in front: a ring flares under it as it winds up (WINDUP_MS); at
+// RELEASE_MS a ranged move flies to the Legendary (the type's Gen III projectile, or a ball of its colour), while for a
+// contact move the partner itself dashes in (Partner); it lands at LAND_MS, then the type's hit strip plays on the
+// Legendary until the attack is over (ATTACK_MS, more than a second in all). With reduced motion only the hit shows.
+function PartnerAttack({ type, contact, from, to, tile, reduced }: { type: string, contact: boolean, from: Point, to: Point, tile: number, reduced: boolean }) {
   const hit = hitSheet(type) as Strip
   const shot = shotSheet(type) as Strip | null
   const [time] = useState(() => new Animated.Value(reduced ? LAND_MS : 0))
@@ -501,14 +634,15 @@ function PartnerAttack({ type, from, to, tile, reduced }: { type: string, from: 
   const landed = Math.max(0, frame - Math.ceil(LAND_MS / 90))
   return <>
     <Animated.View pointerEvents="none" style={{ position: 'absolute', left: from.x - tile * 0.7, top: from.y + tile * 0.25, width: tile * 1.4, height: tile * 0.7, borderRadius: tile,
-      borderWidth: 3, borderColor: color, opacity: at([0, 120, LAND_MS, ATTACK_MS], [0, 1, 0.7, 0]), transform: [{ scale: at([0, LAND_MS], [0.5, 1.2]) }] }} />
-    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: -size / 2, top: -size / 2, width: size, height: size, opacity: at([0, 60, LAND_MS - 1, LAND_MS], [0, 1, 1, 0]),
-      transform: [{ translateX: at([0, LAND_MS], [from.x, to.x]) }, { translateY: at([0, LAND_MS], [from.y, to.y]) }] }}>
+      borderWidth: 3, borderColor: color, opacity: at([WINDUP_MS - 1, WINDUP_MS, RELEASE_MS, LAND_MS], [0, 1, 1, 0]), transform: [{ scale: at([WINDUP_MS, RELEASE_MS], [0.4, 1.3]) }] }} />
+    {!contact && <Animated.View pointerEvents="none" style={{ position: 'absolute', left: -size / 2, top: -size / 2, width: size, height: size,
+      opacity: at([RELEASE_MS - 1, RELEASE_MS, LAND_MS - 1, LAND_MS], [0, 1, 1, 0]),
+      transform: [{ translateX: at([RELEASE_MS, LAND_MS], [from.x, to.x]) }, { translateY: at([RELEASE_MS, LAND_MS], [from.y, to.y]) }] }}>
       {shot ? <View style={{ width: size, height: size * shot.height / shot.width, overflow: 'hidden' }}>
         <Image source={shot.source} fadeDuration={0} resizeMode="stretch" accessible={false}
           style={{ position: 'absolute', top: 0, left: -(frame % shot.frames) * size, width: size * shot.frames, height: size * shot.height / shot.width, ...pixelated }} />
       </View> : <View style={{ width: size * 0.6, height: size * 0.6, margin: size * 0.2, borderRadius: size, backgroundColor: color, borderWidth: 2, borderColor: '#FFFFFF' }} />}
-    </Animated.View>
+    </Animated.View>}
     <Animated.View pointerEvents="none" style={{ position: 'absolute', left: to.x - burst / 2, top: to.y - burstHeight / 2, width: burst, height: burstHeight, overflow: 'hidden',
       opacity: at([LAND_MS - 1, LAND_MS, ATTACK_MS - 150, ATTACK_MS], [0, 1, 1, 0]) }}>
       <Image source={hit.source} fadeDuration={0} resizeMode="stretch" accessible={false}

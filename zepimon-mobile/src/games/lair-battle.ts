@@ -2,7 +2,9 @@ import { LAIRS, lairOf } from './lairs.ts'
 import type { LairId } from './lairs.ts'
 import { MOVES } from './battle.ts'
 import { signatureMove } from './legendary-moves.ts'
-import { battleType, eggMovesOf } from './roster.ts'
+import { battleType, eggMovesOf, familyOf } from './roster.ts'
+import { pokemonHeights } from '../generated/heights.js'
+import { STEP_MS } from './safari-view.ts'
 import { STEPS, isWalkable, pointKey, tileAt } from './safari-zone.ts'
 import type { Direction, Point, SafariMap } from './safari-zone.ts'
 
@@ -39,8 +41,14 @@ export const FIRST_ATTACK_MS = 2000
 export const CAPTURE = { fly: 500, bounce: 450, beam: 750, drop: 350, swing: 700, swings: 3, star: 700 } as const
 export const CAPTURE_MS = CAPTURE.fly + CAPTURE.bounce + CAPTURE.beam + CAPTURE.drop + CAPTURE.swing * CAPTURE.swings + CAPTURE.star
 // A partner's attack: it stays out in front this long (at least a second), and the move lands this far in.
+// The partner's attack, as it plays out (src/games/LairBattle.tsx): it sprints to its spot (at most WINDUP_MS), winds
+// up, lets go at RELEASE_MS (a ranged move flies, a contact move dashes in) and the move lands at LAND_MS.
 export const ATTACK_MS = 1200
-export const LAND_MS = 450
+export const WINDUP_MS = 250
+export const RELEASE_MS = 380
+export const LAND_MS = 600
+// The partner sprints, rather than walks, this fast when it runs out to attack or back to the trainer.
+export const RUN_MS_PER_TILE = 70
 // After any move, every move waits until the partner is back, so two never overlap.
 export const MOVE_GAP_MS = ATTACK_MS
 // The Legendary takes a step this often while it prowls, and holds still while it charges and strikes.
@@ -87,21 +95,37 @@ export const LAYOUTS = Object.fromEntries((Object.keys(LAIRS) as LairId[]).map(l
 export const lairFor = (name: string): LairLayout => LAYOUTS[lairOf(name)]
 
 // Each Legendary's height in metres, from the Pokedex.
-const HEIGHTS: Record<string, number> = {
-  Articuno: 1.7, Zapdos: 1.6, Moltres: 2, Mewtwo: 2, Mew: 0.4, Raikou: 1.9, Entei: 2.1, Suicune: 2, Lugia: 5.2, 'Ho-Oh': 3.8,
-  Celebi: 0.6, Regirock: 1.7, Regice: 1.8, Registeel: 1.9, Latias: 1.4, Latios: 2, Kyogre: 4.5, Groudon: 3.5, Rayquaza: 7,
-  Jirachi: 0.3, Deoxys: 1.7, Uxie: 0.3, Mesprit: 0.3, Azelf: 0.3, Dialga: 5.4, Palkia: 4.2, Heatran: 1.7, Regigigas: 3.7,
-  Giratina: 4.5, Cresselia: 1.5, Phione: 0.4, Manaphy: 0.3, Darkrai: 1.5, Shaymin: 0.2, Arceus: 3.2, Zygarde: 5, Diancie: 0.7,
-  Magearna: 1, Zeraora: 1.5
-}
+const heights = pokemonHeights as Record<string, number>
 // The trainer stands about 1.3 tiles tall and 1.5 m, so a metre is close to 0.9 of a tile.
 const TILES_PER_METRE = 0.9
 const TALLEST = 6
-export const legendaryHeight = (name: string) => HEIGHTS[name] ?? 1.7
+// A Pokemon's Pokédex height in metres (src/generated/heights.js). A form the table lacks (a Mega, a Gigantamax) takes
+// its species' height, found through its family; anything else is taken as 1 m.
+export function pokemonHeight(name: string): number {
+  const own = name.replace(/^Shiny /, '')
+  if (heights[own]) return heights[own]
+  const base = familyOf(own).find(member => own.includes(member) && heights[member])
+  return base ? heights[base] : 1
+}
+export const legendaryHeight = pokemonHeight
 // How many tiles tall the Legendary stands, true to its height beside the trainer: Rayquaza (7 m) towers at six tiles,
 // Lugia at close to five, Mewtwo is a head taller than you. The smallest (Shaymin, 0.2 m) are drawn no smaller than
 // 0.8 of a tile so they can be seen, and none is taller than TALLEST so the lair stays in view.
-export const legendarySize = (name: string): number => Math.min(TALLEST, Math.max(0.8, legendaryHeight(name) * TILES_PER_METRE))
+export const legendarySize = (name: string): number => Math.min(TALLEST, Math.max(0.8, pokemonHeight(name) * TILES_PER_METRE))
+// Your partner, true to its height too, but never under 1.2 tiles so it can be seen in a fight, and always smaller than
+// the boss of the lair: at most 80% of its size, or 3.5 tiles, whichever is less. So Charizard (1.7 m) stands at 1.5
+// tiles beside you, Pikachu at 1.2, and an Onix or a Wailord at most 3.5, still under a towering Rayquaza.
+export const buddySize = (name: string, foe: string): number =>
+  Math.min(Math.max(1.2, pokemonHeight(name) * TILES_PER_METRE), 3.5, legendarySize(foe) * 0.8)
+// How long the partner takes to get from one tile to the next spot: a walking step to keep up with you, or a sprint
+// when it runs out to attack or back again (never longer than its windup).
+export const buddyTravelMs = (from: Point, to: Point) => {
+  const tiles = Math.abs(from.x - to.x) + Math.abs(from.y - to.y)
+  return tiles <= 1 ? STEP_MS : Math.min(WINDUP_MS, tiles * RUN_MS_PER_TILE)
+}
+// Moves that hit by touching: the partner dashes in and strikes up close, then hops back. Everything else is fired.
+export const isContact = (move: string) =>
+  /Punch|Kick|Claw|Bite|Fang|Swipe|Tackle|Slam|Headbutt|Chop|Fake Out|Quick Attack|Slash|Scratch|Crunch|Tail|Horn|Peck|Jab|Smash|Wing Attack|Return|Rush|Dig|Bash|Spin|Fist|Strike|Lick|Bug Bite|Megahorn|Drill|Body|Rollout|Pound|Thrash|Outrage/.test(move)
 
 // A move's damage range and how long it takes before it can be used again.
 export type Move = { name: string, type: string, min: number, max: number, cooldown: number }
@@ -130,12 +154,13 @@ export type Feedback = 'warn' | 'hit' | 'dodge' | 'move' | 'ball' | 'recover' | 
 export type Phase = 'watch' | 'fight' | 'down' | 'throw' | 'caught'
 // readyAt: when each move can next be used. strike: the partner's attack: it stands at `at` from `since` to `until`,
 // facing the Legendary, and the move lands (its damage counts) at landsAt; the id changes each time, for the screen.
-// behind: the tile the trainer last left, where the partner runs back to. foeAt: where the Legendary stands; foeFacing:
-// the way it last stepped. ball: the capture in flight, thrown from where the trainer stood.
+// behind: the tile the trainer last left, where the partner runs back to. buddyFrom and buddyMovedAt: where and when
+// the partner set off for where it is now, so the screen can play the walk or sprint. foeAt: where the Legendary stands;
+// foeFacing: the way it last stepped; foeMovedAt: when. ball: the capture in flight, thrown from where the trainer stood.
 export type Strike = { move: Move, damage: number, id: number, at: Point, since: number, landsAt: number, until: number, landed: boolean }
 export type LairBattle = {
-  layout: LairLayout, at: Point, facing: Direction, buddy: Point, buddyFacing: Direction, behind: Point,
-  foeAt: Point, foeFacing: Direction, nextRoamAt: number,
+  layout: LairLayout, at: Point, facing: Direction, buddy: Point, buddyFacing: Direction, behind: Point, buddyFrom: Point, buddyMovedAt: number,
+  foeAt: Point, foeFacing: Direction, foeMovedAt: number, nextRoamAt: number,
   foe: { name: string, shiny: boolean, hp: number }, partner: string, moves: Move[], readyAt: number[],
   phase: Phase, hearts: number, maxHearts: number, staggerUntil: number, recoverUntil: number,
   danger: Danger | null, nextAttackAt: number, strike: Strike | null,
@@ -158,7 +183,7 @@ export function startBattle(foe: { name: string, shiny: boolean }, partner: stri
   const inward = BACK[layout.out]
   const moves = partnerMoves(partner)
   return { layout, at: layout.start, facing: inward, buddy: layout.start, buddyFacing: inward, behind: layout.start,
-    foeAt: layout.legendary, foeFacing: layout.out, nextRoamAt: now + FIRST_ATTACK_MS, foe: { ...foe, hp: FOE_HP }, partner, moves,
+    buddyFrom: layout.start, buddyMovedAt: 0, foeAt: layout.legendary, foeFacing: layout.out, foeMovedAt: 0, nextRoamAt: now + FIRST_ATTACK_MS, foe: { ...foe, hp: FOE_HP }, partner, moves,
     readyAt: moves.map(() => 0), phase: engaged ? 'fight' : 'watch', hearts, maxHearts: hearts, staggerUntil: 0, recoverUntil: 0,
     danger: null, nextAttackAt: now + FIRST_ATTACK_MS, strike: null, ball: null, paused: false, pausedAt: 0, feedback: null,
     message: engaged ? `${foe.name} is ready for you. Pick a move to wear it down.`
@@ -192,7 +217,7 @@ export function battleWalk(battle: LairBattle, direction: Direction, now: number
   }
   // The partner follows a step behind, unless it is out in front attacking: then it holds its ground until it is done.
   const held = partnerOut(battle)
-  return { battle: { ...turned, at: next, behind: battle.at, ...(!held && { buddy: battle.at, buddyFacing: direction }) }, move: 'step' }
+  return { battle: { ...turned, at: next, behind: battle.at, ...(!held && { buddy: battle.at, buddyFacing: direction, buddyFrom: battle.buddy, buddyMovedAt: now }) }, move: 'step' }
 }
 
 // When the move can next be used, or 0 if it is ready.
@@ -218,7 +243,7 @@ export function strikeWith(battle: LairBattle, index: number, now: number, rando
   const damage = move.min + Math.floor(random() * (move.max - move.min + 1))
   const began = battle.phase === 'watch'
   const at = attackSpot(battle)
-  const next: LairBattle = { ...battle, phase: 'fight', buddy: at, buddyFacing: facingToward(at, battle.foeAt),
+  const next: LairBattle = { ...battle, phase: 'fight', buddy: at, buddyFacing: facingToward(at, battle.foeAt), buddyFrom: battle.buddy, buddyMovedAt: now,
     readyAt: battle.readyAt.map((ready, i) => i === index ? now + Math.max(move.cooldown, MOVE_GAP_MS) : Math.max(ready, now + MOVE_GAP_MS)),
     strike: { move, damage, id: (battle.strike?.id ?? 0) + 1, at, since: now, landsAt: now + LAND_MS, until: now + ATTACK_MS, landed: false },
     ...(began && { nextAttackAt: now + FIRST_ATTACK_MS, nextRoamAt: now + ROAM_MS }) }
@@ -228,7 +253,7 @@ export function strikeWith(battle: LairBattle, index: number, now: number, rando
 // The Legendary's next step as the boss of its lair. From its perch it comes down onto the nearest open ground; from
 // there it steps to a neighbouring open tile, most often the one that closes on the trainer. It never steps onto the
 // trainer or the partner, nor within KEEP_AWAY of the trainer; with no such step it holds still.
-function roam(battle: LairBattle, random: () => number): LairBattle {
+function roam(battle: LairBattle, now: number, random: () => number): LairBattle {
   const { layout, foeAt, at } = battle
   const free = (point: Point) => !same(point, at) && !same(point, battle.buddy) && apart(point, at) >= KEEP_AWAY
   const onGround = layout.ground.some(point => same(point, foeAt))
@@ -239,7 +264,7 @@ function roam(battle: LairBattle, random: () => number): LairBattle {
   if (!options.length) return battle
   const closing = [...options].sort((a, b) => apart(a, at) - apart(b, at) || a.y - b.y || a.x - b.x)[0]
   const to = random() < 0.9 ? closing : options[Math.min(options.length - 1, Math.floor(random() * options.length))]
-  return { ...battle, foeAt: to, foeFacing: facingToward(foeAt, to) }
+  return { ...battle, foeAt: to, foeFacing: facingToward(foeAt, to), foeMovedAt: now }
 }
 
 // The way from one tile toward another, along the longer axis.
@@ -317,7 +342,7 @@ export function battleTick(battle: LairBattle, now: number, random: () => number
   }
   if (next.strike && next.strike.until > 0 && now >= next.strike.until) {
     const back = same(next.behind, next.at) ? next.buddy : next.behind
-    next = { ...next, strike: { ...next.strike, until: 0 }, buddy: back, buddyFacing: facingToward(back, next.at) }
+    next = { ...next, strike: { ...next.strike, until: 0 }, buddy: back, buddyFacing: facingToward(back, next.at), buddyFrom: next.buddy, buddyMovedAt: now }
   }
   if (next.recoverUntil && now >= next.recoverUntil) {
     next = say({ ...next, hearts: next.maxHearts, recoverUntil: 0, nextAttackAt: now + GAP_MS }, `You caught your breath. ${prompt(next)}`, 'recover')
@@ -337,7 +362,7 @@ export function battleTick(battle: LairBattle, now: number, random: () => number
     next = { ...next, danger: null, nextAttackAt: now + (enraged ? ENRAGED_GAP_MS : GAP_MS) + Math.floor(random() * (enraged ? ENRAGED_SPREAD_MS : GAP_SPREAD_MS)) }
   }
   // The boss prowls between its attacks: it holds still while one is charging or landing.
-  if (next.phase === 'fight' && !next.danger && now >= next.nextRoamAt) next = { ...roam(next, random), nextRoamAt: now + ROAM_MS }
+  if (next.phase === 'fight' && !next.danger && now >= next.nextRoamAt) next = { ...roam(next, now, random), nextRoamAt: now + ROAM_MS }
   // The Legendary only watches until the battle begins, holds back while you recover, and stops once it is weakened.
   if (!next.danger && next.phase === 'fight' && !next.recoverUntil && now >= next.nextAttackAt) {
     next = say({ ...next, danger: aim(next, now, random) }, `${next.foe.name} is charging ${signatureMove(next.foe.name)}: step off the marked tiles ⚠!`, 'warn')

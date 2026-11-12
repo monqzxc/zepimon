@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 import { legendarySpecies } from '../src/generated/expedition.js'
 import { LAIRS } from '../src/games/lairs.ts'
 import { STEPS, isWalkable, pointKey, tileAt } from '../src/games/safari-zone.ts'
+import { RELEASE_MS, RUN_MS_PER_TILE, WINDUP_MS, buddySize, buddyTravelMs, isContact, pokemonHeight } from '../src/games/lair-battle.ts'
+import { STEP_MS } from '../src/games/safari-view.ts'
+import { species } from '../src/generated/catalog.js'
 import { ATTACK_MS, CAPTURE, CAPTURE_MS, ESCAPE, FIRST_ATTACK_MS, FOE_HP, KEEP_AWAY, LAIR_SCALE, RECOVER_HP, LAND_MS, LAYOUTS, MOVE_GAP_MS, RECOVER_MS, ROAM_MS, STAGGER_MS, STRIKE_MS, WARN_MS,
   attackSpot, battleOver, battleTick, battleWalk, facingToward, partnerOut, lairFor, legendaryHeight, legendarySize, maxHearts, moveWait, partnerMoves, pauseBattle, resumeBattle, startBattle, strikeWith,
   throwBall, weakened } from '../src/games/lair-battle.ts'
@@ -365,4 +368,61 @@ test('enraged at half HP it strikes sooner, and running out of hearts gives it H
   assert.match(out.message, new RegExp(`recovers ${RECOVER_HP} HP`))
   const full = battleTick({ ...battle, foe: { ...battle.foe, hp: FOE_HP - 5 } }, battle.danger.warnUntil, LOW)
   assert.equal(full.foe.hp, FOE_HP, 'Never past full')
+})
+
+test('every species has its Pokédex height, and forms take their species\' height', () => {
+  for (const name of Object.keys(species)) assert.ok(pokemonHeight(name) > 0 && pokemonHeight(name) < 30, name)
+  assert.deepEqual(['Pikachu', 'Charizard', 'Onix', 'Wailord', 'Giratina', 'Rayquaza', 'Joltik'].map(pokemonHeight), [0.4, 1.7, 8.8, 14.5, 4.5, 7, 0.1])
+  assert.equal(pokemonHeight('Shiny Charizard'), 1.7)
+  assert.equal(pokemonHeight('Mega Charizard X'), 1.7, 'A Mega takes its species\' height')
+  assert.equal(pokemonHeight('Egg'), 1)
+})
+
+test('your partner is true to size, at least 1.2 tiles, and always smaller than the boss', () => {
+  const partners = ['Pikachu', 'Charizard', 'Onix', 'Wailord', 'Joltik', 'Snorlax', 'Gyarados', 'Egg', 'Mega Charizard X']
+  for (const foe of legendarySpecies) for (const name of partners) {
+    const size = buddySize(name, foe)
+    assert.ok(size < legendarySize(foe), `${name} beside ${foe}`)
+    assert.ok(size <= 3.5)
+    if (legendarySize(foe) * 0.8 >= 1.2) assert.ok(size >= 1.2, `${name} beside ${foe} can be seen`)
+  }
+  assert.equal(buddySize('Pikachu', 'Giratina'), 1.2, 'Small ones are drawn a little bigger than their height')
+  assert.equal(buddySize('Charizard', 'Giratina'), 1.7 * 0.9, 'True to size')
+  assert.equal(buddySize('Onix', 'Rayquaza'), 3.5, 'Huge ones are capped')
+  assert.ok(buddySize('Charizard', 'Giratina') > buddySize('Pikachu', 'Giratina'))
+})
+
+test('the partner walks a step behind you, sprints out to attack and sprints back', () => {
+  assert.equal(buddyTravelMs({ x: 0, y: 0 }, { x: 1, y: 0 }), STEP_MS, 'A walking step keeps pace with you')
+  assert.equal(buddyTravelMs({ x: 0, y: 0 }, { x: 2, y: 1 }), Math.min(WINDUP_MS, 3 * RUN_MS_PER_TILE), 'Farther is a sprint')
+  assert.ok(buddyTravelMs({ x: 0, y: 0 }, { x: 9, y: 9 }) <= WINDUP_MS, 'Always there before it winds up')
+  assert.ok(WINDUP_MS < RELEASE_MS && RELEASE_MS < LAND_MS && LAND_MS < ATTACK_MS)
+  let battle = { ...begin(), nextRoamAt: Infinity, nextAttackAt: Infinity }
+  const inward = BACK[battle.layout.out]
+  const walked = battleWalk(battle, inward, T0 + 10)
+  if (walked.move === 'step') {
+    assert.deepEqual([walked.battle.buddyFrom, walked.battle.buddy, walked.battle.buddyMovedAt], [battle.buddy, battle.at, T0 + 10])
+    battle = walked.battle
+  }
+  const out = strikeWith(battle, 0, T0 + 500, HIGH).battle
+  assert.deepEqual([out.buddyFrom, out.buddy, out.buddyMovedAt], [battle.buddy, out.strike.at, T0 + 500], 'It sets off for its spot')
+  const back = battleTick({ ...out, nextRoamAt: Infinity, nextAttackAt: Infinity }, T0 + 500 + ATTACK_MS, HIGH)
+  assert.deepEqual([back.buddyFrom, back.buddyMovedAt], [out.strike.at, T0 + 500 + ATTACK_MS], 'And sets off back')
+})
+
+test('contact moves are struck up close, the rest are fired', () => {
+  for (const move of ['False Swipe', 'Fake Out', 'Thunder Punch', 'Bite', 'Crunch', 'Metal Claw', 'Karate Chop', 'Headbutt', 'Quick Attack', 'Iron Tail', 'Bug Bite'])
+    assert.equal(isContact(move), true, move)
+  for (const move of ['Thunder Shock', 'Ember', 'Water Gun', 'Razor Leaf', 'Confusion', 'Shadow Ball', 'Hyper Beam', 'Psychic', 'Ice Beam', 'Sludge'])
+    assert.equal(isContact(move), false, move)
+})
+
+test('the boss strides between tiles, and its strides are timed', () => {
+  let battle = { ...strikeWith(begin('Kyogre'), 0, T0, LOW).battle, nextAttackAt: Infinity }
+  const start = battle.foeAt
+  for (let now = T0 + 100; now < T0 + 5000 && pointKey(battle.foeAt) === pointKey(start); now += 100) {
+    battle = battleTick(battle, now, LOW)
+    if (pointKey(battle.foeAt) !== pointKey(start)) assert.equal(battle.foeMovedAt, now)
+  }
+  assert.notEqual(pointKey(battle.foeAt), pointKey(start), 'It moved')
 })
