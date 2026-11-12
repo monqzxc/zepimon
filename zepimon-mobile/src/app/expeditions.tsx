@@ -179,7 +179,7 @@ export default function ExpeditionsScreen() {
   }
 
   // The trial fills the screen without scrolling, so the map and the D-pad are on screen together, as in the Safari Zone.
-  return <Screen key={step.kind} fill={playing} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
+  return <Screen key={step.kind} fill={playing || step.kind === 'release'} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
     {content ?? <>
       <View accessibilityRole="tablist" style={look.tabs}>{TABS.map(([id, label]) =>
         <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} onPress={() => { setTab(id); setMessage('') }}

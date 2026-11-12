@@ -439,9 +439,12 @@ progress (`engaged` on the waiting encounter) in `src/expedition-encounter.ts`, 
 
 #### Release for permits
 
-On the **Shrines** tab, **Release for permits** sends Legendaries you've caught back to the wild, **one Expedition
-Permit each**. Tick the ones to release; **Select all** ticks the Normal ones only, so a Shiny is never released
-without being picked by hand, and the button asks once more before anything leaves. A released Legendary leaves your
+On the **Shrines** tab, **Release for permits** opens the **Expedition Permit Exchange**, which sends Legendaries you've
+caught back to the wild, **one Expedition Permit each**. Every caught Legendary is a card in a two-column grid (a
+Shiny's is framed in gold with a sparkle); tap cards to tick them. **Select all** ticks the Normal ones only, so a
+Shiny is never released without being picked by hand, and **Clear** unticks everything. A panel pinned to the bottom
+counts what you picked and the permits you hold; **Proceed** turns it into a summary that names exactly what leaves,
+and only **Confirm release** releases. A released Legendary leaves your
 Dex with its shrine, its rematch wins and, when none of its family is left, its Legendary egg; a buddy that was
 released walks on alone. It can then be met again on a later expedition. Trails, claims, distance and any waiting
 encounter stay exactly as they are. It cannot be undone, so make a backup first if you're unsure. The rules are in
