@@ -16,13 +16,17 @@ import type { Direction, Point, SafariMap } from './safari-zone.ts'
 // caught is final.
 //
 // Your partner's moves wear the Legendary down to 0 HP. Then it is weakened: it stops attacking and stays down, and only
-// then can a Poke Ball be thrown, which always holds. While you fight, the Legendary answers with telegraphed attacks: a
+// then can a Poke Ball be thrown, which always holds. A move sends your partner out in front, toward the Legendary:
+// it holds its ground there for the whole attack (ATTACK_MS, the move landing at LAND_MS) while you are free to walk,
+// then runs back to your heels. Once the battle begins the Legendary is the boss of its lair: it leaves its perch and
+// prowls the open ground a tile at a time (ROAM_MS), closing on you but never nearer than two tiles, and you cannot
+// walk through it. While you fight, it answers with its signature move (src/games/legendary-moves.ts), telegraphed: a
 // ring around you or a line through you, marked for WARN_MS before they land, hitting only the marked tiles. A hit
 // costs a heart and a short stagger; at none, the Legendary holds back while you recover in full. You never faint.
 // Times are passed in (ms), so the rules run on a test clock as well as the screen's.
 export const FOE_HP = 100
 export const WARN_MS = 1800
-export const STRIKE_MS = 500
+export const STRIKE_MS = 700
 export const STAGGER_MS = 700
 export const RECOVER_MS = 3500
 export const FIRST_ATTACK_MS = 2500
@@ -30,8 +34,15 @@ export const FIRST_ATTACK_MS = 2500
 // and opens, a red beam draws the Legendary inside, the ball drops, swings three times, then a star pops.
 export const CAPTURE = { fly: 500, bounce: 450, beam: 750, drop: 350, swing: 700, swings: 3, star: 700 } as const
 export const CAPTURE_MS = CAPTURE.fly + CAPTURE.bounce + CAPTURE.beam + CAPTURE.drop + CAPTURE.swing * CAPTURE.swings + CAPTURE.star
-// After any move, every move waits this long, so two can't land at once.
-export const MOVE_GAP_MS = 700
+// A partner's attack: it stays out in front this long (at least a second), and the move lands this far in.
+export const ATTACK_MS = 1200
+export const LAND_MS = 450
+// After any move, every move waits until the partner is back, so two never overlap.
+export const MOVE_GAP_MS = ATTACK_MS
+// The Legendary takes a step this often while it prowls, and holds still while it charges and strikes.
+export const ROAM_MS = 900
+// It never comes nearer to the trainer than this many tiles, so it cannot pen you in.
+export const KEEP_AWAY = 2
 const GAP_MS = 2600
 const GAP_SPREAD_MS = 1400
 const BACK: Record<Direction, Direction> = { north: 'south', south: 'north', west: 'east', east: 'west' }
@@ -97,13 +108,17 @@ export function maxHearts(weekKm: number): number {
 export type Danger = { kind: 'ring' | 'line', tiles: string[], warnUntil: number, strikeUntil: number, struck: boolean }
 export type Feedback = 'warn' | 'hit' | 'dodge' | 'move' | 'ball' | 'recover' | null
 export type Phase = 'watch' | 'fight' | 'down' | 'throw' | 'caught'
-// readyAt: when each move can next be used. strike: the partner's last move, for the screen to draw (id changes each time).
-// ball: the capture in flight, thrown from where the trainer stood.
+// readyAt: when each move can next be used. strike: the partner's attack: it stands at `at` from `since` to `until`,
+// facing the Legendary, and the move lands (its damage counts) at landsAt; the id changes each time, for the screen.
+// behind: the tile the trainer last left, where the partner runs back to. foeAt: where the Legendary stands; foeFacing:
+// the way it last stepped. ball: the capture in flight, thrown from where the trainer stood.
+export type Strike = { move: Move, damage: number, id: number, at: Point, since: number, landsAt: number, until: number, landed: boolean }
 export type LairBattle = {
-  layout: LairLayout, at: Point, facing: Direction, buddy: Point, buddyFacing: Direction,
+  layout: LairLayout, at: Point, facing: Direction, buddy: Point, buddyFacing: Direction, behind: Point,
+  foeAt: Point, foeFacing: Direction, nextRoamAt: number,
   foe: { name: string, shiny: boolean, hp: number }, partner: string, moves: Move[], readyAt: number[],
   phase: Phase, hearts: number, maxHearts: number, staggerUntil: number, recoverUntil: number,
-  danger: Danger | null, nextAttackAt: number, strike: { move: Move, damage: number, id: number } | null,
+  danger: Danger | null, nextAttackAt: number, strike: Strike | null,
   ball: { from: Point, since: number, until: number } | null,
   paused: boolean, pausedAt: number, message: string, feedback: Feedback
 }
@@ -122,7 +137,8 @@ export function startBattle(foe: { name: string, shiny: boolean }, partner: stri
   const layout = lairFor(foe.name)
   const inward = BACK[layout.out]
   const moves = partnerMoves(partner)
-  return { layout, at: layout.start, facing: inward, buddy: layout.start, buddyFacing: inward, foe: { ...foe, hp: FOE_HP }, partner, moves,
+  return { layout, at: layout.start, facing: inward, buddy: layout.start, buddyFacing: inward, behind: layout.start,
+    foeAt: layout.legendary, foeFacing: layout.out, nextRoamAt: now + FIRST_ATTACK_MS, foe: { ...foe, hp: FOE_HP }, partner, moves,
     readyAt: moves.map(() => 0), phase: engaged ? 'fight' : 'watch', hearts, maxHearts: hearts, staggerUntil: 0, recoverUntil: 0,
     danger: null, nextAttackAt: now + FIRST_ATTACK_MS, strike: null, ball: null, paused: false, pausedAt: 0, feedback: null,
     message: engaged ? `${foe.name} is ready for you. Pick a move to wear it down.`
@@ -149,30 +165,61 @@ export function battleWalk(battle: LairBattle, direction: Direction, now: number
   if (now < battle.staggerUntil || now < battle.recoverUntil) return { battle, move: 'none' }
   const turned = { ...battle, facing: direction }
   const next = { x: battle.at.x + STEPS[direction].x, y: battle.at.y + STEPS[direction].y }
-  if (!isWalkable(tileAt(next, layout.map))) {
-    const why = same(next, layout.legendary) ? `${battle.foe.name} stands its ground.`
+  if (!isWalkable(tileAt(next, layout.map)) || same(next, battle.foeAt)) {
+    const why = same(next, battle.foeAt) ? `${battle.foe.name} stands its ground.`
       : same(next, layout.entrance) ? 'The portal sealed behind you. It only goes one way: into the lair.' : 'Something is in the way.'
     return { battle: say(turned, why), move: 'bump' }
   }
-  return { battle: { ...turned, at: next, buddy: battle.at, buddyFacing: direction }, move: 'step' }
+  // The partner follows a step behind, unless it is out in front attacking: then it holds its ground until it is done.
+  const held = partnerOut(battle)
+  return { battle: { ...turned, at: next, behind: battle.at, ...(!held && { buddy: battle.at, buddyFacing: direction }) }, move: 'step' }
 }
 
 // When the move can next be used, or 0 if it is ready.
 export const moveWait = (battle: LairBattle, index: number, now: number) => Math.max(0, (battle.readyAt[index] ?? 0) - now)
 
-// Your partner uses a move. The first one begins the battle; the one that takes the last HP leaves the Legendary
-// weakened, which drops any attack it was charging.
+// The partner is out in front, in the middle of an attack.
+export const partnerOut = (battle: LairBattle) => !!battle.strike && battle.strike.until > 0
+const apart = (a: Point, b: Point) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
+
+// Where the partner attacks from: the open tile within two steps of the trainer that is nearest the Legendary (ties go
+// to the upper-left, so it never varies), never the trainer's own tile or the Legendary's. With nowhere to go, it stays put.
+export function attackSpot(battle: LairBattle): Point {
+  const spot = battle.layout.ground.filter(point => apart(point, battle.at) <= 2 && !same(point, battle.at) && !same(point, battle.foeAt))
+    .sort((a, b) => apart(a, battle.foeAt) - apart(b, battle.foeAt) || a.y - b.y || a.x - b.x)[0]
+  return spot ?? battle.buddy
+}
+
+// Your partner uses a move: it runs out in front and attacks from there. The first one begins the battle. The damage
+// counts when the move lands (battleTick), and the one that takes the last HP leaves the Legendary weakened.
 export function strikeWith(battle: LairBattle, index: number, now: number, random: () => number): BattleResult {
   const move = battle.moves[index]
-  if (!move || !fighting(battle) || now < battle.recoverUntil || moveWait(battle, index, now) > 0) return { battle, began: false }
+  if (!move || !fighting(battle) || partnerOut(battle) || now < battle.recoverUntil || moveWait(battle, index, now) > 0) return { battle, began: false }
   const damage = move.min + Math.floor(random() * (move.max - move.min + 1))
   const began = battle.phase === 'watch'
-  const hp = Math.max(0, battle.foe.hp - damage)
-  const next: LairBattle = { ...battle, phase: hp ? 'fight' : 'down', foe: { ...battle.foe, hp },
-    readyAt: battle.readyAt.map((at, i) => i === index ? now + move.cooldown : Math.max(at, now + MOVE_GAP_MS)),
-    strike: { move, damage, id: (battle.strike?.id ?? 0) + 1 },
-    ...(!hp && { danger: null }), ...(began && { nextAttackAt: now + FIRST_ATTACK_MS }) }
-  return { battle: say(next, `${battle.partner} used ${move.name}! ${prompt(next)}`, 'move'), began }
+  const at = attackSpot(battle)
+  const next: LairBattle = { ...battle, phase: 'fight', buddy: at, buddyFacing: facingToward(at, battle.foeAt),
+    readyAt: battle.readyAt.map((ready, i) => i === index ? now + Math.max(move.cooldown, MOVE_GAP_MS) : Math.max(ready, now + MOVE_GAP_MS)),
+    strike: { move, damage, id: (battle.strike?.id ?? 0) + 1, at, since: now, landsAt: now + LAND_MS, until: now + ATTACK_MS, landed: false },
+    ...(began && { nextAttackAt: now + FIRST_ATTACK_MS, nextRoamAt: now + ROAM_MS }) }
+  return { battle: say(next, `${battle.partner} used ${move.name}!`, 'move'), began }
+}
+
+// The Legendary's next step as the boss of its lair. From its perch it comes down onto the nearest open ground; from
+// there it steps to a neighbouring open tile, most often the one that closes on the trainer. It never steps onto the
+// trainer or the partner, nor within KEEP_AWAY of the trainer; with no such step it holds still.
+function roam(battle: LairBattle, random: () => number): LairBattle {
+  const { layout, foeAt, at } = battle
+  const free = (point: Point) => !same(point, at) && !same(point, battle.buddy) && apart(point, at) >= KEEP_AWAY
+  const onGround = layout.ground.some(point => same(point, foeAt))
+  const options = onGround
+    ? (Object.keys(STEPS) as Direction[]).map(direction => ({ x: foeAt.x + STEPS[direction].x, y: foeAt.y + STEPS[direction].y }))
+      .filter(point => isWalkable(tileAt(point, layout.map)) && free(point))
+    : layout.ground.filter(free).sort((a, b) => apart(a, foeAt) - apart(b, foeAt) || a.y - b.y || a.x - b.x).slice(0, 1)
+  if (!options.length) return battle
+  const closing = [...options].sort((a, b) => apart(a, at) - apart(b, at) || a.y - b.y || a.x - b.x)[0]
+  const to = random() < 0.65 ? closing : options[Math.min(options.length - 1, Math.floor(random() * options.length))]
+  return { ...battle, foeAt: to, foeFacing: facingToward(foeAt, to) }
 }
 
 // The way from one tile toward another, along the longer axis.
@@ -187,7 +234,7 @@ export function facingToward(from: Point, to: Point): Direction {
 export function throwBall(battle: LairBattle, now: number): LairBattle {
   if (!acting(battle)) return battle
   if (battle.phase !== 'down') return say(battle, `${battle.foe.name} is still too strong for a Poké Ball. Wear its HP down first.`)
-  return say({ ...battle, phase: 'throw', facing: facingToward(battle.at, battle.layout.legendary), danger: null,
+  return say({ ...battle, phase: 'throw', facing: facingToward(battle.at, battle.foeAt), danger: null,
     ball: { from: battle.at, since: now, until: now + CAPTURE_MS } }, 'You threw a Poké Ball!', 'ball')
 }
 
@@ -226,6 +273,17 @@ export function battleTick(battle: LairBattle, now: number, random: () => number
     if (now < next.ball.until) return next
     return say({ ...next, phase: 'caught' }, `Gotcha! ${next.foe.shiny ? 'Shiny ' : ''}${next.foe.name} was caught!`, 'ball')
   }
+  // The partner's move lands, and once the attack is over it runs back to the trainer's heels.
+  const strike = next.strike
+  if (strike && !strike.landed && now >= strike.landsAt) {
+    const hp = Math.max(0, next.foe.hp - strike.damage)
+    next = { ...next, foe: { ...next.foe, hp }, strike: { ...strike, landed: true }, ...(!hp && { phase: 'down' as const, danger: null }) }
+    next = say(next, `${next.partner} used ${strike.move.name}! ${prompt(next)}`, 'move')
+  }
+  if (next.strike && next.strike.until > 0 && now >= next.strike.until) {
+    const back = same(next.behind, next.at) ? next.buddy : next.behind
+    next = { ...next, strike: { ...next.strike, until: 0 }, buddy: back, buddyFacing: facingToward(back, next.at) }
+  }
   if (next.recoverUntil && now >= next.recoverUntil) {
     next = say({ ...next, hearts: next.maxHearts, recoverUntil: 0, nextAttackAt: now + GAP_MS }, `You caught your breath. ${prompt(next)}`, 'recover')
   }
@@ -241,6 +299,8 @@ export function battleTick(battle: LairBattle, now: number, random: () => number
   if (next.danger?.struck && now >= next.danger.strikeUntil) {
     next = { ...next, danger: null, nextAttackAt: now + GAP_MS + Math.floor(random() * GAP_SPREAD_MS) }
   }
+  // The boss prowls between its attacks: it holds still while one is charging or landing.
+  if (next.phase === 'fight' && !next.danger && now >= next.nextRoamAt) next = { ...roam(next, random), nextRoamAt: now + ROAM_MS }
   // The Legendary only watches until the battle begins, holds back while you recover, and stops once it is weakened.
   if (!next.danger && next.phase === 'fight' && !next.recoverUntil && now >= next.nextAttackAt) {
     next = say({ ...next, danger: aim(next, now, random) }, `${next.foe.name} is charging ${signatureMove(next.foe.name)}: step off the marked tiles ⚠!`, 'warn')
@@ -258,5 +318,7 @@ export function resumeBattle(battle: LairBattle, now: number): LairBattle {
   if (!battle.paused) return battle
   const away = Math.max(0, now - battle.pausedAt)
   const later = (time: number) => time ? time + away : 0
-  return { ...battle, paused: false, nextAttackAt: now + FIRST_ATTACK_MS, recoverUntil: later(battle.recoverUntil), readyAt: battle.readyAt.map(later) }
+  const strike = battle.strike && { ...battle.strike, since: battle.strike.since + away, landsAt: battle.strike.landsAt + away, until: later(battle.strike.until) }
+  return { ...battle, paused: false, nextAttackAt: now + FIRST_ATTACK_MS, nextRoamAt: now + ROAM_MS, recoverUntil: later(battle.recoverUntil),
+    readyAt: battle.readyAt.map(later), strike }
 }

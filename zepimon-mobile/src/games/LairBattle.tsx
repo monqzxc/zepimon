@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Animated, Easing, Image, Platform, Pressable, Text, View } from 'react-native'
 import type { ImageSourcePropType } from 'react-native'
 import { typeColors } from '../catalog'
 import { usePreferences } from '../preferences'
-import { Button, Chip, Copy, Panel, PokeballIcon, colors, fonts, retro, styles, themedStyles } from '../ui'
+import { Button, Chip, Copy, IconButton, Panel, PokeballIcon, colors, fonts, retro, styles, themedStyles } from '../ui'
 import { lairArt } from '../generated/lair-art.js'
 import { planWalk } from './safari-zone'
 import type { Direction, Point } from './safari-zone'
-import { fitTile } from './safari-view'
+import { fitTile, tileSizeFor } from './safari-view'
 import { TileWorld } from './TileWorld'
 import type { TileChunks } from './TileWorld'
 import { useStepWalker } from './step-walker'
@@ -19,10 +20,14 @@ import { STRIKE, STRIKE_COLOURS, WARNING, WARNING_COLOURS } from './pixel-sprite
 import { Sparkles } from './SafariEncounter'
 import { ShinyGlow, ShinyStars } from './ShinyAura'
 import { LairAmbience } from './LairAmbience'
-import { hitSheet } from './MoveFx'
+import { hitSheet, shotSheet } from './MoveFx'
+import { PlayOverlay } from './PlayOverlay'
+import { useGameScreen } from './fullscreen'
+import { signatureMove } from './legendary-moves'
+import { battleType } from './roster'
 import type { LairId } from './lairs'
-import { CAPTURE, CAPTURE_MS, FOE_HP, battleOver, battleTick, battleWalk, facingToward, legendaryHeight, legendarySize, maxHearts, moveWait, pauseBattle,
-  resumeBattle, startBattle, strikeWith, throwBall, weakened } from './lair-battle'
+import { ATTACK_MS, CAPTURE, CAPTURE_MS, FOE_HP, LAND_MS, ROAM_MS, STRIKE_MS, battleOver, battleTick, battleWalk, facingToward, legendaryHeight, legendarySize,
+  maxHearts, moveWait, partnerOut, pauseBattle, resumeBattle, startBattle, strikeWith, throwBall, weakened } from './lair-battle'
 import type { LairBattle as Battle, LairLayout } from './lair-battle'
 
 type Strip = { source: ImageSourcePropType, frames: number, width: number, height: number }
@@ -71,6 +76,7 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
   const { safariControls, safariTrainer } = usePreferences()
+  const { full, setFull } = useGameScreen()
   const current = useRef(battle)
   const update = (next: Battle) => { if (next !== current.current) { current.current = next; setBattle(next) } }
   const name = `${foe.shiny ? 'Shiny ' : ''}${foe.name}`
@@ -154,59 +160,142 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
     return () => clearTimeout(timer)
   }, [])
 
-  const tile = fitTile(area.width, area.height, layout.map)
   const chunks: TileChunks = { '0,0': art[layout.lair] }
   const over = battleOver(battle)
   const begun = battle.phase !== 'watch'
   const down = weakened(battle)
   // The beam has drawn it in: the Legendary is inside the ball while it swings, and stays there once caught.
   const inBall = battle.phase === 'caught' || (battle.phase === 'throw' && !!battle.ball && clock >= battle.ball.since + CAPTURE.fly + CAPTURE.bounce + CAPTURE.beam)
-  const size = legendarySize(foe.name) * tile
-  // Where things are in the lair, in pixels: the Legendary's middle, the ground at its feet, and where the ball hangs
-  // open after bouncing off it, back toward wherever the trainer threw from.
-  const body = { x: (layout.legendary.x + 0.5) * tile, y: (layout.legendary.y + 1) * tile - size / 2 }
-  const ground = { x: body.x, y: (layout.legendary.y + 0.5) * tile }
-  const thrower = battle.ball?.from ?? battle.at
-  const reach = Math.hypot(thrower.x - layout.legendary.x, thrower.y - layout.legendary.y) || 1
-  const hover = { x: body.x + (thrower.x - layout.legendary.x) / reach * tile * 1.4, y: body.y + (thrower.y - layout.legendary.y) / reach * tile * 0.6 - tile * 0.9 }
   const resting = clock < battle.recoverUntil
+  const type = battleType(foe.name)
+  const signature = signatureMove(foe.name)
+  const charging = !!battle.danger && clock < battle.danger.warnUntil
+  const tapTile = (to: Point) => {
+    // Tapping the portal walks to the doorway and steps onto it (the reset, before the battle begins).
+    const portal = to.x === layout.entrance.x && to.y === layout.entrance.y
+    const route = planWalk(current.current.at, portal ? layout.start : to, layout.map)
+    if (route) walker.follow(portal ? [...route, layout.out] : route)
+  }
+  // The lair at a size. Windowed, the whole room fits the view and the trainer walks across it; in full screen the
+  // tiles are as big as the Safari Zone's and the camera follows the trainer. `extra` snaps the camera after a rotation.
+  const world = (width: number, height: number, extra: number, zoomed: boolean) => {
+    const tile = zoomed ? tileSizeFor(width, height) : fitTile(width, height, layout.map)
+    const size = legendarySize(foe.name) * tile
+    // Where things are in the lair, in pixels: the Legendary's middle, the ground at its feet, and where the ball
+    // hangs open after bouncing off it, back toward wherever the trainer threw from.
+    const body = { x: (battle.foeAt.x + 0.5) * tile, y: (battle.foeAt.y + 1) * tile - size / 2 }
+    const chest = { x: body.x, y: (battle.foeAt.y + 1) * tile - Math.min(size, tile * 2) / 2 }
+    const ground = { x: body.x, y: (battle.foeAt.y + 0.5) * tile }
+    const thrower = battle.ball?.from ?? battle.at
+    const reach = Math.hypot(thrower.x - battle.foeAt.x, thrower.y - battle.foeAt.y) || 1
+    const hover = { x: body.x + (thrower.x - battle.foeAt.x) / reach * tile * 1.4, y: body.y + (thrower.y - battle.foeAt.y) / reach * tile * 0.6 - tile * 0.9 }
+    const strike = battle.strike
+    return <>
+      <TileWorld map={layout.map} chunks={chunks} at={battle.at} facing={battle.facing} buddyAt={battle.buddy} buddyFacing={battle.buddyFacing}
+        move={move} trainer={safariTrainer} buddy={partner} onGrass={false} width={width} height={height}
+        reduced={reduced} jump={extra} background={layout.background} fit={!zoomed} fitHeight={zoomed} tapToWalk={safariControls === 'tap' && acting}
+        onTapTile={tapTile}
+        cover={<>
+          <SealedPortal layout={layout} tile={tile} reduced={reduced} open={!begun && !practice} />
+          {battle.danger && clock >= battle.danger.warnUntil && <SignatureStrike key={battle.danger.warnUntil} tiles={battle.danger.tiles} tile={tile}
+            sheet={hitSheet(type) as Strip} reduced={reduced} />}
+          {strike && partnerOut(battle) && !battle.ball && <PartnerAttack key={strike.id} type={strike.move.type} tile={tile} reduced={reduced}
+            from={{ x: (strike.at.x + 0.5) * tile, y: (strike.at.y + 0.4) * tile }} to={chest} />}
+          {charging && <Callout at={{ x: body.x, y: (battle.foeAt.y + 1) * tile - size }} tile={tile} color={typeColor[type] ?? '#FFFFFF'}>{signature}!</Callout>}
+          {battle.ball && <Capture key={battle.ball.since} from={{ x: (battle.ball.from.x + 0.5) * tile, y: (battle.ball.from.y + 0.2) * tile }}
+            body={body} hover={hover} ground={ground} tile={tile} reduced={reduced} />}
+        </>}>
+        <Legendary at={battle.foeAt} name={foe.name} shiny={foe.shiny} tile={tile} facing={begun && !down ? battle.foeFacing : facingToward(battle.foeAt, battle.at)}
+          hidden={inBall} struck={strike?.landed ? strike.id : 0} weak={down || battle.phase === 'throw'} drawnTo={battle.ball ? hover : null}
+          charge={charging ? typeColor[type] ?? '#FFFFFF' : null} reduced={reduced} />
+        <Marks battle={battle} tile={tile} clock={clock} reduced={reduced} />
+      </TileWorld>
+      <LairAmbience lair={layout.lair} width={width} height={height} reduced={reduced} />
+    </>
+  }
+  const where = `${layout.label}, ${name}'s lair. You are at row ${battle.at.y + 1}, column ${battle.at.x + 1}. ${battle.danger ? 'Danger is marked on the ground.' : ''}`
+  const message = error || (saving === 'failed' ? '' : saveError) || note || battle.message
+  const togglePause = () => { walker.drop(); update(battle.paused ? resumeBattle(current.current, Date.now()) : pauseBattle(current.current, Date.now())) }
+  const pauseOff = over || battle.phase === 'throw' || rippling || confirm !== 'none'
+  // What is shown across the lair, over everything: the pause, the Shiny questions, and the capture's result.
+  const panel = battle.phase === 'caught' ? <>
+    <Text accessibilityLiveRegion="polite" style={[look.pauseTitle, { color: '#FFE27A' }]}>{practice ? '★ You won the rematch! ★' : '★ Captured! ★'}</Text>
+    {saving === 'saved' ? <>
+      <Copy color="#FFFFFF">{practice ? `${name} returns to your team.` : `${name} was caught, and its data was added to your Dex.`}</Copy>
+      <Button title={practice ? 'Back to Shrine Revisits' : 'Continue'} onPress={onDone} />
+    </> : saving === 'failed' ? <>
+      <Copy color="#FFB4A8">{saveError || (practice ? 'Could not save this win. Try again.' : 'Could not save your catch. Try again.')}</Copy>
+      <Button title="Try saving again" onPress={saveCatch} />
+    </> : <Button title={practice ? 'Saving your win…' : 'Saving your new friend…'} loading onPress={() => {}} />}
+  </> : confirm === 'shiny' ? <>
+    <Text style={[look.pauseTitle, { color: '#FFE27A' }]}>✦ This {foe.name} is Shiny ✦</Text>
+    <Copy color="#FFFFFF">Stepping onto the portal meets it anew, and the next one may not be Shiny.</Copy>
+    <Button title="I understand, reset" secondary onPress={() => setConfirm('shiny-final')} />
+    <Button title="Stay with the Shiny" onPress={() => setConfirm('none')} />
+  </> : confirm === 'shiny-final' ? <>
+    <Text style={look.pauseTitle}>Let the Shiny {foe.name} go?</Text>
+    <Copy color="#FFFFFF">This cannot be undone.</Copy>
+    <Button title="Reset the encounter" loading={busy} onPress={() => ripple(true)} />
+    <Button title="Stay with the Shiny" onPress={() => setConfirm('none')} />
+  </> : battle.paused && !rippling ? <>
+    <Text style={look.pauseTitle}>Paused</Text>
+    <Copy color="#FFFFFF">{name} waits, just as it is.</Copy>
+    <Button title="Resume" onPress={() => update(resumeBattle(current.current, Date.now()))} />
+  </> : null
+  const hearts = `${'♥'.repeat(battle.hearts)}${'♡'.repeat(battle.maxHearts - battle.hearts)}`
+  const moveOff = (index: number) => !acting || down || resting || partnerOut(battle) || moveWait(battle, index, clock) > 0
+
+  // Full screen: the lair fills the screen, in portrait or landscape (PlayOverlay), with the D-pad and the moves over it.
+  if (full && !rippling) {
+    const bar = Math.ceil(battle.foe.hp / FOE_HP * 10)
+    return <PlayOverlay
+      map={(width, height, resized) => <View accessible={safariControls !== 'tap'} accessibilityRole="image" accessibilityLabel={where}
+        style={{ width, height, backgroundColor: layout.background }}>{world(width, height, resized, true)}</View>}
+      hud={`${foe.shiny ? '✦ ' : ''}${foe.name.toUpperCase()} ${legendaryHeight(foe.name)} m · ${battle.foe.hp ? `HP ${'█'.repeat(bar)}${'░'.repeat(10 - bar)}` : 'WEAKENED ★'} · ${hearts}`}
+      status={message} success={battle.feedback === 'dodge' || battle.feedback === 'recover'}
+      dpad={safariControls === 'dpad' ? <DPad overlay reduced={reduced} onPress={press} onRelease={release} disabled={!acting} /> : null}
+      prompt={panel ? <View style={{ alignItems: 'center', gap: 10 }}>{panel}</View> : undefined}
+      // One compact column in the corner: the moves, the Poké Ball, then Pause and Leave side by side.
+      actions={<View accessibilityLabel={`${partner.name}’s moves`} style={look.fullMoves}>
+        {battle.moves.map((item, index) => <Pressable key={item.name} accessibilityRole="button" accessibilityState={{ disabled: moveOff(index) }} disabled={moveOff(index)}
+          accessibilityLabel={`${item.name}, ${item.type} move`} onPress={() => use(index)}
+          style={({ pressed }) => [look.fullMove, { borderLeftColor: typeColor[item.type] ?? '#FFFFFF' }, pressed && { opacity: 1 }, moveOff(index) && { opacity: 0.4 }]}>
+          <Text numberOfLines={1} style={look.fullMoveText}>{item.name}</Text>
+        </Pressable>)}
+        <Pressable accessibilityRole="button" accessibilityLabel={down ? 'Throw a Poké Ball' : `Poké Ball. Weaken ${foe.name} first`} accessibilityState={{ disabled: !acting || !down }}
+          disabled={!acting} onPress={throwIt} style={({ pressed }) => [look.fullMove, look.fullBall, pressed && { opacity: 1 }, (!acting || !down) && { opacity: 0.4 }]}>
+          <PokeballIcon size={16} color="#FFFFFF" />
+          <Text numberOfLines={1} style={look.fullMoveText}>{down ? 'Poké Ball · Throw!' : 'Poké Ball · at 0 HP'}</Text>
+        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: pauseOff }} disabled={pauseOff} onPress={togglePause}
+            style={({ pressed }) => [look.fullMove, look.fullPlain, pressed && { opacity: 1 }, pauseOff && { opacity: 0.4 }]}>
+            <Text numberOfLines={1} style={[look.fullMoveText, { textAlign: 'center' }]}>Pause</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: saving === 'saving' }} disabled={saving === 'saving'} onPress={() => { walker.drop(); onLeave() }}
+            style={({ pressed }) => [look.fullMove, look.fullPlain, pressed && { opacity: 1 }, saving === 'saving' && { opacity: 0.4 }]}>
+            <Text numberOfLines={1} style={[look.fullMoveText, { textAlign: 'center' }]}>Leave</Text>
+          </Pressable>
+        </View>
+      </View>} />
+  }
+
   return <View style={{ flex: 1, gap: 8 }}>
     <View style={look.hud}>
       <Text numberOfLines={1} style={[look.place, foe.shiny && { color: colors.gold }]}>
         {practice ? 'REMATCH · ' : ''}{layout.label.toUpperCase()} · {foe.shiny ? `✦ SHINY ${foe.name.toUpperCase()} ✦` : foe.name.toUpperCase()}</Text>
-      <View style={styles.row}>
-        <Chip label={battle.paused ? 'Resume' : 'Pause'} selected={battle.paused} disabled={over || battle.phase === 'throw' || rippling || confirm !== 'none'}
-          onPress={() => { walker.drop(); update(battle.paused ? resumeBattle(current.current, Date.now()) : pauseBattle(current.current, Date.now())) }} />
+      <View style={[styles.row, { alignItems: 'center' }]}>
+        <Chip label={battle.paused ? 'Resume' : 'Pause'} selected={battle.paused} disabled={pauseOff} onPress={togglePause} />
         <Chip label={help ? 'Hide help' : 'How to play'} selected={help} onPress={() => setHelp(!help)} />
         <Chip label="Leave" selected={false} disabled={rippling || saving === 'saving'} onPress={() => { walker.drop(); onLeave() }} />
+        <View style={{ flex: 1 }} />
+        {!over && <IconButton name="fullscreen" label="Full screen" size={40} onPress={() => setFull(true)} />}
       </View>
     </View>
     <View style={[look.map, { backgroundColor: layout.background }]} onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}
-      accessible={safariControls !== 'tap'} accessibilityRole="image"
-      accessibilityLabel={`${layout.label}, ${name}'s lair. You are at row ${battle.at.y + 1}, column ${battle.at.x + 1}. ${battle.danger ? 'Danger is marked on the ground.' : ''}`}>
-      {area.width > 0 && <View style={{ position: 'absolute', left: 0, top: 0 }}>
-        <TileWorld map={layout.map} chunks={chunks} at={battle.at} facing={battle.facing} buddyAt={battle.buddy} buddyFacing={battle.buddyFacing}
-          move={move} trainer={safariTrainer} buddy={partner} onGrass={false} width={area.width} height={area.height}
-          reduced={reduced} jump={0} background={layout.background} fit tapToWalk={safariControls === 'tap' && acting}
-          onTapTile={(to: Point) => {
-            // Tapping the portal walks to the doorway and steps onto it (the reset, before the battle begins).
-            const portal = to.x === layout.entrance.x && to.y === layout.entrance.y
-            const route = planWalk(current.current.at, portal ? layout.start : to, layout.map)
-            if (route) walker.follow(portal ? [...route, layout.out] : route)
-          }}
-          cover={<>
-            <SealedPortal layout={layout} tile={tile} reduced={reduced} open={!begun && !practice} />
-            {battle.strike && !battle.ball && <HitBurst key={battle.strike.id} sheet={hitSheet(battle.strike.move.type) as Strip} tile={tile}
-              centre={{ x: body.x, y: (layout.legendary.y + 1) * tile - Math.min(size, tile * 2) / 2 }} reduced={reduced} />}
-            {battle.ball && <Capture key={battle.ball.since} from={{ x: (battle.ball.from.x + 0.5) * tile, y: (battle.ball.from.y + 0.2) * tile }}
-              body={body} hover={hover} ground={ground} tile={tile} reduced={reduced} />}
-          </>}>
-          <Legendary at={layout.legendary} name={foe.name} shiny={foe.shiny} tile={tile} facing={facingToward(layout.legendary, battle.at)}
-            hidden={inBall} struck={battle.strike?.id ?? 0} weak={down || battle.phase === 'throw'} drawnTo={battle.ball ? hover : null} reduced={reduced} />
-          <Marks battle={battle} tile={tile} clock={clock} reduced={reduced} />
-        </TileWorld>
-      </View>}
-      <LairAmbience lair={layout.lair} width={area.width} height={area.height} reduced={reduced} />
+      accessible={safariControls !== 'tap'} accessibilityRole="image" accessibilityLabel={where}>
+      {/* Absolutely placed, so a map measured while there was more room never holds the area open later. */}
+      {area.width > 0 && <View style={{ position: 'absolute', left: 0, top: 0, width: area.width, height: area.height }}>{world(area.width, area.height, 0, false)}</View>}
       <View pointerEvents="none" accessible accessibilityLabel={`${name}, ${legendaryHeight(foe.name)} metres tall, ${battle.foe.hp ? `HP ${Math.round(battle.foe.hp)} percent` : 'weakened, no HP left'}`} style={look.status}>
         <Text numberOfLines={1} style={look.statusName}>{foe.name.toUpperCase()}{foe.shiny ? ' ✦' : ''} <Text style={look.statusHeight}>{legendaryHeight(foe.name)} m</Text></Text>
         <View style={look.hpRow}>
@@ -221,41 +310,15 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
           {practice ? `${name} is ready for a rematch.` : engaged ? `${name} is ready for you.` : foe.shiny ? `✦ A Shiny ${foe.name} appeared! ✦` : `A wild ${foe.name} appeared!`}</Text>
       </View>}
       {rippling && <PortalRipple reduced={reduced} name={foe.name} />}
-      {battle.paused && confirm === 'none' && !rippling && <View style={look.pause}>
-        <Text style={look.pauseTitle}>Paused</Text>
-        <Copy color="#FFFFFF">{name} waits, just as it is.</Copy>
-        <Button title="Resume" onPress={() => update(resumeBattle(current.current, Date.now()))} />
-      </View>}
-      {confirm !== 'none' && <View style={look.pause}>
-        {confirm === 'shiny' ? <>
-          <Text style={[look.pauseTitle, { color: '#FFE27A' }]}>✦ This {foe.name} is Shiny ✦</Text>
-          <Copy color="#FFFFFF">Stepping onto the portal meets it anew, and the next one may not be Shiny.</Copy>
-          <Button title="I understand, reset" secondary onPress={() => setConfirm('shiny-final')} />
-        </> : <>
-          <Text style={look.pauseTitle}>Let the Shiny {foe.name} go?</Text>
-          <Copy color="#FFFFFF">This cannot be undone.</Copy>
-          <Button title="Reset the encounter" loading={busy} onPress={() => ripple(true)} />
-        </>}
-        <Button title="Stay with the Shiny" onPress={() => setConfirm('none')} />
-      </View>}
-      {battle.phase === 'caught' && <View style={look.pause}>
-        <Text accessibilityLiveRegion="polite" style={[look.pauseTitle, { color: '#FFE27A' }]}>{practice ? '★ You won the rematch! ★' : '★ Captured! ★'}</Text>
-        {saving === 'saved' ? <>
-          <Copy color="#FFFFFF">{practice ? `${name} returns to your team.` : `${name} was caught, and its data was added to your Dex.`}</Copy>
-          <Button title={practice ? 'Back to Shrine Revisits' : 'Continue'} onPress={onDone} />
-        </> : saving === 'failed' ? <>
-          <Copy color="#FFB4A8">{saveError || (practice ? 'Could not save this win. Try again.' : 'Could not save your catch. Try again.')}</Copy>
-          <Button title="Try saving again" onPress={saveCatch} />
-        </> : <Button title={practice ? 'Saving your win…' : 'Saving your new friend…'} loading onPress={() => {}} />}
-      </View>}
+      {!!panel && <View style={look.pause}>{panel}</View>}
     </View>
     <Text accessibilityLiveRegion="polite" numberOfLines={2} style={[look.message, battle.feedback === 'hit' ? { color: colors.danger }
       : battle.feedback === 'dodge' || battle.feedback === 'recover' ? { color: colors.success } : battle.feedback === 'warn' ? { color: colors.gold } : null]}>
-      {error || (saving === 'failed' ? '' : saveError) || note || battle.message}</Text>
+      {message}</Text>
     {help && <Panel style={{ gap: 6 }}>
-      <Copy small color={colors.ink}>Walk with the D-pad, arrow keys or WASD, or tap a spot with Tap to walk (as in the Safari Zone).</Copy>
-      <Copy small>Your partner’s moves are on the right. Tap one and it lands on {foe.name}; each needs a moment before it can be used again. Wear its HP down to nothing: it slumps, weakened, with stars circling its head. Only then can you throw a Poké Ball, and it always holds.</Copy>
-      <Copy small>⚠ marks where {foe.name}’s attack will land, ✸ is it landing. Walk off the marked tiles before it lands. A hit costs a heart; at none you catch your breath and it waits.</Copy>
+      <Copy small color={colors.ink}>Walk with the D-pad, arrow keys or WASD, or tap a spot with Tap to walk (as in the Safari Zone). The ⤢ button plays in full screen, in portrait or landscape.</Copy>
+      <Copy small>Your partner’s moves are on the right. Tap one and {partner.name} runs out in front and attacks; you are free to keep walking, and it runs back to you when it is done. Wear {foe.name}’s HP down to nothing: it slumps, weakened, with stars circling its head. Only then can you throw a Poké Ball, and it always holds.</Copy>
+      <Copy small>Once the battle begins, {foe.name} prowls its lair and strikes with {signature}. ⚠ marks where it will land, ✸ is it landing. Walk off the marked tiles before it lands. A hit costs a heart; at none you catch your breath and it waits.</Copy>
       {practice ? <Copy small>A rematch: nothing is caught and {foe.name} stays as you caught it. Capturing it counts a rematch win.</Copy>
         : <Copy small>Until your first move, {foe.name} only watches, and stepping back onto the portal ◎ meets it anew, with a new chance to be Shiny. Your first move sets it for good. Leave keeps it waiting here for next time.</Copy>}
     </Panel>}
@@ -265,7 +328,7 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
       <View accessibilityLabel={`${partner.name}’s moves`} style={look.moves}>
         {battle.moves.map((item, index) => {
           const wait = moveWait(battle, index, clock)
-          const off = !acting || down || resting || wait > 0
+          const off = moveOff(index)
           return <Pressable key={item.name} accessibilityRole="button" accessibilityState={{ disabled: off }} disabled={off} onPress={() => use(index)}
             accessibilityLabel={`${item.name}, ${item.type} move, ${item.min} to ${item.max} damage${wait > 0 ? ', getting ready' : ''}`}
             style={({ pressed }) => [look.move, { borderLeftColor: typeColor[item.type] ?? colors.edge }, pressed && { opacity: 0.7 }, off && { opacity: 0.45 }]}>
@@ -305,11 +368,29 @@ function Marks({ battle, tile, clock, reduced }: { battle: Battle, tile: number,
 // A Shiny stands in a gold glow with stars around it and sparkles every few seconds. It flickers when a move lands.
 // weak: its HP is gone, so it slumps, holds still and stars circle its head. drawnTo: a Poké Ball hangs open there; once
 // the ball has bounced the Legendary turns to red light and is drawn into it. hidden: it is inside the ball.
-function Legendary({ at, name, shiny, tile, facing, hidden, struck, weak, drawnTo, reduced }: {
-  at: Point, name: string, shiny: boolean, tile: number, facing: Direction, hidden: boolean, struck: number, weak: boolean, drawnTo: Point | null, reduced: boolean
+function Legendary({ at, name, shiny, tile, facing, hidden, struck, weak, drawnTo, charge, reduced }: {
+  at: Point, name: string, shiny: boolean, tile: number, facing: Direction, hidden: boolean, struck: number, weak: boolean, drawnTo: Point | null,
+  charge: string | null, reduced: boolean
 }) {
   const size = tile * legendarySize(name)
   const left = at.x * tile + tile / 2 - size / 2, top = (at.y + 1) * tile - size
+  // It prowls: each step glides to the next tile, a little slower than it takes to decide the next one.
+  const [place] = useState(() => new Animated.ValueXY({ x: left, y: top }))
+  const [aura] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    if (reduced) { place.setValue({ x: left, y: top }); return }
+    const glide = Animated.timing(place, { toValue: { x: left, y: top }, duration: ROAM_MS * 0.7, easing: Easing.inOut(Easing.quad), useNativeDriver: native })
+    glide.start()
+    return () => glide.stop()
+  }, [place, left, top, reduced])
+  const charging = !!charge
+  useEffect(() => {
+    if (!charging || reduced) { aura.setValue(charging ? 1 : 0); return }
+    const half = (toValue: number) => Animated.timing(aura, { toValue, duration: 220, easing: Easing.inOut(Easing.sin), useNativeDriver: native })
+    const loop = Animated.loop(Animated.sequence([half(1), half(0.35)]))
+    loop.start()
+    return () => loop.stop()
+  }, [charging, reduced, aura])
   const [glint, setGlint] = useState(0)
   const [flicker] = useState(() => new Animated.Value(1))
   const [pull] = useState(() => new Animated.Value(0))
@@ -338,10 +419,15 @@ function Legendary({ at, name, shiny, tile, facing, hidden, struck, weak, drawnT
   }, [drawn, reduced, pull])
   if (hidden) return null
   const to = drawnTo ?? { x: left + size / 2, y: top + size / 2 }
-  return <Animated.View pointerEvents="none" style={{ position: 'absolute', left, top, opacity: flicker,
+  return <Animated.View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, transform: place.getTranslateTransform() }}>
+  <Animated.View style={{ opacity: flicker,
     transform: [{ translateX: pull.interpolate({ inputRange: [0, 1], outputRange: [0, to.x - (left + size / 2)] }) },
       { translateY: pull.interpolate({ inputRange: [0, 1], outputRange: [0, to.y - (top + size / 2)] }) },
       { scale: pull.interpolate({ inputRange: [0, 1], outputRange: [1, 0.05] }) }] }}>
+    {/* Gathering its signature move: a glow in its type's colour, pulsing while the marks are on the ground. */}
+    {!!charge && <Animated.View style={{ position: 'absolute', left: size * 0.05, top: size * 0.1, width: size * 0.9, height: size * 0.9, borderRadius: size,
+      backgroundColor: charge, opacity: aura.interpolate({ inputRange: [0, 1], outputRange: [0, 0.55] }),
+      transform: [{ scale: aura.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.15] }) }] }} />}
     {!red && <View style={{ position: 'absolute', left: size * 0.2, top: size * 0.86, width: size * 0.6, height: size * 0.16, borderRadius: size, backgroundColor: 'rgba(0, 0, 0, 0.3)' }} />}
     {shiny && !weak && <ShinyGlow size={size} reduced={reduced} />}
     {/* Weakened, it leans over and sinks a little, and stops stepping. */}
@@ -352,6 +438,73 @@ function Legendary({ at, name, shiny, tile, facing, hidden, struck, weak, drawnT
     {shiny && !weak && <Sparkles key={glint} centre={{ x: size / 2, y: size / 2 }} size={size} reduced={reduced} />}
     {weak && !red && <DizzyStars size={size} tile={tile} reduced={reduced} />}
   </Animated.View>
+  </Animated.View>
+}
+
+// The name of the Legendary's signature move, called out over its head while it charges.
+function Callout({ at, tile, color, children }: { at: Point, tile: number, color: string, children: ReactNode }) {
+  const width = Math.max(tile * 5, 150)
+  return <View pointerEvents="none" style={{ position: 'absolute', left: at.x - width / 2, top: Math.max(0, at.y - 26), width, alignItems: 'center' }}>
+    <Text accessibilityLiveRegion="polite" numberOfLines={1} style={[look.callout, { borderColor: color }]}>{children}</Text>
+  </View>
+}
+
+// The signature move landing: its type's Gen III strip plays once on every marked tile, all on one clock, for as long
+// as the strike lasts. With reduced motion each tile shows one still frame.
+function SignatureStrike({ tiles, tile, sheet, reduced }: { tiles: string[], tile: number, sheet: Strip, reduced: boolean }) {
+  const [frame, setFrame] = useState(reduced ? Math.floor((sheet.frames - 1) / 2) : 0)
+  useEffect(() => {
+    if (reduced || sheet.frames < 2) return
+    const timer = setInterval(() => setFrame(value => (value + 1) % sheet.frames), Math.max(60, STRIKE_MS / sheet.frames))
+    return () => clearInterval(timer)
+  }, [reduced, sheet.frames])
+  const width = tile * 1.25, height = width * sheet.height / sheet.width
+  return <>{tiles.map(key => {
+    const [x, y] = key.split(',').map(Number)
+    return <View key={key} pointerEvents="none" style={{ position: 'absolute', left: (x + 0.5) * tile - width / 2, top: (y + 1) * tile - height, width, height, overflow: 'hidden' }}>
+      <Image source={sheet.source} fadeDuration={0} resizeMode="stretch" accessible={false}
+        style={{ position: 'absolute', top: 0, left: -frame * width, width: width * sheet.frames, height, ...pixelated }} />
+    </View>
+  })}</>
+}
+
+// Your partner's attack, from where it stands out in front: a ring flares under it, its move flies to the Legendary
+// (the move type's Gen III projectile, or a streak of its colour) and lands at LAND_MS, then the type's hit strip plays
+// on the Legendary until the attack is over (ATTACK_MS, more than a second in all). With reduced motion only the hit shows.
+function PartnerAttack({ type, from, to, tile, reduced }: { type: string, from: Point, to: Point, tile: number, reduced: boolean }) {
+  const hit = hitSheet(type) as Strip
+  const shot = shotSheet(type) as Strip | null
+  const [time] = useState(() => new Animated.Value(reduced ? LAND_MS : 0))
+  const [frame, setFrame] = useState(0)
+  useEffect(() => {
+    if (reduced) return
+    const run = Animated.timing(time, { toValue: ATTACK_MS, duration: ATTACK_MS, easing: Easing.linear, useNativeDriver: native })
+    run.start()
+    const timer = setInterval(() => setFrame(value => value + 1), 90)
+    return () => { run.stop(); clearInterval(timer) }
+  }, [time, reduced])
+  const at = (input: number[], output: number[]) => time.interpolate({ inputRange: input, outputRange: output, extrapolate: 'clamp' })
+  const color = typeColor[type] ?? '#FFFFFF'
+  const size = tile * 0.9
+  const burst = tile * 2, burstHeight = burst * hit.height / hit.width
+  // The hit strip plays through once from the landing, then holds its last frame until the attack ends.
+  const landed = Math.max(0, frame - Math.ceil(LAND_MS / 90))
+  return <>
+    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: from.x - tile * 0.7, top: from.y + tile * 0.25, width: tile * 1.4, height: tile * 0.7, borderRadius: tile,
+      borderWidth: 3, borderColor: color, opacity: at([0, 120, LAND_MS, ATTACK_MS], [0, 1, 0.7, 0]), transform: [{ scale: at([0, LAND_MS], [0.5, 1.2]) }] }} />
+    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: -size / 2, top: -size / 2, width: size, height: size, opacity: at([0, 60, LAND_MS - 1, LAND_MS], [0, 1, 1, 0]),
+      transform: [{ translateX: at([0, LAND_MS], [from.x, to.x]) }, { translateY: at([0, LAND_MS], [from.y, to.y]) }] }}>
+      {shot ? <View style={{ width: size, height: size * shot.height / shot.width, overflow: 'hidden' }}>
+        <Image source={shot.source} fadeDuration={0} resizeMode="stretch" accessible={false}
+          style={{ position: 'absolute', top: 0, left: -(frame % shot.frames) * size, width: size * shot.frames, height: size * shot.height / shot.width, ...pixelated }} />
+      </View> : <View style={{ width: size * 0.6, height: size * 0.6, margin: size * 0.2, borderRadius: size, backgroundColor: color, borderWidth: 2, borderColor: '#FFFFFF' }} />}
+    </Animated.View>
+    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: to.x - burst / 2, top: to.y - burstHeight / 2, width: burst, height: burstHeight, overflow: 'hidden',
+      opacity: at([LAND_MS - 1, LAND_MS, ATTACK_MS - 150, ATTACK_MS], [0, 1, 1, 0]) }}>
+      <Image source={hit.source} fadeDuration={0} resizeMode="stretch" accessible={false}
+        style={{ position: 'absolute', top: 0, left: -Math.min(hit.frames - 1, reduced ? Math.floor((hit.frames - 1) / 2) : Math.floor(landed / 1.5)) * burst, width: burst * hit.frames, height: burstHeight, ...pixelated }} />
+    </Animated.View>
+  </>
 }
 
 // Stars circling the head of a weakened Legendary: three on a flat ring, going round every 1.6 s, dimmer and smaller as
@@ -375,23 +528,6 @@ function DizzyStars({ size, tile, reduced }: { size: number, tile: number, reduc
       opacity: around(offset, angle => 0.7 + 0.3 * Math.sin(angle)),
       transform: [{ translateX: around(offset, angle => Math.cos(angle) * wide) }, { translateY: around(offset, angle => Math.sin(angle) * flat) },
         { scale: around(offset, angle => 0.85 + 0.25 * Math.sin(angle)) }] }}>★</Animated.Text>)}
-  </View>
-}
-
-// A move landing on the Legendary: its Gen III strip plays once, or shows a still frame for a moment with reduced motion.
-function HitBurst({ sheet, centre, tile, reduced }: { sheet: Strip, centre: Point, tile: number, reduced: boolean }) {
-  const [frame, setFrame] = useState(reduced ? Math.floor((sheet.frames - 1) / 2) : 0)
-  const [done, setDone] = useState(false)
-  useEffect(() => {
-    const end = setTimeout(() => setDone(true), reduced ? 500 : sheet.frames * 90)
-    const play = reduced ? null : setInterval(() => setFrame(value => Math.min(sheet.frames - 1, value + 1)), 90)
-    return () => { clearTimeout(end); if (play) clearInterval(play) }
-  }, [reduced, sheet.frames])
-  if (done) return null
-  const width = tile * 1.8, height = width * sheet.height / sheet.width
-  return <View pointerEvents="none" style={{ position: 'absolute', left: centre.x - width / 2, top: centre.y - height / 2, width, height, overflow: 'hidden' }}>
-    <Image source={sheet.source} fadeDuration={0} resizeMode="stretch" accessible={false}
-      style={{ position: 'absolute', top: 0, left: -frame * width, width: width * sheet.frames, height, ...pixelated }} />
   </View>
 }
 
@@ -523,6 +659,15 @@ const look = themedStyles(() => ({
   ball: { backgroundColor: colors.edge, borderColor: colors.edge, borderLeftWidth: 1 },
   pause: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 20,
     backgroundColor: 'rgba(4, 12, 10, 0.72)' },
+  // Full screen: see-through buttons over the lair, 36 px tall so four moves, the ball and a last row fit the corner.
+  fullMoves: { alignSelf: 'stretch', gap: 4 },
+  fullMove: { flex: 1, minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 10, opacity: 0.88,
+    backgroundColor: 'rgba(8, 8, 20, 0.72)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.35)', borderLeftWidth: 5 },
+  fullBall: { backgroundColor: 'rgba(200, 40, 40, 0.85)', borderLeftWidth: 1 },
+  fullPlain: { borderLeftWidth: 1, justifyContent: 'center' },
+  fullMoveText: { flex: 1, color: '#FFFFFF', fontFamily: fonts.heavy, fontSize: 13, lineHeight: 17 },
+  callout: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, borderWidth: 2, overflow: 'hidden', backgroundColor: 'rgba(8, 8, 20, 0.82)',
+    color: '#FFFFFF', fontFamily: fonts.black, fontSize: 13, lineHeight: 18, letterSpacing: 0.5 },
   pauseTitle: { fontFamily: fonts.black, fontSize: 24, lineHeight: 30, color: '#FFFFFF', textAlign: 'center' },
   warn: { position: 'absolute', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(242, 194, 48, 0.45)', borderWidth: 2,
     borderColor: '#F2C230', borderStyle: 'dashed' },

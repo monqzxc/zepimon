@@ -50,6 +50,8 @@ const looks: Record<string, Look> = {
 const lookOf = (move: string) => looks[move] ?? looks.normal
 // The strip a move of this type lands with, for battles that draw their own hits (the Legendary battle).
 export const hitSheet = (type: string) => sheets[lookOf(type).hit[0].sprite]
+// The strip a move of this type flies as, or null when nothing is in flight (Bite).
+export const shotSheet = (type: string) => { const shot = lookOf(type).shot; return shot ? sheets[shot.sprite] : null }
 const smaller = (layers: Layer[]) => layers.map(layer => ({ ...layer, scale: (layer.scale ?? 1) * 0.75 }))
 
 // A projectile in flight: its strip loops, and aimed sprites point at the foe they chase.

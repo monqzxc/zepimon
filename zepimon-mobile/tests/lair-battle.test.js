@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import { legendarySpecies } from '../src/generated/expedition.js'
 import { LAIRS } from '../src/games/lairs.ts'
 import { isWalkable, pointKey, tileAt } from '../src/games/safari-zone.ts'
-import { CAPTURE, CAPTURE_MS, FIRST_ATTACK_MS, FOE_HP, LAYOUTS, MOVE_GAP_MS, RECOVER_MS, STAGGER_MS, STRIKE_MS, WARN_MS, battleOver, battleTick,
-  battleWalk, facingToward, lairFor, legendaryHeight, legendarySize, maxHearts, moveWait, partnerMoves, pauseBattle, resumeBattle, startBattle, strikeWith,
+import { ATTACK_MS, CAPTURE, CAPTURE_MS, FIRST_ATTACK_MS, FOE_HP, KEEP_AWAY, LAND_MS, LAYOUTS, MOVE_GAP_MS, RECOVER_MS, ROAM_MS, STAGGER_MS, STRIKE_MS, WARN_MS,
+  attackSpot, battleOver, battleTick, battleWalk, facingToward, partnerOut, lairFor, legendaryHeight, legendarySize, maxHearts, moveWait, partnerMoves, pauseBattle, resumeBattle, startBattle, strikeWith,
   throwBall, weakened } from '../src/games/lair-battle.ts'
 
 // The Legendary battle, fought in the lair itself on a test clock.
@@ -14,8 +14,17 @@ const LOW = () => 0
 const begin = (name = 'Rayquaza', options) => startBattle({ name, shiny: false }, 'Pikachu', 3, T0, options)
 const BACK = { north: 'south', south: 'north', west: 'east', east: 'west' }
 // Runs the clock forward in 100 ms ticks, as the screen does.
+// One move, seen through: it lands, and the partner comes back. The Legendary holds still meanwhile (no roaming, no attack).
+const land = (battle, index, now, random = HIGH) => {
+  const still = state => ({ ...state, nextRoamAt: Infinity, nextAttackAt: Infinity })
+  let next = still(strikeWith(battle, index, now, random).battle)
+  next = still(battleTick(next, now + LAND_MS, random))
+  next = battleTick(next, now + ATTACK_MS, random)
+  return { ...next, nextRoamAt: battle.nextRoamAt, nextAttackAt: battle.nextAttackAt }
+}
 // Wears the Legendary down to nothing, one move every five seconds.
-const weaken = (battle, from = T0) => { let now = from; while (battle.foe.hp > 0) { now += 5000; battle = strikeWith(battle, 0, now, HIGH).battle } return { battle, now } }
+const weaken = (battle, from = T0) => { let now = from; while (battle.foe.hp > 0) { now += 5000; battle = land(battle, 0, now) } return { battle, now: now + ATTACK_MS } }
+const apart = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 const run = (battle, from, to, random = HIGH) => { for (let now = from; now <= to; now += 100) battle = battleTick(battle, now, random); return battle }
 
 test('every Legendary has a lair to fight in, a height and a size beside the trainer', () => {
@@ -90,42 +99,105 @@ test('walking follows the lair: open ground only, the buddy a step behind', () =
   }
 })
 
-test('moves wear the Legendary down to nothing, each with its own wait; then it is weakened and stops', () => {
+test('a move sends the partner out in front; it lands, wears the Legendary down, and the partner runs back', () => {
   let battle = begin()
   const first = strikeWith(battle, 0, T0, HIGH)
-  assert.deepEqual([first.began, first.battle.phase], [true, 'fight'])
-  assert.equal(first.battle.foe.hp, FOE_HP - battle.moves[0].max)
-  assert.equal(first.battle.strike.id, 1)
+  assert.deepEqual([first.began, first.battle.phase, first.battle.foe.hp], [true, 'fight', FOE_HP], 'Nothing lands yet')
+  const { strike } = first.battle
+  assert.deepEqual([strike.id, strike.damage, strike.landed, strike.landsAt, strike.until], [1, battle.moves[0].max, false, T0 + LAND_MS, T0 + ATTACK_MS])
+  assert.ok(ATTACK_MS >= 1000 && LAND_MS < ATTACK_MS, 'The attack lasts a second at least')
+  // The partner stands out in front: nearer the Legendary than the trainer is, facing it, and not on either of them.
+  assert.deepEqual(first.battle.buddy, strike.at)
+  assert.deepEqual(strike.at, attackSpot(battle))
+  assert.ok(apart(strike.at, battle.foeAt) < apart(battle.at, battle.foeAt))
+  assert.ok(apart(strike.at, battle.at) >= 1 && apart(strike.at, battle.at) <= 2)
+  assert.equal(first.battle.buddyFacing, facingToward(strike.at, battle.foeAt))
+  assert.equal(partnerOut(first.battle), true)
   assert.match(first.battle.message, /Pikachu used/)
-  battle = first.battle
-  assert.equal(strikeWith(battle, 0, T0 + 100, HIGH).battle, battle, 'The move needs its wait')
-  assert.equal(strikeWith(battle, 1, T0 + 100, HIGH).battle, battle, 'And no other move lands in the same breath')
-  assert.equal(moveWait(battle, 0, T0), battle.moves[0].cooldown)
+  // You are free to walk while it attacks: it holds its ground instead of following.
+  battle = { ...first.battle, nextRoamAt: Infinity, nextAttackAt: Infinity }
+  const inward = BACK[battle.layout.out]
+  const walked = battleWalk(battle, inward, T0 + 100)
+  if (walked.move === 'step') {
+    assert.deepEqual(walked.battle.buddy, strike.at, 'The partner stays out in front')
+    assert.deepEqual(walked.battle.behind, battle.at)
+    battle = walked.battle
+  }
+  // No other move while it is out.
+  for (const index of [0, 1]) assert.equal(strikeWith(battle, index, T0 + 200, HIGH).battle, battle)
   assert.equal(moveWait(battle, 1, T0), MOVE_GAP_MS)
-  const second = strikeWith(battle, 1, T0 + MOVE_GAP_MS, HIGH)
-  assert.equal(second.began, false, 'Only the first begins the battle')
-  assert.equal(second.battle.foe.hp, battle.foe.hp - battle.moves[1].max)
+  assert.equal(moveWait(battle, 0, T0), Math.max(battle.moves[0].cooldown, MOVE_GAP_MS))
+  // It lands.
+  assert.equal(battleTick(battle, T0 + LAND_MS - 1, HIGH).foe.hp, FOE_HP)
+  battle = battleTick(battle, T0 + LAND_MS, HIGH)
+  assert.deepEqual([battle.foe.hp, battle.strike.landed], [FOE_HP - strike.damage, true])
+  assert.equal(battleTick(battle, T0 + LAND_MS + 100, HIGH).foe.hp, FOE_HP - strike.damage, 'Once')
+  assert.deepEqual(battle.buddy, strike.at, 'Still out in front until the attack is over')
+  // Done: it runs back to the trainer's heels and follows again.
+  battle = battleTick(battle, T0 + ATTACK_MS, HIGH)
+  assert.equal(partnerOut(battle), false)
+  if (walked.move === 'step') assert.deepEqual(battle.buddy, battle.behind)
+  const second = strikeWith(battle, 1, T0 + ATTACK_MS, HIGH)
+  assert.deepEqual([second.began, second.battle.strike.id], [false, 2], 'Only the first begins the battle')
   assert.equal(strikeWith(battle, 9, T0 + 9000, HIGH).battle, battle, 'No such move')
-  // The last HP: an attack it was charging is dropped, and it never attacks again.
+})
+
+test('at no HP the Legendary is weakened: it drops its attack, stops prowling and stays down', () => {
+  let battle = begin()
   let now = T0
-  while (battle.foe.hp > battle.moves[0].max) { now += 5000; battle = strikeWith(battle, 0, now, HIGH).battle; assert.equal(weakened(battle), false) }
-  battle = { ...battle, nextAttackAt: now }
-  battle = battleTick(battle, now, LOW)
+  while (battle.foe.hp > battle.moves[0].max) { now += 5000; battle = land(battle, 0, now); assert.equal(weakened(battle), false) }
+  now += 5000
+  battle = battleTick({ ...battle, nextAttackAt: now, nextRoamAt: Infinity }, now, LOW)
   assert.ok(battle.danger, 'Still fighting')
-  const down = strikeWith(battle, 0, now + 5000, HIGH).battle
+  const down = land(battle, 0, now + 100)
   assert.deepEqual([down.foe.hp, down.phase, down.danger, weakened(down)], [0, 'down', null, true])
   assert.match(down.message, /weakened/)
-  const later = run(down, now + 5000, now + 60000, LOW)
-  assert.deepEqual([later.danger, later.hearts, later.phase], [null, 3, 'down'], 'Weakened, it stays down and holds still')
+  const later = run({ ...down, nextRoamAt: 0, nextAttackAt: 0 }, now + 5000, now + 60000, LOW)
+  assert.deepEqual([later.danger, later.hearts, later.phase], [null, 3, 'down'])
+  assert.deepEqual(later.foeAt, down.foeAt, 'Weakened, it stays where it fell')
   assert.equal(strikeWith(down, 1, now + 30000, HIGH).battle, down, 'No more moves once it is down')
-  assert.equal(battleWalk(down, BACK[down.layout.out], now + 30000).move !== 'none', true, 'You can still walk around it')
+  assert.notEqual(battleWalk(down, BACK[down.layout.out], now + 30000).move, 'none', 'You can still walk around it')
+})
+
+test('once the battle begins the Legendary prowls its lair like a boss, a step at a time, never crowding the trainer', () => {
+  for (const name of legendarySpecies) {
+    let battle = begin(name)
+    const { layout } = battle
+    const onGround = point => layout.ground.some(tile => pointKey(tile) === pointKey(point))
+    // It only watches from its perch until then.
+    assert.deepEqual(run(battle, T0, T0 + 30000).foeAt, layout.legendary, `${name}: still until the battle begins`)
+    battle = { ...strikeWith(battle, 0, T0, LOW).battle, nextAttackAt: Infinity }
+    let seed = 3, moved = 0, before = battle.foeAt
+    const random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648 }
+    for (let now = T0 + 100; now <= T0 + 60000; now += 100) {
+      battle = battleTick(battle, now, random)
+      if (pointKey(battle.foeAt) === pointKey(before)) continue
+      // Down from the perch onto open ground, then one tile at a time across it.
+      assert.ok(onGround(battle.foeAt), `${name}: it walks the open ground`)
+      if (onGround(before)) assert.equal(apart(before, battle.foeAt), 1, `${name}: a step at a time`)
+      assert.equal(battle.foeFacing, facingToward(before, battle.foeAt))
+      assert.ok(apart(battle.foeAt, battle.at) >= KEEP_AWAY, `${name}: never within ${KEEP_AWAY} tiles of you`)
+      assert.notDeepEqual(battle.foeAt, battle.buddy, `${name}: never onto your partner`)
+      moved++; before = battle.foeAt
+    }
+    assert.ok(moved >= 5, `${name}: it prowls (${moved} steps)`)
+    assert.ok(moved <= 60000 / ROAM_MS + 1, `${name}: no faster than a step each ${ROAM_MS} ms`)
+    // You cannot walk through it.
+    const beside = (Object.entries({ north: [0, 1], south: [0, -1], west: [1, 0], east: [-1, 0] }))
+      .map(([direction, [x, y]]) => ({ direction, from: { x: battle.foeAt.x + x, y: battle.foeAt.y + y } })).find(({ from }) => onGround(from))
+    if (beside) {
+      const blocked = battleWalk({ ...battle, at: beside.from, strike: null }, beside.direction, T0 + 99000)
+      assert.equal(blocked.move, 'bump', `${name}: it stands its ground`)
+      assert.match(blocked.battle.message, /stands its ground/)
+    }
+  }
 })
 
 test('the Legendary answers with marked attacks that can always be walked out of', () => {
   for (const name of legendarySpecies) {
     let battle = strikeWith(begin(name), 0, T0, LOW).battle
     for (const roll of [0.1, 0.6, 0.9]) {
-      battle = { ...battle, danger: null, nextAttackAt: T0 }
+      battle = { ...battle, danger: null, nextAttackAt: T0, nextRoamAt: Infinity }
       const warned = battleTick(battle, T0, () => roll)
       assert.ok(warned.danger, `${name}: it attacks once the battle is on`)
       assert.equal(warned.feedback, 'warn')
@@ -139,7 +211,7 @@ test('the Legendary answers with marked attacks that can always be walked out of
 })
 
 test('standing in a marked attack costs a heart; stepping off dodges; out of hearts you rest in full', () => {
-  let battle = strikeWith(begin('Mewtwo'), 0, T0, LOW).battle
+  let battle = { ...land(begin('Mewtwo'), 0, T0, LOW), nextRoamAt: Infinity }
   let now = T0 + FIRST_ATTACK_MS
   battle = battleTick(battle, now, LOW)
   assert.ok(battle.danger && !battle.danger.struck)
@@ -181,7 +253,7 @@ test('a Poké Ball only works on a weakened Legendary, is thrown from where you 
   const thrown = throwBall(battle, now)
   assert.equal(thrown.phase, 'throw')
   assert.deepEqual(thrown.ball, { from: battle.at, since: now, until: now + CAPTURE_MS })
-  assert.equal(thrown.facing, facingToward(battle.at, battle.layout.legendary))
+  assert.equal(thrown.facing, facingToward(battle.at, battle.foeAt))
   assert.equal(CAPTURE_MS, CAPTURE.fly + CAPTURE.bounce + CAPTURE.beam + CAPTURE.drop + 3 * CAPTURE.swing + CAPTURE.star, 'Three swings, then the star')
   // Nothing else happens while the capture plays, and it cannot be held up.
   assert.equal(strikeWith(thrown, 1, now + 100, LOW).battle, thrown)
@@ -204,7 +276,7 @@ test('a Poké Ball only works on a weakened Legendary, is thrown from where you 
 })
 
 test('pausing drops an attack in flight and holds every clock', () => {
-  let battle = strikeWith(begin('Mewtwo'), 0, T0, LOW).battle
+  let battle = { ...strikeWith(begin('Mewtwo'), 0, T0, LOW).battle, nextRoamAt: Infinity }
   battle = battleTick(battle, T0 + FIRST_ATTACK_MS, LOW)
   assert.ok(battle.danger)
   const paused = pauseBattle(battle, T0 + FIRST_ATTACK_MS + 500)

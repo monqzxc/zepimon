@@ -380,12 +380,18 @@ and sparkles every few seconds (they hold still with reduced motion). Each lair 
 Until your first move the Legendary only watches, and stepping back onto the portal (or tapping it with Tap to walk)
 meets it anew, with a new chance to be Shiny. Then:
 
-- **Moves** are on the right of the D-pad (keys 1 to 4 on the web). Each shows its damage, then counts down until it
-  is ready again; no two land in the same breath.
-- **The Legendary answers** with its own move (Rayquaza's Dragon Ascent, Mewtwo's Psystrike): a ring around you or a
-  line through you, marked ⚠ on the ground for 1.8 s before it lands ✸. That's time for about eight steps, and one or
-  two always get you clear: where rocks or water leave a nook a line would fill, it aims another way. Only the marked
-  tiles count, at the moment the attack lands.
+- **Moves** are on the right of the D-pad (keys 1 to 4 on the web). Tap one and your partner runs out in front,
+  toward the Legendary, and attacks from there: a ring flares under it, the move flies across (its type's Gen III
+  projectile) and lands 0.45 s in, then the hit plays on the Legendary. The attack lasts 1.2 s. You are free to keep
+  walking; your partner holds its ground until it is done, then runs back to your heels. One attack at a time.
+- **The Legendary is the boss of its lair.** Once the battle begins it comes down from its perch and prowls the open
+  ground a tile every 0.9 s, closing on you but never nearer than two tiles, so it cannot pen you in. You cannot walk
+  through it. It holds still while it charges and strikes.
+- **Its signature move** (Rayquaza's Dragon Ascent, Kyogre's Origin Pulse, Mewtwo's Psystrike): it glows in its type's
+  colour and the move's name is called out over its head while a ring around you or a line through you is marked ⚠ on
+  the ground for 1.8 s. Then the move lands ✸ and its type's animation plays on every marked tile. That's time for
+  about eight steps, and one or two always get you clear: where rocks or water leave a nook a line would fill, it aims
+  another way. Only the marked tiles count, at the moment the attack lands.
 - **A hit** costs one heart and a short stagger. You start with 3, plus 1 for each km of saved walks and runs this
   week, up to 5 (the arcade's walking bonus: only saved, finished adventures count). At 0 you catch your breath while
   the Legendary holds back, then you're back to full. You never faint.
@@ -396,6 +402,12 @@ meets it anew, with a new chance to be Shiny. Then:
   inside; the ball drops, swings three times with its button pulsing red, then a star pops and it reads
   **Captured!** The capture takes about 4.8 s and cannot be paused. With reduced motion the ball simply rests on the
   ground and the star shows at the end.
+
+**Full screen.** The ⤢ button fills the screen with the lair, as in the Legendary Trial: the tiles are as big as the
+Safari Zone's and the camera follows your trainer, with the D-pad, the moves, the Poké Ball, Pause and Leave over the
+map and the Legendary's HP and your hearts in the strip at the top. The rotate button turns it to landscape or back
+(on a phone; in a browser it follows the window). A trial played in full screen carries on into the lair in full
+screen. The rooms themselves are the same Emerald rooms as before.
 
 Leaving, pausing (or the app going to the background) or restarting the app keeps the encounter waiting with its
 result; the battle itself is never saved, so coming back starts it afresh at full HP. Only a successful catch claims

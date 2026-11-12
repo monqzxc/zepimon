@@ -72,9 +72,10 @@ export default function ExpeditionsScreen() {
   const [friend, setFriend] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  // Full screen for the trial (an expedition's or a Shrine Revisit's), as in the arcade: hides the header and status bar,
-  // and the back button leaves it first. Leaving the trial for the lair, the room picker or the overview ends it.
-  const playing = step.kind === 'trial' || step.kind === 'revisit-trial'
+  // Full screen for the trial and the lair (an expedition's or a Shrine Revisit's), as in the arcade: hides the header and
+  // status bar, and the back button leaves it first. It carries on from the trial into the lair; the room picker or the
+  // overview ends it.
+  const playing = step.kind === 'trial' || step.kind === 'revisit-trial' || step.kind === 'lair' || step.kind === 'revisit-lair'
   const { screen, full, overlay } = useImmersive(playing, 'header')
   const partner = buddy ? { name: buddy.replace(/^Shiny /, ''), shiny: buddy.startsWith('Shiny ') } : { name: 'Pikachu', shiny: false }
   const trails = Object.entries(expeditions.trails).sort((a, b) => a[1].startedAt - b[1].startedAt)
@@ -178,7 +179,7 @@ export default function ExpeditionsScreen() {
   }
 
   // The trial fills the screen without scrolling, so the map and the D-pad are on screen together, as in the Safari Zone.
-  return <Screen key={step.kind} fill={playing || step.kind === 'lair' || step.kind === 'revisit-lair'} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
+  return <Screen key={step.kind} fill={playing} full={full} edge={overlay}><GameScreenContext.Provider value={screen}>
     {content ?? <>
       <View accessibilityRole="tablist" style={look.tabs}>{TABS.map(([id, label]) =>
         <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} onPress={() => { setTab(id); setMessage('') }}
