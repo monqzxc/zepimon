@@ -17,13 +17,15 @@ type Props = {
   // A question or encounter shown across the map, under the HUD strip.
   prompt?: ReactNode,
   // False hides the rotate button (while a prompt that only fits in portrait is open).
-  rotatable?: boolean
+  rotatable?: boolean,
+  // The actions are one block that fills its corner (the lair's move column), instead of chips stacked up from it.
+  actionsFill?: boolean
 }
 
 // Immersive play for the walking games: the map fills the screen, with a translucent HUD and status strip at the top,
 // the D-pad floating over the map (bottom-left in portrait, left-centre in landscape), the game's actions in the opposite
 // corner, and exit and rotate buttons top-right. Where each piece goes is worked out in immersive.ts.
-export function PlayOverlay({ map, hud, status, success = false, dpad, actions, prompt, rotatable = true }: Props) {
+export function PlayOverlay({ map, hud, status, success = false, dpad, actions, prompt, rotatable = true, actionsFill = false }: Props) {
   const { setFull, setOverlay, orientation, setOrientation } = useGameScreen()
   const [area, setArea] = useState({ width: 0, height: 0, resized: 0 })
   useEffect(() => {
@@ -47,7 +49,7 @@ export function PlayOverlay({ map, hud, status, success = false, dpad, actions, 
           style={[look.status, success && { color: '#7ef0a0' }]}>{status}</Text>
       </View>
       {!prompt && dpad && <View pointerEvents="box-none" style={box(layout.dpad)}>{dpad}</View>}
-      {!prompt && <View pointerEvents="box-none" style={[look.actions, box(layout.actions)]}>{actions}</View>}
+      {!prompt && <View pointerEvents="box-none" style={[actionsFill ? look.actionsFill : look.actions, box(layout.actions)]}>{actions}</View>}
       {!!prompt && <View style={[look.prompt, box(promptArea(layout))]}>
         <ScrollView contentContainerStyle={look.promptContent}>
           <View style={{ width: '100%', maxWidth: layout.landscape ? 440 : 480 }}>{prompt}</View>
@@ -71,6 +73,7 @@ const look = themedStyles(() => ({
   status: { color: '#ffffff', fontFamily: fonts.bold, fontSize: 13, lineHeight: 17 },
   // Chips stack up from the bottom corner, first child lowest, and wrap into a second column leftwards if they must.
   actions: { flexDirection: 'column-reverse', flexWrap: 'wrap-reverse', alignContent: 'flex-start', alignItems: 'flex-end', gap: 6 },
+  actionsFill: { justifyContent: 'flex-end' },
   corner: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
   prompt: { borderRadius: 16, overflow: 'hidden', backgroundColor: 'rgba(8, 8, 20, 0.45)' },
   promptContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 8, gap: 10 }

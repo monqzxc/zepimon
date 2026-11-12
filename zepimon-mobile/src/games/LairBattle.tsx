@@ -13,6 +13,7 @@ import { TileWorld } from './TileWorld'
 import type { TileChunks } from './TileWorld'
 import { useStepWalker } from './step-walker'
 import { DPad, useKeyboardDirections } from './DPad'
+import { OVERLAY_IDLE, OVERLAY_PRESSED } from './immersive'
 import { useGameLoop } from './hooks'
 import { OverworldSprite } from './OverworldSprite'
 import { Pixels } from './Pixels'
@@ -38,8 +39,12 @@ const pixelated = Platform.OS === 'web' ? { imageRendering: 'pixelated' as const
 const REVEAL_MS = 3500
 // How long the portal ripples before the Legendary is met anew (the save's own pacing is RESET_COOLDOWN).
 const RIPPLE_MS = 1600
+// The smallest tile a lair is shown whole at; below it the camera follows the trainer instead.
+const MIN_FIT_TILE = 28
 const hpColor = (hp: number) => hp <= 20 ? '#E83820' : hp <= 50 ? '#F0B828' : '#48C058'
 type Confirm = 'none' | 'shiny' | 'shiny-final'
+// The full-screen buttons fade like the see-through D-pad: faint while idle, nearly solid while pressed, fainter when off.
+const overlayOpacity = (pressed: boolean, off: boolean) => off ? OVERLAY_IDLE * 0.6 : pressed ? OVERLAY_PRESSED : Math.max(OVERLAY_IDLE, 0.6)
 
 type Props = {
   foe: { name: string, shiny: boolean }, partner: { name: string, shiny: boolean }, reduced: boolean, busy: boolean, error: string, weekKm: number,
@@ -179,7 +184,9 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
   // The lair at a size. Windowed, the whole room fits the view and the trainer walks across it; in full screen the
   // tiles are as big as the Safari Zone's and the camera follows the trainer. `extra` snaps the camera after a rotation.
   const world = (width: number, height: number, extra: number, zoomed: boolean) => {
-    const tile = zoomed ? tileSizeFor(width, height) : fitTile(width, height, layout.map)
+    // A lair too big to show whole at a playable size (most are, at twice Emerald's size) follows the trainer too.
+    const follow = zoomed || fitTile(width, height, layout.map) < MIN_FIT_TILE
+    const tile = follow ? tileSizeFor(width, height) : fitTile(width, height, layout.map)
     const size = legendarySize(foe.name) * tile
     // Where things are in the lair, in pixels: the Legendary's middle, the ground at its feet, and where the ball
     // hangs open after bouncing off it, back toward wherever the trainer threw from.
@@ -193,7 +200,7 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
     return <>
       <TileWorld map={layout.map} chunks={chunks} at={battle.at} facing={battle.facing} buddyAt={battle.buddy} buddyFacing={battle.buddyFacing}
         move={move} trainer={safariTrainer} buddy={partner} onGrass={false} width={width} height={height}
-        reduced={reduced} jump={extra} background={layout.background} fit={!zoomed} fitHeight={zoomed} tapToWalk={safariControls === 'tap' && acting}
+        reduced={reduced} jump={extra} background={layout.background} fit={!follow} fitHeight={follow} tapToWalk={safariControls === 'tap' && acting}
         onTapTile={tapTile}
         cover={<>
           <SealedPortal layout={layout} tile={tile} reduced={reduced} open={!begun && !practice} />
@@ -247,33 +254,35 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
 
   // Full screen: the lair fills the screen, in portrait or landscape (PlayOverlay), with the D-pad and the moves over it.
   if (full && !rippling) {
-    const bar = Math.ceil(battle.foe.hp / FOE_HP * 10)
     return <PlayOverlay
       map={(width, height, resized) => <View accessible={safariControls !== 'tap'} accessibilityRole="image" accessibilityLabel={where}
         style={{ width, height, backgroundColor: layout.background }}>{world(width, height, resized, true)}</View>}
-      hud={`${foe.shiny ? '✦ ' : ''}${foe.name.toUpperCase()} ${legendaryHeight(foe.name)} m · ${battle.foe.hp ? `HP ${'█'.repeat(bar)}${'░'.repeat(10 - bar)}` : 'WEAKENED ★'} · ${hearts}`}
+      hud={`${foe.shiny ? '✦ ' : ''}${foe.name.toUpperCase()} ${legendaryHeight(foe.name)} m · ${battle.foe.hp ? `HP ${Math.ceil(battle.foe.hp)}/${FOE_HP}` : 'WEAKENED ★'} · ${hearts}`}
       status={message} success={battle.feedback === 'dodge' || battle.feedback === 'recover'}
       dpad={safariControls === 'dpad' ? <DPad overlay reduced={reduced} onPress={press} onRelease={release} disabled={!acting} /> : null}
       prompt={panel ? <View style={{ alignItems: 'center', gap: 10 }}>{panel}</View> : undefined}
       // One compact column in the corner: the moves, the Poké Ball, then Pause and Leave side by side.
+      actionsFill
+      // Emulator-style buttons over the lair: see-through until pressed, so the fight shows through them.
       actions={<View accessibilityLabel={`${partner.name}’s moves`} style={look.fullMoves}>
         {battle.moves.map((item, index) => <Pressable key={item.name} accessibilityRole="button" accessibilityState={{ disabled: moveOff(index) }} disabled={moveOff(index)}
           accessibilityLabel={`${item.name}, ${item.type} move`} onPress={() => use(index)}
-          style={({ pressed }) => [look.fullMove, { borderLeftColor: typeColor[item.type] ?? '#FFFFFF' }, pressed && { opacity: 1 }, moveOff(index) && { opacity: 0.4 }]}>
+          style={({ pressed }) => [look.fullMove, { borderLeftColor: typeColor[item.type] ?? '#FFFFFF', opacity: overlayOpacity(pressed, moveOff(index)) }]}>
           <Text numberOfLines={1} style={look.fullMoveText}>{item.name}</Text>
+          {moveWait(battle, index, clock) > 0 && <Text style={look.fullMoveWait}>{(moveWait(battle, index, clock) / 1000).toFixed(1)}</Text>}
         </Pressable>)}
         <Pressable accessibilityRole="button" accessibilityLabel={down ? 'Throw a Poké Ball' : `Poké Ball. Weaken ${foe.name} first`} accessibilityState={{ disabled: !acting || !down }}
-          disabled={!acting} onPress={throwIt} style={({ pressed }) => [look.fullMove, look.fullBall, pressed && { opacity: 1 }, (!acting || !down) && { opacity: 0.4 }]}>
+          disabled={!acting} onPress={throwIt} style={({ pressed }) => [look.fullMove, look.fullBall, { opacity: overlayOpacity(pressed, !acting || !down) }]}>
           <PokeballIcon size={16} color="#FFFFFF" />
-          <Text numberOfLines={1} style={look.fullMoveText}>{down ? 'Poké Ball · Throw!' : 'Poké Ball · at 0 HP'}</Text>
+          <Text numberOfLines={1} style={look.fullMoveText}>{down ? 'Throw!' : 'Poké Ball'}</Text>
         </Pressable>
-        <View style={{ flexDirection: 'row', gap: 4 }}>
+        <View style={look.fullRow}>
           <Pressable accessibilityRole="button" accessibilityState={{ disabled: pauseOff }} disabled={pauseOff} onPress={togglePause}
-            style={({ pressed }) => [look.fullMove, look.fullPlain, pressed && { opacity: 1 }, pauseOff && { opacity: 0.4 }]}>
+            style={({ pressed }) => [look.fullMove, look.fullHalf, { opacity: overlayOpacity(pressed, pauseOff) }]}>
             <Text numberOfLines={1} style={[look.fullMoveText, { textAlign: 'center' }]}>Pause</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityState={{ disabled: saving === 'saving' }} disabled={saving === 'saving'} onPress={() => { walker.drop(); onLeave() }}
-            style={({ pressed }) => [look.fullMove, look.fullPlain, pressed && { opacity: 1 }, saving === 'saving' && { opacity: 0.4 }]}>
+            style={({ pressed }) => [look.fullMove, look.fullHalf, { opacity: overlayOpacity(pressed, saving === 'saving') }]}>
             <Text numberOfLines={1} style={[look.fullMoveText, { textAlign: 'center' }]}>Leave</Text>
           </Pressable>
         </View>
@@ -282,14 +291,15 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
 
   return <View style={{ flex: 1, gap: 8 }}>
     <View style={look.hud}>
-      <Text numberOfLines={1} style={[look.place, foe.shiny && { color: colors.gold }]}>
-        {practice ? 'REMATCH · ' : ''}{layout.label.toUpperCase()} · {foe.shiny ? `✦ SHINY ${foe.name.toUpperCase()} ✦` : foe.name.toUpperCase()}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Text numberOfLines={1} style={[look.place, { flex: 1 }, foe.shiny && { color: colors.gold }]}>
+          {practice ? 'REMATCH · ' : ''}{layout.label.toUpperCase()} · {foe.shiny ? `✦ SHINY ${foe.name.toUpperCase()} ✦` : foe.name.toUpperCase()}</Text>
+        {!over && <IconButton name="fullscreen" label="Full screen" size={36} onPress={() => setFull(true)} />}
+      </View>
       <View style={[styles.row, { alignItems: 'center' }]}>
         <Chip label={battle.paused ? 'Resume' : 'Pause'} selected={battle.paused} disabled={pauseOff} onPress={togglePause} />
         <Chip label={help ? 'Hide help' : 'How to play'} selected={help} onPress={() => setHelp(!help)} />
         <Chip label="Leave" selected={false} disabled={rippling || saving === 'saving'} onPress={() => { walker.drop(); onLeave() }} />
-        <View style={{ flex: 1 }} />
-        {!over && <IconButton name="fullscreen" label="Full screen" size={40} onPress={() => setFull(true)} />}
       </View>
     </View>
     <View style={[look.map, { backgroundColor: layout.background }]} onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}
@@ -660,12 +670,17 @@ const look = themedStyles(() => ({
   pause: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 20,
     backgroundColor: 'rgba(4, 12, 10, 0.72)' },
   // Full screen: see-through buttons over the lair, 36 px tall so four moves, the ball and a last row fit the corner.
-  fullMoves: { alignSelf: 'stretch', gap: 4 },
-  fullMove: { flex: 1, minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 10, opacity: 0.88,
-    backgroundColor: 'rgba(8, 8, 20, 0.72)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.35)', borderLeftWidth: 5 },
-  fullBall: { backgroundColor: 'rgba(200, 40, 40, 0.85)', borderLeftWidth: 1 },
-  fullPlain: { borderLeftWidth: 1, justifyContent: 'center' },
-  fullMoveText: { flex: 1, color: '#FFFFFF', fontFamily: fonts.heavy, fontSize: 13, lineHeight: 17 },
+  // Full screen: a column of see-through buttons filling the actions corner. Every button has its own height, and only
+  // the two in the bottom row share a width, so nothing collapses on Android.
+  fullMoves: { width: '100%', gap: 6 },
+  fullMove: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 12,
+    backgroundColor: 'rgba(20, 20, 30, 0.45)', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.55)', borderLeftWidth: 5 },
+  fullBall: { backgroundColor: 'rgba(210, 40, 40, 0.5)', borderLeftWidth: 1.5 },
+  fullRow: { flexDirection: 'row', gap: 6 },
+  fullHalf: { flex: 1, borderLeftWidth: 1.5, justifyContent: 'center' },
+  fullMoveText: { flexShrink: 1, flexGrow: 1, color: '#FFFFFF', fontFamily: fonts.heavy, fontSize: 14, lineHeight: 18,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)', textShadowRadius: 2, textShadowOffset: { width: 0, height: 1 } },
+  fullMoveWait: { color: '#FFFFFF', fontFamily: fonts.bold, fontSize: 12, lineHeight: 16, fontVariant: ['tabular-nums'] },
   callout: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, borderWidth: 2, overflow: 'hidden', backgroundColor: 'rgba(8, 8, 20, 0.82)',
     color: '#FFFFFF', fontFamily: fonts.black, fontSize: 13, lineHeight: 18, letterSpacing: 0.5 },
   pauseTitle: { fontFamily: fonts.black, fontSize: 24, lineHeight: 30, color: '#FFFFFF', textAlign: 'center' },

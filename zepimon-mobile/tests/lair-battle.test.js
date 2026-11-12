@@ -2,8 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { legendarySpecies } from '../src/generated/expedition.js'
 import { LAIRS } from '../src/games/lairs.ts'
-import { isWalkable, pointKey, tileAt } from '../src/games/safari-zone.ts'
-import { ATTACK_MS, CAPTURE, CAPTURE_MS, FIRST_ATTACK_MS, FOE_HP, KEEP_AWAY, LAND_MS, LAYOUTS, MOVE_GAP_MS, RECOVER_MS, ROAM_MS, STAGGER_MS, STRIKE_MS, WARN_MS,
+import { STEPS, isWalkable, pointKey, tileAt } from '../src/games/safari-zone.ts'
+import { ATTACK_MS, CAPTURE, CAPTURE_MS, ESCAPE, FIRST_ATTACK_MS, FOE_HP, KEEP_AWAY, LAIR_SCALE, RECOVER_HP, LAND_MS, LAYOUTS, MOVE_GAP_MS, RECOVER_MS, ROAM_MS, STAGGER_MS, STRIKE_MS, WARN_MS,
   attackSpot, battleOver, battleTick, battleWalk, facingToward, partnerOut, lairFor, legendaryHeight, legendarySize, maxHearts, moveWait, partnerMoves, pauseBattle, resumeBattle, startBattle, strikeWith,
   throwBall, weakened } from '../src/games/lair-battle.ts'
 
@@ -289,4 +289,80 @@ test('pausing drops an attack in flight and holds every clock', () => {
   assert.equal(resumed.nextAttackAt, T0 + 60000 + FIRST_ATTACK_MS, 'A breath before it attacks again')
   assert.equal(moveWait(resumed, 0, T0 + 60000), moveWait(battle, 0, T0 + FIRST_ATTACK_MS + 500), 'A move waits as long as it still had to')
   assert.deepEqual([resumed.foe.hp, resumed.hearts], [battle.foe.hp, battle.hearts])
+})
+
+test('every lair is played at twice its Emerald size, with the way in and the perch where they were', () => {
+  assert.equal(LAIR_SCALE, 2)
+  for (const [id, room] of Object.entries(LAIRS)) {
+    const layout = LAYOUTS[id]
+    assert.deepEqual([layout.cols, layout.rows], [room.cols * 2, room.rows * 2], id)
+    assert.equal(layout.map.tiles.length, layout.rows)
+    for (const row of layout.map.tiles) assert.equal(row.length, layout.cols)
+    // Each Emerald tile is a 2 x 2 block of the same tile.
+    room.tiles.forEach((row, y) => [...row].forEach((tile, x) => {
+      for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) assert.equal(layout.map.tiles[y * 2 + dy][x * 2 + dx], tile, `${id} ${x},${y}`)
+    }))
+    const original = room.tiles.join('').split('').filter(isWalkable).length
+    assert.equal(layout.ground.length, original * 4, `${id}: four times the ground`)
+    // The start is in its old block, the entrance one step out of it in the way out, and the perch in its old block.
+    assert.deepEqual([Math.floor(layout.start.x / 2), Math.floor(layout.start.y / 2)], [room.start.x, room.start.y], `${id}: start`)
+    assert.deepEqual({ x: layout.start.x + STEPS[layout.out].x, y: layout.start.y + STEPS[layout.out].y }, layout.entrance, `${id}: entrance next to the start`)
+    assert.deepEqual([Math.floor(layout.entrance.x / 2), Math.floor(layout.entrance.y / 2)], [room.entrance.x, room.entrance.y], `${id}: entrance`)
+    assert.deepEqual([Math.floor(layout.legendary.x / 2), Math.floor(layout.legendary.y / 2)], [room.legendary.x, room.legendary.y], `${id}: perch`)
+    assert.ok(isWalkable(tileAt(layout.start, layout.map)), `${id}: you start on open ground`)
+  }
+})
+
+// Steps from a tile to the nearest one not marked, walking open ground only (Infinity if there is none).
+const stepsOut = (layout, from, marked) => {
+  let edge = [from], seen = new Set([pointKey(from)])
+  for (let step = 0; edge.length; step++) {
+    if (edge.some(point => !marked.has(pointKey(point)))) return step
+    edge = edge.flatMap(point => Object.values(STEPS).map(({ x, y }) => ({ x: point.x + x, y: point.y + y })))
+      .filter(point => isWalkable(tileAt(point, layout.map)) && !seen.has(pointKey(point)) && !!seen.add(pointKey(point)))
+  }
+  return Infinity
+}
+
+test('every attack is aimed at you and always leaves a way out in time, calm or enraged', () => {
+  for (const name of legendarySpecies) {
+    for (const hp of [FOE_HP, FOE_HP / 2]) {
+      let seed = 11
+      const random = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648 }
+      const base = strikeWith(begin(name), 0, T0, LOW).battle
+      const spots = base.layout.ground.filter((_, i) => i % 7 === 0)
+      for (const at of spots) {
+        const battle = { ...base, at, foe: { ...base.foe, hp }, danger: null, nextAttackAt: T0, nextRoamAt: Infinity }
+        const warned = battleTick(battle, T0, random)
+        assert.ok(warned.danger, `${name}: it attacks`)
+        const marked = new Set(warned.danger.tiles)
+        assert.ok(marked.has(pointKey(at)), `${name}: aimed where you stand`)
+        assert.ok(stepsOut(warned.layout, at, marked) <= ESCAPE, `${name} at ${pointKey(at)}: a safe tile within ${ESCAPE} steps`)
+        // There is time to get there: a step every 220 ms.
+        assert.ok(ESCAPE * 220 < WARN_MS)
+      }
+    }
+  }
+})
+
+test('enraged at half HP it strikes sooner, and running out of hearts gives it HP back', () => {
+  const gap = hp => {
+    let battle = { ...strikeWith(begin('Mewtwo'), 0, T0, LOW).battle, nextRoamAt: Infinity, foe: { name: 'Mewtwo', shiny: false, hp } }
+    battle = battleTick({ ...battle, nextAttackAt: T0 }, T0, () => 0.5)
+    const marked = new Set(battle.danger.tiles)
+    const safe = battle.layout.ground.find(point => !marked.has(pointKey(point)))
+    battle = battleTick({ ...battle, at: safe }, battle.danger.warnUntil, () => 0.5)
+    const ended = battle.danger.strikeUntil
+    battle = battleTick(battle, ended, () => 0.5)
+    assert.equal(battle.danger, null)
+    return battle.nextAttackAt - ended
+  }
+  assert.ok(gap(FOE_HP / 2) < gap(FOE_HP), 'Enraged, the next attack comes sooner')
+  let battle = { ...strikeWith(begin('Mewtwo'), 0, T0, LOW).battle, strike: null, nextRoamAt: Infinity, hearts: 1, foe: { name: 'Mewtwo', shiny: false, hp: 40 } }
+  battle = battleTick({ ...battle, nextAttackAt: T0 }, T0, LOW)
+  const out = battleTick(battle, battle.danger.warnUntil, LOW)
+  assert.deepEqual([out.hearts, out.foe.hp], [0, 40 + RECOVER_HP])
+  assert.match(out.message, new RegExp(`recovers ${RECOVER_HP} HP`))
+  const full = battleTick({ ...battle, foe: { ...battle.foe, hp: FOE_HP - 5 } }, battle.danger.warnUntil, LOW)
+  assert.equal(full.foe.hp, FOE_HP, 'Never past full')
 })

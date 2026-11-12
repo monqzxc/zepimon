@@ -19,17 +19,21 @@ import type { Direction, Point, SafariMap } from './safari-zone.ts'
 // then can a Poke Ball be thrown, which always holds. A move sends your partner out in front, toward the Legendary:
 // it holds its ground there for the whole attack (ATTACK_MS, the move landing at LAND_MS) while you are free to walk,
 // then runs back to your heels. Once the battle begins the Legendary is the boss of its lair: it leaves its perch and
-// prowls the open ground a tile at a time (ROAM_MS), closing on you but never nearer than two tiles, and you cannot
-// walk through it. While you fight, it answers with its signature move (src/games/legendary-moves.ts), telegraphed: a
-// ring around you or a line through you, marked for WARN_MS before they land, hitting only the marked tiles. A hit
-// costs a heart and a short stagger; at none, the Legendary holds back while you recover in full. You never faint.
+// hunts you across the open ground a tile at a time (ROAM_MS), closing in but never nearer than KEEP_AWAY tiles, and you
+// cannot walk through it. While you fight, it answers with its signature move (src/games/legendary-moves.ts),
+// telegraphed: a ring around you, a beam from it through you, or a band along your row or column, marked for WARN_MS
+// before it lands and hitting only the marked tiles. At half HP or less it is enraged: it strikes more often, its ring
+// grows and it can strike a cross. A hit costs a heart and a short stagger; at none, the Legendary holds back while you
+// recover in full, and gets RECOVER_HP back. You never faint.
 // Times are passed in (ms), so the rules run on a test clock as well as the screen's.
-export const FOE_HP = 100
-export const WARN_MS = 1800
+export const FOE_HP = 150
+// About six steps of warning: every attack leaves a safe tile ESCAPE steps away at most.
+export const WARN_MS = 1300
+export const ESCAPE = 3
 export const STRIKE_MS = 700
 export const STAGGER_MS = 700
 export const RECOVER_MS = 3500
-export const FIRST_ATTACK_MS = 2500
+export const FIRST_ATTACK_MS = 2000
 // The capture, as the screen plays it (src/games/LairBattle.tsx): the ball flies from the trainer and hits, bounces back
 // and opens, a red beam draws the Legendary inside, the ball drops, swings three times, then a star pops.
 export const CAPTURE = { fly: 500, bounce: 450, beam: 750, drop: 350, swing: 700, swings: 3, star: 700 } as const
@@ -40,11 +44,19 @@ export const LAND_MS = 450
 // After any move, every move waits until the partner is back, so two never overlap.
 export const MOVE_GAP_MS = ATTACK_MS
 // The Legendary takes a step this often while it prowls, and holds still while it charges and strikes.
-export const ROAM_MS = 900
+export const ROAM_MS = 600
 // It never comes nearer to the trainer than this many tiles, so it cannot pen you in.
-export const KEEP_AWAY = 2
-const GAP_MS = 2600
-const GAP_SPREAD_MS = 1400
+export const KEEP_AWAY = 3
+// The breath between its attacks, shorter once it is enraged (at half HP or less).
+const GAP_MS = 1500
+const GAP_SPREAD_MS = 900
+const ENRAGED_GAP_MS = 900
+const ENRAGED_SPREAD_MS = 500
+// Run out of hearts and the Legendary gets its breath back too: it recovers this much HP.
+export const RECOVER_HP = 30
+// Every lair is played at twice its Emerald size: each tile of the room is a 2 x 2 block here, so there is twice the
+// room to move in each way, with the trainer, the partner and the Legendary at the same size beside each other.
+export const LAIR_SCALE = 2
 const BACK: Record<Direction, Direction> = { north: 'south', south: 'north', west: 'east', east: 'west' }
 
 export type LairLayout = {
@@ -54,12 +66,20 @@ export type LairLayout = {
 
 function buildLayout(lair: LairId): LairLayout {
   const room = LAIRS[lair]
-  // Only the play area is walkable: the Legendary's tile, the entrance and everything else are walls here.
-  const map = { cols: room.cols, rows: room.rows, chunk: Math.max(room.cols, room.rows), tiles: room.tiles, areas: [], starts: {}, chunks: {} } as unknown as SafariMap
+  const scale = LAIR_SCALE
+  const tiles = room.tiles.flatMap(row => Array<string>(scale).fill([...row].map(tile => tile.repeat(scale)).join('')))
+  const cols = room.cols * scale, rows = room.rows * scale
+  // The start is the corner of its block that touches the entrance, so the way out still leads straight onto it.
+  const out = STEPS[room.out]
+  const start = { x: room.start.x * scale + (out.x > 0 ? scale - 1 : 0), y: room.start.y * scale + (out.y > 0 ? scale - 1 : 0) }
+  const entrance = { x: start.x + out.x, y: start.y + out.y }
+  // The Legendary's perch: the bottom row of its block, so it stands where it always did.
+  const legendary = { x: room.legendary.x * scale, y: room.legendary.y * scale + scale - 1 }
+  // Only the play area is walkable: the Legendary's perch, the entrance and everything else are walls here.
+  const map = { cols, rows, chunk: Math.max(cols, rows), tiles, areas: [], starts: {}, chunks: {} } as unknown as SafariMap
   const ground: Point[] = []
-  room.tiles.forEach((row, y) => [...row].forEach((tile, x) => { if (isWalkable(tile)) ground.push({ x, y }) }))
-  return { lair, label: room.name, cols: room.cols, rows: room.rows, background: room.background, legendary: room.legendary, start: room.start,
-    entrance: room.entrance, out: room.out, map, ground }
+  tiles.forEach((row, y) => [...row].forEach((tile, x) => { if (isWalkable(tile)) ground.push({ x, y }) }))
+  return { lair, label: room.name, cols, rows, background: room.background, legendary, start, entrance, out: room.out, map, ground }
 }
 export const LAYOUTS = Object.fromEntries((Object.keys(LAIRS) as LairId[]).map(lair => [lair, buildLayout(lair)])) as Record<LairId, LairLayout>
 
@@ -218,7 +238,7 @@ function roam(battle: LairBattle, random: () => number): LairBattle {
     : layout.ground.filter(free).sort((a, b) => apart(a, foeAt) - apart(b, foeAt) || a.y - b.y || a.x - b.x).slice(0, 1)
   if (!options.length) return battle
   const closing = [...options].sort((a, b) => apart(a, at) - apart(b, at) || a.y - b.y || a.x - b.x)[0]
-  const to = random() < 0.65 ? closing : options[Math.min(options.length - 1, Math.floor(random() * options.length))]
+  const to = random() < 0.9 ? closing : options[Math.min(options.length - 1, Math.floor(random() * options.length))]
   return { ...battle, foeAt: to, foeFacing: facingToward(foeAt, to) }
 }
 
@@ -238,18 +258,33 @@ export function throwBall(battle: LairBattle, now: number): LairBattle {
     ball: { from: battle.at, since: now, until: now + CAPTURE_MS } }, 'You threw a Poké Ball!', 'ball')
 }
 
-// The Legendary's next attack, aimed where you stand: a ring around you or a line through you.
+// The Legendary's next attack, aimed at you: a ring around you, a beam from it straight through you, or a band along
+// your row or column, three tiles wide. Enraged (at half HP or less) its ring grows and it can strike a cross as well.
+type Shape = 'ring' | 'beam' | 'row' | 'column' | 'cross'
 function aim(battle: LairBattle, now: number, random: () => number): Danger {
   const roll = random()
-  const { at, layout } = battle
-  const shapes: Record<'ring' | 'row' | 'column', (point: Point) => boolean> = {
-    ring: point => Math.abs(point.x - at.x) <= 1 && Math.abs(point.y - at.y) <= 1, row: point => point.y === at.y, column: point => point.x === at.x
+  const { at, layout, foeAt } = battle
+  const enraged = battle.foe.hp <= FOE_HP / 2
+  const reach = enraged ? 3 : 2
+  const vx = at.x - foeAt.x, vy = at.y - foeAt.y, length = Math.hypot(vx, vy) || 1
+  const shapes: Record<Shape, (point: Point) => boolean> = {
+    ring: point => Math.max(Math.abs(point.x - at.x), Math.abs(point.y - at.y)) <= reach,
+    // From the Legendary through you and on: every tile within a tile of that line, ahead of the Legendary.
+    beam: point => {
+      const wx = point.x - foeAt.x, wy = point.y - foeAt.y
+      return wx * vx + wy * vy > 0 && Math.abs(wx * vy - wy * vx) / length <= 1.2
+    },
+    row: point => Math.abs(point.y - at.y) <= 1,
+    column: point => Math.abs(point.x - at.x) <= 1,
+    cross: point => point.x === at.x || point.y === at.y || Math.max(Math.abs(point.x - at.x), Math.abs(point.y - at.y)) <= 1
   }
-  const rolled = roll < 0.5 ? 'ring' : roll < 0.75 ? 'row' : 'column'
-  // Rocks and trees can leave a nook a line would fill from end to end; there the Legendary aims another way, so every
-  // attack leaves an unmarked tile two steps away at most.
-  const shape = ([rolled, 'ring', 'row', 'column'] as const).map(id => ({ id, tiles: new Set(layout.ground.filter(shapes[id]).map(pointKey)) }))
-    .find(({ tiles }) => clearWithin(layout.map, at, tiles, 2)) ?? { id: rolled, tiles: new Set(layout.ground.filter(shapes[rolled]).map(pointKey)) }
+  const rolled: Shape = enraged && roll < 0.2 ? 'cross' : roll < 0.4 ? 'beam' : roll < 0.7 ? 'ring' : roll < 0.85 ? 'row' : 'column'
+  // Rocks and water can leave a nook a band would fill from end to end; there the Legendary aims another way, so every
+  // attack leaves an unmarked tile ESCAPE steps away at most.
+  const order: Shape[] = [rolled, 'beam', 'ring', 'row', 'column', 'cross']
+  const shape = order.map(id => ({ id, tiles: new Set(layout.ground.filter(shapes[id]).map(pointKey)) }))
+    .find(({ tiles }) => tiles.size && clearWithin(layout.map, at, tiles, ESCAPE))
+    ?? { id: 'ring' as Shape, tiles: new Set(layout.ground.filter(point => same(point, at)).map(pointKey)) }
   return { kind: shape.id === 'ring' ? 'ring' : 'line', tiles: [...shape.tiles], warnUntil: now + WARN_MS, strikeUntil: now + WARN_MS + STRIKE_MS, struck: false }
 }
 
@@ -293,11 +328,13 @@ export function battleTick(battle: LairBattle, now: number, random: () => number
     if (danger.tiles.includes(pointKey(next.at))) {
       const hearts = Math.max(0, next.hearts - 1)
       next = say({ ...next, hearts, staggerUntil: now + STAGGER_MS, recoverUntil: hearts ? next.recoverUntil : now + RECOVER_MS },
-        hearts ? 'Hit! You lost a heart.' : `Hit! Out of hearts: catch your breath, ${next.foe.name} waits.`, 'hit')
+        hearts ? 'Hit! You lost a heart.' : `Hit! Out of hearts: ${next.foe.name} recovers ${RECOVER_HP} HP while you catch your breath.`, 'hit')
+      if (!hearts) next = { ...next, foe: { ...next.foe, hp: Math.min(FOE_HP, next.foe.hp + RECOVER_HP) } }
     } else next = say(next, `Dodged! ${prompt(next)}`, 'dodge')
   }
   if (next.danger?.struck && now >= next.danger.strikeUntil) {
-    next = { ...next, danger: null, nextAttackAt: now + GAP_MS + Math.floor(random() * GAP_SPREAD_MS) }
+    const enraged = next.foe.hp <= FOE_HP / 2
+    next = { ...next, danger: null, nextAttackAt: now + (enraged ? ENRAGED_GAP_MS : GAP_MS) + Math.floor(random() * (enraged ? ENRAGED_SPREAD_MS : GAP_SPREAD_MS)) }
   }
   // The boss prowls between its attacks: it holds still while one is charging or landing.
   if (next.phase === 'fight' && !next.danger && now >= next.nextRoamAt) next = { ...roam(next, random), nextRoamAt: now + ROAM_MS }
