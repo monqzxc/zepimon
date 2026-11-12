@@ -10,7 +10,7 @@ import { Nunito_800ExtraBold } from '@expo-google-fonts/nunito/800ExtraBold'
 import { Nunito_900Black } from '@expo-google-fonts/nunito/900Black'
 import { PixelifySans_600SemiBold } from '@expo-google-fonts/pixelify-sans/600SemiBold'
 import { JournalProvider, useJournal } from '../store'
-import { Copy, PokeballLoader, Screen, colors, fonts, useTheme } from '../ui'
+import { Copy, HeaderTitle, PokeballLoader, Screen, colors, fonts, useTheme } from '../ui'
 import { usePreferencesLoaded } from '../preferences'
 import { CloudProvider } from '../cloud'
 import { CrashReport, CrashScreen } from '../CrashReport'
@@ -50,7 +50,8 @@ function Navigator() {
   return <ThemeProvider value={navigationTheme}>
     <StatusBar style={dark ? 'light' : 'dark'} />
     <Stack screenOptions={{ headerStyle: { backgroundColor: colors.bg }, headerShadowVisible: false, headerTintColor: colors.ink,
-      headerTitleStyle: { fontFamily: fonts.heavy, color: colors.ink }, contentStyle: { backgroundColor: colors.bg } }}>
+      headerTitleStyle: { fontFamily: fonts.heavy, color: colors.ink }, headerTitle: ({ children }) => <HeaderTitle>{children}</HeaderTitle>,
+      contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="pokemon" options={{ title: 'Pokemon record' }} />
       <Stack.Screen name="expeditions" options={{ title: 'Legendary Expeditions' }} />

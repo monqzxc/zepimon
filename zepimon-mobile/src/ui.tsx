@@ -3,6 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import type { ColorValue, StyleProp, ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { BottomTabBarHeightContext } from 'expo-router/tabs'
+import { HeaderShownContext } from 'expo-router/react-navigation'
 import { SymbolView } from 'expo-symbols'
 import type { AndroidSymbol, SFSymbol } from 'expo-symbols'
 import { pokemonType, typeColors } from './catalog'
@@ -157,6 +158,17 @@ export function IconButton({ name, label, onPress, size = 44 }: { name: IconName
   </Pressable>
 }
 // A line-drawn Poke Ball (no platform has a symbol for it): ring, split band and center button.
+// The title in every stack screen's header: a Poké Ball badge in the theme's soft tint, then the title in the display
+// face (Emerald's pixel type in the retro themes) over a short accent bar.
+export function HeaderTitle({ children }: { children: React.ReactNode }) {
+  return <View accessibilityRole="header" style={styles.headerTitle}>
+    <View style={styles.headerBadge}><PokeballIcon size={15} color={colors.edge} /></View>
+    <View style={{ flexShrink: 1, gap: 3 }}>
+      <Text numberOfLines={1} style={styles.headerTitleText}>{children}</Text>
+      <View style={styles.headerBar} />
+    </View>
+  </View>
+}
 export function PokeballIcon({ size = 22, color = colors.ink, stroke = Math.max(2, Math.round(size / 11)) }: { size?: number, color?: ColorValue, stroke?: number }) {
   const button = size * 0.36
   const band = { position: 'absolute' as const, top: (size - stroke) / 2, height: stroke, width: (size - button) / 2, backgroundColor: color }
@@ -177,10 +189,13 @@ export function PokeballIcon({ size = 22, color = colors.ink, stroke = Math.max(
 export function Screen({ children, fill = false, full = false, edge = false, page }: React.PropsWithChildren<{ fill?: boolean, full?: boolean, edge?: boolean, page?: string }>) {
   const scroll = useRef<ScrollView>(null)
   const tabBar = useContext(BottomTabBarHeightContext) ?? 0
+  // Under a stack header the header already clears the status bar, so the screen doesn't pad for it again (on Android
+  // that doubled the gap under the title). Full-screen play hides the header, and then the screen clears it itself.
+  const headerShown = useContext(HeaderShownContext)
   useEffect(() => { if (fill) scroll.current?.scrollTo({ y: 0, animated: false }) }, [fill])
   useEffect(() => { if (page !== undefined) scroll.current?.scrollTo({ y: 0, animated: false }) }, [page])
   const content = [styles.content, fill && styles.contentFill, full && styles.contentFull, edge && styles.contentEdge]
-  return <SafeAreaView style={styles.screen} edges={full || edge ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
+  return <SafeAreaView style={styles.screen} edges={full || edge ? ['top', 'left', 'right', 'bottom'] : headerShown ? ['left', 'right'] : ['top', 'left', 'right']}>
     <ScrollView ref={scroll} scrollEnabled={!fill && !edge} keyboardShouldPersistTaps="handled"
       contentContainerStyle={[content, tabBar > 0 && { paddingBottom: Number(StyleSheet.flatten(content).paddingBottom ?? 0) + tabBar }]}>
       {children}
@@ -198,6 +213,11 @@ export function Habitat({ name, shiny = false, children }: React.PropsWithChildr
 }
 export const styles = themedStyles(() => ({
   screen: { flex: 1, backgroundColor: colors.bg },
+  headerTitle: { flexDirection: 'row', alignItems: 'center', gap: 9, maxWidth: 280 },
+  headerBadge: { width: 26, height: 26, borderRadius: retro() ? 6 : 13, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.mint, borderWidth: 1, borderColor: colors.mintLine },
+  headerTitleText: { fontFamily: displayFont(fonts.black), color: colors.ink, fontSize: retro() ? 16 : 18, lineHeight: 22 },
+  headerBar: { width: 22, height: 3, borderRadius: 2, backgroundColor: colors.edge },
   content: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 16 },
   // On a tab, Screen adds the tab bar's height to these bottom paddings (src/TabBar.tsx).
   contentFill: { flexGrow: 1, paddingBottom: 16 },
