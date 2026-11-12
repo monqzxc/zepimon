@@ -323,12 +323,12 @@ next 25 km after a permit encounter.
    never changes the species, the trial, distance or claim order.
 3. **Battle:** right there in the lair, with no cut to a battle screen. Your buddy's (or Pikachu's) moves are listed
    on the right: its type move, False Swipe and its two strongest egg moves, four at most. Tap one and it lands; each
-   needs a moment before it can be used again. The first move or ball sets the result for good. Moves lower HP but
-   always leave the Legendary at 1 HP or more. See **The battle in the lair** below.
-4. **Catch:** five Poké Balls per battle; lower HP makes a catch likelier. A failed catch or running out of balls uses
-   nothing up. Only a successful catch claims the encounter and adds the Legendary to the Dex, once.
+   needs a moment before it can be used again. The first move sets the result for good. See **The battle in the
+   lair** below.
+4. **Catch:** a Poké Ball only works once the Legendary's HP is gone and it is **weakened**; then it always holds.
+   Only that catch claims the encounter and adds the Legendary to the Dex, once.
 
-The battle's motion (the hit flicker with Gen III move strips, the ball's arc and shakes) respects the phone's or the
+The battle's motion (the hit flicker with Gen III move strips, the circling stars, the capture) respects the phone's or the
 app's reduce-motion setting. It reuses the move sprites already credited in `SPRITE-CREDITS.md`; the Poké Ball is the
 app's own vector icon.
 
@@ -388,8 +388,14 @@ meets it anew, with a new chance to be Shiny. Then:
   tiles count, at the moment the attack lands.
 - **A hit** costs one heart and a short stagger. You start with 3, plus 1 for each km of saved walks and runs this
   week, up to 5 (the arcade's walking bonus: only saved, finished adventures count). At 0 you catch your breath while
-  the Legendary holds back, then you're back to full. Nothing faints.
-- **Poké Ball** (Space or Enter on the web) throws one of five. The Legendary holds still while it shakes.
+  the Legendary holds back, then you're back to full. You never faint.
+- **Weakened:** at 0 HP the Legendary slumps and holds still, stars circle its head, its HP box reads WEAKENED and it
+  stops attacking. The moves switch off and the Poké Ball lights up. Before that the ball only says to wear it down.
+- **Poké Ball** (Space or Enter on the web): your trainer turns to the Legendary and throws from wherever they stand.
+  The ball spins in, bounces off and bursts open; a jagged red beam turns the Legendary to red light and draws it
+  inside; the ball drops, swings three times with its button pulsing red, then a star pops and it reads
+  **Captured!** The capture takes about 4.8 s and cannot be paused. With reduced motion the ball simply rests on the
+  ground and the star shows at the end.
 
 Leaving, pausing (or the app going to the background) or restarting the app keeps the encounter waiting with its
 result; the battle itself is never saved, so coming back starts it afresh at full HP. Only a successful catch claims
@@ -522,9 +528,8 @@ species order. A Shiny catch gets its own row, marked ✦. You can come back any
   moves and par. Deoxys goes straight to the Shattered Star island, reveal included. Practice is never saved mid-room,
   so leaving drops the run. A clear saves the room's moves to your trial records only if they're lower ("Room cleared
   in N moves (best M)"), which also counts toward the trial achievements.
-- **Battle again** is a rematch in its lair, the same battle against the form you caught. If the ball holds, you win the rematch
-  ("You won the rematch! Zapdos returns to your team.") and the row counts your rematch wins. Leaving or running out
-  of balls just ends it.
+- **Battle again** is a rematch in its lair, the same battle against the form you caught. Weaken it and capture it
+  again and you win the rematch ("You won the rematch!"), and the row counts your rematch wins. Leaving just ends it.
 
 Revisits are practice. They never claim an encounter, add or change a Dex entry, roll a Shiny, use or give a permit,
 or touch an open encounter's trial checkpoint. Only trial records and rematch wins change. The rules are in

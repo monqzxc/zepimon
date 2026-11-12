@@ -3,9 +3,9 @@ import assert from 'node:assert/strict'
 import { legendarySpecies } from '../src/generated/expedition.js'
 import { LAIRS } from '../src/games/lairs.ts'
 import { isWalkable, pointKey, tileAt } from '../src/games/safari-zone.ts'
-import { BALL_MS, BATTLE_BALLS, FIRST_ATTACK_MS, FOE_HP, LAYOUTS, MOVE_GAP_MS, RECOVER_MS, SHAKE_MS, STAGGER_MS, STRIKE_MS, WARN_MS, battleOver, battleTick,
-  battleWalk, catchChance, lairFor, legendaryHeight, legendarySize, maxHearts, moveWait, partnerMoves, pauseBattle, resumeBattle, startBattle, strikeWith,
-  throwBall } from '../src/games/lair-battle.ts'
+import { CAPTURE, CAPTURE_MS, FIRST_ATTACK_MS, FOE_HP, LAYOUTS, MOVE_GAP_MS, RECOVER_MS, STAGGER_MS, STRIKE_MS, WARN_MS, battleOver, battleTick,
+  battleWalk, facingToward, lairFor, legendaryHeight, legendarySize, maxHearts, moveWait, partnerMoves, pauseBattle, resumeBattle, startBattle, strikeWith,
+  throwBall, weakened } from '../src/games/lair-battle.ts'
 
 // The Legendary battle, fought in the lair itself on a test clock.
 const T0 = 1000000
@@ -14,6 +14,8 @@ const LOW = () => 0
 const begin = (name = 'Rayquaza', options) => startBattle({ name, shiny: false }, 'Pikachu', 3, T0, options)
 const BACK = { north: 'south', south: 'north', west: 'east', east: 'west' }
 // Runs the clock forward in 100 ms ticks, as the screen does.
+// Wears the Legendary down to nothing, one move every five seconds.
+const weaken = (battle, from = T0) => { let now = from; while (battle.foe.hp > 0) { now += 5000; battle = strikeWith(battle, 0, now, HIGH).battle } return { battle, now } }
 const run = (battle, from, to, random = HIGH) => { for (let now = from; now <= to; now += 100) battle = battleTick(battle, now, random); return battle }
 
 test('every Legendary has a lair to fight in, a height and a size beside the trainer', () => {
@@ -49,7 +51,7 @@ test('the partner brings its type move, False Swipe and its strongest egg moves,
 test('until the first move the Legendary only watches, and the portal is the shiny reset', () => {
   const battle = begin()
   const { layout } = battle
-  assert.deepEqual([battle.phase, battle.foe.hp, battle.balls, battle.hearts], ['watch', FOE_HP, BATTLE_BALLS, 3])
+  assert.deepEqual([battle.phase, battle.foe.hp, battle.hearts], ['watch', FOE_HP, 3])
   assert.deepEqual(battle.at, layout.start)
   assert.equal(battle.facing, BACK[layout.out], 'Facing into the lair')
   const waited = run(battle, T0, T0 + 60000)
@@ -88,7 +90,7 @@ test('walking follows the lair: open ground only, the buddy a step behind', () =
   }
 })
 
-test('moves wear the Legendary down but never knock it out, each with its own wait', () => {
+test('moves wear the Legendary down to nothing, each with its own wait; then it is weakened and stops', () => {
   let battle = begin()
   const first = strikeWith(battle, 0, T0, HIGH)
   assert.deepEqual([first.began, first.battle.phase], [true, 'fight'])
@@ -104,10 +106,19 @@ test('moves wear the Legendary down but never knock it out, each with its own wa
   assert.equal(second.began, false, 'Only the first begins the battle')
   assert.equal(second.battle.foe.hp, battle.foe.hp - battle.moves[1].max)
   assert.equal(strikeWith(battle, 9, T0 + 9000, HIGH).battle, battle, 'No such move')
+  // The last HP: an attack it was charging is dropped, and it never attacks again.
   let now = T0
-  for (let i = 0; i < 40; i++) { now += 5000; battle = strikeWith(battle, 0, now, HIGH).battle; assert.ok(battle.foe.hp >= 1) }
-  assert.equal(battle.foe.hp, 1)
-  assert.match(battle.message, /barely standing/)
+  while (battle.foe.hp > battle.moves[0].max) { now += 5000; battle = strikeWith(battle, 0, now, HIGH).battle; assert.equal(weakened(battle), false) }
+  battle = { ...battle, nextAttackAt: now }
+  battle = battleTick(battle, now, LOW)
+  assert.ok(battle.danger, 'Still fighting')
+  const down = strikeWith(battle, 0, now + 5000, HIGH).battle
+  assert.deepEqual([down.foe.hp, down.phase, down.danger, weakened(down)], [0, 'down', null, true])
+  assert.match(down.message, /weakened/)
+  const later = run(down, now + 5000, now + 60000, LOW)
+  assert.deepEqual([later.danger, later.hearts, later.phase], [null, 3, 'down'], 'Weakened, it stays down and holds still')
+  assert.equal(strikeWith(down, 1, now + 30000, HIGH).battle, down, 'No more moves once it is down')
+  assert.equal(battleWalk(down, BACK[down.layout.out], now + 30000).move !== 'none', true, 'You can still walk around it')
 })
 
 test('the Legendary answers with marked attacks that can always be walked out of', () => {
@@ -151,45 +162,45 @@ test('standing in a marked attack costs a heart; stepping off dodges; out of hea
   const resting = run(last, now + WARN_MS + 100, now + WARN_MS + RECOVER_MS - 100, LOW)
   assert.equal(resting.danger?.struck ?? true, true, 'No new attack while you recover')
   assert.equal(strikeWith(resting, 1, now + WARN_MS + 1000, LOW).battle, resting)
-  assert.equal(throwBall(resting, now + WARN_MS + 1000, LOW).battle, resting)
   const back = battleTick(resting, now + WARN_MS + RECOVER_MS, LOW)
   assert.deepEqual([back.hearts, back.feedback], [3, 'recover'])
   assert.equal(battleOver(back), false, 'Nothing faints')
 })
 
-test('a Poké Ball is the only way to a catch, likelier the lower its HP', () => {
-  assert.ok(catchChance(1) > catchChance(50) && catchChance(50) > catchChance(FOE_HP))
-  assert.ok(catchChance(FOE_HP) > 0.1 && catchChance(1) < 0.9)
-  const battle = begin('Rayquaza', { engaged: true })
-  // A miss: the ball shakes, the Legendary breaks free and the battle goes on.
-  const miss = throwBall(battle, T0, HIGH)
-  assert.deepEqual([miss.battle.phase, miss.battle.balls, miss.battle.ball.caught, miss.battle.ball.shakes], ['throw', BATTLE_BALLS - 1, false, 3])
-  assert.equal(miss.battle.ball.until, T0 + BALL_MS + 4 * SHAKE_MS)
-  assert.equal(strikeWith(miss.battle, 0, T0 + 100, LOW).battle, miss.battle, 'Nothing else while the ball is in the air')
-  assert.equal(battleWalk(miss.battle, 'north', T0 + 100).move, 'none')
-  assert.equal(battleTick(miss.battle, miss.battle.ball.until - 1, HIGH).phase, 'throw')
-  const free = battleTick(miss.battle, miss.battle.ball.until, HIGH)
-  assert.deepEqual([free.phase, free.ball, free.foe.hp], ['fight', null, FOE_HP])
-  assert.match(free.message, /so close/)
-  // The last ball missed: out, and final.
-  let out = free
-  let now = T0 + 10000
-  for (let i = 0; i < BATTLE_BALLS - 1; i++) { out = throwBall(out, now, HIGH).battle; now = out.ball.until; out = battleTick(out, now, HIGH); now += 100 }
-  assert.deepEqual([out.phase, out.balls], ['out', 0])
-  assert.equal(battleOver(out), true)
-  assert.equal(throwBall(out, now, LOW).battle, out)
-  assert.equal(battleTick(out, now + 60000, LOW), out)
-  // A hold: caught, with three shakes, and final.
-  const held = throwBall(free, T0 + 10000, LOW)
-  assert.deepEqual([held.battle.ball.caught, held.battle.ball.shakes], [true, 3])
-  const caught = battleTick(held.battle, held.battle.ball.until, LOW)
-  assert.equal(caught.phase, 'caught')
-  assert.match(caught.message, /Gotcha! Rayquaza was caught/)
-  for (const action of [b => strikeWith(b, 0, T0 + 99000, LOW).battle, b => throwBall(b, T0 + 99000, LOW).battle, b => battleTick(b, T0 + 99000, LOW),
-    b => battleWalk(b, 'north', T0 + 99000).battle, b => pauseBattle(b, T0 + 99000)]) assert.equal(action(caught), caught, 'Caught is final')
-  // Throwing first thing also begins the battle.
-  assert.equal(throwBall(begin(), T0, HIGH).began, true)
-  assert.match(battleTick(throwBall(startBattle({ name: 'Mew', shiny: true }, 'Pikachu', 3, T0), T0, LOW).battle, T0 + 5000, LOW).message, /Gotcha! Shiny Mew/)
+test('a Poké Ball only works on a weakened Legendary, is thrown from where you stand, and always holds', () => {
+  const fresh = begin('Rayquaza', { engaged: true })
+  // Too soon: nothing is thrown, at full HP or with 1 HP left, and it says why.
+  for (const battle of [begin(), fresh, { ...fresh, foe: { ...fresh.foe, hp: 1 } }]) {
+    const refused = throwBall(battle, T0)
+    assert.deepEqual([refused.phase, refused.ball, refused.foe.hp], [battle.phase, null, battle.foe.hp])
+    assert.match(refused.message, /too strong for a Poké Ball/)
+  }
+  let { battle, now } = weaken(fresh)
+  // Walk somewhere else first: the ball comes from there, and the trainer turns to the Legendary.
+  for (let i = 0; i < 3; i++) { now += 300; battle = battleWalk(battle, BACK[battle.layout.out], now).battle }
+  const thrown = throwBall(battle, now)
+  assert.equal(thrown.phase, 'throw')
+  assert.deepEqual(thrown.ball, { from: battle.at, since: now, until: now + CAPTURE_MS })
+  assert.equal(thrown.facing, facingToward(battle.at, battle.layout.legendary))
+  assert.equal(CAPTURE_MS, CAPTURE.fly + CAPTURE.bounce + CAPTURE.beam + CAPTURE.drop + 3 * CAPTURE.swing + CAPTURE.star, 'Three swings, then the star')
+  // Nothing else happens while the capture plays, and it cannot be held up.
+  assert.equal(strikeWith(thrown, 1, now + 100, LOW).battle, thrown)
+  assert.equal(battleWalk(thrown, 'north', now + 100).move, 'none')
+  assert.equal(throwBall(thrown, now + 100), thrown)
+  assert.equal(pauseBattle(thrown, now + 100), thrown)
+  assert.equal(battleTick(thrown, thrown.ball.until - 1, HIGH).phase, 'throw')
+  for (const random of [HIGH, LOW]) {
+    const caught = battleTick(thrown, thrown.ball.until, random)
+    assert.equal(caught.phase, 'caught', 'It always holds')
+    assert.match(caught.message, /Gotcha! Rayquaza was caught/)
+    assert.equal(battleOver(caught), true)
+    for (const action of [b => strikeWith(b, 0, now + 99000, LOW).battle, b => throwBall(b, now + 99000), b => battleTick(b, now + 99000, LOW),
+      b => battleWalk(b, 'north', now + 99000).battle, b => pauseBattle(b, now + 99000)]) assert.equal(action(caught), caught, 'Caught is final')
+  }
+  const shiny = weaken(startBattle({ name: 'Mew', shiny: true }, 'Pikachu', 3, T0))
+  assert.match(battleTick(throwBall(shiny.battle, shiny.now), shiny.now + CAPTURE_MS, LOW).message, /Gotcha! Shiny Mew/)
+  assert.deepEqual([facingToward({ x: 0, y: 0 }, { x: 3, y: 1 }), facingToward({ x: 3, y: 0 }, { x: 0, y: 1 }), facingToward({ x: 0, y: 5 }, { x: 1, y: 0 }),
+    facingToward({ x: 0, y: 0 }, { x: 1, y: 5 })], ['east', 'west', 'north', 'south'])
 })
 
 test('pausing drops an attack in flight and holds every clock', () => {
@@ -205,9 +216,5 @@ test('pausing drops an attack in flight and holds every clock', () => {
   assert.equal(resumed.paused, false)
   assert.equal(resumed.nextAttackAt, T0 + 60000 + FIRST_ATTACK_MS, 'A breath before it attacks again')
   assert.equal(moveWait(resumed, 0, T0 + 60000), moveWait(battle, 0, T0 + FIRST_ATTACK_MS + 500), 'A move waits as long as it still had to')
-  assert.deepEqual([resumed.foe.hp, resumed.hearts, resumed.balls], [battle.foe.hp, battle.hearts, battle.balls])
-  // A ball in the air waits too.
-  const thrown = throwBall(begin('Mewtwo', { engaged: true }), T0, HIGH).battle
-  const held = resumeBattle(pauseBattle(thrown, T0 + 200), T0 + 5200)
-  assert.equal(held.ball.until, thrown.ball.until + 5000)
+  assert.deepEqual([resumed.foe.hp, resumed.hearts], [battle.foe.hp, battle.hearts])
 })

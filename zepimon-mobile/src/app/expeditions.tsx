@@ -37,7 +37,7 @@ const storyOf = (name: string) => stories[name] || { title: 'A whisper on the tr
   clues: [`A curious trace leads toward a ${pokemonType(name)} habitat.`, 'A shy silhouette watches from a quiet hiding place.', `${name} waits at the end of the trail.`] }
 
 // The lair keeps its own copy of the Legendary once the battle is on (foe), so the screen stays on it after the catch
-// claims the encounter; attempt starts the battle afresh after the balls run out. A trial keeps the rooms picked when it
+// claims the encounter; attempt enters the lair afresh after a shiny reset. A trial keeps the rooms picked when it
 // opened, so a record saved mid-trial never changes them. The revisit steps are Shrine Revisits: practice for a Legendary
 // already caught, outside the expedition (src/games/revisits.ts). release trades caught Legendaries for permits.
 type Step = { kind: 'overview' } | { kind: 'lanterns' } | { kind: 'release' }
@@ -135,7 +135,7 @@ export default function ExpeditionsScreen() {
     content = <LairBattle key={`${revisitKey(name, shiny)}:${attempt}`} practice engaged foe={{ name, shiny }} partner={partner}
       reduced={reduced} busy={false} error="" weekKm={walkingBonus(progress).km}
       onEngage={() => Promise.resolve()} onReset={() => Promise.resolve()} onCaught={() => store.recordRematchWin(name, shiny)}
-      onDone={() => leave('')} onRetry={() => setStep({ ...step, attempt: attempt + 1 })}
+      onDone={() => leave('')}
       onLeave={() => leave(`You left ${shiny ? 'the Shiny ' : ''}${name}’s lair. Revisit it any time.`)} />
   } else if (step.kind === 'release') {
     content = <ReleaseLegendaries busy={busy} error={message} onBack={() => leave('')}
@@ -159,7 +159,6 @@ export default function ExpeditionsScreen() {
           onReset={async discardShiny => { setMessage(''); try { await store.resetLair(key, index, discardShiny); setStep({ kind: 'lair', key, index, attempt: attempt + 1 }) }
             catch (error) { setMessage(error instanceof Error ? error.message : 'Could not reset. Try again.'); throw error } }}
           onCaught={() => { setStep(current => current.kind === 'lair' ? { ...current, foe } : current); return store.befriend(key, index) }}
-          onRetry={() => setStep({ ...step, foe, attempt: attempt + 1 })}
           onDone={() => { setFriend((foe.shiny ? 'Shiny ' : '') + foe.name); setStep({ kind: 'overview' }) }}
           onLeave={() => leave(`You left the ${lairFor(foe.name).label}. ${foe.shiny ? 'The Shiny ' : ''}${foe.name} will be waiting just as it is.`)} />
       }

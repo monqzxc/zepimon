@@ -12,30 +12,29 @@ import type { Direction, Point, SafariMap } from './safari-zone.ts'
 // begins the Legendary only watches, and stepping back onto the one-way portal you came through is the shiny reset
 // (move 'reset'). The first move or Poke Ball begins the battle and sets the result for good (onward the portal is a wall).
 //
-//   watch → fight ⇄ throw (the ball shakes, then caught, or back to fight, or out of balls)
-// caught and out are final.
+//   watch → fight → down (its HP is gone) → throw (the ball's capture plays out) → caught
+// caught is final.
 //
-// It is a catch, not a contest: your partner's moves wear the Legendary down but always leave it at least 1 HP, and
-// lower HP makes a Poke Ball likelier to hold. While you fight, the Legendary answers with telegraphed attacks: a ring
-// around you or a line through you, marked for WARN_MS before they land, hitting only the marked tiles. A hit costs a
-// heart and a short stagger; at none, the Legendary holds back while you recover in full. Nothing faints. Times are
-// passed in (ms), so the rules run on a test clock as well as the screen's.
-export const BATTLE_BALLS = 5
+// Your partner's moves wear the Legendary down to 0 HP. Then it is weakened: it stops attacking and stays down, and only
+// then can a Poke Ball be thrown, which always holds. While you fight, the Legendary answers with telegraphed attacks: a
+// ring around you or a line through you, marked for WARN_MS before they land, hitting only the marked tiles. A hit
+// costs a heart and a short stagger; at none, the Legendary holds back while you recover in full. You never faint.
+// Times are passed in (ms), so the rules run on a test clock as well as the screen's.
 export const FOE_HP = 100
 export const WARN_MS = 1800
 export const STRIKE_MS = 500
 export const STAGGER_MS = 700
 export const RECOVER_MS = 3500
 export const FIRST_ATTACK_MS = 2500
-export const BALL_MS = 650
-export const SHAKE_MS = 450
+// The capture, as the screen plays it (src/games/LairBattle.tsx): the ball flies from the trainer and hits, bounces back
+// and opens, a red beam draws the Legendary inside, the ball drops, swings three times, then a star pops.
+export const CAPTURE = { fly: 500, bounce: 450, beam: 750, drop: 350, swing: 700, swings: 3, star: 700 } as const
+export const CAPTURE_MS = CAPTURE.fly + CAPTURE.bounce + CAPTURE.beam + CAPTURE.drop + CAPTURE.swing * CAPTURE.swings + CAPTURE.star
 // After any move, every move waits this long, so two can't land at once.
 export const MOVE_GAP_MS = 700
 const GAP_MS = 2600
 const GAP_SPREAD_MS = 1400
 const BACK: Record<Direction, Direction> = { north: 'south', south: 'north', west: 'east', east: 'west' }
-// What a failed ball says after shaking 0, 1, 2 or 3 times, as in Emerald.
-const BROKE_FREE = ['Oh, no! The Pokémon broke free!', 'Aww! It appeared to be caught!', 'Aargh! Almost had it!', 'Shoot! It was so close, too!']
 
 export type LairLayout = {
   lair: LairId, label: string, cols: number, rows: number, background: string, legendary: Point, start: Point, entrance: Point,
@@ -94,29 +93,27 @@ export function maxHearts(weekKm: number): number {
   return 3 + (Number.isFinite(weekKm) ? Math.min(2, Math.max(0, Math.floor(weekKm))) : 0)
 }
 
-// Lower HP makes a catch likelier: about 1 in 8 at full HP, close to 7 in 8 at 1 HP.
-export const catchChance = (hp: number) => 0.12 + 0.75 * (1 - Math.max(1, Math.min(FOE_HP, hp)) / FOE_HP)
-
 // danger: the attack being telegraphed or landing. tiles are point keys.
 export type Danger = { kind: 'ring' | 'line', tiles: string[], warnUntil: number, strikeUntil: number, struck: boolean }
 export type Feedback = 'warn' | 'hit' | 'dodge' | 'move' | 'ball' | 'recover' | null
-export type Phase = 'watch' | 'fight' | 'throw' | 'caught' | 'out'
+export type Phase = 'watch' | 'fight' | 'down' | 'throw' | 'caught'
 // readyAt: when each move can next be used. strike: the partner's last move, for the screen to draw (id changes each time).
+// ball: the capture in flight, thrown from where the trainer stood.
 export type LairBattle = {
   layout: LairLayout, at: Point, facing: Direction, buddy: Point, buddyFacing: Direction,
   foe: { name: string, shiny: boolean, hp: number }, partner: string, moves: Move[], readyAt: number[],
-  phase: Phase, balls: number, hearts: number, maxHearts: number, staggerUntil: number, recoverUntil: number,
+  phase: Phase, hearts: number, maxHearts: number, staggerUntil: number, recoverUntil: number,
   danger: Danger | null, nextAttackAt: number, strike: { move: Move, damage: number, id: number } | null,
-  ball: { shakes: number, caught: boolean, since: number, until: number } | null,
+  ball: { from: Point, since: number, until: number } | null,
   paused: boolean, pausedAt: number, message: string, feedback: Feedback
 }
-// began: this call began the battle (the first move or ball), which the screen saves.
+// began: this call began the battle (the first move), which the screen saves.
 export type BattleResult = { battle: LairBattle, began: boolean }
 
 const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y
 const say = (battle: LairBattle, message: string, feedback: Feedback = null): LairBattle => ({ ...battle, message, feedback })
-const prompt = (battle: LairBattle) => battle.foe.hp <= 1 ? `${battle.foe.name} is barely standing. Now’s the time for a Poké Ball!`
-  : battle.foe.hp <= 30 ? `${battle.foe.name} is getting tired. Pick a move, or throw a Poké Ball.` : 'Pick a move, or throw a Poké Ball.'
+const prompt = (battle: LairBattle) => battle.foe.hp <= 0 ? `${battle.foe.name} is weakened and can’t fight on. Throw a Poké Ball!`
+  : battle.foe.hp <= 30 ? `${battle.foe.name} is getting tired. Keep going!` : 'Pick a move to wear it down.'
 
 // Entering the lair from its portal, facing in. engaged: the battle had already begun on an earlier visit, so it goes
 // straight on; canReset: whether the portal can still meet the Legendary anew (never on a revisit).
@@ -126,14 +123,17 @@ export function startBattle(foe: { name: string, shiny: boolean }, partner: stri
   const inward = BACK[layout.out]
   const moves = partnerMoves(partner)
   return { layout, at: layout.start, facing: inward, buddy: layout.start, buddyFacing: inward, foe: { ...foe, hp: FOE_HP }, partner, moves,
-    readyAt: moves.map(() => 0), phase: engaged ? 'fight' : 'watch', balls: BATTLE_BALLS, hearts, maxHearts: hearts, staggerUntil: 0, recoverUntil: 0,
+    readyAt: moves.map(() => 0), phase: engaged ? 'fight' : 'watch', hearts, maxHearts: hearts, staggerUntil: 0, recoverUntil: 0,
     danger: null, nextAttackAt: now + FIRST_ATTACK_MS, strike: null, ball: null, paused: false, pausedAt: 0, feedback: null,
-    message: engaged ? `${foe.name} is ready for you. Pick a move, or throw a Poké Ball.`
+    message: engaged ? `${foe.name} is ready for you. Pick a move to wear it down.`
       : `It watches, calm. Pick a move to begin${canReset ? ', or step back onto the portal to meet it anew' : ''}.` }
 }
 
-export const battleOver = (battle: LairBattle) => battle.phase === 'caught' || battle.phase === 'out'
-const acting = (battle: LairBattle) => !battle.paused && (battle.phase === 'watch' || battle.phase === 'fight')
+export const battleOver = (battle: LairBattle) => battle.phase === 'caught'
+// Weakened: its HP is gone, it has stopped attacking, and a Poke Ball can be thrown.
+export const weakened = (battle: LairBattle) => battle.phase === 'down'
+const acting = (battle: LairBattle) => !battle.paused && (battle.phase === 'watch' || battle.phase === 'fight' || battle.phase === 'down')
+const fighting = (battle: LairBattle) => !battle.paused && (battle.phase === 'watch' || battle.phase === 'fight')
 
 // One press, from the step walker, the D-pad, the keys or a tap route. Blocked while paused, staggered, recovering or
 // while a ball is in the air. The entrance is a one-way portal: it never leads out. From the doorway, before the battle
@@ -160,28 +160,35 @@ export function battleWalk(battle: LairBattle, direction: Direction, now: number
 // When the move can next be used, or 0 if it is ready.
 export const moveWait = (battle: LairBattle, index: number, now: number) => Math.max(0, (battle.readyAt[index] ?? 0) - now)
 
-// Your partner uses a move. It always leaves the Legendary at least 1 HP. The first one begins the battle.
+// Your partner uses a move. The first one begins the battle; the one that takes the last HP leaves the Legendary
+// weakened, which drops any attack it was charging.
 export function strikeWith(battle: LairBattle, index: number, now: number, random: () => number): BattleResult {
   const move = battle.moves[index]
-  if (!move || !acting(battle) || now < battle.recoverUntil || moveWait(battle, index, now) > 0) return { battle, began: false }
+  if (!move || !fighting(battle) || now < battle.recoverUntil || moveWait(battle, index, now) > 0) return { battle, began: false }
   const damage = move.min + Math.floor(random() * (move.max - move.min + 1))
   const began = battle.phase === 'watch'
-  const hp = Math.max(1, battle.foe.hp - damage)
-  const next: LairBattle = { ...battle, phase: 'fight', foe: { ...battle.foe, hp },
+  const hp = Math.max(0, battle.foe.hp - damage)
+  const next: LairBattle = { ...battle, phase: hp ? 'fight' : 'down', foe: { ...battle.foe, hp },
     readyAt: battle.readyAt.map((at, i) => i === index ? now + move.cooldown : Math.max(at, now + MOVE_GAP_MS)),
     strike: { move, damage, id: (battle.strike?.id ?? 0) + 1 },
-    ...(began && { nextAttackAt: now + FIRST_ATTACK_MS }) }
+    ...(!hp && { danger: null }), ...(began && { nextAttackAt: now + FIRST_ATTACK_MS }) }
   return { battle: say(next, `${battle.partner} used ${move.name}! ${prompt(next)}`, 'move'), began }
 }
 
-// A Poke Ball: the Legendary holds still while it shakes. Throwing the first thing also begins the battle.
-export function throwBall(battle: LairBattle, now: number, random: () => number): BattleResult {
-  if (!acting(battle) || now < battle.recoverUntil || battle.balls < 1) return { battle, began: false }
-  const caught = random() < catchChance(battle.foe.hp)
-  const shakes = caught ? 3 : Math.floor(random() * 4)
-  const next: LairBattle = { ...battle, phase: 'throw', balls: battle.balls - 1, danger: null,
-    ball: { caught, shakes, since: now, until: now + BALL_MS + (shakes + 1) * SHAKE_MS } }
-  return { battle: say(next, 'You threw a Poké Ball!', 'ball'), began: battle.phase === 'watch' }
+// The way from one tile toward another, along the longer axis.
+export function facingToward(from: Point, to: Point): Direction {
+  const dx = to.x - from.x, dy = to.y - from.y
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'east' : 'west'
+  return dy < 0 ? 'north' : 'south'
+}
+
+// A Poke Ball, only once the Legendary is weakened: the trainer turns to it and throws from where they stand, and the
+// ball always holds. Before that it says why not.
+export function throwBall(battle: LairBattle, now: number): LairBattle {
+  if (!acting(battle)) return battle
+  if (battle.phase !== 'down') return say(battle, `${battle.foe.name} is still too strong for a Poké Ball. Wear its HP down first.`)
+  return say({ ...battle, phase: 'throw', facing: facingToward(battle.at, battle.layout.legendary), danger: null,
+    ball: { from: battle.at, since: now, until: now + CAPTURE_MS } }, 'You threw a Poké Ball!', 'ball')
 }
 
 // The Legendary's next attack, aimed where you stand: a ring around you or a line through you.
@@ -211,17 +218,13 @@ function clearWithin(map: SafariMap, from: Point, marked: Set<string>, steps: nu
   return false
 }
 
-// Time passing: a thrown ball settles, telegraphs land, recovery ends and the next attack is chosen. Nothing while paused.
+// Time passing: a thrown ball's capture finishes, telegraphs land, recovery ends and the next attack is chosen. Nothing while paused.
 export function battleTick(battle: LairBattle, now: number, random: () => number): LairBattle {
   if (battle.paused || battleOver(battle)) return battle
   let next = battle
   if (next.phase === 'throw' && next.ball) {
     if (now < next.ball.until) return next
-    const { name, shiny } = next.foe
-    if (next.ball.caught) return say({ ...next, phase: 'caught' }, `Gotcha! ${shiny ? 'Shiny ' : ''}${name} was caught!`, 'ball')
-    const broke = BROKE_FREE[next.ball.shakes]
-    if (!next.balls) return say({ ...next, phase: 'out', ball: null }, `${broke} You’re out of Poké Balls.`)
-    return say({ ...next, phase: 'fight', ball: null, nextAttackAt: now + FIRST_ATTACK_MS }, `${broke} ${prompt(next)}`)
+    return say({ ...next, phase: 'caught' }, `Gotcha! ${next.foe.shiny ? 'Shiny ' : ''}${next.foe.name} was caught!`, 'ball')
   }
   if (next.recoverUntil && now >= next.recoverUntil) {
     next = say({ ...next, hearts: next.maxHearts, recoverUntil: 0, nextAttackAt: now + GAP_MS }, `You caught your breath. ${prompt(next)}`, 'recover')
@@ -238,22 +241,22 @@ export function battleTick(battle: LairBattle, now: number, random: () => number
   if (next.danger?.struck && now >= next.danger.strikeUntil) {
     next = { ...next, danger: null, nextAttackAt: now + GAP_MS + Math.floor(random() * GAP_SPREAD_MS) }
   }
-  // The Legendary only watches until the battle begins, and holds back while you recover.
+  // The Legendary only watches until the battle begins, holds back while you recover, and stops once it is weakened.
   if (!next.danger && next.phase === 'fight' && !next.recoverUntil && now >= next.nextAttackAt) {
     next = say({ ...next, danger: aim(next, now, random) }, `${next.foe.name} is charging ${signatureMove(next.foe.name)}: step off the marked tiles ⚠!`, 'warn')
   }
   return next
 }
 
-// Leaving the screen or the app: any attack in flight is dropped, and a ball in the air waits. Everything else stays.
+// Leaving the screen or the app: any attack in flight is dropped. Everything else stays. A capture under way is not
+// held up: it finishes on its own clock.
 export function pauseBattle(battle: LairBattle, now: number): LairBattle {
-  if (battle.paused || battleOver(battle)) return battle
+  if (battle.paused || battleOver(battle) || battle.phase === 'throw') return battle
   return { ...battle, paused: true, danger: null, staggerUntil: 0, pausedAt: now }
 }
 export function resumeBattle(battle: LairBattle, now: number): LairBattle {
   if (!battle.paused) return battle
   const away = Math.max(0, now - battle.pausedAt)
   const later = (time: number) => time ? time + away : 0
-  return { ...battle, paused: false, nextAttackAt: now + FIRST_ATTACK_MS, recoverUntil: later(battle.recoverUntil),
-    readyAt: battle.readyAt.map(later), ball: battle.ball && { ...battle.ball, since: battle.ball.since + away, until: battle.ball.until + away } }
+  return { ...battle, paused: false, nextAttackAt: now + FIRST_ATTACK_MS, recoverUntil: later(battle.recoverUntil), readyAt: battle.readyAt.map(later) }
 }
