@@ -1,4 +1,5 @@
 import { battleType } from './roster.ts'
+import { SMALL_LEGENDARIES } from './lairs.ts'
 
 // The Legendary battle at the end of an Expedition, in the style of the Gen III games: FIGHT, BAG, POKéMON and RUN.
 // It is a catch, not a contest. Moves wear the Legendary down but always leave it at least 1 HP, nothing can faint,
@@ -27,11 +28,10 @@ const MOVES: Record<string, string> = { normal: 'Headbutt', fire: 'Ember', water
   ice: 'Ice Shard', fighting: 'Karate Chop', poison: 'Sludge', ground: 'Mud Shot', flying: 'Wing Attack', psychic: 'Confusion', bug: 'Bug Bite',
   rock: 'Rock Throw', ghost: 'Shadow Ball', dragon: 'Dragon Breath', dark: 'Bite', steel: 'Metal Claw', fairy: 'Fairy Wind' }
 const MIGHTY = ['Mewtwo', 'Lugia', 'Ho-Oh', 'Kyogre', 'Groudon', 'Rayquaza', 'Deoxys', 'Dialga', 'Palkia', 'Giratina', 'Arceus', 'Zygarde']
-const SMALL = ['Mew', 'Celebi', 'Jirachi', 'Phione', 'Manaphy', 'Shaymin']
 // What a failed ball says after shaking 0, 1, 2 or 3 times, as in Emerald.
 const BROKE_FREE = ['Oh, no! The Pokémon broke free!', 'Aww! It appeared to be caught!', 'Aargh! Almost had it!', 'Shoot! It was so close, too!']
 
-export const legendaryLevel = (name: string) => MIGHTY.includes(name) ? 70 : SMALL.includes(name) ? 30 : 50
+export const legendaryLevel = (name: string) => MIGHTY.includes(name) ? 70 : SMALL_LEGENDARIES.includes(name) ? 30 : 50
 
 // The partner's own type move, plus False Swipe, which is gentle enough to weaken a Legendary safely.
 export function partnerMoves(name: string): Move[] {

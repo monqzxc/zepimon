@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { LAYOUTS, PULSE_PERIOD, PULSE_WINDOW, RECOVER_MS, STAGGER_MS, WARN_MS, WAVE_WARN_MS, FIRST_ATTACK_MS, arenaFor, arenaTick, arenaWalk,
   dangerTiles, maxResonance, objective, pauseArena, pulsePhase, resonate, resumeArena, routeTo, startArena } from '../src/games/resonance.ts'
-import { LAIRS, LAIR_OF, lairOf } from '../src/games/lairs.ts'
+import { LAIRS, LAIR_OF, lairOf, lairSpriteSize } from '../src/games/lairs.ts'
 import { STEPS, isWalkable, pointKey, planWalk, reachableFrom, tileAt } from '../src/games/safari-zone.ts'
 import { STEP_MS } from '../src/games/safari-view.ts'
 import { legendarySpecies } from '../src/generated/expedition.js'
@@ -47,6 +47,9 @@ test('every Legendary has a lair by its story: an Emerald room, or one drawn for
   assert.equal(arenaFor('Shiny Kyogre'), arenaFor('Kyogre'), 'A Shiny lives where its kind does')
   assert.equal(lairOf('Pikachu'), 'new-mauville', 'A Pokemon no lair lists meets in the lair of its type')
   assert.equal(lairOf('Missingno'), 'regi-chamber', 'An unknown name still gets a lair')
+  assert.equal(lairSpriteSize('Kyogre', 20), 60, 'Every Legendary is larger than before')
+  assert.equal(lairSpriteSize('Manaphy', 20), 70, 'Small Legendaries get an extra size boost')
+  assert.equal(lairSpriteSize('Shiny Phione', 20), 70, 'Shiny small Legendaries use the same size')
   assert.ok(Object.keys(LAIRS).length >= 10)
 })
 

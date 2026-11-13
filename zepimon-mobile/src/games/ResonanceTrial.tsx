@@ -20,6 +20,7 @@ import { GUARDIAN_STONE, RUNE_DONE, RUNE_SPRITES, RUNE_WAITING, SAFE, SAFE_COLOU
 import { Sparkles } from './SafariEncounter'
 import { ShinyGlow, ShinyStars } from './ShinyAura'
 import { LairAmbience } from './LairAmbience'
+import { lairSpriteSize } from './lairs'
 import type { LairId } from './lairs'
 import { PULSE_WINDOW, SEAL_NAMES, arenaFor, arenaTick, arenaWalk, maxResonance, objective, pauseArena, pulsePhase, resonate,
   resumeArena, routeTo, startArena } from './resonance'
@@ -307,11 +308,11 @@ function facingToward(at: Point, legendary: Point): Direction {
   return dy < 0 ? 'north' : 'south'
 }
 
-// The Legendary as its Emerald overworld sprite, two tiles tall, standing on its tile with a shadow and stepping in
+// The Legendary as its Emerald overworld sprite, towering over the trainer, standing on its tile with a shadow and stepping in
 // place facing you; a Shiny stands in a gold glow with stars twinkling around it and sparkles every few seconds, and it
 // glows as the seals steady it.
 function Legendary({ at, name, shiny, tile, facing, glowing, reduced }: { at: Point, name: string, shiny: boolean, tile: number, facing: Direction, glowing: boolean, reduced: boolean }) {
-  const size = tile * 2
+  const size = lairSpriteSize(name, tile)
   const [glint, setGlint] = useState(0)
   useEffect(() => {
     if (!shiny || reduced) return
