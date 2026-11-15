@@ -13,6 +13,7 @@ import { colors, fonts, themedStyles, useTheme } from './ui'
 import type { ThemeName } from './palettes'
 import { useJournal } from './store'
 import { waitingEncounters } from './legendary-gate'
+import { useCoachTarget } from './tour'
 
 // A floating glass tab bar. The middle tab (Adventure) is a Poke Ball sitting in a notch cut into the bar.
 // The open tab shows in the bar's accent with a heavier label, and the theme's Pokemon (Rayquaza, Gengar, Deoxys or Pikachu; see
@@ -298,6 +299,9 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   const moving = tracker.active?.activity ?? onWatch(tracker.shared)?.activity ?? null
   const { expeditions, quest } = useJournal()
   const waiting = waitingEncounters(expeditions, quest) > 0
+  // What the first-visit tips point at (src/CoachMarks.tsx): the ball, and the bar, which page tips stay above.
+  const barTarget = useCoachTarget('tab.bar')
+  const ballTarget = useCoachTarget('tab.adventure')
 
   useEffect(() => {
     if (!moving || reduced) { spin.setValue(0); return }
@@ -476,7 +480,7 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
     paddingHorizontal: 14 + Math.max(insets.left, insets.right) }, barHidden && { display: 'none' }]}>
     {/* The page color from where the page ends, behind the bar, to the bottom of the screen. Above it the page shows. */}
     <View style={[styles.floor, { top: overlap }]} />
-    <View style={styles.bar} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
+    <View ref={barTarget} collapsable={false} style={styles.bar} onLayout={event => setWidth(event.nativeEvent.layout.width)}>
       {width > 0 && sides.length > 0 && !moving && <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
         style={[styles.perch, { width: side, transform: perch }]}>
         <View style={{ position: 'absolute', left: artLeft - 8, top: artTop - HEADROOM, width: size + 16,
@@ -521,7 +525,7 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
         </Animated.View>
       </Animated.View>}
       {width > 0 && middleTab && <>
-        <Pressable {...middleTab.press} style={({ pressed }) => [styles.button, { left: width / 2 - BUTTON / 2, transform: [{ scale: pressed ? 0.94 : 1 }] }]}>
+        <Pressable ref={ballTarget} {...middleTab.press} style={({ pressed }) => [styles.button, { left: width / 2 - BUTTON / 2, transform: [{ scale: pressed ? 0.94 : 1 }] }]}>
           <Animated.View style={[styles.shadow, { opacity: center.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
             transform: [{ scaleX: bob.interpolate({ inputRange: [0, 1], outputRange: [1, 0.72] }) }] }]} />
           <Animated.View style={[styles.ball, { opacity: center.interpolate({ inputRange: [0, 0.6], outputRange: [1, 0], extrapolate: 'clamp' }),

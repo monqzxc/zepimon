@@ -11,6 +11,8 @@ import { PokeballIcon, Screen, colors, fonts, gradient, themedStyles, typeTints,
 import { ChoiceSheet, SettingsGroup, SettingsRow, SettingsSwitch } from '../../SettingsList'
 import { setPreference, usePreferences } from '../../preferences'
 import { setScreenOnly, useTracker } from '../../tracker'
+import { CoachTarget } from '../../CoachMarks'
+import { replayTour, useCoach } from '../../tour'
 
 // Settings as grouped lists under your profile: preferences, your account and watch, your data, and the versions.
 // Longer settings open on their own page (src/app/settings). The route stays /import so older links still land here.
@@ -28,10 +30,11 @@ export default function SettingsScreen() {
   const { screenOnly } = useTracker()
   const [choosing, setChoosing] = useState(false)
   const [problem, setProblem] = useState('')
+  useCoach('settings')
   return <Screen>
     <Text accessibilityRole="header" style={page.title}>Settings</Text>
     <Profile />
-    <SettingsGroup label="Preferences" footer={'Reduce motion keeps the tab bar’s Pokemon and the game effects still; when it is off, Zepimon follows your phone.' +
+    <CoachTarget id="settings.preferences"><SettingsGroup label="Preferences" footer={'Reduce motion keeps the tab bar’s Pokemon and the game effects still; when it is off, Zepimon follows your phone.' +
       (Platform.OS === 'web' ? '' : ' Recording with the screen off keeps going in your pocket, with a notification. It turns off after a crash during an adventure; turn it back on here.')}>
       <SettingsRow icon="palette" label="Theme" value={`${title(theme)} · ${title(appearance)}`} onPress={() => router.push('/settings/theme')} />
       <SettingsRow icon={activity === 'running' ? 'run' : 'walk'} label="Start adventures as" value={activity === 'running' ? 'Running' : 'Walking'}
@@ -39,13 +42,16 @@ export default function SettingsScreen() {
       <SettingsSwitch icon="sparkle" label="Reduce motion" value={motion === 'reduced'} onChange={value => setPreference('motion', value ? 'reduced' : 'system')} />
       {Platform.OS !== 'web' && <SettingsSwitch icon="lock" label="Record with the screen off" value={!screenOnly}
         onChange={value => { setProblem(''); setScreenOnly(!value).catch(() => setProblem('Could not switch recording. Try again.')) }} />}
-    </SettingsGroup>
+    </SettingsGroup></CoachTarget>
     {!!problem && <Text style={[page.note, { color: colors.danger }]}>{problem}</Text>}
     <AccountGroup />
     <SettingsGroup label="Your data">
       <SettingsRow icon="backup" label="Back up your data" onPress={() => router.push('/settings/backup')} />
       <SettingsRow icon="download" label="Import a watch export" onPress={() => router.push('/settings/import')} />
     </SettingsGroup>
+    <CoachTarget id="settings.tour"><SettingsGroup label="Help" footer="A look around the app with your buddy. Afterwards each screen shows its tips once more.">
+      <SettingsRow icon="explore" label="Welcome tour" value="Replay" onPress={replayTour} />
+    </SettingsGroup></CoachTarget>
     <About />
     <ChoiceSheet title="Start adventures as" open={choosing} value={activity} onChoose={value => setPreference('activity', value)} onClose={() => setChoosing(false)}
       options={[{ value: 'walking', label: 'Walking', detail: 'What the Adventure tab picks first.' },
@@ -102,13 +108,13 @@ function AccountGroup() {
   const date = updatedAt ? new Date(updatedAt) : null
   const synced = date ? `Updated ${date.toDateString() === new Date().toDateString()
     ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : date.toLocaleDateString([], { month: 'short', day: 'numeric' })}` : undefined
-  return <SettingsGroup label="Account" footer={notice || message || undefined}>
+  return <CoachTarget id="settings.account"><SettingsGroup label="Account" footer={notice || message || undefined}>
     {!session && <SettingsRow icon="person" label="Sign in" value="Email code" onPress={() => router.push('/settings/account')} />}
     <SettingsRow icon="watch" label="Watch" value={!session ? 'Sign in first' : linked ? 'Linked' : 'Not linked'} onPress={() => router.push('/settings/watch')} />
     {!!session && linked && !mismatch && <SettingsRow icon="sync" label="Sync now" value={syncing ? 'Syncing…' : synced} busy={syncing || !ready}
       onPress={() => { setNotice(''); void sync() }} />}
     {!!session && <SettingsRow icon="logout" danger label={confirm ? 'Tap again to log out' : 'Log out'} busy={working || !ready} onPress={() => { void logOut() }} />}
-  </SettingsGroup>
+  </SettingsGroup></CoachTarget>
 }
 
 function About() {

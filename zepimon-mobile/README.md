@@ -215,6 +215,21 @@ reduce-motion setting) and **Record with the screen off** (the foreground-servic
 recording, which a crash during an adventure turns off). The open tab's icon
 sits on a soft violet pill.
 
+**Welcome tour (1.19.0).** The first time the app opens, five slides show you
+around: what Zepimon is, carrying an egg on an adventure, the Journal, the Dex
+and the games. Swipe, or tap **Next**; **Skip** leaves at any point. Your buddy,
+or Pikachu until you have chosen one, hops from each slide's picture to the
+next as the slides go by, facing the way it is going and landing on the next
+picture. After that, each tab shows a few tips the first time you open it: the
+screen dims except for what the tip is about (the Journal's distance card, the
+Dex's search, the Adventure card, the games, the Settings groups), with
+**Next**, **Back** and **Skip**; a tip scrolls the page to what it points at.
+Tips wait while an adventure is recording or a game is open. **Settings → Help
+→ Welcome tour** replays the slides and lets each tab show its tips once more.
+With reduced motion the slides change at once and nothing hops. What you have
+seen is kept on this phone (`src/tour.ts`); the slides and tips are listed in
+`src/tour-plan.ts`.
+
 **Theme** picks **Emerald** (the default for new installs; see below), **Gengar**
 (ghostly violet), **Deoxys** (cosmic orange-red and teal) or **Pikachu**
 (electric yellow), from small previews of each with its Pokemon perched on a

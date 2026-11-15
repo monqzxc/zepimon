@@ -13,6 +13,7 @@ import type { PickerOption } from '../../PokedexFilters'
 import { dexNumber, pokemonType, typeColors } from '../../catalog'
 import { Squish } from '../../JournalDashboard'
 import { useReducedMotion } from '../../games/hooks'
+import { useCoach, useCoachTarget } from '../../tour'
 import { Button, Copy, Icon, PokeballIcon, Sprite, Title, TypeBadge, colors, displayFont, fonts, gradient, retro, shadows, styles, themedStyles,
   typeLabel, typeTints, useTheme } from '../../ui'
 
@@ -35,6 +36,9 @@ function VariantMark({ variant, color }: { variant: DexVariant, color: string })
 export default function DexScreen() {
   useTheme()
   const reduced = useReducedMotion()
+  useCoach('dex')
+  const headerTarget = useCoachTarget('dex.header')
+  const filtersTarget = useCoachTarget('dex.filters')
   // The list runs on behind the floating tab bar, so its end is padded clear of it.
   const tabBar = useBottomTabBarHeight()
   const { journal, dex } = useJournal()
@@ -65,7 +69,7 @@ export default function DexScreen() {
 
   // The header card floats below the status bar, in line with the search and pills.
   return <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
-    <View style={look.top}>
+    <View ref={headerTarget} collapsable={false} style={look.top}>
       <View pointerEvents="none" accessible={false} style={look.watermark}><PokeballIcon size={120} color={colors.ink} stroke={10} /></View>
       <View style={look.banner}>
         <View pointerEvents="none" accessible={false} style={look.stripe} />
@@ -87,7 +91,7 @@ export default function DexScreen() {
       </View>
     </View>
     {/* The search and pills stay put while the grid scrolls under them; a soft shadow appears once it has. */}
-    {entries.length > 0 && <View style={look.controls}>
+    {entries.length > 0 && <View ref={filtersTarget} collapsable={false} style={look.controls}>
       <Animated.View pointerEvents="none" style={[look.shade, { opacity: scroll.interpolate({ inputRange: [0, 24], outputRange: [0, 1], extrapolate: 'clamp' }) }]} />
       <SearchBox label="Search Pokemon by name, type or number" placeholder="Search Pokémon…"
         value={filter.query} onChange={query => change({ query })} />

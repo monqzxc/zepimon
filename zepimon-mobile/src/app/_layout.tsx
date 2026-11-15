@@ -16,6 +16,9 @@ import { CloudProvider } from '../cloud'
 import { CrashReport, CrashScreen } from '../CrashReport'
 import { AdventureBanner } from '../AdventureBanner'
 import { lockPortrait } from '../games/useImmersive'
+import { useTour, useTourLoaded } from '../tour'
+import { WelcomeTour } from '../WelcomeTour'
+import { CoachMarks } from '../CoachMarks'
 
 // An error on any screen shows what happened, with Share, instead of closing the app.
 export const ErrorBoundary = CrashScreen
@@ -35,6 +38,11 @@ function Navigator() {
   const { ready } = useJournal()
   // Waits for the saved theme too, so the app opens in it rather than switching after a moment.
   const preferencesLoaded = usePreferencesLoaded()
+  // And for whether the welcome tour is due, so a first launch opens straight into it.
+  const tourLoaded = useTourLoaded()
+  const { welcome, coach } = useTour()
+  // The tour and the tips cover the app, which screen readers then leave alone.
+  const covered = welcome || !!coach
   const { colors: palette, dark } = useTheme()
   // React Navigation paints behind screens and during transitions in these colors.
   const navigationTheme = useMemo(() => {
@@ -44,11 +52,12 @@ function Navigator() {
   // The rounded Nunito weights and Emerald's pixel face ship with the app. If they ever fail to load, text falls back to
   // the system font.
   const [fontsLoaded, fontError] = useFonts({ Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black, PixelifySans_600SemiBold })
-  if (!ready || !preferencesLoaded || (!fontsLoaded && !fontError)) return <Screen><View style={{ alignItems: 'center', gap: 20, paddingTop: 96 }}>
+  if (!ready || !preferencesLoaded || !tourLoaded || (!fontsLoaded && !fontError)) return <Screen><View style={{ alignItems: 'center', gap: 20, paddingTop: 96 }}>
     <PokeballLoader /><Copy>Opening your field journal…</Copy>
   </View></Screen>
   return <ThemeProvider value={navigationTheme}>
     <StatusBar style={dark ? 'light' : 'dark'} />
+    <View style={{ flex: 1 }} aria-hidden={covered} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'}>
     <Stack screenOptions={{ headerStyle: { backgroundColor: colors.bg }, headerShadowVisible: false, headerTintColor: colors.ink,
       headerTitleStyle: { fontFamily: fonts.heavy, color: colors.ink }, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -72,7 +81,10 @@ function Navigator() {
       <Stack.Screen name="settings/backup" options={{ title: 'Back up your data' }} />
       <Stack.Screen name="settings/import" options={{ title: 'Import a watch export' }} />
     </Stack>
+    </View>
     <CrashReport />
     <AdventureBanner />
+    <CoachMarks />
+    <WelcomeTour />
   </ThemeProvider>
 }

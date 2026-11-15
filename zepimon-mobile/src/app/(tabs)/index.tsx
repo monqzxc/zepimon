@@ -18,6 +18,8 @@ import { achievements, paceSummary, raceRecords } from '../../running'
 import { PixelSprite } from '../../games/TeamPicker'
 import { useReducedMotion } from '../../games/hooks'
 import { LegendaryGate } from '../../LegendaryGate'
+import { CoachTarget } from '../../CoachMarks'
+import { useCoach } from '../../tour'
 import { Button, Copy, Icon, Panel, Screen, Title, colors, displayFont, fonts, themedStyles, useTheme } from '../../ui'
 
 // The Journal: a greeting with your buddy over the distance you've travelled, your progress over this week, month or year (a ring of the days
@@ -34,6 +36,7 @@ const against: Record<Period, string> = { week: 'last week', month: 'last month'
 export default function JournalScreen() {
   useTheme()
   const reduced = useReducedMotion()
+  useCoach('journal')
   const { journal, buddy, progress, error, phoneRuns } = useJournal()
   const { name } = usePreferences()
   const runs = useMemo(() => allAdventures(progress, phoneRuns), [progress, phoneRuns])
@@ -82,8 +85,10 @@ export default function JournalScreen() {
       meters={lifetime} week={thisWeek} onCalendar={() => openCalendar()} reduced={reduced} />
     {!!error && <Copy color={colors.danger}>{error}</Copy>}
 
-    <ProgressCard slices={days} totals={totals} change={change(total.meters, previous)} against={`vs ${period === 'week' ? 'this time ' : ''}${against[period]}`}
-      period={period} onPeriod={setPeriod} reduced={reduced} />
+    <CoachTarget id="journal.progress">
+      <ProgressCard slices={days} totals={totals} change={change(total.meters, previous)} against={`vs ${period === 'week' ? 'this time ' : ''}${against[period]}`}
+        period={period} onPeriod={setPeriod} reduced={reduced} />
+    </CoachTarget>
     <StreakBanner {...walking} reduced={reduced} onPress={() => openCalendar()} />
     <LegendaryGate variant="strip" pulse />
 

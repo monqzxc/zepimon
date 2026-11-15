@@ -22,6 +22,8 @@ import { onWatch, sharedPace, sharedPokemon } from '../../shared-adventure'
 import type { SharedAdventure, SharedTrail } from '../../shared-adventure'
 import { usePreferences } from '../../preferences'
 import type { LocationIssue } from '../../tracker'
+import { CoachTarget } from '../../CoachMarks'
+import { useCoach } from '../../tour'
 import { RouteMap } from '../../RouteMap'
 import { useGateStatus } from '../../LegendaryGate'
 import { MapSheet, RouteTrail, gbaBox } from '../../RouteTrail'
@@ -48,6 +50,8 @@ export default function AdventureScreen() {
   useTheme()
   const tracker = useTracker()
   const [saved, setSaved] = useState<Summary | null>(null)
+  // The first-visit tips are for setting off, so they wait while an adventure is recording, followed or just saved.
+  useCoach('adventure', tracker.ready && !tracker.active && !saved && !onWatch(tracker.shared))
   if (!tracker.ready) return <Screen><View style={{ alignItems: 'center', paddingTop: 96 }}><PokeballLoader /></View></Screen>
   const following = onWatch(tracker.shared)
   // The route map, and the live adventure's street map, fill the screen edge to edge, under the status bar; the rest
@@ -182,7 +186,7 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
   // The card, framed like the map's text boxes inside as well as out: the egg with change and fold buttons, Walk and Run
   // as a menu whose chosen line has the games' cursor, and Start as a raised button. Folding shrinks it into a bubble
   // at the bottom right (`bubble`), leaving the map in view; the bubble opens it again.
-  const card = <>
+  const card = <CoachTarget id="adventure.card" style={{ gap: 8 }}>
     <View style={adventure.egg}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Your egg: ${family[0]} egg`} accessibilityHint="Shows the egg and lets you change it"
         onPress={() => setSheet('egg')} style={({ pressed }) => [adventure.eggArt, { backgroundColor: tint, opacity: pressed ? 0.75 : 1 }]}>
@@ -226,7 +230,7 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
     </View>}
     {watchConfirmed && <Text style={[adventure.note, { color: colors.gold }]}>Tap again to record here too.</Text>}
     {!!error && <Text style={[adventure.note, { color: colors.danger }]}>{error}</Text>}
-  </>
+  </CoachTarget>
 
   // The folded card: your egg rocking on its type's colour, with the activity picked in the corner.
   const bubble = <Pressable accessibilityRole="button" accessibilityLabel={`${family[0]} egg, ${activity === 'running' ? 'running' : 'walking'}`}
@@ -241,7 +245,9 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
 
   return <>
     <RouteTrail meters={lifetime} trainer={safariTrainer} activity={activity} buddy={buddy} reduced={reduced} card={card} cardWidth={380}
-      folded={collapsed} bubble={bubble} rail={<Rail issue={issue} onLocation={() => setSheet('location')} reduced={reduced} />}
+      folded={collapsed} bubble={bubble} rail={<CoachTarget id="adventure.rail" style={{ alignItems: 'flex-end', gap: 8 }}>
+        <Rail issue={issue} onLocation={() => setSheet('location')} reduced={reduced} />
+      </CoachTarget>}
       notice={handedOver ? <HandedOver shared={handedOver} /> : undefined}
       tip={tip} />
     <MapSheet visible={sheet === 'egg'} title="Your egg" onClose={() => setSheet(null)} reduced={reduced}>

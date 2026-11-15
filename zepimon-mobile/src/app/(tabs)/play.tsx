@@ -27,6 +27,8 @@ import { GameGrid, MiniGames } from '../../games/GameGrid'
 import { AdventureArt, MemoryArt, QuizArt, RouteGuardArt, SafariArt, TrailArt } from '../../games/GameArt'
 import { OverworldSprite } from '../../games/OverworldSprite'
 import { legendaryPoints } from '../../games/achievements'
+import { CoachTarget } from '../../CoachMarks'
+import { useCoach, useCoachTarget } from '../../tour'
 
 type Launch = { game: 'guard' | 'trail' | 'safari', stop?: Stop, level?: Level }
 type Selected = 'memory' | 'quiz' | 'berries' | 'map' | 'levels' | Launch | null
@@ -41,6 +43,9 @@ export default function PlayScreen() {
   const points = useMemo(() => legendaryPoints({ arcadeScores, bestMoves, adventure, trailLevels, trialRecords, safari, progress, phoneRuns }).total,
     [arcadeScores, bestMoves, adventure, trailLevels, trialRecords, safari, progress, phoneRuns])
   const [selected, setSelected] = useState<Selected>(null)
+  // The first-visit tips are about the list of games, not a game in progress.
+  useCoach('play', !selected && view === 'games')
+  const pointsTarget = useCoachTarget('play.points')
   // The team last used in Trail Defense, so moving from level to level keeps it.
   const [trailTeam, setTrailTeam] = useState<TeamCard[]>()
   // The Trail Defense stage open on the level select; null shows every stage.
@@ -109,7 +114,7 @@ export default function PlayScreen() {
       <View style={look.header}>
         <PokeballIcon size={30} color={colors.ink} />
         <Text accessibilityRole="header" style={look.headerTitle}>Games</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${points} Legendary points. Show achievements`} hitSlop={4}
+        <Pressable ref={pointsTarget} accessibilityRole="button" accessibilityLabel={`${points} Legendary points. Show achievements`} hitSlop={4}
           onPress={() => setView('achievements')} style={({ pressed }) => [look.points, { opacity: pressed ? 0.8 : 1 }]}>
           <Icon name="star" size={18} color={colors.star} />
           <Text style={look.pointsText}>{points}</Text>
@@ -127,7 +132,7 @@ export default function PlayScreen() {
         })}
       </View>
       {view === 'games' ? <>
-        <GameGrid games={[
+        <CoachTarget id="play.games"><GameGrid games={[
           { id: 'map', title: 'Adventure Map', art: size => <AdventureArt {...size} />,
             record: `★ ${totalStars} / ${STOPS.length * 3}`, onPress: () => select('map'),
             about: `Nine stops from Route 1 to Victory Road that mix the battle and hunting games.${nextStop ? ` Next: ${nextStop.title}, ${MODE_NAMES[nextStop.mode]}.` : ''}` },
@@ -146,9 +151,9 @@ export default function PlayScreen() {
           { id: 'quiz', title: 'Who’s That Pokémon?', art: size => <QuizArt {...size} />,
             record: shortBest('quiz', 10), onPress: () => select('quiz'),
             about: 'Ten silhouettes, four choices each, from Gen 1 to 4.' }
-        ]} />
+        ]} /></CoachTarget>
         <Text accessibilityRole="header" style={look.section}>More games</Text>
-        <MiniGames games={[
+        <CoachTarget id="play.more"><MiniGames games={[
           { id: 'berries', title: 'Berry Catch', icon: <BerryIcon />, onPress: () => select('berries'),
             about: `A 30-second garden game: tap each ripe berry before it hops away.${arcadeScores.berries === undefined ? '' : ` Best ${arcadeScores.berries} / 20.`}` },
           { id: 'expeditions', title: 'Legends', icon: <PixelSprite name="Rayquaza" size={52} />, onPress: () => router.push('/expeditions'),
@@ -156,7 +161,7 @@ export default function PlayScreen() {
           { id: 'walk', title: `${bonus.km} / ${BONUS_KM_CAP} km`, icon: <OverworldSprite name={buddy ? buddy.replace(/^Shiny /, '') : 'Pikachu'}
             shiny={!!buddy?.startsWith('Shiny ')} size={52} />, onPress: () => setBonusOpen(!bonusOpen),
             about: `Walking bonus this week: ${bonus.km} of ${BONUS_KM_CAP} km.` }
-        ]} />
+        ]} /></CoachTarget>
         {bonusOpen && <Copy color={colors.ink}>{bonus.km ? `This week's walking bonus: +◉ ${bonus.berries} starting berries, +${bonus.balls} Safari Balls and +${bonus.km * STEPS_PER_KM} Safari Zone steps.`
           : 'Each km you walk this week adds starting berries, Safari Balls and Safari Zone steps. Every game plays fine without it.'}</Copy>}
       </> : <ArcadeAchievements place="arcade" />}

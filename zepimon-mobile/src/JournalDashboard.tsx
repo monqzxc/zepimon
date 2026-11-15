@@ -15,6 +15,8 @@ import { pokemonType } from './catalog'
 import { cardTitle } from './ShareCard'
 import { PixelSprite } from './games/TeamPicker'
 import { Sprite } from './Sprite'
+import { CoachTarget } from './CoachMarks'
+import { useCoachTarget } from './tour'
 import { GradientFill, Icon, PokeballIcon, RetroFrame, colors, displayFont, fonts, glass, retro, themedStyles, typeInks, typeTints } from './ui'
 import type { IconName } from './ui'
 
@@ -81,6 +83,7 @@ export function Greeting({ name, greeting, buddy, pokemon, weeks, meters, week, 
   week: { meters: number, count: number }, onCalendar: () => void, reduced: boolean
 }) {
   const [whole, cents] = (useCounting(meters, reduced) / 1000).toFixed(2).split('.')
+  const distanceTarget = useCoachTarget('journal.distance')
   return <View>
     <View pointerEvents="none" accessible={false} style={hello.mark}><PokeballIcon size={280} color={colors.edge} stroke={24} /></View>
     <View style={hello.top}>
@@ -88,6 +91,7 @@ export function Greeting({ name, greeting, buddy, pokemon, weeks, meters, week, 
         <Text accessibilityRole="header" style={hello.title}>{greeting}</Text>
         <Text numberOfLines={1} style={hello.name}>{name}</Text>
       </View>
+      <CoachTarget id="journal.pills" style={hello.pills}>
       <Squish reduced={reduced} onPress={() => router.push('/dex')} accessibilityLabel={`${pokemon} Pokemon caught`} accessibilityHint="Opens the Dex"
         style={hello.pill}>
         <View style={[hello.coin, { backgroundColor: colors.goldTint }]}><PokeballIcon size={17} color={colors.gold} /></View>
@@ -97,9 +101,10 @@ export function Greeting({ name, greeting, buddy, pokemon, weeks, meters, week, 
         <View style={[hello.coin, { backgroundColor: colors.dangerTint }]}><Icon name="flame" size={17} color={colors.danger} /></View>
         <Text style={hello.pillText}>{weeks}</Text>
       </Squish>
+      </CoachTarget>
     </View>
     <Buddy buddy={buddy} reduced={reduced} />
-    <View style={[hello.card, retro() && hello.retroCard]}>
+    <View ref={distanceTarget} collapsable={false} style={[hello.card, retro() && hello.retroCard]}>
       <GradientFill radius={retro() ? 8 : 30} />
       <View pointerEvents="none" style={hello.cardMark}><PokeballIcon size={150} color={colors.onBrand} stroke={12} /></View>
       <Text style={hello.eyebrow}>Distance travelled</Text>
@@ -541,6 +546,7 @@ const hello = themedStyles(() => ({
   mark: { position: 'absolute', right: -96, top: -120, opacity: 0.07 },
   // Above the buddy, whose sprite margin reaches up under the pills.
   top: { flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 1 },
+  pills: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontFamily: displayFont(fonts.black), color: colors.ink, fontSize: retro() ? 24 : 26, lineHeight: 32, letterSpacing: retro() ? 0 : -0.4 },
   name: { fontFamily: fonts.bold, color: colors.muted, fontSize: 16, lineHeight: 22 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 40, paddingLeft: 5, paddingRight: 13, borderRadius: retro() ? 8 : 999,

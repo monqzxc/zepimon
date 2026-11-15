@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef } from 'react'
+import React, { useCallback, useContext, useEffect, useRef } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { ColorValue, StyleProp, ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -10,6 +10,7 @@ import { colors, glass, motionReduced, retro, themedStyles, typeTints } from './
 import { Parallax } from './Parallax'
 import { HabitatScene, habitatTheme } from './HabitatScene'
 import { PokeballLoader } from './PokeballLoader'
+import { ScrollByContext } from './tour'
 export { Sprite } from './Sprite'
 export { HabitatScene } from './HabitatScene'
 export { PokeballLoader } from './PokeballLoader'
@@ -173,17 +174,23 @@ export function PokeballIcon({ size = 22, color = colors.ink, stroke = Math.max(
 // fill: lay out to the screen instead of scrolling. full: full-screen play, inside every safe-area edge. edge: full
 // screen with no padding at all, for a map that fills the safe area (PlayOverlay). On a tab the page runs on behind the
 // floating tab bar, so its end is padded clear of it. A new page value scrolls back to the top, for a tab that swaps
-// what it shows in place.
+// what it shows in place. A first-visit tip can scroll the page to what it points at (ScrollByContext, src/tour.ts).
 export function Screen({ children, fill = false, full = false, edge = false, page }: React.PropsWithChildren<{ fill?: boolean, full?: boolean, edge?: boolean, page?: string }>) {
   const scroll = useRef<ScrollView>(null)
   const tabBar = useContext(BottomTabBarHeightContext) ?? 0
   useEffect(() => { if (fill) scroll.current?.scrollTo({ y: 0, animated: false }) }, [fill])
   useEffect(() => { if (page !== undefined) scroll.current?.scrollTo({ y: 0, animated: false }) }, [page])
+  const offset = useRef(0)
+  const scrollBy = useCallback((dy: number) => {
+    offset.current = Math.max(0, offset.current + dy)
+    scroll.current?.scrollTo({ y: offset.current, animated: false })
+  }, [])
   const content = [styles.content, fill && styles.contentFill, full && styles.contentFull, edge && styles.contentEdge]
   return <SafeAreaView style={styles.screen} edges={full || edge ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}>
     <ScrollView ref={scroll} scrollEnabled={!fill && !edge} keyboardShouldPersistTaps="handled"
+      scrollEventThrottle={32} onScroll={event => { offset.current = event.nativeEvent.contentOffset.y }}
       contentContainerStyle={[content, tabBar > 0 && { paddingBottom: Number(StyleSheet.flatten(content).paddingBottom ?? 0) + tabBar }]}>
-      {children}
+      <ScrollByContext.Provider value={scrollBy}>{children}</ScrollByContext.Provider>
     </ScrollView>
   </SafeAreaView>
 }
