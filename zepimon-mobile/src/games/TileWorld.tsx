@@ -118,9 +118,11 @@ function Walking({ at, tile, reduced, children }: { at: Point, tile: number, red
   return <Animated.View style={{ position: 'absolute', left: 0, top: 0, transform: position.getTranslateTransform() }}>{children}</Animated.View>
 }
 
-// How big your buddy is drawn, in tiles: about as tall as your trainer (whose figure stands about 1.3 tiles tall), where
-// a wild Pokemon fills one tile.
-export const BUDDY_SCALE = 1.5
+// How big your buddy is drawn, in tiles: at most half your trainer's height. The trainer's figure is 84 px of a 64 px-wide
+// frame (about 1.3 tiles tall), and every walker strip fits its Pokemon's longer side into 40 px of a 44 px frame, so even
+// the biggest buddy's longer side stays at half the trainer's height. Wild Pokemon still fill one tile.
+const TRAINER_TILES = 84 / 64
+export const BUDDY_SCALE = (TRAINER_TILES * 0.5) * (44 / 40)
 
 // A Pokemon on the map as its overworld sprite, gliding a tile per step: the buddy behind the trainer, and the Safari
 // Zone's wild Pokemon. A new `jump` value snaps it into place. `scale` draws it bigger than its tile, feet still on it.
