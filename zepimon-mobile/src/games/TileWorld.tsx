@@ -52,7 +52,8 @@ export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move,
       <Chunks map={map} chunks={chunks} keys={keys} tile={tile} layer="ground" />
       {children}
       {buddy && (buddyAt.x !== at.x || buddyAt.y !== at.y) &&
-        <Walker name={buddy.name} shiny={buddy.shiny} at={buddyAt} frame={buddyFrame(buddyFacing, (move.id % 2) as 0 | 1)} tile={tile} reduced={reduced} jump={jump} />}
+        <Walker name={buddy.name} shiny={buddy.shiny} at={buddyAt} frame={buddyFrame(buddyFacing, (move.id % 2) as 0 | 1)} tile={tile} reduced={reduced} jump={jump}
+          scale={BUDDY_SCALE} />}
     </>)}
     {fit ? layer(<Walking at={at} tile={tile} reduced={reduced}>
       <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile} left={0} top={0} reduced={reduced} falling={falling} />
@@ -117,9 +118,15 @@ function Walking({ at, tile, reduced, children }: { at: Point, tile: number, red
   return <Animated.View style={{ position: 'absolute', left: 0, top: 0, transform: position.getTranslateTransform() }}>{children}</Animated.View>
 }
 
+// How big your buddy is drawn, in tiles: about as tall as your trainer (whose figure stands about 1.3 tiles tall), where
+// a wild Pokemon fills one tile.
+export const BUDDY_SCALE = 1.5
+
 // A Pokemon on the map as its overworld sprite, gliding a tile per step: the buddy behind the trainer, and the Safari
-// Zone's wild Pokemon. A new `jump` value snaps it into place.
-export function Walker({ name, shiny, at, frame, tile, reduced, jump }: { name: string, shiny: boolean, at: Point, frame: number, tile: number, reduced: boolean, jump: number }) {
+// Zone's wild Pokemon. A new `jump` value snaps it into place. `scale` draws it bigger than its tile, feet still on it.
+export function Walker({ name, shiny, at, frame, tile, reduced, jump, scale = 1 }: {
+  name: string, shiny: boolean, at: Point, frame: number, tile: number, reduced: boolean, jump: number, scale?: number
+}) {
   const [position] = useState(() => new Animated.ValueXY({ x: at.x * tile, y: at.y * tile }))
   const jumped = useRef(jump)
   useEffect(() => {
@@ -130,9 +137,12 @@ export function Walker({ name, shiny, at, frame, tile, reduced, jump }: { name: 
     return () => glide.stop()
   }, [position, at.x, at.y, tile, reduced, jump])
   const strip = walkers[(shiny ? 'Shiny ' : '') + name]
+  const size = tile * scale
   return <Animated.View style={{ position: 'absolute', left: 0, top: 0, width: tile, height: tile, transform: position.getTranslateTransform() }}>
-    {strip ? <Frame strip={{ source: strip, frames: 8, width: 44, height: 44 }} frame={frame} width={tile} height={tile} />
-      : <PixelSprite name={name} shiny={shiny} size={tile} />}
+    <View style={{ position: 'absolute', left: (tile - size) / 2, top: tile - size, width: size, height: size }}>
+      {strip ? <Frame strip={{ source: strip, frames: 8, width: 44, height: 44 }} frame={frame} width={size} height={size} />
+        : <PixelSprite name={name} shiny={shiny} size={size} />}
+    </View>
   </Animated.View>
 }
 

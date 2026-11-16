@@ -15,6 +15,9 @@ import { PixelSprite } from './TeamPicker'
 import { useGameScreen } from './fullscreen'
 import { useGameLoop, useReducedMotion } from './hooks'
 import { PlayOverlay } from './PlayOverlay'
+import { canSave, restoreRound, saveRound } from './safari-save'
+import { loadRound, storeRound } from './safari-save-store'
+import { ConfirmDialog } from '../ConfirmDialog'
 
 const native = Platform.OS !== 'web'
 const throwText = { excellent: 'Excellent throw!', great: 'Great throw!', nice: 'Nice throw.' }
@@ -22,22 +25,34 @@ const moodText = { calm: '', eating: 'Eating — calmer, but harder to catch.', 
 // What the status line says while a throw is in the air, so the outcome isn't told before the map shows it.
 const thrownText = (act: WildAct) =>
   act.thrown === 'ball' ? (act.quality ? throwText[act.quality] : 'You threw a Safari Ball!') : act.thrown === 'berry' ? 'You threw a berry.' : 'You threw a rock!'
+// A playing round is saved at most this often (and at once when the app goes to the background or you leave).
+const SAVE_MS = 1000
 // A tap route stops at anything worth a look, and at any bump.
 const STOPS: ZoneEvent[] = ['encounter', 'help', 'item', 'gate', 'out-of-steps']
 type Props = {
   zone?: Zone, bonusKm: number, bonusNote: string, record: string, goal?: string, dex: Record<string, DexRecord>,
   buddy: { name: string, shiny: boolean } | null, onCatch: (name: string, shiny: boolean) => Promise<void>, onComplete: (catches: number) => void,
   // Back to the arcade or the map, from full screen (where the arcade's own back button is hidden).
-  onLeave?: () => void
+  onLeave?: () => void,
+  // Where the round's save lives: one per place a round starts (the arcade, or an Adventure Map stop).
+  saveKey: string,
+  // Told whether a round is being played, so leaving can ask first.
+  onRunning?: (running: boolean) => void
 }
 
 // The Safari Zone, an open world: walk the map with the D-pad (or by tapping a tile) among the wild Pokemon roaming it,
 // and walk into one to make it notice you. Then, right there on the map, throw a Safari Ball, a berry or a rock at it,
 // or run and it disappears. Each throw plays out on the map (SafariWild.tsx) before the buttons come back. The rules
 // live in safari-zone.ts and safari.ts; this screen only turns input into steps and actions and draws the result. In
-// full screen the same hunt is drawn through PlayOverlay; the round ending leaves full screen.
-export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy, onCatch, onComplete, onLeave }: Props) {
+// full screen the same hunt is drawn through PlayOverlay; the round ending leaves full screen. A round with steps and
+// Safari Balls left is saved on the phone (safari-save.ts), and the start screen offers to continue it.
+export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy, onCatch, onComplete, onLeave, saveKey, onRunning }: Props) {
   const [game, setGame] = useState<ZoneGame | null>(null)
+  // The saved round on offer (undefined while it loads), and whether starting over is being asked about.
+  const [saved, setSaved] = useState<{ raw: unknown, game: ZoneGame } | null | undefined>(undefined)
+  const [startOver, setStartOver] = useState(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedAs = useRef('')
   const [move, setMove] = useState<{ kind: WalkResult['move'], id: number }>({ kind: 'none', id: 0 })
   const [miss, setMiss] = useState<{ tile: Point, id: number } | null>(null)
   const [news, setNews] = useState('')
@@ -55,6 +70,32 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const still = useRef(reduced)
   useEffect(() => { known.current = dex; handlers.current = { onCatch, onComplete }; still.current = reduced })
   useEffect(() => () => { if (busyTimer.current) clearTimeout(busyTimer.current) }, [])
+  useEffect(() => {
+    let live = true
+    loadRound(saveKey).then(raw => {
+      const restored = restoreRound(raw, performance.now())
+      if (live) setSaved(restored ? { raw, game: restored } : null)
+    })
+    return () => { live = false }
+  }, [saveKey])
+  // Saving: right away (flush), or once SAVE_MS after the first change since the last save, whatever the round is by
+  // then. Only what matters to the round counts as a change, not Pokemon strolling about.
+  const flush = useCallback(() => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = null
+    const round = current.current
+    if (canSave(round)) storeRound(saveKey, saveRound(round, Date.now()))
+  }, [saveKey])
+  useEffect(() => {
+    if (!canSave(game)) return
+    const signature = [game.steps, game.balls, game.catches.length, game.items.length, game.helps.join(), game.encounter?.id ?? '',
+      game.encounter?.mood ?? '', game.at.x, game.at.y, game.status].join('|')
+    if (signature === savedAs.current) return
+    savedAs.current = signature
+    if (!saveTimer.current) saveTimer.current = setTimeout(flush, SAVE_MS)
+  }, [game, flush])
+  // Leaving the screen keeps the round for later.
+  useEffect(() => () => flush(), [flush])
   const settle = useCallback(() => {
     if (busyTimer.current) clearTimeout(busyTimer.current)
     busyTimer.current = null
@@ -80,8 +121,14 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
         .then(() => setNews(fresh ? `${key} joined your Dex as a ◎ Safari catch!` : `${key} is already in your Dex.`))
         .catch(() => setNews(`Could not save ${key} to your Dex. Your other catches are safe.`))
     }
-    if (previous.status !== 'complete' && next.status === 'complete') handlers.current.onComplete(next.catches.length)
-  }, [settle])
+    if (previous.status !== 'complete' && next.status === 'complete') {
+      // A finished round has nothing left to continue.
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      saveTimer.current = null
+      storeRound(saveKey, null)
+      handlers.current.onComplete(next.catches.length)
+    }
+  }, [settle, saveKey])
   const act = (change: (game: ZoneGame, now: number) => ZoneGame) => {
     if (current.current) update(change(current.current, performance.now()))
   }
@@ -97,7 +144,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const walking = game?.status === 'playing' && !game.encounter && !game.prompt && busy === null
   const walker = useStepWalker(walkOnce, walking)
   const { press, release } = walker
-  const pause = () => { walker.drop(); act(pauseSafari) }
+  const pause = () => { walker.drop(); act(pauseSafari); flush() }
   // Ten times a second the wild Pokemon get to stroll; the game only changes (and redraws) when one does.
   useGameLoop(() => act(roam), pause)
   function tapTile(tile: Point) {
@@ -119,9 +166,14 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
     return () => setFill(false)
   }, [active, setFill])
   useEffect(() => { if (over) setFull(false) }, [over, setFull])
+  useEffect(() => {
+    onRunning?.(active)
+    return () => onRunning?.(false)
+  }, [active, onRunning])
   const immersive = full && active
 
-  function begin() {
+  // Into the map: a new round, or `round` (a saved one) where it was left.
+  function begin(round?: ZoneGame) {
     setNews(''); setMiss(null); settle()
     walker.drop()
     if (!reduced) {
@@ -129,7 +181,15 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
       Animated.timing(fade, { toValue: 1, duration: 300, easing: Easing.linear, useNativeDriver: native }).start()
     }
     current.current = null
-    update(startZone(zone ?? 'gate', bonusKm, performance.now()))
+    savedAs.current = ''
+    setSaved(null)
+    if (!round) storeRound(saveKey, null)
+    update(round ?? startZone(zone ?? 'gate', bonusKm, performance.now()))
+  }
+  function continueRound() {
+    const round = saved && restoreRound(saved.raw, performance.now())
+    if (round) begin(round)
+    else setSaved(null)
   }
 
   const budget = zoneBudget(bonusKm)
@@ -137,7 +197,13 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
     <Heading>Safari Zone</Heading>
     <Copy>Walk the Safari Zone with your buddy. Wild Pokemon roam in the open, a few at a time, and some are Shiny. Walk into one to make it notice you, then throw a Safari Ball when the ring is small, a berry (if it likes them, it calms down) or a rock (it gets angry), or run. Catches join your Dex with a ◎ Safari mark.</Copy>
     <Copy small>Three helper Pokemon wait by the places that need them: walk into Lapras by the river to ride across water, Ampharos by the cave to light it with Flash, and Flygon by the desert path for goggles against the sandstorm.</Copy>
-    <Copy small>Switching tabs or leaving the app pauses the hunt. Returning to the arcade ends it.</Copy>
+    <Copy small>Switching tabs or leaving the app pauses the hunt. A round you leave is saved on this phone until its steps or Safari Balls run out, so you can continue it later, even after a restart.</Copy>
+    {!!saved && <Panel style={{ borderColor: colors.star, borderWidth: 1.5 }}>
+      <Eyebrow>ROUND IN PROGRESS</Eyebrow>
+      <Text style={zoneLook.budget}>{saved.game.steps} steps · {saved.game.balls} Safari Balls · {saved.game.catches.length} caught</Text>
+      <Copy small>{saved.game.area === 'gate' ? 'By the gate' : ZONES[saved.game.area].label}{saved.game.encounter ? ` · facing a wild ${saved.game.encounter.name}` : ''}</Copy>
+      <Button title="Continue" onPress={continueRound} />
+    </Panel>}
     <Panel>
       <Copy color={colors.gold}>{record}</Copy>
       {!!goal && <Copy small color={colors.ink}>{goal}</Copy>}
@@ -149,7 +215,10 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
       <Chip label="Brendan" selected={safariTrainer === 'brendan'} onPress={() => setPreference('safariTrainer', 'brendan')} />
       <Chip label="May" selected={safariTrainer === 'may'} onPress={() => setPreference('safariTrainer', 'may')} />
     </View>
-    <Button title="Enter the Safari Zone" onPress={begin} />
+    <Button title={saved ? 'Start a new round' : 'Enter the Safari Zone'} secondary={!!saved} onPress={() => saved ? setStartOver(true) : begin()} />
+    <ConfirmDialog visible={startOver} title="Start a new round?"
+      body={saved ? `Your saved round, with ${saved.game.steps} steps and ${saved.game.balls} Safari Balls left, will be lost. Pokemon you caught in it stay in your Dex.` : ''}
+      confirm="Start over" cancel="Keep my round" onCancel={() => setStartOver(false)} onConfirm={() => { setStartOver(false); begin() }} />
   </View>
 
   if (over) return <View style={{ gap: 14 }}>
@@ -160,7 +229,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
       {game.catches.length > 0 && <View style={[styles.row, { gap: 4 }]}>{game.catches.map((item, index) =>
         <View key={index} accessible accessibilityLabel={(item.shiny ? 'Shiny ' : '') + item.name}><PixelSprite name={item.name} shiny={item.shiny} size={48} /></View>)}</View>}
       <Copy small>Safari catches stay on this phone and appear in your Dex with a ◎ Safari mark. They have no walking record and do not count toward missions.</Copy>
-      <Button title="Hunt again" onPress={begin} />
+      <Button title="Hunt again" onPress={() => begin()} />
     </Panel>
   </View>
 

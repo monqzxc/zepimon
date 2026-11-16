@@ -58,7 +58,7 @@ const called = (wild: { name: string, shiny: boolean }) => `${wild.shiny ? 'Shin
 
 export const isWalkable = (tile: string) => '.go@12345'.includes(tile)
 // Where a wild Pokemon may stand: open ground and tall grass, never an item ball or the gate's doorstep.
-const isRoamable = (tile: string) => '.g12345'.includes(tile)
+export const isRoamable = (tile: string) => '.g12345'.includes(tile)
 
 // The map as the trainer can walk it right now: water is open once Lapras carries you, and the desert is closed ('X')
 // from outside until Flygon's goggles. A round that starts in the desert is already past the storm's edge.

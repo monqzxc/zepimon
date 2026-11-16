@@ -12,6 +12,7 @@ import { useImmersive } from '../../games/useImmersive'
 import { DefenseGame, starText } from '../../games/DefenseGame'
 import type { BattleResult } from '../../games/DefenseGame'
 import { SafariZone } from '../../games/SafariZone'
+import { ConfirmDialog } from '../../ConfirmDialog'
 import { STEPS_PER_KM } from '../../games/safari-zone'
 import { AdventureMap, MODE_NAMES, STAR_GOALS } from '../../games/AdventureMap'
 import { BALLS_PER_KM, BONUS_KM_CAP, STOPS, freePlaySpec, safariStars, stopUnlocked, walkingBonus } from '../../games/adventure'
@@ -43,6 +44,9 @@ export default function PlayScreen() {
   const points = useMemo(() => legendaryPoints({ arcadeScores, bestMoves, adventure, trailLevels, trialRecords, safari, progress, phoneRuns }).total,
     [arcadeScores, bestMoves, adventure, trailLevels, trialRecords, safari, progress, phoneRuns])
   const [selected, setSelected] = useState<Selected>(null)
+  // A Safari round is being played, and leaving it is being asked about.
+  const [safariRunning, setSafariRunning] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   // The first-visit tips are about the list of games, not a game in progress.
   useCoach('play', !selected && view === 'games')
   const pointsTarget = useCoachTarget('play.points')
@@ -98,6 +102,9 @@ export default function PlayScreen() {
   const safariBest = `Best: ${arcadeScores.safari === undefined ? 'Not set' : `${arcadeScores.safari} caught in one hunt`}`
 
   const stageOpen = selected === 'levels' && trailStage !== null
+  const goBack = () => stageOpen ? setTrailStage(null) : select(launch?.stop ? 'map' : launch?.game === 'trail' ? 'levels' : null)
+  // Leaving a Safari round in the middle asks first: one stray tap shouldn't drop you out of the map.
+  const back = () => launch?.game === 'safari' && safariRunning ? setLeaving(true) : goBack()
   function playLevel(level: Level) { setTrailStage(level.stage); select({ game: 'trail', level }) }
 
   return <Screen fill={fill && inGame} full={immersive} edge={overlay} page={selected === 'levels' ? `levels-${trailStage}` : undefined}><GameScreenContext.Provider value={screen}>
@@ -107,7 +114,7 @@ export default function PlayScreen() {
     </View> : <View style={[styles.row, { flexWrap: 'nowrap' }]}>
       <View style={{ flex: 1 }}>
         <Button title={launch?.stop ? 'Back to the map' : stageOpen ? 'Back to stages' : launch?.game === 'trail' ? 'Back to levels' : 'Back to games'} secondary
-          onPress={() => stageOpen ? setTrailStage(null) : select(launch?.stop ? 'map' : launch?.game === 'trail' ? 'levels' : null)} />
+          onPress={back} />
       </View>
       {inGame && !fill && <IconButton name="fullscreen" label="Full screen" size={50} onPress={() => setFull(true)} />}
     </View> : <>
@@ -188,8 +195,11 @@ export default function PlayScreen() {
       bonusKm={bonus.km} bonusNote={ballsNote} dex={dex} goal={launch.stop ? STAR_GOALS.safari : undefined}
       buddy={buddy ? { name: buddy.replace(/^Shiny /, ''), shiny: buddy.startsWith('Shiny ') } : null}
       record={launch.stop ? stopRecord(launch.stop) : safariBest}
-      onCatch={recordSafariCatch} onLeave={() => select(launch.stop ? 'map' : null)}
+      onCatch={recordSafariCatch} onLeave={back} saveKey={launch.stop?.id ?? 'arcade'} onRunning={setSafariRunning}
       onComplete={catches => launch.stop ? saveStars(launch.stop, safariStars(catches)) : saveScore('safari', catches)} />}
+    <ConfirmDialog visible={leaving} title="Leave the Safari Zone?"
+      body="Your round is saved on this phone. Open the Safari Zone again and tap Continue to pick it up where you left off."
+      confirm="Leave" cancel="Keep playing" onCancel={() => setLeaving(false)} onConfirm={() => { setLeaving(false); goBack() }} />
     {selected === 'memory' && <MemoryMatch entries={entries} bestMoves={bestMoves} onComplete={(pairs, moves) => {
       recordWin(pairs, moves).then(() => setMessage('Your score is saved.')).catch(() => setMessage('Could not save this score. Please try again.'))
     }} />}
