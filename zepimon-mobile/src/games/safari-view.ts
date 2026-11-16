@@ -5,6 +5,8 @@ import type { Direction, Point, SafariMap } from './safari-zone.ts'
 // to load, sprite frames, and the queue that turns D-pad presses and tap routes into one step at a time.
 export const STEP_MS = 220
 const ACROSS = 10
+// The Safari Zone is an open world, seen from a little further back: 12 tiles across instead of 10.
+export const SAFARI_ACROSS = 12
 // Chunks stay loaded 2 tiles past the screen edge, enough for a step or hop to glide in without a gap.
 const MARGIN = 2
 const FACING: Direction[] = ['south', 'north', 'west', 'east']
@@ -13,11 +15,12 @@ const FACING: Direction[] = ['south', 'north', 'west', 'east']
 export const stepDelay = (now: number, lastStep: number) => Math.max(0, lastStep + STEP_MS - now)
 
 // About 10 tiles across, between 36 and 58 px. Given a height too (the immersive map), the 10 tiles go across the shorter
-// side, so a short, wide landscape view doesn't zoom in too far. A height under 40 px is no map at all and is ignored,
-// so `widths.map(tileSizeFor)` (which passes the index second) still reads the widths alone.
-export function tileSizeFor(width: number, height?: number): number {
+// side, so a short, wide landscape view doesn't zoom in too far. A height under 40 px is no map at all and is ignored.
+// `across` zooms out: more tiles across, and the 36-58 px limits shrink to match.
+export function tileSizeFor(width: number, height?: number, across = ACROSS): number {
   const side = height !== undefined && height >= 40 ? Math.min(width, height) : width
-  return Math.min(58, Math.max(36, Math.floor(side / ACROSS)))
+  const zoom = ACROSS / across
+  return Math.min(Math.round(58 * zoom), Math.max(Math.round(36 * zoom), Math.floor(side / across)))
 }
 
 // Where the map layer goes so the trainer's tile sits in the middle of the view.

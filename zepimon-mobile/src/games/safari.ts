@@ -1,57 +1,35 @@
 import { familyOf, isLegendary, pickWeighted, stageOf, wildPool } from './roster.ts'
 import type { DexRecord, Journal } from '../journal.ts'
 
-export const SAFARI_BALLS = 12
-export const RING_MS = 1400
-export const BERRY_FLEE = 0.45
-export const ROCK_CATCH = 1.5
+export const SAFARI_BALLS = 24
 
-export type Zone = 'meadow' | 'lake' | 'mountain' | 'night'
+export type Zone = 'meadow' | 'lake' | 'desert' | 'night' | 'cave'
 export type Mood = 'calm' | 'eating' | 'angry'
 export type ThrowQuality = 'excellent' | 'great' | 'nice'
-// at: the tile it stands on, when it appears on a map (safari-zone.ts places it).
-export type Encounter = { name: string, shiny: boolean, mood: Mood, since: number, at?: { x: number, y: number } }
+// The wild Pokemon that has noticed you (safari-zone.ts keeps where it stands), until it is caught or leaves. since:
+// when it noticed you, which sets the ring's clock.
+export type Encounter = { id: number, name: string, shiny: boolean, mood: Mood, since: number }
 export type SafariCatch = { name: string, shiny: boolean }
-export type Thrown = 'ball' | 'berry' | 'rock'
-export type Reaction = 'caught' | 'broke-free' | 'likes' | 'dislikes' | 'angry'
-export type Departure = 'caught' | 'fled' | 'wandered' | 'ran'
-// The latest action in the current (or just-ended) encounter: what was thrown, how the Pokemon took it and whether it
-// left, so the screen can play it out on the map. id goes up with each action; a new encounter starts with none.
-export type SafariAct = { id: number, thrown: Thrown | null, reaction: Reaction | null, left: Departure | null, wild: Encounter }
 export type SafariGame = {
-  status: 'ready' | 'playing' | 'paused' | 'complete', zone: Zone, elapsed: number, lastTick: number, balls: number,
-  encounter: Encounter | null, catches: SafariCatch[],
-  chain: { name: string, count: number }, message: string, lastThrow: ThrowQuality | null, act: SafariAct | null
+  status: 'ready' | 'playing' | 'paused' | 'complete', zone: Zone, balls: number,
+  encounter: Encounter | null, catches: SafariCatch[], chain: { name: string, count: number }, message: string
 }
 
 export const ZONES: Record<Zone, { label: string, habitat: string, types: string[], blurb: string }> = {
   meadow: { label: 'Sunny meadow', habitat: 'grass', types: ['normal', 'grass', 'bug', 'electric', 'fairy'], blurb: 'Grass, Bug, Normal, Electric and Fairy types' },
   lake: { label: 'Lakeside', habitat: 'water', types: ['water', 'ice'], blurb: 'Water and Ice types' },
-  mountain: { label: 'Rocky mountain', habitat: 'rock', types: ['rock', 'ground', 'fighting', 'steel', 'fire', 'dragon'], blurb: 'Rock, Ground, Fighting, Steel, Fire and Dragon types' },
-  night: { label: 'Night forest', habitat: 'ghost', types: ['ghost', 'dark', 'poison', 'psychic'], blurb: 'Ghost, Dark, Poison and Psychic types' }
+  desert: { label: 'Sandstorm desert', habitat: 'ground', types: ['ground', 'fire', 'dragon'], blurb: 'Ground, Fire and Dragon types' },
+  night: { label: 'Night forest', habitat: 'ghost', types: ['ghost', 'dark', 'poison', 'psychic'], blurb: 'Ghost, Dark, Poison and Psychic types' },
+  cave: { label: 'Dark cave', habitat: 'rock', types: ['rock', 'steel', 'fighting'], blurb: 'Rock, Steel and Fighting types' }
 }
 const pools = Object.fromEntries(Object.entries(ZONES).map(([zone, { types }]) => [zone, wildPool(types)])) as Record<Zone, ReturnType<typeof wildPool>>
-const QUALITY = { excellent: 1.6, great: 1.25, nice: 1 }
-const MOOD_CATCH = { calm: 1, eating: 0.85, angry: ROCK_CATCH }
-const MOOD_FLEE = { calm: 1, eating: BERRY_FLEE, angry: 1.8 }
 
 export function readySafari(zone: Zone = 'meadow', bonusBalls = 0): SafariGame {
-  return { status: 'ready', zone, elapsed: 0, lastTick: 0, balls: SAFARI_BALLS + bonusBalls,
-    encounter: null, catches: [], chain: { name: '', count: 0 }, message: '', lastThrow: null, act: null }
+  return { status: 'ready', zone, balls: SAFARI_BALLS + bonusBalls, encounter: null, catches: [], chain: { name: '', count: 0 }, message: '' }
 }
 
-export function startSafari(zone: Zone, bonusBalls: number, now: number): SafariGame {
-  return { ...readySafari(zone, bonusBalls), status: 'playing', lastTick: now }
-}
-
-// The ring shrinks from full size to 30% every RING_MS, then starts over. Smaller rings make better throws.
-export function ringScale(game: SafariGame): number {
-  if (!game.encounter) return 1
-  return 1 - 0.7 * ((game.elapsed - game.encounter.since) % RING_MS) / RING_MS
-}
-
-export function throwQuality(scale: number): ThrowQuality {
-  return scale <= 0.45 ? 'excellent' : scale <= 0.7 ? 'great' : 'nice'
+export function startSafari(zone: Zone, bonusBalls: number): SafariGame {
+  return { ...readySafari(zone, bonusBalls), status: 'playing' }
 }
 
 export const SHINY_BASE = 100
@@ -61,32 +39,44 @@ export function shinyOdds(game: SafariGame, name: string): number {
   return game.chain.name === name ? Math.max(8, SHINY_BASE - 23 * game.chain.count) : SHINY_BASE
 }
 
-export function catchChance(name: string, mood: Mood, quality: ThrowQuality): number {
-  const single = familyOf(name).length === 1
-  const base = single ? 0.22 : [0.36, 0.22, 0.12][stageOf(name) - 1]
-  return Math.min(0.95, base * QUALITY[quality] * MOOD_CATCH[mood])
-}
-
-export function fleeChance(name: string, mood: Mood): number {
-  const single = familyOf(name).length === 1
-  return Math.min(0.9, (single ? 0.25 : [0.15, 0.25, 0.35][stageOf(name) - 1]) * MOOD_FLEE[mood])
-}
-
-// The game clock only times the ring; the Safari Zone's limit is its steps (safari-zone.ts), so time never runs out.
-export function tickSafari(game: SafariGame, now: number): SafariGame {
-  if (game.status !== 'playing' || now <= game.lastTick) return game
-  return { ...game, elapsed: game.elapsed + now - game.lastTick, lastTick: now }
-}
-
-// A wild Pokemon from the zone's pool. A chained species comes back 35% of the time when it lives in that zone.
-export function meetWild(game: SafariGame, zone: Zone, random = Math.random): SafariGame {
-  if (game.status !== 'playing' || game.encounter) return game
+// A wild Pokemon from the zone's pool, Shiny or not, as it walks out onto the map. A chained species comes back 35% of
+// the time when it lives in that zone.
+export function rollWild(game: SafariGame, zone: Zone, random = Math.random): SafariCatch {
   const pool = pools[zone]
   const chained = game.chain.count > 0 && pool.some(wild => wild.name === game.chain.name) && random() < 0.35
   const name = chained ? game.chain.name : pickWeighted(pool, random).name
-  const shiny = random() < 1 / shinyOdds(game, name)
-  return { ...game, zone, encounter: { name, shiny, mood: 'calm', since: game.elapsed }, lastThrow: null, act: null,
-    message: `A wild ${shiny ? 'Shiny ' : ''}${name} appeared!` }
+  return { name, shiny: random() < 1 / shinyOdds(game, name) }
+}
+
+// Catching happens on the map: a ring around the Pokemon shrinks from full size to 30% every RING_MS, over and over,
+// and a ball thrown while it is small holds more often. A berry it likes calms it (it eats: less likely to run, a little
+// harder to catch); a rock angers it (easier to catch, quicker to run).
+export const RING_MS = 1400
+export const BERRY_FLEE = 0.45
+export const ROCK_CATCH = 1.5
+const QUALITY = { excellent: 1.6, great: 1.25, nice: 1 }
+const MOOD_CATCH = { calm: 1, eating: 0.85, angry: ROCK_CATCH }
+const MOOD_FLEE = { calm: 1, eating: BERRY_FLEE, angry: 1.8 }
+// A Pokemon that never evolves counts as a middle stage.
+const stage = (name: string) => familyOf(name).length === 1 ? 2 : stageOf(name)
+
+export function ringScale(since: number, now: number): number {
+  return 1 - 0.7 * (Math.max(0, now - since) % RING_MS) / RING_MS
+}
+
+export function throwQuality(scale: number): ThrowQuality {
+  return scale <= 0.45 ? 'excellent' : scale <= 0.7 ? 'great' : 'nice'
+}
+
+// A plain throw at a calm Pokemon holds about 4 times in 10 for a first stage, 1 in 4 for a middle stage, and 1 in 7
+// for a final stage; a small ring and an angry Pokemon raise that.
+export function catchChance(name: string, mood: Mood, quality: ThrowQuality): number {
+  return Math.min(0.95, ([0.4, 0.25, 0.14][stage(name) - 1] ?? 0.25) * QUALITY[quality] * MOOD_CATCH[mood])
+}
+
+// After a missed ball, a berry or a rock, the chance it runs off.
+export function fleeChance(name: string, mood: Mood): number {
+  return Math.min(0.9, ([0.15, 0.25, 0.35][stage(name) - 1] ?? 0.25) * MOOD_FLEE[mood])
 }
 
 // Each species has its own taste: about two in three like the Safari Zone's berries. Fixed per species, so you can learn
@@ -97,72 +87,12 @@ export function likesBerry(name: string): boolean {
   return (hash >>> 0) % 3 !== 0
 }
 
-type Outcome = { thrown: Thrown | null, reaction: Reaction | null }
-const acted = (game: SafariGame, outcome: Outcome, left: Departure | null, wild: Encounter): SafariAct =>
-  ({ id: (game.act?.id ?? 0) + 1, ...outcome, left, wild })
-
-function leave(game: SafariGame, message: string, outcome: Outcome, left: Departure, chain = game.chain): SafariGame {
-  return { ...game, encounter: null, message, chain, act: acted(game, outcome, left, game.encounter!),
-    status: game.balls > 0 ? game.status : 'complete' }
+export function pauseSafari<T extends SafariGame>(game: T): T {
+  return game.status === 'playing' ? { ...game, status: 'paused' } : game
 }
 
-// A failed throw, a berry or a rock gives the Pokemon a chance to run. Fleeing breaks a Shiny chain on that species.
-function fleeCheck(game: SafariGame, random: () => number, stayed: string, outcome: Outcome): SafariGame {
-  const encounter = game.encounter!
-  if (random() < fleeChance(encounter.name, encounter.mood)) {
-    return leave(game, `${encounter.name} ran away!`, outcome, 'fled', game.chain.name === encounter.name ? { name: '', count: 0 } : game.chain)
-  }
-  if (game.balls <= 0) return leave(game, `Out of Safari Balls! ${encounter.name} wandered off.`, outcome, 'wandered')
-  return { ...game, message: stayed, act: acted(game, outcome, null, encounter) }
-}
-
-export function throwBall(game: SafariGame, now: number, random = Math.random): SafariGame {
-  const next = tickSafari(game, now)
-  const encounter = next.encounter
-  if (next.status !== 'playing' || !encounter || next.balls <= 0) return next
-  const quality = throwQuality(ringScale(next))
-  const thrown = { ...next, balls: next.balls - 1, lastThrow: quality }
-  if (random() < catchChance(encounter.name, encounter.mood, quality)) {
-    const chain = next.chain.name === encounter.name ? { name: encounter.name, count: next.chain.count + 1 } : { name: encounter.name, count: 1 }
-    return leave({ ...thrown, catches: [...next.catches, { name: encounter.name, shiny: encounter.shiny }] },
-      `Gotcha! ${encounter.shiny ? 'Shiny ' : ''}${encounter.name} was caught!`, { thrown: 'ball', reaction: 'caught' }, 'caught', chain)
-  }
-  return fleeCheck(thrown, random, `Oh no! ${encounter.name} broke free!`, { thrown: 'ball', reaction: 'broke-free' })
-}
-
-// A Pokemon that likes the berry eats it: less likely to run, but harder to catch. One that doesn't turns away unchanged.
-export function throwBerry(game: SafariGame, now: number, random = Math.random): SafariGame {
-  const next = tickSafari(game, now)
-  const encounter = next.encounter
-  if (next.status !== 'playing' || !encounter) return next
-  if (!likesBerry(encounter.name)) {
-    return fleeCheck({ ...next, lastThrow: null }, random, `${encounter.name} sniffed the berry and turned away.`, { thrown: 'berry', reaction: 'dislikes' })
-  }
-  return fleeCheck({ ...next, encounter: { ...encounter, mood: 'eating' }, lastThrow: null }, random,
-    `${encounter.name} loves the berry! It is less likely to run, but harder to catch.`, { thrown: 'berry', reaction: 'likes' })
-}
-
-export function throwRock(game: SafariGame, now: number, random = Math.random): SafariGame {
-  const next = tickSafari(game, now)
-  if (next.status !== 'playing' || !next.encounter) return next
-  return fleeCheck({ ...next, encounter: { ...next.encounter, mood: 'angry' }, lastThrow: null }, random,
-    `${next.encounter.name} is angry! It is easier to catch, but more likely to run.`, { thrown: 'rock', reaction: 'angry' })
-}
-
-// Walking away: the Pokemon disappears back into the wild.
-export function runAway(game: SafariGame, now: number): SafariGame {
-  const next = tickSafari(game, now)
-  if (next.status !== 'playing' || !next.encounter) return next
-  return leave(next, `You backed away, and ${next.encounter.name} disappeared.`, { thrown: null, reaction: null }, 'ran')
-}
-
-export function pauseSafari(game: SafariGame, now: number): SafariGame {
-  const next = tickSafari(game, now)
-  return next.status === 'playing' ? { ...next, status: 'paused' } : next
-}
-
-export function resumeSafari(game: SafariGame, now: number): SafariGame {
-  return game.status === 'paused' ? { ...game, status: 'playing', lastTick: now } : game
+export function resumeSafari<T extends SafariGame>(game: T): T {
+  return game.status === 'paused' ? { ...game, status: 'playing' } : game
 }
 
 // Safari catches join the Dex on this phone with no distance, steps or time: those only come from the watch.

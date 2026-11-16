@@ -21,7 +21,7 @@ type Props = {
   map: TileMap, chunks: TileChunks, at: Point, facing: Direction, buddyAt: Point, buddyFacing: Direction, move: Move,
   trainer: 'brendan' | 'may', buddy: { name: string, shiny: boolean } | null, onGrass: boolean, width: number, height: number,
   reduced: boolean, jump: number, background: string, tapToWalk: boolean, onTapTile: (tile: Point) => void,
-  children?: ReactNode, cover?: ReactNode, falling?: boolean, fitHeight?: boolean, fit?: boolean
+  children?: ReactNode, cover?: ReactNode, falling?: boolean, fitHeight?: boolean, fit?: boolean, across?: number, mount?: string
 }
 
 // A tile map seen GBA-style. The trainer stays in the middle and the map glides under them one tile per step.
@@ -30,9 +30,11 @@ type Props = {
 // (a warp, a room change, a rotation) snaps the camera and buddy into place instead of gliding. `falling` drops the trainer out
 // of sight. `fitHeight` (immersive play) sizes tiles by the shorter side, so a landscape view doesn't zoom in too far.
 // `fit` shows a small map whole (a Legendary's lair): the camera stays centred on the map and the trainer walks across it.
+// `across` is how many tiles span the view (the Safari Zone zooms out a little); the default is tileSizeFor's.
+// `mount` is the Pokemon the trainer is riding (over water in the Safari Zone): it swims under them, facing their way.
 export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move, trainer, buddy, onGrass, width, height, reduced, jump, background,
-  tapToWalk, onTapTile, children, cover, falling = false, fitHeight = false, fit = false }: Props) {
-  const tile = fit ? fitTile(width, height, map) : tileSizeFor(width, fitHeight ? height : undefined)
+  tapToWalk, onTapTile, children, cover, falling = false, fitHeight = false, fit = false, across, mount }: Props) {
+  const tile = fit ? fitTile(width, height, map) : tileSizeFor(width, fitHeight ? height : undefined, across)
   const target = fit ? fitOffset(tile, width, height, map) : cameraOffset(at, tile, width, height)
   const [camera] = useState(() => new Animated.ValueXY(target))
   const jumped = useRef(jump)
@@ -50,12 +52,17 @@ export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move,
       <Chunks map={map} chunks={chunks} keys={keys} tile={tile} layer="ground" />
       {children}
       {buddy && (buddyAt.x !== at.x || buddyAt.y !== at.y) &&
-        <Buddy name={buddy.name} shiny={buddy.shiny} at={buddyAt} frame={buddyFrame(buddyFacing, (move.id % 2) as 0 | 1)} tile={tile} reduced={reduced} jump={jump} />}
+        <Walker name={buddy.name} shiny={buddy.shiny} at={buddyAt} frame={buddyFrame(buddyFacing, (move.id % 2) as 0 | 1)} tile={tile} reduced={reduced} jump={jump} />}
     </>)}
     {fit ? layer(<Walking at={at} tile={tile} reduced={reduced}>
       <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile} left={0} top={0} reduced={reduced} falling={falling} />
-    </Walking>) : <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile}
-      left={width / 2 - tile / 2} top={height / 2 - tile / 2} reduced={reduced} falling={falling} />}
+    </Walking>) : <>
+      {!!mount && !!walkers[mount] && <View pointerEvents="none" style={{ position: 'absolute', left: width / 2 - tile * 0.7, top: height / 2 - tile * 0.75 }}>
+        <Frame strip={{ source: walkers[mount], frames: 8, width: 44, height: 44 }} frame={buddyFrame(facing, (move.id % 2) as 0 | 1)} width={tile * 1.4} height={tile * 1.4} />
+      </View>}
+      <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile}
+        left={width / 2 - tile / 2} top={height / 2 - tile / 2 - (mount ? tile * 0.45 : 0)} reduced={reduced} falling={falling} />
+    </>}
     {layer(<Chunks map={map} chunks={chunks} keys={keys} tile={tile} layer="top" />)}
     {!!cover && layer(cover)}
   </View>
@@ -110,7 +117,9 @@ function Walking({ at, tile, reduced, children }: { at: Point, tile: number, red
   return <Animated.View style={{ position: 'absolute', left: 0, top: 0, transform: position.getTranslateTransform() }}>{children}</Animated.View>
 }
 
-function Buddy({ name, shiny, at, frame, tile, reduced, jump }: { name: string, shiny: boolean, at: Point, frame: number, tile: number, reduced: boolean, jump: number }) {
+// A Pokemon on the map as its overworld sprite, gliding a tile per step: the buddy behind the trainer, and the Safari
+// Zone's wild Pokemon. A new `jump` value snaps it into place.
+export function Walker({ name, shiny, at, frame, tile, reduced, jump }: { name: string, shiny: boolean, at: Point, frame: number, tile: number, reduced: boolean, jump: number }) {
   const [position] = useState(() => new Animated.ValueXY({ x: at.x * tile, y: at.y * tile }))
   const jumped = useRef(jump)
   useEffect(() => {
