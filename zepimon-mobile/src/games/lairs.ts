@@ -16,6 +16,13 @@ export type LairMap = { name: string, room: string, cols: number, rows: number, 
   entrance: Point, out: Direction, background: string }
 export const LAIRS = lairMaps as Record<LairId, LairMap>
 
+export const SMALL_LEGENDARIES: readonly string[] = ['Mew', 'Celebi', 'Jirachi', 'Phione', 'Manaphy', 'Shaymin']
+
+export function lairSpriteSize(name: string, tile: number): number {
+  const species = name.replace(/^Shiny /, '')
+  return tile * (SMALL_LEGENDARIES.includes(species) ? 3.5 : 3)
+}
+
 export const LAIR_OF: Record<string, LairId> = {
   Kyogre: 'seafloor-cavern', Lugia: 'seafloor-cavern', Manaphy: 'seafloor-cavern', Phione: 'seafloor-cavern',
   Groudon: 'cave-of-origin', Heatran: 'cave-of-origin', Entei: 'cave-of-origin', Moltres: 'cave-of-origin',

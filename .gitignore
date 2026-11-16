@@ -55,4 +55,7 @@ desktop.ini
 /.warp/
 /.windsurf/
 
+# Local project metadata and non-shippable workspace content
+/data/
 /docs/
+/skills-lock.json
