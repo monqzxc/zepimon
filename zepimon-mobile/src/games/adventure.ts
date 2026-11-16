@@ -64,7 +64,7 @@ export function restoreStars(raw: unknown): Record<string, number> {
 
 // Walking this week (Monday-Sunday) adds a little extra to every game. It is a bonus, never a requirement.
 export const BONUS_KM_CAP = 3
-export const BALLS_PER_KM = 3
+export const BALLS_PER_KM = 6
 export const BERRIES_PER_KM = 25
 export function walkingBonus(progress: Progress, now = Date.now()) {
   const meters = completedRuns(progress, now).filter(({ record }) => Date.parse(record.finishedAt) >= weekStart(now))

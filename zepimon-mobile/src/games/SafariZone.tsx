@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Animated, Easing, Platform, Text, View, useWindowDimensions } from 'react-native'
+import { Animated, Easing, Platform, ScrollView, Text, View, useWindowDimensions } from 'react-native'
 import type { DexRecord } from '../journal'
 import { setPreference, usePreferences } from '../preferences'
 import { Button, Chip, Copy, Eyebrow, Heading, IconButton, Panel, colors, fonts, styles, themedStyles } from '../ui'
-import { ZONES, pauseSafari, resumeSafari, tickSafari } from './safari'
-import type { SafariGame, Zone } from './safari'
-import { confirmLeave, planWalk, startZone, stayInZone, walk, zoneAction, zoneBudget } from './safari-zone'
+import { ZONES, pauseSafari, resumeSafari, wildRules } from './safari'
+import type { Zone } from './safari'
+import { catchWild, confirmLeave, leaveWild, planHunt, roam, spendBalls, startZone, stayInZone, walk, zoneBudget } from './safari-zone'
 import type { Direction, Point, WalkResult, ZoneEvent, ZoneGame } from './safari-zone'
 import { useStepWalker } from './step-walker'
 import { SafariWorld } from './SafariWorld'
-import { SafariEncounter } from './SafariEncounter'
+import { LegendaryBattle } from './LegendaryBattle'
+import { LOANERS } from './roster'
 import { DPad, useKeyboardDirections } from './DPad'
 import { PixelSprite } from './TeamPicker'
 import { useGameScreen } from './fullscreen'
@@ -18,7 +19,8 @@ import { PlayOverlay } from './PlayOverlay'
 import { isLandscape } from './immersive'
 
 const native = Platform.OS !== 'web'
-const throwText = { excellent: 'Excellent throw!', great: 'Great throw!', nice: 'Nice throw.' }
+// How long a Pokemon you walked into looks at you, "!" overhead, before its battle opens.
+const FOCUS_MS = 700
 // A tap route stops at anything worth a look, and at any bump.
 const STOPS: ZoneEvent[] = ['encounter', 'item', 'gate', 'out-of-steps']
 type Props = {
@@ -28,15 +30,18 @@ type Props = {
   onLeave?: () => void
 }
 
-// The Safari Zone: walk the map with the D-pad (or by tapping a tile), step into tall grass, and catch what appears.
+// The Safari Zone, an open world: walk the map with the D-pad (or by tapping a tile) among the wild Pokemon roaming it,
+// walk into one to make it notice you, and catch it in the same battle as a Legendary in its lair (LegendaryBattle).
 // The rules live in safari-zone.ts and safari.ts; this screen only turns input into steps and draws the result. In full
-// screen the same hunt is drawn through PlayOverlay; the round ending, or an encounter opening in landscape (it only fits
+// screen the same hunt is drawn through PlayOverlay; the round ending, or a battle opening in landscape (it only fits
 // in portrait), leaves full screen.
 export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy, onCatch, onComplete, onLeave }: Props) {
   const [game, setGame] = useState<ZoneGame | null>(null)
   const [move, setMove] = useState<{ kind: WalkResult['move'], id: number }>({ kind: 'none', id: 0 })
   const [miss, setMiss] = useState<{ tile: Point, id: number } | null>(null)
   const [news, setNews] = useState('')
+  // The encounter whose battle is open: it opens FOCUS_MS after the Pokemon noticed you.
+  const [battleOf, setBattleOf] = useState<number | null>(null)
   const [area, setArea] = useState({ width: 0, height: 0 })
   const [fade] = useState(() => new Animated.Value(1))
   const reduced = useReducedMotion()
@@ -54,18 +59,10 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
     current.current = next
     setGame(next)
     if (!previous) return
-    if (next.catches.length > previous.catches.length) {
-      const { name, shiny } = next.catches[next.catches.length - 1]
-      const key = (shiny ? 'Shiny ' : '') + name
-      const fresh = !known.current[key] && !previous.catches.some(item => item.name === name && item.shiny === shiny)
-      handlers.current.onCatch(name, shiny)
-        .then(() => setNews(fresh ? `${key} joined your Dex as a ◎ Safari catch!` : `${key} is already in your Dex.`))
-        .catch(() => setNews(`Could not save ${key} to your Dex. Your other catches are safe.`))
-    }
     if (previous.status !== 'complete' && next.status === 'complete') handlers.current.onComplete(next.catches.length)
   }, [])
-  const act = (change: (game: SafariGame, now: number) => SafariGame) => {
-    if (current.current) update(zoneAction(current.current, round => change(round, performance.now())))
+  const act = (change: (game: ZoneGame, now: number) => ZoneGame) => {
+    if (current.current) update(change(current.current, performance.now()))
   }
   // One step in the game; the step walker times it. A tap route stops at a bump or anything in STOPS.
   const walkOnce = (direction: Direction) => {
@@ -80,11 +77,31 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const walker = useStepWalker(walkOnce, walking)
   const { press, release } = walker
   const pause = () => { walker.drop(); act(pauseSafari) }
-  useGameLoop(() => act(tickSafari), pause)
+  // Ten times a second the wild Pokemon get to stroll; the game only changes (and redraws) when one does.
+  useGameLoop(() => act(roam), pause)
+  const encounter = game?.status === 'complete' ? null : game?.encounter ?? null
+  const encounterId = encounter?.id ?? null
+  useEffect(() => {
+    if (encounterId === null) return
+    const timer = setTimeout(() => setBattleOf(encounterId), reduced ? 0 : FOCUS_MS)
+    return () => clearTimeout(timer)
+  }, [encounterId, reduced])
+  const battling = !!encounter && battleOf === encounter.id
+  // Saving the catch is the battle's job (it retries if that fails); the round counts it once you carry on.
+  const saveCatch = async () => {
+    const round = current.current
+    if (!round?.encounter) return
+    const { name, shiny } = round.encounter
+    const key = (shiny ? 'Shiny ' : '') + name
+    const fresh = !known.current[key] && !round.catches.some(item => item.name === name && item.shiny === shiny)
+    await handlers.current.onCatch(name, shiny)
+    setNews(fresh ? `${key} joined your Dex as a ◎ Safari catch!` : `${key} is already in your Dex.`)
+  }
+  const endBattle = (change: (game: ZoneGame, now: number) => ZoneGame) => { setBattleOf(null); act(change) }
   function tapTile(tile: Point) {
     const round = current.current
     if (!round || !walking) return
-    const route = planWalk(round.at, tile)
+    const route = planHunt(round, tile)
     if (!route) { setMiss({ tile, id: Date.now() }); return }
     walker.follow(route)
   }
@@ -97,12 +114,12 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
     setFill(true)
     return () => setFill(false)
   }, [active, setFill])
-  const leaveFull = game?.status === 'complete' || (!!game?.encounter && isLandscape(view.width, view.height))
+  const leaveFull = game?.status === 'complete' || (battling && isLandscape(view.width, view.height))
   useEffect(() => { if (leaveFull) setFull(false) }, [leaveFull, setFull])
   const immersive = full && active && !leaveFull
 
   function begin() {
-    setNews(''); setMiss(null)
+    setNews(''); setMiss(null); setBattleOf(null)
     walker.drop()
     if (!reduced) {
       fade.setValue(0)
@@ -115,7 +132,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const budget = zoneBudget(bonusKm)
   if (!game) return <View style={{ gap: 14 }}>
     <Heading>Safari Zone</Heading>
-    <Copy>Walk the Safari Zone with your buddy. Step into tall grass to find wild Pokemon, and throw when the ring is small. Catches join your Dex with a ◎ Safari mark.</Copy>
+    <Copy>Walk the Safari Zone with your buddy. Wild Pokemon roam in the open, a few at a time, and some are Shiny. Walk into one to make it notice you, then weaken it with your buddy and throw a Safari Ball. Catches join your Dex with a ◎ Safari mark.</Copy>
     <Copy small>Switching tabs or leaving the app pauses the hunt. Returning to the arcade ends it.</Copy>
     <Panel>
       <Copy color={colors.gold}>{record}</Copy>
@@ -146,7 +163,12 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const playing = game.status === 'playing'
   const areaName = `${game.area === 'gate' ? 'Gate' : ZONES[game.area].label}${playing ? '' : ' · Paused'}`
   const chain = game.chain.count ? `Chain: ${game.chain.name} ×${game.chain.count}` : ''
-  const message = game.message && !game.prompt ? `${game.lastThrow && game.encounter ? `${throwText[game.lastThrow]} ` : ''}${game.message}` : ''
+  const message = game.prompt ? '' : game.message
+  const nearby = game.wilds.length ? `Nearby: ${game.wilds.map(wild => `${wild.shiny ? '✦ Shiny ' : ''}${wild.name}`).join(', ')}` : 'No Pokemon nearby yet'
+  const partner = buddy ?? { name: LOANERS[3], shiny: false }
+  const battle = battling && encounter ? <LegendaryBattle key={encounter.id} foe={encounter} partner={partner} number={0} reduced={reduced}
+    safari={{ balls: game.balls, ...wildRules(encounter.name) }} caughtNote={news} onBalls={balls => act(round => spendBalls(round, balls))}
+    onCaught={saveCatch} onDone={() => endBattle(catchWild)} onLeave={() => endBattle(leaveWild)} /> : null
   const gate = <Panel>
     <Text accessibilityLiveRegion="polite" style={zoneLook.message}>Leave the Safari Zone?</Text>
     <View style={styles.row}>
@@ -161,15 +183,15 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
         reduced={reduced} tapToWalk={safariControls === 'tap' && walking} onTapTile={tapTile} miss={miss} />
     </Animated.View>}
     hud={`Steps ${game.steps} · Balls ${game.balls} · Caught ${game.catches.length} · ${areaName}`}
-    status={[message, news, chain].filter(Boolean).join('\n')}
+    status={[message, news, nearby, chain].filter(Boolean).join('\n')}
     dpad={safariControls === 'dpad' ? <DPad overlay reduced={reduced} onPress={press} onRelease={release} disabled={!walking} /> : null}
     // The chips stack up from the corner: Leave lowest.
     actions={[
       onLeave && <Chip key="leave" label="Leave" selected={false} onPress={() => { walker.drop(); onLeave() }} />,
       <Chip key="pause" label={playing ? 'Pause' : 'Resume'} selected={!playing} onPress={playing ? pause : () => act(resumeSafari)} />
     ]}
-    prompt={game.encounter ? <SafariEncounter game={game} reduced={reduced} onAction={act} /> : game.prompt === 'gate' ? gate : undefined}
-    rotatable={!game.encounter} />
+    prompt={battle ?? (game.prompt === 'gate' ? gate : undefined)}
+    rotatable={!battling} />
 
   return <View style={{ flex: 1, gap: 10 }}>
     <View style={zoneLook.bar}>
@@ -182,10 +204,11 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
         <IconButton name="fullscreen" label="Full screen" size={40} onPress={() => setFull(true)} />
       </View>
       <Text style={zoneLook.area}>{areaName}</Text>
+      {!battling && <Text accessibilityLiveRegion="polite" numberOfLines={1} style={zoneLook.nearby}>{nearby}</Text>}
       {!!chain && <Copy small color={colors.gold}>{chain}</Copy>}
     </View>
 
-    {game.encounter ? <SafariEncounter game={game} reduced={reduced} onAction={act} /> : <>
+    {battle ? <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 8 }}>{battle}</ScrollView> : <>
       <Animated.View style={[zoneLook.map, { opacity: fade }]}
         onLayout={event => { const { width, height } = event.nativeEvent.layout; setArea({ width, height }) }}>
         {/* Absolutely placed, so a map measured while there was more room never holds the area open later. */}
@@ -196,9 +219,9 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
       </Animated.View>
     </>}
 
-    {!!message && <Text accessibilityLiveRegion="polite" numberOfLines={2} style={zoneLook.message}>{message}</Text>}
-    {!!news && <Copy small color={colors.gold}>{news}</Copy>}
-    {game.prompt === 'gate' ? gate : !game.encounter && <View style={zoneLook.controls}>
+    {!battling && !!message && <Text accessibilityLiveRegion="polite" numberOfLines={2} style={zoneLook.message}>{message}</Text>}
+    {!battling && !!news && <Copy small color={colors.gold}>{news}</Copy>}
+    {game.prompt === 'gate' ? gate : !battling && <View style={zoneLook.controls}>
       {safariControls === 'dpad' ? <DPad onPress={press} onRelease={release} disabled={!walking} />
         : <Copy small>Tap a spot on the map to walk there.</Copy>}
       <View style={{ gap: 8 }}>
@@ -216,6 +239,7 @@ function Stat({ label, value, spoken }: { label: string, value: string, spoken: 
 const zoneLook = themedStyles(() => ({
   bar: { gap: 4 },
   area: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20 },
+  nearby: { color: colors.muted, fontFamily: fonts.bold, fontSize: 13, lineHeight: 18 },
   map: { flex: 1, minHeight: 160, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000000' },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   budget: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20 },

@@ -28,7 +28,7 @@ SECONDARY = 'lilycove'
 LAYOUT = ROOT / 'scripts' / 'safari'
 MAP_DATA = ROOT / 'src' / 'generated' / 'safari-map.js'
 CHUNK = 8
-ITEMS = 6
+ITEMS = 12
 WALKABLE_GROUND = '.o@1234'
 # Area letters (areas.txt) and the start digit each area must hold once.
 AREA_NAMES = {'g': 'gate', 'm': 'meadow', 'l': 'lake', 'k': 'mountain', 'n': 'night'}

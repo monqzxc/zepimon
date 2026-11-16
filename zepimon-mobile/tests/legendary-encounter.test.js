@@ -186,6 +186,26 @@ test('the shrine lanterns start dimmed, the same each time, and can always be li
   assert.equal(pressLantern(dark, 9), dark)
 })
 
+test('the Safari Zone uses the same battle with its own Safari Balls, level, catch ease and words', () => {
+  let battle = finishIntro(startBattle({ name: 'Pidgey', shiny: false }, { name: 'Pikachu', shiny: false }, { safari: true, balls: 2, level: 12, ease: 0.4 }))
+  assert.deepEqual([battle.balls, battle.foe.level, battle.foe.hp, battle.ballName, battle.safari], [2, 12, FOE_HP, 'Safari Ball', true])
+  assert.equal(chooseMenu(battle, 'bag').message, 'Safari Balls left: 2. Lower HP makes a catch likelier.')
+  assert.equal(chooseMenu(battle, 'party').message, 'Pikachu is your only partner in the Safari Zone.')
+  assert.equal(runFromBattle(battle).message, 'Got away safely!')
+  assert.equal(catchChance(FOE_HP, 0.4), 0.4)
+  assert.ok(Math.abs(catchChance(FOE_HP) - 0.12) < 1e-9 && Math.abs(catchChance(1) - (0.12 + 0.75 * 0.99)) < 1e-9, 'A Legendary is as hard as ever')
+  const held = throwBall(chooseMenu(battle, 'bag'), () => 0.39)
+  assert.deepEqual([held.ball.caught, held.balls, held.message], [true, 1, 'You threw a Safari Ball!'])
+  assert.equal(finishThrow(held).message, 'Gotcha! Pidgey was caught!')
+  assert.equal(throwBall(chooseMenu(battle, 'bag'), () => 0.4).ball.caught, false, 'At full HP only the ease decides')
+  battle = finishThrow(throwBall(chooseMenu(battle, 'bag'), () => 0.999))
+  battle = finishThrow(throwBall(chooseMenu(battle, 'bag'), () => 0.999))
+  assert.equal(battle.phase, 'out')
+  assert.match(battle.message, /You’re out of Safari Balls!$/)
+  const plain = startBattle({ name: 'Rayquaza', shiny: false }, { name: 'Pikachu', shiny: false })
+  assert.deepEqual([plain.ballName, plain.safari, plain.ease], ['Poké Ball', false, 0.12])
+})
+
 test('the battle never knocks the Legendary out and reaches a catch only through a Poké Ball', () => {
   let battle = startBattle({ name: 'Rayquaza', shiny: true }, { name: 'Pikachu', shiny: false })
   assert.deepEqual([battle.phase, battle.foe.hp, battle.balls, battle.foe.level], ['intro', FOE_HP, BATTLE_BALLS, 70])

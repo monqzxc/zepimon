@@ -34,46 +34,46 @@ function grassPatches(letter) {
   return patches
 }
 
-test('the Safari map is a 44 x 44 grid of known tiles with matching areas', () => {
-  assert.deepEqual([safariMap.cols, safariMap.rows, safariMap.chunk], [44, 44, 8])
-  assert.equal(safariMap.tiles.length, 44)
-  assert.equal(safariMap.areas.length, 44)
-  for (let y = 0; y < 44; y++) {
-    assert.match(safariMap.tiles[y], /^[.gT~RFv<>oSG#@1234]{44}$/, `tiles row ${y}`)
-    assert.match(safariMap.areas[y], /^[gmlkn]{44}$/, `areas row ${y}`)
+test('the Safari map is a 64 x 64 grid of known tiles with matching areas', () => {
+  assert.deepEqual([safariMap.cols, safariMap.rows, safariMap.chunk], [64, 64, 8])
+  assert.equal(safariMap.tiles.length, 64)
+  assert.equal(safariMap.areas.length, 64)
+  for (let y = 0; y < 64; y++) {
+    assert.match(safariMap.tiles[y], /^[.gT~RFv<>oSG#@1234]{64}$/, `tiles row ${y}`)
+    assert.match(safariMap.areas[y], /^[gmlkn]{64}$/, `areas row ${y}`)
   }
 })
 
-test('each area has its start, sign, one or two items and 3-5 grass patches; the gate area has none', () => {
+test('each area has its start, sign, three items and 6-8 grass patches; the gate area has none', () => {
   const area = { meadow: 'm', lake: 'l', mountain: 'k', night: 'n' }
   const digit = { meadow: '1', lake: '2', mountain: '3', night: '4' }
-  assert.equal(count('o'), 6)
+  assert.equal(count('o'), 12)
   for (const [name, letter] of Object.entries(area)) {
     assert.deepEqual(positions(digit[name]), [safariMap.starts[name]])
     assert.equal(areaOf(safariMap.starts[name]), letter)
     assert.equal(positions('S').filter(p => areaOf(p) === letter).length, 1, `${name} sign`)
     const items = positions('o').filter(p => areaOf(p) === letter).length
-    assert.ok(items >= 1 && items <= 2, `${name} items`)
+    assert.equal(items, 3, `${name} items`)
     const patches = grassPatches(letter)
-    assert.ok(patches >= 3 && patches <= 5, `${name} has ${patches} grass patches`)
+    assert.ok(patches >= 6 && patches <= 8, `${name} has ${patches} grass patches`)
   }
   assert.deepEqual(positions('@'), [safariMap.starts.gate])
   assert.equal(areaOf(safariMap.starts.gate), 'g')
   assert.ok(positions('G').length >= 1 && positions('G').every(p => areaOf(p) === 'g'))
   assert.equal(positions('g').filter(p => areaOf(p) === 'g').length, 0, 'no grass in the gate area')
-  assert.ok(positions('~').filter(p => areaOf(p) === 'l').length >= 40, 'Lakeside has a lake')
+  assert.ok(positions('~').filter(p => areaOf(p) === 'l').length >= 100, 'Lakeside has its lakes')
   assert.ok(count('v') + count('<') + count('>') >= 3, 'ledges')
 })
 
 test('every chunk has a ground image of the right size, and a top image only when flagged', () => {
   const { safariChunks } = load()
   const keys = []
-  for (let cy = 0; cy < 6; cy++) for (let cx = 0; cx < 6; cx++) keys.push(`${cx},${cy}`)
+  for (let cy = 0; cy < 8; cy++) for (let cx = 0; cx < 8; cx++) keys.push(`${cx},${cy}`)
   assert.deepEqual(Object.keys(safariMap.chunks).sort(), keys.sort())
   assert.deepEqual(Object.keys(safariChunks).sort(), keys.sort())
   for (const key of keys) {
     const [cx, cy] = key.split(',').map(Number)
-    const expected = [Math.min(8, 44 - cx * 8) * 64, Math.min(8, 44 - cy * 8) * 64]
+    const expected = [Math.min(8, 64 - cx * 8) * 64, Math.min(8, 64 - cy * 8) * 64]
     assert.deepEqual(size(safariChunks[key].ground), expected, key)
     assert.equal(!!safariChunks[key].top, safariMap.chunks[key].top, key)
     if (safariChunks[key].top) assert.deepEqual(size(safariChunks[key].top), expected, key)

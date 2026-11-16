@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Animated, Easing, Platform, Text, View } from 'react-native'
+import { Animated, Easing, Image, Platform, Text, View } from 'react-native'
+import type { ImageSourcePropType } from 'react-native'
+import { moveSprites } from '../generated/move-sprites.js'
 
 const native = Platform.OS !== 'web'
+const pixelated = Platform.OS === 'web' ? { imageRendering: 'pixelated' as const } : {}
+const sparkle = (moveSprites as Record<string, { source: ImageSourcePropType, frames: number, width: number, height: number }>)['fairy-sparkle']
+const SPARKLES = [[-0.32, -0.28], [0.34, -0.16], [-0.05, 0.3]]
 
 // Where the little stars twinkle around a Shiny, as fractions of its sprite box, with their size and phase.
 const STARS: [x: number, y: number, scale: number, delay: number][] = [
@@ -54,4 +59,22 @@ function Star({ x, y, side, delay, reduced }: { x: number, y: number, side: numb
     <Text style={{ color: GOLD, fontSize: side, lineHeight: side * 1.1, textShadowColor: 'rgba(150, 90, 0, 0.95)', textShadowRadius: 2,
       textShadowOffset: { width: 0, height: 0 } }}>✦</Text>
   </Animated.View>
+}
+
+// Emerald's sparkle around a Shiny as it appears: three times through the strip, or one still frame with reduced motion.
+export function Sparkles({ centre, size, reduced }: { centre: { x: number, y: number }, size: number, reduced: boolean }) {
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    if (reduced) return
+    const timer = setInterval(() => setTick(current => current + 1), 100)
+    return () => clearInterval(timer)
+  }, [reduced])
+  if (!reduced && tick >= sparkle.frames * 3) return null
+  const frame = reduced ? 1 : tick % sparkle.frames
+  const side = size * 0.32
+  return <>{SPARKLES.map(([dx, dy], i) => <View key={i} pointerEvents="none"
+    style={{ position: 'absolute', left: centre.x + dx * size - side / 2, top: centre.y + dy * size - side / 2, width: side, height: side, overflow: 'hidden' }}>
+    <Image source={sparkle.source} fadeDuration={0} resizeMode="stretch"
+      style={{ position: 'absolute', top: 0, left: -frame * side, width: side * sparkle.frames, height: side, ...pixelated }} />
+  </View>)}</>
 }

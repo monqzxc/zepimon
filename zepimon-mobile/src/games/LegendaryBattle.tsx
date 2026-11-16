@@ -5,14 +5,14 @@ import { pokemonType } from '../catalog'
 import { safariSprites } from '../generated/safari-assets.js'
 import { Button, Copy, PokeballIcon, fonts } from '../ui'
 import { FOE_HP, attackWith, chooseMenu, finishAttack, finishIntro, finishThrow, runFromBattle, startBattle, throwBall } from './legendary-battle'
-import type { BattleMenu, LegendaryBattle as Battle } from './legendary-battle'
+import type { BattleMenu, BattleRules, LegendaryBattle as Battle } from './legendary-battle'
 import { hitSheet } from './MoveFx'
-import { Sparkles } from './SafariEncounter'
+import { Sparkles } from './ShinyAura'
 import { PixelSprite } from './TeamPicker'
 
 type Strip = { source: ImageSourcePropType, frames: number, width: number, height: number }
 const pixelated = Platform.OS === 'web' ? { imageRendering: 'pixelated' as const } : {}
-const backgrounds = safariSprites as Record<'battleGrass' | 'battlePond', Strip>
+const backgrounds = safariSprites as Record<'battleGrass' | 'battlePond' | 'safariBall', Strip>
 // Emerald's battle layout on its 240 x 112 background: the wild Pokemon on the far platform, the partner on the near one.
 const FOE = { x: 176 / 240, feet: 82 / 112 }
 const PARTNER = { x: 62 / 240, feet: 118 / 112 }
@@ -27,11 +27,18 @@ const STEP_MS = { intro: 1100, attack: 900, ball: 650, shake: 450 }
 // already caught) plays the same battle with its own words: a held ball wins the rematch instead of catching anything,
 // the parent's onCaught must not claim an encounter, and running or running out of balls just ends it.
 // onRetry, when given, offers the battle again straight away after the Legendary breaks free or you run, beside onLeave.
-export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLeave, onDone, onRetry, rematch = false }: {
+// The Safari Zone catches its roaming Pokemon with this same battle: `safari` gives its rules (the round's Safari Balls,
+// the Pokemon's level and catch ease), onBalls reports each ball thrown so the round's count follows, and caughtNote
+// replaces the Dex line once the catch is saved.
+export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLeave, onDone, onRetry, rematch = false, safari, onBalls, caughtNote }: {
   foe: { name: string, shiny: boolean }, partner: { name: string, shiny: boolean }, number: number, reduced: boolean,
-  onCaught: () => Promise<void>, onLeave: () => void, onDone: () => void, onRetry?: () => void, rematch?: boolean
+  onCaught: () => Promise<void>, onLeave: () => void, onDone: () => void, onRetry?: () => void, rematch?: boolean,
+  safari?: BattleRules, onBalls?: (balls: number) => void, caughtNote?: string
 }) {
-  const [battle, setBattle] = useState(() => startBattle(foe, partner))
+  const [battle, setBattle] = useState(() => startBattle(foe, partner, safari ? { ...safari, safari: true } : {}))
+  const thrown = useRef(onBalls)
+  useEffect(() => { thrown.current = onBalls })
+  useEffect(() => { thrown.current?.(battle.balls) }, [battle.balls])
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
   const [error, setError] = useState('')
   const [width, setWidth] = useState(0)
@@ -85,7 +92,9 @@ export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLea
         {battle.phase === 'attack' && sheet && <HitBurst key={battle.turn} sheet={sheet} centre={{ x: foeAt.x, y: foeAt.y - foeSize / 2 }} size={foeSize * 0.7} reduced={reduced} />}
         {battle.ball && (battle.phase === 'throw' || battle.phase === 'caught') && <Animated.View pointerEvents="none" style={{ position: 'absolute',
           left: anim.ballX, top: anim.ballY, transform: [{ rotate: anim.ballTurn }] }}>
-          <PokeballIcon size={Math.max(18, Math.round(width * 0.07))} color={GBA.border} />
+          {safari ? <Image source={backgrounds.safariBall.source} fadeDuration={0} resizeMode="stretch" accessible={false}
+            style={{ width: Math.max(18, Math.round(width * 0.07)), height: Math.max(18, Math.round(width * 0.07)), ...pixelated }} />
+            : <PokeballIcon size={Math.max(18, Math.round(width * 0.07))} color={GBA.border} />}
         </Animated.View>}
         {foe.shiny && battle.phase === 'choose' && battle.turn === 0 && <Sparkles centre={{ x: foeAt.x, y: foeAt.y - foeSize / 2 }} size={foeSize} reduced={reduced} />}
         <StatusBox style={{ left: width * 0.03, top: height * 0.06 }} name={foe.name} shiny={foe.shiny} level={battle.foe.level} hp={battle.foe.hp} width={width * 0.46} />
@@ -99,7 +108,7 @@ export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLea
     </View>
     {battle.phase === 'caught' && <View style={gba.after}>
       {saving === 'saved' ? <>
-        {!rematch && <Text style={gba.afterText}>{foeName}’s data was added to your Dex.</Text>}
+        {!rematch && <Text style={gba.afterText}>{caughtNote || `${foeName}’s data was added to your Dex.`}</Text>}
         <Button title={rematch ? 'Back to Shrine Revisits' : 'Continue'} onPress={onDone} />
       </> : saving === 'failed' ? <>
         <Copy color={GBA.low}>{error || (rematch ? 'Could not save this win. Try again.' : 'Could not save your catch. Try again.')}</Copy>
@@ -108,9 +117,10 @@ export function LegendaryBattle({ foe, partner, number, reduced, onCaught, onLea
     </View>}
     {(battle.phase === 'out' || battle.phase === 'fled') && <View style={gba.after}>
       {onRetry && <Button title="Try the catch again" onPress={onRetry} />}
-      <Button title={rematch ? 'Back to Shrine Revisits' : 'Back to Expeditions'} secondary={!!onRetry} onPress={onLeave} />
+      <Button title={safari ? (battle.phase === 'out' ? 'Continue' : 'Back to the map') : rematch ? 'Back to Shrine Revisits' : 'Back to Expeditions'} secondary={!!onRetry} onPress={onLeave} />
     </View>}
-    {!done && <Text style={gba.footer}>{rematch ? 'REMATCH' : `EXPEDITION ${number}`} · Poké Balls ×{battle.balls} · Moves never knock the Legendary out.</Text>}
+    {!done && <Text style={gba.footer}>{safari ? `SAFARI ZONE · Safari Balls ×${battle.balls} · Moves never knock a Pokémon out.`
+      : `${rematch ? 'REMATCH' : `EXPEDITION ${number}`} · Poké Balls ×${battle.balls} · Moves never knock the Legendary out.`}</Text>}
   </View>
 }
 
@@ -136,7 +146,7 @@ function Menu({ battle, onChange }: { battle: Battle, onChange: (battle: Battle)
   const items: [string, () => void, boolean?][] = battle.menu === 'fight'
     ? [...[0, 1, 2, 3].map(index => [battle.moves[index]?.name.toUpperCase() ?? '—', () => onChange(attackWith(battle, index)), !battle.moves[index]] as [string, () => void, boolean]),
       ['◀ BACK', () => open('main')]]
-    : battle.menu === 'bag' ? [[`POKé BALL ×${battle.balls}`, () => onChange(throwBall(battle)), battle.balls < 1], ['◀ BACK', () => open('main')]]
+    : battle.menu === 'bag' ? [[`${battle.safari ? 'SAFARI BALL' : 'POKé BALL'} ×${battle.balls}`, () => onChange(throwBall(battle)), battle.balls < 1], ['◀ BACK', () => open('main')]]
     : battle.menu === 'party' ? [['◀ BACK', () => open('main')]]
     : [['FIGHT', () => open('fight')], ['BAG', () => open('bag')], ['POKéMON', () => open('party')], ['RUN', () => onChange(runFromBattle(battle))]]
   return <View style={gba.menu}>

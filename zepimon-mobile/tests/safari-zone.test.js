@@ -1,8 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { GRASS_COOLDOWN, confirmLeave, isWalkable, planWalk, pointKey, reachableFrom, safariMap, startZone, stayInZone, tileAt, walk, zoneAction,
-  zoneBudget, routeSearch, routeTo } from '../src/games/safari-zone.ts'
-import { ZONES, pauseSafari, runAway, throwBall } from '../src/games/safari.ts'
+import { MAX_WILD, ROAM_MS, ROAM_SPREAD_MS, SPAWN_FAR, SPAWN_MS, SPAWN_NEAR, WANDER_OFF, areaAt, catchWild, confirmLeave, isWalkable, leaveWild,
+  planHunt, planWalk, pointKey, reachableFrom, roam, safariMap, spendBalls, startZone, stayInZone, tileAt, walk, zoneBudget, routeSearch,
+  routeTo } from '../src/games/safari-zone.ts'
+import { ZONES, pauseSafari } from '../src/games/safari.ts'
 import { wildPool } from '../src/games/roster.ts'
 
 const always = value => () => value
@@ -24,17 +25,17 @@ const ROOM = fixture([
   'TTT@TTTT',
   'TTTGTTTT'])
 const g = startZone('gate', 0, 0, ROOM)
-const go = (game, direction, map = ROOM) => walk(game, direction, always(0.99), map)
+const go = (game, direction, map = ROOM) => walk(game, direction, map)
 
-test('budget: 400 steps and 12 balls, plus 50 steps and 3 balls per km up to 3 km', () => {
-  assert.deepEqual(zoneBudget(0), { steps: 400, balls: 12 })
-  assert.deepEqual(zoneBudget(2), { steps: 500, balls: 18 })
-  assert.deepEqual(zoneBudget(7), { steps: 550, balls: 21 })
-  assert.deepEqual(zoneBudget(1.9), { steps: 450, balls: 15 })
-  assert.deepEqual(zoneBudget(-1), { steps: 400, balls: 12 })
+test('budget: 800 steps and 24 balls, plus 100 steps and 6 balls per km up to 3 km', () => {
+  assert.deepEqual(zoneBudget(0), { steps: 800, balls: 24 })
+  assert.deepEqual(zoneBudget(2), { steps: 1000, balls: 36 })
+  assert.deepEqual(zoneBudget(7), { steps: 1100, balls: 42 })
+  assert.deepEqual(zoneBudget(1.9), { steps: 900, balls: 30 })
+  assert.deepEqual(zoneBudget(-1), { steps: 800, balls: 24 })
   const start = startZone('gate', 2, 0, ROOM)
-  assert.deepEqual([start.steps, start.balls, start.at, start.status], [500, 18, { x: 3, y: 6 }, 'playing'])
-  assert.equal(start.message, 'Welcome to the Safari Zone! You have 500 steps and 18 Safari Balls.')
+  assert.deepEqual([start.steps, start.balls, start.at, start.status, start.wilds], [1000, 36, { x: 3, y: 6 }, 'playing', []])
+  assert.equal(start.message, 'Welcome to the Safari Zone! You have 1000 steps and 36 Safari Balls.')
 })
 
 test('the gate start faces away from the gate house door, as if just stepped out; area starts face north', () => {
@@ -46,14 +47,14 @@ test('a step moves one tile and costs one step; the buddy takes the old tile', (
   const { game, move, events } = go(g, 'north')
   assert.equal(move, 'step')
   assert.deepEqual([game.at, game.buddy, game.buddyFacing], [{ x: 3, y: 5 }, { x: 3, y: 6 }, 'north'])
-  assert.deepEqual([game.steps, game.taken], [399, 1])
+  assert.deepEqual([game.steps, game.taken], [799, 1])
   assert.ok(events.includes('area'))
   assert.equal(game.message, 'You entered the Sunny meadow.')
 })
 
 test('bumping costs nothing and names what is in the way', () => {
   const tree = go(place(g, 1, 1), 'north')
-  assert.deepEqual([tree.move, tree.game.steps, tree.game.facing, tree.game.message], ['bump', 400, 'north', 'A tree is in the way.'])
+  assert.deepEqual([tree.move, tree.game.steps, tree.game.facing, tree.game.message], ['bump', 800, 'north', 'A tree is in the way.'])
   assert.equal(go(place(g, 2, 1), 'south').game.message, 'A boulder is in the way.')
   assert.equal(go(place(g, 5, 1), 'south').game.message, 'The water is too deep to cross.')
   const edge = fixture(['@.'])
@@ -63,7 +64,7 @@ test('bumping costs nothing and names what is in the way', () => {
 
 test('ledges are crossed downhill only, two tiles for one step', () => {
   const hop = go(place(g, 3, 2), 'south')
-  assert.deepEqual([hop.move, hop.game.at, hop.game.buddy, hop.game.steps], ['hop', { x: 3, y: 4 }, { x: 3, y: 3 }, 399])
+  assert.deepEqual([hop.move, hop.game.at, hop.game.buddy, hop.game.steps], ['hop', { x: 3, y: 4 }, { x: 3, y: 3 }, 799])
   const climb = go(place(g, 3, 4), 'north')
   assert.deepEqual([climb.move, climb.game.message], ['bump', "You can't climb the ledge."])
   assert.equal(go(place(g, 1, 3, 'east'), 'east').move, 'bump')
@@ -94,7 +95,7 @@ test('walking up to a sign reads it each time you arrive next to it', () => {
 test('the gate asks before you leave, and staying costs nothing', () => {
   const asked = go(g, 'south')
   assert.deepEqual([asked.move, asked.game.prompt, asked.events, asked.game.steps, asked.game.facing],
-    ['none', 'gate', ['gate'], 400, 'south'])
+    ['none', 'gate', ['gate'], 800, 'south'])
   assert.equal(asked.game.message, 'Leave the Safari Zone?')
   assert.equal(go(asked.game, 'north').move, 'none')
   assert.equal(stayInZone(asked.game).prompt, null)
@@ -103,8 +104,8 @@ test('the gate asks before you leave, and staying costs nothing', () => {
 })
 
 test('nothing moves during an encounter, a prompt, a pause or after the round', () => {
-  for (const frozen of [{ ...g, encounter: { name: 'Pidgey', shiny: false, mood: 'calm', since: 0 } }, { ...g, prompt: 'gate' },
-    pauseSafari(g, 5), { ...g, status: 'complete' }, { ...g, steps: 0 }]) {
+  for (const frozen of [{ ...g, encounter: { id: 1, name: 'Pidgey', shiny: false } }, { ...g, prompt: 'gate' },
+    pauseSafari(g), { ...g, status: 'complete' }, { ...g, steps: 0 }]) {
     const result = go(frozen, 'north')
     assert.equal(result.move, 'none')
     assert.strictEqual(result.game, frozen)
@@ -113,69 +114,137 @@ test('nothing moves during an encounter, a prompt, a pause or after the round', 
 
 const FIELD = fixture(['TTTTTTTTT', 'T.ggggggT', 'T.ggggggT', 'T...@...T', 'TTTTGTTTT'])
 const f = startZone('gate', 0, 0, FIELD)
-const east = (game, random = always(0.99), map = FIELD) => walk(game, 'east', random, map)
-let encounterGame
+const east = (game, map = FIELD) => walk(game, 'east', map)
+const wild = (x, y, more = {}) => ({ id: 1, name: 'Pidgey', shiny: false, at: { x, y }, facing: 'south', steps: 0, moveAt: 0, ...more })
+const far = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y))
 
-test('each step into tall grass has a 1 in 10 chance of an encounter', () => {
-  const met = east(place(f, 2, 2), rolls(0.0999))
-  assert.ok(met.events.includes('encounter'))
-  assert.ok(wildPool(ZONES.meadow.types).some(wild => wild.name === met.game.encounter.name))
-  assert.deepEqual([met.game.zone, met.game.cooldown], ['meadow', GRASS_COOLDOWN])
-  assert.equal(east(place(f, 2, 2), always(0.1)).game.encounter, null)
-  encounterGame = met.game
-})
-
-test('stepping into grass is announced', () => {
-  const into = walk({ ...place(f, 2, 3), area: 'meadow' }, 'north', always(0.99), FIELD)
+test('stepping into grass is announced, and never starts an encounter by itself', () => {
+  const into = walk({ ...place(f, 2, 3), area: 'meadow' }, 'north', FIELD)
   assert.equal(into.game.message, 'You stepped into tall grass.')
-  assert.equal(east(into.game).game.message, 'You stepped into tall grass.')
-})
-
-test('after an encounter the next 3 steps cannot roll', () => {
-  let game = { ...place(f, 2, 2), cooldown: 3 }
-  for (const left of [2, 1, 0]) {
-    const result = east(game, always(0))
-    assert.ok(!result.events.includes('encounter'))
-    assert.equal(result.game.cooldown, left)
-    game = result.game
-  }
-  const fourth = east(game, always(0))
-  assert.deepEqual(fourth.game.at, { x: 6, y: 2 })
-  assert.ok(fourth.events.includes('encounter'))
-})
-
-test('ground never rolls', () => {
-  let game = place(f, 1, 3)
+  let game = place(f, 1, 1)
   for (let i = 0; i < 6; i++) {
-    const result = east(game, always(0))
-    assert.ok(!result.events.includes('encounter'))
+    const result = east(game)
+    assert.deepEqual([result.move, result.game.encounter], ['step', null])
     game = result.game
   }
 })
 
-test('a rustle appears every 25 steps on grass 2-6 tiles away in the same area', () => {
-  const result = east({ ...place(f, 4, 3), taken: 24, nextRustleAt: 25 }, always(0))
-  assert.ok(result.events.includes('rustle'))
-  assert.equal(result.game.message, 'The grass is rustling nearby!')
-  assert.equal(result.game.nextRustleAt, 50)
-  const { rustling, at } = result.game
-  assert.equal(tileAt(rustling, FIELD), 'g')
-  const distance = Math.max(Math.abs(rustling.x - at.x), Math.abs(rustling.y - at.y))
-  assert.ok(distance >= 2 && distance <= 6, `distance ${distance}`)
+test('the first roam brings a Pokemon out near the trainer, then one more every 1.5 s, three at most', () => {
+  const start = { ...place(f, 4, 3), area: 'gate' }
+  const waiting = { ...start, spawnAt: 500 }
+  assert.strictEqual(roam(waiting, 499, always(0.5), FIELD), waiting)
+  let game = roam(start, 0, always(0.5), FIELD)
+  assert.equal(game.wilds.length, 1)
+  const [first] = game.wilds
+  assert.deepEqual([first.id, first.shiny, first.steps, game.spawnAt], [1, false, 0, SPAWN_MS])
+  assert.ok(wildPool(ZONES.meadow.types).some(item => item.name === first.name))
+  assert.ok(far(first.at, game.at) >= SPAWN_NEAR && far(first.at, game.at) <= SPAWN_FAR)
+  assert.ok('.g'.includes(tileAt(first.at, FIELD)) && areaAt(first.at, FIELD) !== 'gate')
+  // Rolls of 0.1 make every Pokemon rest, so only the spawns change the map.
+  for (let now = 100; now <= 20000; now += 100) game = roam(game, now, always(0.1), FIELD)
+  assert.equal(game.wilds.length, MAX_WILD)
+  assert.deepEqual(game.wilds.map(item => item.id), [1, 2, 3])
+  assert.equal(new Set(game.wilds.map(item => pointKey(item.at))).size, MAX_WILD, 'No two share a tile')
 })
 
-test('with no grass in range nothing rustles', () => {
-  const bare = fixture(['TTTTTTTTTT', 'T@.......T', 'TGTTTTTTTT'])
-  const result = walk({ ...place(startZone('gate', 0, 0, bare), 2, 1), taken: 24, nextRustleAt: 25 }, 'east', always(0), bare)
-  assert.equal(result.game.rustling, null)
-  assert.ok(!result.events.includes('rustle'))
-  assert.equal(result.game.nextRustleAt, 50)
+test('roam changes nothing, and returns the same game, until something is due', () => {
+  const quiet = { ...place(f, 4, 3), wilds: [wild(2, 1, { moveAt: 900 })], spawnAt: 5000 }
+  assert.strictEqual(roam(quiet, 899, always(0.5), FIELD), quiet)
+  for (const frozen of [{ ...quiet, encounter: { id: 1, name: 'Pidgey', shiny: false } }, { ...quiet, prompt: 'gate' }, pauseSafari(quiet),
+    { ...quiet, status: 'complete' }]) assert.strictEqual(roam(frozen, 99999, always(0.5), FIELD), frozen)
 })
 
-test('stepping onto rustling grass always starts an encounter, even while cooling down', () => {
-  const result = east({ ...place(f, 2, 1), rustling: { x: 3, y: 1 }, cooldown: 3 }, always(0.99))
-  assert.ok(result.events.includes('encounter'))
-  assert.equal(result.game.rustling, null)
+test('a wild Pokemon strolls one tile at a time over open ground and grass, or rests', () => {
+  const game = { ...place(f, 4, 3), wilds: [wild(2, 1, { moveAt: 900 })], spawnAt: 99999 }
+  // Rolls: rest?, the wait, then the direction (north, south, west, east by quarter).
+  const stepped = roam(game, 900, rolls(0.9, 0.5, 0.6), FIELD).wilds[0]
+  assert.deepEqual([stepped.at, stepped.facing, stepped.steps], [{ x: 1, y: 1 }, 'west', 1])
+  assert.ok(stepped.moveAt >= 900 + ROAM_MS && stepped.moveAt < 900 + ROAM_MS + ROAM_SPREAD_MS)
+  const rested = roam(game, 900, rolls(0.29, 0.5), FIELD).wilds[0]
+  assert.deepEqual([rested.at, rested.facing, rested.steps], [{ x: 2, y: 1 }, 'south', 0])
+  const blocked = roam(game, 900, rolls(0.9, 0.5, 0), FIELD).wilds[0]
+  assert.deepEqual([blocked.at, blocked.facing, blocked.steps], [{ x: 2, y: 1 }, 'north', 0], 'A tree: it only turns')
+})
+
+test('a wild Pokemon never steps onto the trainer, the buddy, another Pokemon or the gate area', () => {
+  const south = [0.9, 0.5, 0.3]
+  const at = (game, random) => roam(game, 900, rolls(...random), FIELD).wilds[0].at
+  const base = { ...place(f, 6, 1), buddy: { x: 6, y: 1 }, spawnAt: 99999 }
+  assert.deepEqual(at({ ...base, wilds: [wild(2, 1, { moveAt: 900 })] }, south), { x: 2, y: 2 })
+  assert.deepEqual(at({ ...base, at: { x: 2, y: 2 }, wilds: [wild(2, 1, { moveAt: 900 })] }, south), { x: 2, y: 1 })
+  assert.deepEqual(at({ ...base, buddy: { x: 2, y: 2 }, wilds: [wild(2, 1, { moveAt: 900 })] }, south), { x: 2, y: 1 })
+  assert.deepEqual(at({ ...base, wilds: [wild(2, 1, { moveAt: 900 }), wild(2, 2, { id: 2, moveAt: 99999 })] }, south), { x: 2, y: 1 })
+  assert.deepEqual(at({ ...base, wilds: [wild(3, 2, { moveAt: 900 })] }, south), { x: 3, y: 3 }, 'Open ground in the meadow')
+  const gated = fixture(['TTTTT', 'T.g.T', 'T.@.T', 'TTGTT'])
+  const moved = roam({ ...place(startZone('gate', 0, 0, gated), 1, 2), wilds: [wild(2, 1, { moveAt: 900 })], spawnAt: 99999 }, 900, rolls(...south), gated)
+  assert.deepEqual(moved.wilds[0].at, { x: 2, y: 1 }, 'The gate area is out of bounds')
+})
+
+test('a Pokemon left more than 10 tiles behind wanders off, making room for a new one', () => {
+  const wide = fixture(['T' + '.'.repeat(20) + 'T', 'T@' + '.'.repeat(19) + 'T', 'TG' + 'T'.repeat(20)])
+  const game = { ...place(startZone('gate', 0, 0, wide), 2, 0), wilds: [wild(2 + WANDER_OFF, 0, { moveAt: 99999 }), wild(3 + WANDER_OFF, 0, { id: 2, moveAt: 99999 })], spawnAt: 0, spawned: 2 }
+  const next = roam(game, 100, always(0.5), wide)
+  assert.deepEqual(next.wilds.map(item => item.id), [1])
+  assert.equal(next.spawnAt, 100 + SPAWN_MS)
+  const later = roam(next, 100 + SPAWN_MS, always(0.5), wide)
+  assert.deepEqual(later.wilds.map(item => item.id), [1, 3])
+})
+
+test('with nowhere to stand nearby, nothing comes out', () => {
+  const tiny = fixture(['TTTT', 'T@.T', 'TGTT'])
+  const game = roam(startZone('gate', 0, 0, tiny), 0, always(0.5), tiny)
+  assert.deepEqual([game.wilds, game.spawnAt], [[], SPAWN_MS])
+})
+
+test('walking into a wild Pokemon makes it notice you: it turns to face you and the encounter begins, at no cost', () => {
+  const game = { ...place(f, 2, 2), wilds: [wild(3, 2, { shiny: true }), wild(6, 1, { id: 2, name: 'Rattata' })] }
+  const met = east(game)
+  assert.deepEqual([met.move, met.events, met.game.steps, met.game.at, met.game.facing], ['bump', ['encounter'], 800, { x: 2, y: 2 }, 'east'])
+  assert.deepEqual(met.game.encounter, { id: 1, name: 'Pidgey', shiny: true })
+  assert.deepEqual([met.game.wilds[0].facing, met.game.wilds[0].at, met.game.wilds[1].facing], ['west', { x: 3, y: 2 }, 'south'])
+  assert.equal(met.game.message, 'Shiny Pidgey noticed you!')
+  assert.equal(met.game.zone, 'meadow')
+  assert.equal(east(met.game).move, 'none', 'Nothing moves until the battle is over')
+  assert.strictEqual(roam(met.game, 99999, always(0.5), FIELD), met.game)
+})
+
+test('a Pokemon standing below a ledge blocks the hop', () => {
+  const hop = go({ ...place(g, 3, 2), wilds: [wild(3, 4)] }, 'south')
+  assert.deepEqual([hop.move, hop.game.at, hop.game.encounter, hop.game.message], ['bump', { x: 3, y: 2 }, null, 'Pidgey is in the way below the ledge.'])
+})
+
+const met = east({ ...place(f, 2, 2), wilds: [wild(3, 2), wild(6, 1, { id: 2, name: 'Rattata' })] }).game
+
+test('a caught Pokemon leaves the map, joins the catches and builds the Shiny chain', () => {
+  const thrown = spendBalls(met, 22)
+  assert.equal(thrown.balls, 22)
+  assert.strictEqual(spendBalls(thrown, 22), thrown)
+  assert.equal(spendBalls(thrown, 30).balls, 22, 'A battle never adds balls')
+  assert.strictEqual(spendBalls(f, 3), f, 'Only during an encounter')
+  const caught = catchWild(thrown, 5000)
+  assert.deepEqual([caught.encounter, caught.catches, caught.chain, caught.status], [null, [{ name: 'Pidgey', shiny: false }], { name: 'Pidgey', count: 1 }, 'playing'])
+  assert.deepEqual([caught.wilds.map(item => item.id), caught.spawnAt, caught.balls, caught.steps], [[2], 5000 + SPAWN_MS, 22, 800])
+  assert.equal(caught.message, 'Gotcha! Pidgey was caught!')
+  assert.strictEqual(catchWild(caught, 6000), caught)
+  const again = catchWild({ ...caught, encounter: { id: 9, name: 'Pidgey', shiny: true } }, 7000)
+  assert.deepEqual([again.chain.count, again.catches.length, again.message], [2, 2, 'Gotcha! Shiny Pidgey was caught!'])
+  assert.equal(catchWild({ ...caught, encounter: { id: 2, name: 'Rattata', shiny: false } }, 7000).chain.count, 1, 'Another species starts a new chain')
+})
+
+test('running leaves the Pokemon roaming where it stood and keeps the chain', () => {
+  const left = leaveWild({ ...met, chain: { name: 'Pidgey', count: 2 } }, 5000)
+  assert.deepEqual([left.encounter, left.catches, left.chain.count, left.status, left.message], [null, [], 2, 'playing', 'You got away safely.'])
+  assert.deepEqual(left.wilds.map(item => [item.id, item.moveAt]), [[1, 5000 + 2 * ROAM_MS], [2, 0]])
+  assert.strictEqual(leaveWild(left, 6000), left)
+})
+
+test('the round ends when the last Safari Ball is gone, caught or not', () => {
+  const empty = spendBalls(met, 0)
+  assert.deepEqual([empty.balls, empty.status], [0, 'playing'], 'The battle plays out first')
+  const lost = leaveWild(empty, 5000)
+  assert.deepEqual([lost.status, lost.message], ['complete', "Pidgey wandered off. You're out of Safari Balls!"])
+  const won = catchWild(empty, 5000)
+  assert.deepEqual([won.status, won.catches.length, won.message], ['complete', 1, "Gotcha! Pidgey was caught! You're out of Safari Balls!"])
 })
 
 test('the round ends when the steps run out', () => {
@@ -185,26 +254,30 @@ test('the round ends when the steps run out', () => {
   assert.equal(result.game.message, "Ding-dong! Time's up!")
 })
 
-test('a last step into grass plays the encounter out, then ends the round once', () => {
-  const result = east({ ...place(f, 2, 2), steps: 1 }, always(0))
-  assert.ok(result.events.includes('encounter'))
-  assert.deepEqual([result.game.status, result.game.steps], ['playing', 0])
-  const over = zoneAction(result.game, s => runAway(s, 10))
-  assert.deepEqual([over.status, over.message], ['complete', "Ding-dong! Time's up!"])
-  const again = zoneAction(over, s => runAway(s, 20))
-  assert.deepEqual([again.status, again.message], ['complete', "Ding-dong! Time's up!"])
-})
-
-test('zoneAction keeps the walking state and does not end a round with steps left', () => {
-  const caught = zoneAction({ ...encounterGame, steps: 40 }, s => throwBall(s, 10, always(0)))
-  assert.deepEqual([caught.at, caught.steps, caught.items, caught.status], [encounterGame.at, 40, encounterGame.items, 'playing'])
-  assert.equal(caught.encounter, null)
+test('tapping a wild Pokemon walks up to it and into it; other routes go round the Pokemon in the way', () => {
+  const game = { ...place(f, 1, 3), wilds: [wild(3, 3), wild(6, 3, { id: 2, name: 'Rattata' })] }
+  const hunt = planHunt(game, { x: 3, y: 3 }, FIELD)
+  assert.deepEqual(hunt, ['east', 'east'])
+  const walked = hunt.reduce((current, direction) => walk(current, direction, FIELD).game, game)
+  assert.deepEqual([walked.at, walked.encounter?.id], [{ x: 2, y: 3 }, 1])
+  const round = planHunt(game, { x: 5, y: 3 }, FIELD)
+  assert.equal(round.length, 6, 'Two steps longer than straight through')
+  const end = round.reduce((current, direction) => {
+    const result = walk(current, direction, FIELD)
+    assert.equal(result.move, 'step')
+    return result.game
+  }, game)
+  assert.deepEqual([end.at, end.encounter], [{ x: 5, y: 3 }, null])
+  assert.deepEqual(planHunt({ ...game, wilds: [] }, { x: 5, y: 3 }, FIELD), planWalk(game.at, { x: 5, y: 3 }, FIELD))
+  const corridor = fixture(['TTTTTT', 'T@...T', 'TGTTTT'])
+  const boxed = { ...startZone('gate', 0, 0, corridor), wilds: [wild(3, 1)] }
+  assert.deepEqual(planHunt(boxed, { x: 4, y: 1 }, corridor), ['east', 'east', 'east'], 'With no way round, the route goes up to it')
 })
 
 // Walks a planned route with the real rules: every step must go through, never bump.
 function replay(game, directions, map = ROOM) {
   return directions.reduce((current, direction) => {
-    const result = walk(current, direction, always(0.99), map)
+    const result = walk(current, direction, map)
     assert.notEqual(result.move, 'bump', `bumped going ${direction} from ${pointKey(current.at)}`)
     return result.game
   }, game)
@@ -258,4 +331,20 @@ test('routeSearch walks any grid through its own neighbours', () => {
   const trail = routeSearch({ x: 0, y: 0 }, neighbours)
   assert.equal(routeTo(trail, '2,2').length, 4)
   assert.equal(trail.has('1,1'), false)
+})
+
+test('on the real map, Pokemon come out in every area but the gate, each from its own pool', () => {
+  for (const zone of Object.keys(ZONES)) {
+    let game = startZone(zone, 0, 0)
+    let seed = 7
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    for (let now = 0; now <= 30000; now += 100) game = roam(game, now, random)
+    assert.equal(game.wilds.length, MAX_WILD, zone)
+    for (const item of game.wilds) {
+      const area = areaAt(item.at)
+      assert.notEqual(area, 'gate')
+      assert.ok(wildPool(ZONES[area].types).some(found => found.name === item.name), `${item.name} in the ${area}`)
+      assert.ok(planWalk(game.at, item.at), `${item.name} can be reached`)
+    }
+  }
 })

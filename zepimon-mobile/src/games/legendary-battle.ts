@@ -5,6 +5,8 @@ import { SMALL_LEGENDARIES } from './lairs.ts'
 // It is a catch, not a contest. Moves wear the Legendary down but always leave it at least 1 HP, nothing can faint,
 // and the encounter is only claimed after a Poké Ball holds. Battle state is never saved: running, running out of
 // balls or closing the app all leave the encounter waiting, with its trial done and the result from its lair unchanged.
+// The Safari Zone catches its roaming Pokemon with the same battle (BattleRules: its own Safari Balls, a level and catch
+// ease by evolution stage, and its own words).
 //
 //   intro → choose ⇄ attack (a move lands, then back to choose)
 //                  ⇄ throw  (the ball shakes, then caught, or back to choose, or out of balls)
@@ -21,8 +23,13 @@ export type LegendaryBattle = {
   partner: { name: string, shiny: boolean, level: number },
   moves: Move[], phase: BattlePhase, menu: BattleMenu, balls: number, message: string, turn: number,
   hit: { move: Move, damage: number } | null,
-  ball: { shakes: number, caught: boolean } | null
+  ball: { shakes: number, caught: boolean } | null,
+  // What is thrown ('Poké Ball'), the catch chance at full HP, and whether this is a Safari Zone Pokemon.
+  ballName: string, ease: number, safari: boolean
 }
+// balls: how many there are to throw. level: the foe's. ease: the catch chance at full HP. safari: Safari Balls and words.
+export type BattleRules = { balls?: number, level?: number, ease?: number, safari?: boolean }
+export const LEGENDARY_EASE = 0.12
 
 const MOVES: Record<string, string> = { normal: 'Headbutt', fire: 'Ember', water: 'Water Gun', electric: 'Thunder Shock', grass: 'Razor Leaf',
   ice: 'Ice Shard', fighting: 'Karate Chop', poison: 'Sludge', ground: 'Mud Shot', flying: 'Wing Attack', psychic: 'Confusion', bug: 'Bug Bite',
@@ -39,12 +46,14 @@ export function partnerMoves(name: string): Move[] {
   return [{ name: MOVES[type] ?? MOVES.normal, type, min: 18, max: 30 }, { name: 'False Swipe', type: 'normal', min: 8, max: 14 }]
 }
 
-// Lower HP makes a catch likelier: about 1 in 8 at full HP, close to 7 in 8 at 1 HP.
-export const catchChance = (hp: number) => 0.12 + 0.75 * (1 - Math.max(1, Math.min(FOE_HP, hp)) / FOE_HP)
+// Lower HP makes a catch likelier: for a Legendary about 1 in 8 at full HP (ease), close to 7 in 8 at 1 HP for anything.
+export const catchChance = (hp: number, ease = LEGENDARY_EASE) => ease + (0.87 - ease) * (1 - Math.max(1, Math.min(FOE_HP, hp)) / FOE_HP)
 
-export function startBattle(foe: { name: string, shiny: boolean }, partner: { name: string, shiny: boolean }): LegendaryBattle {
-  return { foe: { ...foe, level: legendaryLevel(foe.name), hp: FOE_HP }, partner: { ...partner, level: 50 }, moves: partnerMoves(partner.name),
-    phase: 'intro', menu: 'main', balls: BATTLE_BALLS, turn: 0, hit: null, ball: null,
+export function startBattle(foe: { name: string, shiny: boolean }, partner: { name: string, shiny: boolean }, rules: BattleRules = {}): LegendaryBattle {
+  const safari = !!rules.safari
+  return { foe: { ...foe, level: rules.level ?? legendaryLevel(foe.name), hp: FOE_HP }, partner: { ...partner, level: 50 }, moves: partnerMoves(partner.name),
+    phase: 'intro', menu: 'main', balls: Math.max(0, Math.floor(rules.balls ?? BATTLE_BALLS)), turn: 0, hit: null, ball: null,
+    ballName: safari ? 'Safari Ball' : 'Poké Ball', ease: rules.ease ?? LEGENDARY_EASE, safari,
     message: `${foe.shiny ? 'A Shiny' : 'Wild'} ${foe.name} appeared!` }
 }
 
@@ -57,8 +66,8 @@ export function finishIntro(battle: LegendaryBattle): LegendaryBattle {
 const MENU_TEXT: Record<BattleMenu, (battle: LegendaryBattle) => string> = {
   main: prompt,
   fight: battle => `Choose a move for ${battle.partner.name}.`,
-  bag: battle => battle.balls ? `Poké Balls left: ${battle.balls}. Lower HP makes a catch likelier.` : 'Your Bag has no Poké Balls left.',
-  party: battle => `${battle.partner.name} is your only partner on this Expedition.`
+  bag: battle => battle.balls ? `${battle.ballName}s left: ${battle.balls}. Lower HP makes a catch likelier.` : `Your Bag has no ${battle.ballName}s left.`,
+  party: battle => `${battle.partner.name} is your only partner ${battle.safari ? 'in the Safari Zone' : 'on this Expedition'}.`
 }
 
 export function chooseMenu(battle: LegendaryBattle, menu: BattleMenu): LegendaryBattle {
@@ -76,15 +85,15 @@ export function attackWith(battle: LegendaryBattle, index: number, random = Math
 export function finishAttack(battle: LegendaryBattle): LegendaryBattle {
   if (battle.phase !== 'attack') return battle
   const { hp, name } = battle.foe
-  const note = hp <= 1 ? `${name} is barely standing. Now’s the time for a Poké Ball!` : hp <= 30 ? `${name} is getting tired.` : `${name} shrugged off some of the blow.`
+  const note = hp <= 1 ? `${name} is barely standing. Now’s the time for a ${battle.ballName}!` : hp <= 30 ? `${name} is getting tired.` : `${name} shrugged off some of the blow.`
   return { ...battle, phase: 'choose', menu: 'main', message: `${note} ${prompt(battle)}` }
 }
 
 export function throwBall(battle: LegendaryBattle, random = Math.random): LegendaryBattle {
   if (battle.phase !== 'choose' || battle.menu !== 'bag' || battle.balls < 1) return battle
-  const caught = random() < catchChance(battle.foe.hp)
+  const caught = random() < catchChance(battle.foe.hp, battle.ease)
   return { ...battle, phase: 'throw', turn: battle.turn + 1, balls: battle.balls - 1,
-    ball: { caught, shakes: caught ? 3 : Math.floor(random() * 4) }, message: 'You threw a Poké Ball!' }
+    ball: { caught, shakes: caught ? 3 : Math.floor(random() * 4) }, message: `You threw a ${battle.ballName}!` }
 }
 
 export function finishThrow(battle: LegendaryBattle): LegendaryBattle {
@@ -92,10 +101,10 @@ export function finishThrow(battle: LegendaryBattle): LegendaryBattle {
   const { name, shiny } = battle.foe
   if (battle.ball.caught) return { ...battle, phase: 'caught', message: `Gotcha! ${shiny ? 'Shiny ' : ''}${name} was caught!` }
   const broke = BROKE_FREE[battle.ball.shakes]
-  if (!battle.balls) return { ...battle, phase: 'out', message: `${broke} You’re out of Poké Balls, but ${name} will wait for you at the shrine.` }
+  if (!battle.balls) return { ...battle, phase: 'out', message: battle.safari ? `${broke} You’re out of Safari Balls!` : `${broke} You’re out of Poké Balls, but ${name} will wait for you at the shrine.` }
   return { ...battle, phase: 'choose', menu: 'main', message: `${broke} ${prompt(battle)}` }
 }
 
 export function runFromBattle(battle: LegendaryBattle): LegendaryBattle {
-  return battle.phase === 'choose' ? { ...battle, phase: 'fled', message: 'Got away safely! The Legendary will wait at the shrine.' } : battle
+  return battle.phase === 'choose' ? { ...battle, phase: 'fled', message: battle.safari ? 'Got away safely!' : 'Got away safely! The Legendary will wait at the shrine.' } : battle
 }
