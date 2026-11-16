@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { GRASS_COOLDOWN, confirmLeave, isWalkable, planWalk, pointKey, reachableFrom, safariMap, startZone, stayInZone, tileAt, walk, zoneAction,
-  zoneBudget, routeSearch, routeTo } from '../src/games/safari-zone.ts'
+  zoneBudget, routeSearch, routeTo, wildSpot } from '../src/games/safari-zone.ts'
 import { ZONES, pauseSafari, runAway, throwBall } from '../src/games/safari.ts'
 import { wildPool } from '../src/games/roster.ts'
 
@@ -258,4 +258,21 @@ test('routeSearch walks any grid through its own neighbours', () => {
   const trail = routeSearch({ x: 0, y: 0 }, neighbours)
   assert.equal(routeTo(trail, '2,2').length, 4)
   assert.equal(trail.has('1,1'), false)
+})
+
+test('a wild Pokemon appears two tiles ahead of the trainer, who faces it', () => {
+  const met = east(place(f, 2, 2), rolls(0.0999))
+  const { at, facing, buddy, encounter } = met.game
+  assert.deepEqual([at, buddy, encounter.at, facing], [{ x: 3, y: 2 }, { x: 2, y: 2 }, { x: 5, y: 2 }, 'east'])
+  const kept = zoneAction(met.game, s => throwBall(s, 10, always(0.99)))
+  assert.deepEqual(kept.encounter.at, { x: 5, y: 2 }, 'It stays put while you throw')
+})
+
+test('the wild Pokemon comes closer, takes a side or goes behind when the way ahead is blocked, never on the buddy, and water is fine', () => {
+  const map = fixture(['TTTTT', 'TT~TT', 'T.g.T', 'TTgTT', 'TT@TT', 'TTGTT'])
+  assert.deepEqual(wildSpot({ at: { x: 2, y: 2 }, facing: 'north', buddy: { x: 2, y: 3 } }, map), ['north', { x: 2, y: 1 }], 'Water ahead')
+  assert.deepEqual(wildSpot({ at: { x: 2, y: 2 }, facing: 'east', buddy: { x: 2, y: 3 } }, map), ['east', { x: 3, y: 2 }])
+  assert.deepEqual(wildSpot({ at: { x: 2, y: 3 }, facing: 'north', buddy: { x: 2, y: 4 } }, map), ['north', { x: 2, y: 1 }], 'Two out, over grass')
+  assert.deepEqual(wildSpot({ at: { x: 2, y: 3 }, facing: 'west', buddy: { x: 2, y: 4 } }, map), ['north', { x: 2, y: 1 }], 'A side, past the walls')
+  assert.deepEqual(wildSpot({ at: { x: 2, y: 3 }, facing: 'west', buddy: { x: 2, y: 2 } }, map), ['south', { x: 2, y: 4 }], 'Not on the buddy')
 })

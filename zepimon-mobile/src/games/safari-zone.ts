@@ -121,6 +121,9 @@ export function walk(game: ZoneGame, direction: Direction, random = Math.random,
   if (rustled) walked = { ...walked, rustling: null }
   if (rustled || (grass && !cooling && random() < GRASS_RATE)) {
     walked = { ...walked, ...meetWild(walked, area as Zone, random), cooldown: GRASS_COOLDOWN }
+    // It springs out beside the trainer, who turns to face it.
+    const [facing, spot] = wildSpot(walked, map)
+    walked = { ...walked, facing, encounter: { ...walked.encounter!, at: spot } }
     events.push('encounter')
     messages.encounter = walked.message
   }
@@ -142,6 +145,21 @@ export function walk(game: ZoneGame, direction: Direction, random = Math.random,
 }
 
 const TIME_UP = "Ding-dong! Time's up!"
+const SIDES: Record<Direction, Direction[]> = { north: ['west', 'east'], south: ['east', 'west'], west: ['south', 'north'], east: ['north', 'south'] }
+
+// Where a wild Pokemon appears: two tiles ahead of the trainer (so it stands clear of them, with room for a throw), else
+// one ahead, else the same to either side, else behind. Always on open ground or water (where the Lakeside's Pokemon may
+// well be), never on the buddy, and two tiles out only with nothing solid in between. Falls back to the tile ahead.
+export function wildSpot(game: Pick<ZoneGame, 'at' | 'facing' | 'buddy'>, map = safariMap): [Direction, Point] {
+  const open = (point: Point) => isWalkable(tileAt(point, map)) || tileAt(point, map) === '~'
+  for (const direction of [game.facing, ...SIDES[game.facing], OPPOSITE[game.facing]]) {
+    const near = move(game.at, direction), far = move(near, direction)
+    for (const spot of open(near) ? [far, near] : []) {
+      if (open(spot) && pointKey(spot) !== pointKey(game.buddy)) return [direction, spot]
+    }
+  }
+  return [game.facing, move(game.at, game.facing)]
+}
 
 // A tall-grass tile in the trainer's area, 2-6 tiles away (and not under the trainer or buddy), or null if none.
 function placeRustle(game: ZoneGame, random: () => number, map: SafariMap): Point | null {

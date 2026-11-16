@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buddyFrame, cameraOffset, chunksAround, followPath, noInput, pressDirection, releaseDirection, stepDelay, takeInput, tapPoint, tileFromTap,
+import { THROW_MS, VANISH_MS, actTimes, buddyFrame, cameraOffset, chunksAround, followPath, noInput, pressDirection, releaseDirection, stepDelay, takeInput, tapPoint, tileFromTap,
   tileSizeFor, trainerFrame } from '../src/games/safari-view.ts'
 import { safariMap } from '../src/games/safari-zone.ts'
 
@@ -95,4 +95,22 @@ test('held walking steps exactly every STEP_MS: the next step waits only for wha
   assert.equal(stepDelay(1000, 900), 120)
   assert.equal(stepDelay(1000, 780), 0)
   assert.equal(stepDelay(1000, 0), 0)
+})
+
+test('each Safari action plays out in order: the throw lands, the Pokemon reacts, then it may vanish', () => {
+  const ran = actTimes({ thrown: null, reaction: null, left: 'ran' })
+  assert.deepEqual(ran, { hit: 0, out: 0, leave: 0, done: VANISH_MS }, 'Running only fades the Pokemon')
+  const liked = actTimes({ thrown: 'berry', reaction: 'likes', left: null })
+  assert.deepEqual([liked.hit, liked.leave], [THROW_MS, null])
+  assert.equal(liked.done, liked.out)
+  const fled = actTimes({ thrown: 'rock', reaction: 'angry', left: 'fled' })
+  assert.deepEqual([fled.leave, fled.done], [fled.out, fled.out + VANISH_MS])
+  const caught = actTimes({ thrown: 'ball', reaction: 'caught', left: 'caught' })
+  const free = actTimes({ thrown: 'ball', reaction: 'broke-free', left: null })
+  const lost = actTimes({ thrown: 'ball', reaction: 'broke-free', left: 'fled' })
+  assert.ok(caught.out > liked.out, 'The ball wobbles before it is decided')
+  assert.equal(caught.leave, null)
+  assert.ok(free.done > free.out && free.leave === null)
+  assert.deepEqual([lost.leave, lost.done], [free.done, free.done + VANISH_MS])
+  for (const times of [ran, liked, fled, caught, free, lost]) assert.ok(times.hit <= times.out && times.out <= times.done)
 })

@@ -85,3 +85,23 @@ export function takeInput(input: Input): { direction: Direction | null, input: I
   if (input.path.length) return { direction: input.path[0], input: { ...input, path: input.path.slice(1) } }
   return { direction: null, input }
 }
+
+// How a Safari action plays out on the map, in ms from the throw. hit: the thrown item lands. out: the reaction is over
+// (a ball has finished wobbling, a bubble has gone). leave: the Pokemon starts to vanish, or null if it stays (or was
+// caught, when the ball fades instead). done: everything has settled and the buttons come back.
+export const THROW_MS = 320, ABSORB_MS = 150, WOBBLES = 3, WOBBLE_MS = 300, REACT_MS = 700, BREAK_MS = 500, VANISH_MS = 350
+export type ActTimes = { hit: number, out: number, leave: number | null, done: number }
+type Act = { thrown: 'ball' | 'berry' | 'rock' | null, reaction: string | null, left: string | null }
+
+export function actTimes(act: Act): ActTimes {
+  if (!act.thrown) return { hit: 0, out: 0, leave: 0, done: VANISH_MS }
+  const hit = THROW_MS
+  if (act.thrown === 'ball') {
+    const out = hit + ABSORB_MS + WOBBLES * WOBBLE_MS
+    if (act.reaction === 'caught') return { hit, out, leave: null, done: out + VANISH_MS }
+    const back = out + BREAK_MS
+    return act.left ? { hit, out, leave: back, done: back + VANISH_MS } : { hit, out, leave: null, done: back }
+  }
+  const out = hit + REACT_MS
+  return act.left ? { hit, out, leave: out, done: out + VANISH_MS } : { hit, out, leave: null, done: out }
+}

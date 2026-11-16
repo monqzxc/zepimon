@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RING_MS, SAFARI_BALLS, ZONES, addSafariCatch, catchChance, fleeChance,
-  meetWild, pauseSafari, readySafari, restoreSafariDex, resumeSafari, ringScale, runAway, shinyOdds, startSafari, throwBait, throwBall,
+import { RING_MS, SAFARI_BALLS, ZONES, addSafariCatch, catchChance, fleeChance, likesBerry,
+  meetWild, pauseSafari, readySafari, restoreSafariDex, resumeSafari, ringScale, runAway, shinyOdds, startSafari, throwBerry, throwBall,
   throwQuality, throwRock, tickSafari, withSafariCatches } from '../src/games/safari.ts'
 import { wildPool } from '../src/games/roster.ts'
 import { dexEntries } from '../src/journal.ts'
@@ -18,12 +18,15 @@ test('rounds start with bonus balls', () => {
   assert.equal(game.balls, SAFARI_BALLS + 3)
 })
 
-test('running from an encounter costs nothing', () => {
+test('running from an encounter costs nothing, and the Pokemon disappears', () => {
   const found = meet()
   assert.ok(wildPool(ZONES.meadow.types).some(wild => wild.name === found.encounter.name))
+  assert.equal(found.act, null, 'A new encounter starts with no action')
   const left = runAway(found, 200)
   assert.equal(left.encounter, null)
   assert.equal(left.balls, found.balls, 'Running costs nothing')
+  assert.equal(left.message, `You backed away, and ${found.encounter.name} disappeared.`)
+  assert.deepEqual(left.act, { id: 1, thrown: null, reaction: null, left: 'ran', wild: found.encounter })
 })
 
 test('the ring clock keeps running with no time limit, and pausing stops it', () => {
@@ -44,17 +47,48 @@ test('the ring shrinks on a loop and smaller rings make better throws', () => {
   assert.ok(catchChance('Bulbasaur', 'calm', 'nice') > catchChance('Venusaur', 'calm', 'nice'), 'Evolved Pokemon are harder to catch')
 })
 
-test('bait calms a Pokemon but makes it harder to catch; rocks do the opposite', () => {
+const meadow = wildPool(ZONES.meadow.types).map(wild => wild.name)
+const fan = meadow.find(likesBerry), fussy = meadow.find(name => !likesBerry(name))
+const meeting = name => ({ ...startSafari('meadow', 0, 0), encounter: { name, shiny: false, mood: 'calm', since: 0, at: { x: 3, y: 4 } } })
+
+test('each species has a fixed taste for berries, and about two in three like them', () => {
+  const liked = meadow.filter(likesBerry).length / meadow.length
+  assert.ok(liked > 0.5 && liked < 0.8, `${liked}`)
+  assert.ok(fan && fussy)
+  assert.deepEqual(meadow.map(likesBerry), meadow.map(likesBerry))
+})
+
+test('a liked berry calms a Pokemon but makes it harder to catch; a disliked one changes nothing; rocks anger it', () => {
   assert.ok(fleeChance('Pidgey', 'eating') < fleeChance('Pidgey', 'calm'))
   assert.ok(catchChance('Pidgey', 'eating', 'nice') < catchChance('Pidgey', 'calm', 'nice'))
   assert.ok(fleeChance('Pidgey', 'angry') > fleeChance('Pidgey', 'calm'))
   assert.ok(catchChance('Pidgey', 'angry', 'nice') > catchChance('Pidgey', 'calm', 'nice'))
-  const found = meet()
-  const fed = throwBait(found, 200, always(0.99))
+  const fed = throwBerry(meeting(fan), 200, always(0.99))
   assert.equal(fed.encounter.mood, 'eating')
-  assert.equal(fed.balls, found.balls, 'Bait and rocks do not use balls')
-  assert.equal(throwRock(fed, 300, always(0.99)).encounter.mood, 'angry')
-  assert.equal(throwRock(found, 300, always(0)).encounter, null, 'A rock can scare the Pokemon away')
+  assert.deepEqual(fed.encounter.at, { x: 3, y: 4 }, 'It stays where it stands')
+  assert.match(fed.message, /loves the berry/)
+  assert.deepEqual([fed.act.thrown, fed.act.reaction, fed.act.left], ['berry', 'likes', null])
+  assert.equal(fed.balls, meeting(fan).balls, 'Berries and rocks do not use balls')
+  const snubbed = throwBerry(meeting(fussy), 200, always(0.99))
+  assert.equal(snubbed.encounter.mood, 'calm')
+  assert.equal(snubbed.message, `${fussy} sniffed the berry and turned away.`)
+  assert.deepEqual([snubbed.act.thrown, snubbed.act.reaction, snubbed.act.left], ['berry', 'dislikes', null])
+  const angry = throwRock(fed, 300, always(0.99))
+  assert.equal(angry.encounter.mood, 'angry')
+  assert.deepEqual([angry.act.id, angry.act.thrown, angry.act.reaction], [2, 'rock', 'angry'], 'Each action counts up')
+  const scared = throwRock(meeting(fan), 300, always(0))
+  assert.equal(scared.encounter, null, 'A rock can scare the Pokemon away')
+  assert.deepEqual([scared.act.reaction, scared.act.left, scared.act.wild.at], ['angry', 'fled', { x: 3, y: 4 }])
+  assert.equal(throwBerry(meeting(fussy), 300, always(0)).act.left, 'fled', 'It may run after a berry it does not like')
+})
+
+test('a ball either catches the Pokemon or it breaks free, and the act says which', () => {
+  const caught = throwBall(meeting(fan), 200, always(0))
+  assert.deepEqual([caught.act.thrown, caught.act.reaction, caught.act.left], ['ball', 'caught', 'caught'])
+  const free = throwBall(meeting(fan), 200, always(0.99))
+  assert.deepEqual([free.act.reaction, free.act.left, free.encounter.name], ['broke-free', null, fan])
+  const gone = throwBall({ ...meeting(fan), balls: 1 }, 200, rolls(0.99, 0.99))
+  assert.deepEqual([gone.act.reaction, gone.act.left, gone.status], ['broke-free', 'wandered', 'complete'])
 })
 
 test('catches build a Shiny chain; fleeing breaks it', () => {
