@@ -3,10 +3,11 @@ import { Animated, Easing, Platform, Text, View } from 'react-native'
 import type { DexRecord } from '../journal'
 import { setPreference, usePreferences } from '../preferences'
 import { Button, Chip, Copy, Eyebrow, Heading, IconButton, Panel, colors, fonts, styles, themedStyles } from '../ui'
-import { ZONES, pauseSafari, resumeSafari, runAway, throwBall, throwBerry, throwRock, tickSafari } from './safari'
-import type { SafariAct, SafariGame, Zone } from './safari'
-import { confirmLeave, planWalk, startZone, stayInZone, walk, zoneAction, zoneBudget } from './safari-zone'
-import type { Direction, Point, WalkResult, ZoneEvent, ZoneGame } from './safari-zone'
+import { ZONES, pauseSafari, resumeSafari } from './safari'
+import type { Zone } from './safari'
+import { HELPERS, confirmLeave, planHunt, roam, runAway, safariMap, startZone, stayInZone, throwBall, throwBerry, throwRock, walk, zoneBudget } from './safari-zone'
+import type { Direction, Point, WalkResult, WildAct, ZoneEvent, ZoneGame } from './safari-zone'
+import { actTimes } from './safari-view'
 import { useStepWalker } from './step-walker'
 import { SafariWorld } from './SafariWorld'
 import { DPad, useKeyboardDirections } from './DPad'
@@ -14,16 +15,15 @@ import { PixelSprite } from './TeamPicker'
 import { useGameScreen } from './fullscreen'
 import { useGameLoop, useReducedMotion } from './hooks'
 import { PlayOverlay } from './PlayOverlay'
-import { actTimes } from './safari-view'
 
 const native = Platform.OS !== 'web'
 const throwText = { excellent: 'Excellent throw!', great: 'Great throw!', nice: 'Nice throw.' }
 const moodText = { calm: '', eating: 'Eating — calmer, but harder to catch.', angry: 'Angry — easier to catch, but quick to run.' }
 // What the status line says while a throw is in the air, so the outcome isn't told before the map shows it.
-const thrownText = (act: SafariAct, game: SafariGame) =>
-  act.thrown === 'ball' ? (game.lastThrow ? throwText[game.lastThrow] : 'You threw a Safari Ball!') : act.thrown === 'berry' ? 'You threw a berry.' : 'You threw a rock!'
+const thrownText = (act: WildAct) =>
+  act.thrown === 'ball' ? (act.quality ? throwText[act.quality] : 'You threw a Safari Ball!') : act.thrown === 'berry' ? 'You threw a berry.' : 'You threw a rock!'
 // A tap route stops at anything worth a look, and at any bump.
-const STOPS: ZoneEvent[] = ['encounter', 'item', 'gate', 'out-of-steps']
+const STOPS: ZoneEvent[] = ['encounter', 'help', 'item', 'gate', 'out-of-steps']
 type Props = {
   zone?: Zone, bonusKm: number, bonusNote: string, record: string, goal?: string, dex: Record<string, DexRecord>,
   buddy: { name: string, shiny: boolean } | null, onCatch: (name: string, shiny: boolean) => Promise<void>, onComplete: (catches: number) => void,
@@ -31,21 +31,21 @@ type Props = {
   onLeave?: () => void
 }
 
-// The Safari Zone: walk the map with the D-pad (or by tapping a tile), step into tall grass, and catch what appears.
-// A wild Pokemon appears on the map beside you, and you throw a ball, a berry or a rock at it right there, or walk away.
-// Each throw plays out on the map (SafariWild.tsx) before the buttons come back. The rules live in safari-zone.ts and
-// safari.ts; this screen only turns input into steps and actions and draws the result. In full screen the same hunt is
-// drawn through PlayOverlay; the round ending leaves full screen.
+// The Safari Zone, an open world: walk the map with the D-pad (or by tapping a tile) among the wild Pokemon roaming it,
+// and walk into one to make it notice you. Then, right there on the map, throw a Safari Ball, a berry or a rock at it,
+// or run and it disappears. Each throw plays out on the map (SafariWild.tsx) before the buttons come back. The rules
+// live in safari-zone.ts and safari.ts; this screen only turns input into steps and actions and draws the result. In
+// full screen the same hunt is drawn through PlayOverlay; the round ending leaves full screen.
 export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy, onCatch, onComplete, onLeave }: Props) {
   const [game, setGame] = useState<ZoneGame | null>(null)
   const [move, setMove] = useState<{ kind: WalkResult['move'], id: number }>({ kind: 'none', id: 0 })
   const [miss, setMiss] = useState<{ tile: Point, id: number } | null>(null)
   const [news, setNews] = useState('')
-  const [area, setArea] = useState({ width: 0, height: 0 })
-  const [fade] = useState(() => new Animated.Value(1))
   // The id of the encounter action being played out on the map. Walking, throwing and the results wait for it.
   const [busy, setBusy] = useState<number | null>(null)
   const busyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [area, setArea] = useState({ width: 0, height: 0 })
+  const [fade] = useState(() => new Animated.Value(1))
   const reduced = useReducedMotion()
   const { safariControls, safariTrainer } = usePreferences()
   const { full, setFull, setFill } = useGameScreen()
@@ -82,14 +82,14 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
     }
     if (previous.status !== 'complete' && next.status === 'complete') handlers.current.onComplete(next.catches.length)
   }, [settle])
-  const act = (change: (game: SafariGame, now: number) => SafariGame) => {
-    if (current.current) update(zoneAction(current.current, round => change(round, performance.now())))
+  const act = (change: (game: ZoneGame, now: number) => ZoneGame) => {
+    if (current.current) update(change(current.current, performance.now()))
   }
   // One step in the game; the step walker times it. A tap route stops at a bump or anything in STOPS.
   const walkOnce = (direction: Direction) => {
     const round = current.current
     if (!round) return { moved: false, stop: false }
-    const result = walk(round, direction)
+    const result = walk(round, direction, safariMap, performance.now())
     if (result.move !== 'none') setMove(previous => ({ kind: result.move, id: previous.id + 1 }))
     update(result.game)
     return { moved: result.move !== 'none', stop: result.move === 'bump' || result.events.some(event => STOPS.includes(event)) }
@@ -98,11 +98,12 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const walker = useStepWalker(walkOnce, walking)
   const { press, release } = walker
   const pause = () => { walker.drop(); act(pauseSafari) }
-  useGameLoop(() => act(tickSafari), pause)
+  // Ten times a second the wild Pokemon get to stroll; the game only changes (and redraws) when one does.
+  useGameLoop(() => act(roam), pause)
   function tapTile(tile: Point) {
     const round = current.current
     if (!round || !walking) return
-    const route = planWalk(round.at, tile)
+    const route = planHunt(round, tile)
     if (!route) { setMiss({ tile, id: Date.now() }); return }
     walker.follow(route)
   }
@@ -121,8 +122,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const immersive = full && active
 
   function begin() {
-    setNews(''); setMiss(null)
-    settle()
+    setNews(''); setMiss(null); settle()
     walker.drop()
     if (!reduced) {
       fade.setValue(0)
@@ -135,7 +135,8 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const budget = zoneBudget(bonusKm)
   if (!game) return <View style={{ gap: 14 }}>
     <Heading>Safari Zone</Heading>
-    <Copy>Walk the Safari Zone with your buddy. Step into tall grass to find wild Pokemon, and throw when the ring is small. Catches join your Dex with a ◎ Safari mark.</Copy>
+    <Copy>Walk the Safari Zone with your buddy. Wild Pokemon roam in the open, a few at a time, and some are Shiny. Walk into one to make it notice you, then throw a Safari Ball when the ring is small, a berry (if it likes them, it calms down) or a rock (it gets angry), or run. Catches join your Dex with a ◎ Safari mark.</Copy>
+    <Copy small>Three helper Pokemon wait by the places that need them: walk into Lapras by the river to ride across water, Ampharos by the cave to light it with Flash, and Flygon by the desert path for goggles against the sandstorm.</Copy>
     <Copy small>Switching tabs or leaving the app pauses the hunt. Returning to the arcade ends it.</Copy>
     <Panel>
       <Copy color={colors.gold}>{record}</Copy>
@@ -167,16 +168,18 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const areaName = `${game.area === 'gate' ? 'Gate' : ZONES[game.area].label}${playing ? '' : ' · Paused'}`
   const chain = game.chain.count ? `Chain: ${game.chain.name} ×${game.chain.count}` : ''
   const encounter = game.encounter
+  // The Pokemon in front of you: the encounter, or one still being caught or vanishing on the map, so the buttons stay
+  // (greyed out) until the throw has played out.
+  const facing = encounter ?? (busy !== null && game.act ? game.act.wild : null)
   const throwing = busy !== null && game.act?.thrown ? game.act : null
-  const message = throwing ? thrownText(throwing, game)
-    : game.message && !game.prompt ? `${game.lastThrow && encounter && game.act?.thrown === 'ball' ? `${throwText[game.lastThrow]} ` : ''}${game.message}` : ''
+  const message = game.prompt ? '' : throwing ? thrownText(throwing)
+    : `${game.act?.quality && encounter && game.act.reaction === 'broke-free' ? `${throwText[game.act.quality]} ` : ''}${game.message}`
   const mood = encounter && busy === null ? moodText[encounter.mood] : ''
   const shown = busy === null ? news : ''
   const canThrow = playing && !!encounter && busy === null
-  // The Pokemon in front of you: the encounter, or one still being caught or vanishing on the map, so the buttons stay
-  // (greyed out) until the throw has played out.
-  const facing = encounter ?? (busy !== null ? game.act?.wild ?? null : null)
   const wildName = facing ? `${facing.shiny ? 'Shiny ' : ''}${facing.name}` : ''
+  const nearby = game.wilds.length ? `Nearby: ${game.wilds.map(wild => `${wild.shiny ? '✦ Shiny ' : ''}${wild.name}`).join(', ')}` : 'No Pokemon nearby yet'
+  const helping = `Helpers: ${Object.values(HELPERS).map(helper => `${game.helps.includes(helper.help) ? '✓ ' : ''}${helper.name}`).join(' · ')}`
   const actions = !!facing && <View style={{ gap: 8 }}>
     <Text style={zoneLook.area}>{facing.shiny ? '✦ ' : ''}Wild {wildName}</Text>
     <Button title={`Throw Safari Ball · ${game.balls} left`} disabled={!canThrow} onPress={() => act(throwBall)} />
@@ -200,7 +203,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
         reduced={reduced} tapToWalk={safariControls === 'tap' && walking} onTapTile={tapTile} miss={miss} playing={busy} />
     </Animated.View>}
     hud={`Steps ${game.steps} · Balls ${game.balls} · Caught ${game.catches.length} · ${areaName}`}
-    status={[facing ? `Wild ${wildName}` : '', message, mood, shown, chain].filter(Boolean).join('\n')}
+    status={(facing ? [`Wild ${wildName}`, message, mood, shown, chain] : [message, shown, nearby, helping, chain]).filter(Boolean).join('\n')}
     dpad={safariControls === 'dpad' && !facing ? <DPad overlay reduced={reduced} onPress={press} onRelease={release} disabled={!walking} /> : null}
     // The chips stack up from the corner, first lowest: Leave when walking, the ball (nearest the thumb) in an encounter.
     actions={facing ? [
@@ -226,6 +229,8 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
         <IconButton name="fullscreen" label="Full screen" size={40} onPress={() => setFull(true)} />
       </View>
       <Text style={zoneLook.area}>{areaName}</Text>
+      <Text accessibilityLiveRegion="polite" numberOfLines={1} style={zoneLook.nearby}>{nearby}</Text>
+      <Text numberOfLines={1} style={zoneLook.nearby}>{helping}</Text>
       {!!chain && <Copy small color={colors.gold}>{chain}</Copy>}
     </View>
 
@@ -259,6 +264,7 @@ function Stat({ label, value, spoken }: { label: string, value: string, spoken: 
 const zoneLook = themedStyles(() => ({
   bar: { gap: 4 },
   area: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20 },
+  nearby: { color: colors.muted, fontFamily: fonts.bold, fontSize: 13, lineHeight: 18 },
   map: { flex: 1, minHeight: 160, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000000' },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   budget: { color: colors.ink, fontFamily: fonts.heavy, fontSize: 15, lineHeight: 20 },

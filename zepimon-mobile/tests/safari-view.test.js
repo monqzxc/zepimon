@@ -1,11 +1,18 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { THROW_MS, VANISH_MS, actTimes, buddyFrame, cameraOffset, chunksAround, followPath, noInput, pressDirection, releaseDirection, stepDelay, takeInput, tapPoint, tileFromTap,
-  tileSizeFor, trainerFrame } from '../src/games/safari-view.ts'
+  tileSizeFor, trainerFrame, SAFARI_ACROSS } from '../src/games/safari-view.ts'
 import { safariMap } from '../src/games/safari-zone.ts'
 
 test('tile size fits about 10 tiles across, between 36 and 58', () => {
-  assert.deepEqual([320, 390, 600, 1280].map(tileSizeFor), [36, 39, 58, 58])
+  assert.deepEqual([320, 390, 600, 1280].map(width => tileSizeFor(width)), [36, 39, 58, 58])
+})
+
+test('the Safari Zone zooms out a little: about 12 tiles across, between 30 and 48', () => {
+  assert.equal(SAFARI_ACROSS, 12)
+  assert.deepEqual([320, 390, 600, 1280].map(width => tileSizeFor(width, undefined, SAFARI_ACROSS)), [30, 32, 48, 48])
+  assert.equal(tileSizeFor(844, 390, SAFARI_ACROSS), 32)
+  for (const width of [320, 390, 600]) assert.ok(tileSizeFor(width, undefined, SAFARI_ACROSS) < tileSizeFor(width))
 })
 
 test('given a height, about 10 tiles go across the shorter side, between 36 and 58', () => {
@@ -25,8 +32,8 @@ test("the camera centres the trainer's tile", () => {
 test('loaded chunks always cover the visible window', () => {
   for (const width of [320, 390, 768, 1280]) {
     for (const height of [480, 700, 1024]) {
-      for (const at of [{ x: 0, y: 0 }, { x: 43, y: 43 }, { x: 21, y: 30 }, safariMap.starts.gate]) {
-        const tile = tileSizeFor(width)
+      for (const at of [{ x: 0, y: 0 }, { x: 63, y: 63 }, { x: 21, y: 30 }, safariMap.starts.gate]) {
+        const tile = tileSizeFor(width, undefined, SAFARI_ACROSS)
         const offset = cameraOffset(at, tile, width, height)
         const keys = new Set(chunksAround(at, tile, width, height))
         for (const key of keys) assert.ok(safariMap.chunks[key], `${key} is not a chunk`)

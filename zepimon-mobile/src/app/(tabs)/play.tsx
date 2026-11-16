@@ -139,7 +139,7 @@ export default function PlayScreen() {
             about: `Tower defense: ${LEVELS.length} levels in ${STAGES.length} stages; ${levelsCleared} cleared.${nextLevel ? ` Next: Level ${nextLevel.number}.` : ''} Evolve your team mid-battle with berries.` },
           { id: 'safari', title: 'Safari Zone', art: size => <SafariArt {...size} />,
             record: arcadeScores.safari === undefined ? undefined : `Best ${arcadeScores.safari} caught`, onPress: () => select({ game: 'safari' }),
-            about: 'Walk Emerald’s Safari Zone with your buddy and catch Pokemon in the tall grass. Catches join your Dex.' },
+            about: 'Roam Emerald’s open Safari Zone with your buddy. Wild Pokemon walk about in plain sight: walk into one, then throw a ball, a berry or a rock right there. Catches join your Dex.' },
           { id: 'memory', title: 'Memory Match', art: size => <MemoryArt {...size} />,
             onPress: () => select('memory'),
             about: 'Find matching Normal and Shiny pairs from your collection. Needs at least two variants.' },

@@ -2,39 +2,41 @@ import { memo, useEffect, useMemo, useState } from 'react'
 import { Animated, Easing, Image, Platform, Text, View } from 'react-native'
 import type { ImageSourcePropType } from 'react-native'
 import { safariSprites } from '../generated/safari-assets.js'
-import { moveSprites } from '../generated/move-sprites.js'
 import { colors } from '../ui'
-import { ringScale, throwQuality } from './safari'
-import type { Encounter, SafariAct, SafariGame } from './safari'
-import type { Direction, Point } from './safari-zone'
+import { RING_MS } from './safari'
+import type { Encounter } from './safari'
+import type { Direction, Point, Wild, WildAct, ZoneGame } from './safari-zone'
 import { ABSORB_MS, BREAK_MS, VANISH_MS, WOBBLES, WOBBLE_MS, actTimes } from './safari-view'
 import type { ActTimes } from './safari-view'
 import { OverworldSprite } from './OverworldSprite'
+import { ShinyStars } from './ShinyAura'
 import { Frame } from './TileWorld'
-import { TICK } from './battle'
 
 type Strip = { source: ImageSourcePropType, frames: number, width: number, height: number }
 const native = Platform.OS !== 'web'
 const pixelated = Platform.OS === 'web' ? { imageRendering: 'pixelated' as const } : {}
 const sprites = safariSprites as Record<'grass' | 'safariBall', Strip>
-const sparkle = (moveSprites as Record<string, Strip>)['fairy-sparkle']
-const SPARKLES = [[-0.32, -0.28], [0.34, -0.16], [-0.05, 0.3]]
-const APPEAR_MS = 500
-const qualityColor = (quality: 'excellent' | 'great' | 'nice') => ({ excellent: colors.success, great: colors.gold, nice: '#ffffff' })[quality]
+// How long the Pokemon you walked into takes to notice you: it hops back a tile (if it had room) with a "!" overhead.
+const NOTICE_MS = 700
 
-// A wild Pokemon met on the map, with what is needed to draw it: the act being played out (if any) and the clocks that
-// drive it. clock runs from 0 to the act's `done` while it plays, and rests at `done` otherwise; pop runs 0 to 1 as the
-// Pokemon springs out of the grass.
-export type WildScene = { wild: Encounter & { at: Point }, act: SafariAct | null, times: ActTimes | null, live: boolean,
-  clock: Animated.Value, pop: Animated.Value, key: string }
+// The wild Pokemon you are dealing with on the map, and what is needed to draw it: the act being played out (if any) and
+// the clocks that drive it. clock runs from 0 to the act's `done` while it plays, and rests at `done` otherwise; notice
+// runs 0 to 1 as it notices you. from: the tile it stood on when you walked into it.
+export type WildScene = { wild: Wild, encounter: Encounter | null, act: WildAct | null, times: ActTimes | null, live: boolean,
+  clock: Animated.Value, notice: Animated.Value, from: Point }
 
-// The wild Pokemon on the map is the current encounter, or the one that just left (so it can be seen vanishing).
-// playing: the id of the act the screen is playing out, or null.
-export function useWildScene(game: SafariGame, playing: number | null, reduced: boolean): WildScene | null {
+const step = (point: Point, direction: Direction) =>
+  ({ x: point.x + (direction === 'east' ? 1 : direction === 'west' ? -1 : 0), y: point.y + (direction === 'south' ? 1 : direction === 'north' ? -1 : 0) })
+const OPPOSITE: Record<Direction, Direction> = { north: 'south', south: 'north', west: 'east', east: 'west' }
+
+// The Pokemon is the encounter's, or the one that just left (so it can be seen going). playing: the id of the act the
+// screen is playing out, or null.
+export function useWildScene(game: ZoneGame, playing: number | null, reduced: boolean): WildScene | null {
   const act = game.act
-  const wild = game.encounter ?? (act?.left ? act.wild : null)
+  const met = game.encounter ? game.wilds.find(wild => wild.id === game.encounter!.id) ?? null : null
+  const wild = met ?? (act?.left ? act.wild : null)
   const [clock] = useState(() => new Animated.Value(0))
-  const [pop] = useState(() => new Animated.Value(1))
+  const [notice] = useState(() => new Animated.Value(1))
   const times = useMemo(() => act ? actTimes(act) : null, [act])
   const live = !!act && playing === act.id && !reduced
   useEffect(() => {
@@ -45,17 +47,18 @@ export function useWildScene(game: SafariGame, playing: number | null, reduced: 
     run.start()
     return () => run.stop()
   }, [clock, times, live])
-  const fresh = game.encounter ? `${game.encounter.since}:${game.encounter.name}` : null
+  const fresh = game.encounter?.id ?? null
   useEffect(() => {
-    if (!fresh) return
-    if (reduced) { pop.setValue(1); return }
-    pop.setValue(0)
-    const run = Animated.timing(pop, { toValue: 1, duration: APPEAR_MS, easing: Easing.linear, useNativeDriver: native })
+    if (fresh === null) return
+    if (reduced) { notice.setValue(1); return }
+    notice.setValue(0)
+    const run = Animated.timing(notice, { toValue: 1, duration: NOTICE_MS, easing: Easing.linear, useNativeDriver: native })
     run.start()
     return () => run.stop()
-  }, [pop, fresh, reduced])
-  if (!wild?.at) return null
-  return { wild: wild as Encounter & { at: Point }, act, times, live, clock, pop, key: `${wild.since}:${wild.name}` }
+  }, [notice, fresh, reduced])
+  if (!wild) return null
+  // You walked into it from the tile next to you, the way you face.
+  return { wild, encounter: met ? game.encounter : null, act, times, live, clock, notice, from: met ? step(game.at, game.facing) : wild.at }
 }
 
 // Keyframes [ms, value] on the act clock, clamped at both ends. Times are nudged to rise strictly, so a jump is 1 ms long.
@@ -75,16 +78,11 @@ function shake(start: number, length: number, size: number): [number, number][] 
   return Array.from({ length: 9 }, (_, i) => [start + i * length / 8, i === 0 || i === 8 ? 0 : i % 2 ? size : -size])
 }
 
-function towards(from: Point, to: Point): Direction {
-  const dx = to.x - from.x, dy = to.y - from.y
-  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'east' : 'west') : (dy > 0 ? 'south' : 'north')
-}
-
-// The wild Pokemon standing on its tile, facing the trainer, in the map layer under the trainer. It springs up out of
-// the grass, hops when it likes a berry, shakes when it dislikes one, is angry or breaks free, shrinks into a ball,
-// runs off when it flees and fades away when you walk off.
-export const WildPokemon = memo(function WildPokemon({ scene, trainerAt, tile, onGrass }: { scene: WildScene, trainerAt: Point, tile: number, onGrass: boolean }) {
-  const { wild, act, times, clock, pop } = scene
+// The Pokemon you are dealing with, on its tile under the trainer layer, facing you. It hops back as it notices you,
+// hops when it likes a berry, shakes when it dislikes one, is angry or breaks free, shrinks into a ball, bounds off when
+// it flees and fades away when you walk off.
+export const WildFoe = memo(function WildFoe({ scene, tile, inGrass, reduced }: { scene: WildScene, tile: number, inGrass: boolean, reduced: boolean }) {
+  const { wild, act, times, clock, notice, from } = scene
   const motion = useMemo(() => {
     const x: [number, number][] = [], y: [number, number][] = [], seen: [number, number][] = [], size: [number, number][] = []
     if (act && times) {
@@ -103,56 +101,57 @@ export const WildPokemon = memo(function WildPokemon({ scene, trainerAt, tile, o
       }
       if (leave !== null) {
         seen.push([leave, 1], [leave + VANISH_MS, 0])
-        // A Pokemon that flees bounds away from the trainer; one you walk away from just fades.
+        // A Pokemon that flees bounds off away from you; one you walk away from just fades.
         if (act.left === 'fled') {
-          const away = { x: Math.sign(wild.at.x - trainerAt.x), y: Math.sign(wild.at.y - trainerAt.y) }
+          const away = step({ x: 0, y: 0 }, OPPOSITE[wild.facing])
           x.push([leave, 0], [leave + VANISH_MS, away.x * tile * 0.8])
           y.push([leave, 0], [leave + VANISH_MS / 2, -tile * 0.3 + away.y * tile * 0.4], [leave + VANISH_MS, away.y * tile * 0.8])
         }
       }
     }
+    const back = { x: (from.x - wild.at.x) * tile, y: (from.y - wild.at.y) * tile }
     return {
-      x: track(clock, x),
-      y: Animated.add(pop.interpolate({ inputRange: [0, 0.6, 1], outputRange: [tile * 0.5, 0, 0] }), track(clock, y)),
-      opacity: Animated.multiply(pop.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 1, 1] }), track(clock, seen.length ? seen : [[0, 1]])),
+      x: Animated.add(notice.interpolate({ inputRange: [0, 0.4, 1], outputRange: [back.x, 0, 0] }), track(clock, x)),
+      y: Animated.add(notice.interpolate({ inputRange: [0, 0.2, 0.4, 1], outputRange: [back.y, back.y / 2 - tile * 0.35, 0, 0] }), track(clock, y)),
+      opacity: track(clock, seen.length ? seen : [[0, 1]]),
       scale: track(clock, size.length ? size : [[0, 1]])
     }
-  }, [act, times, clock, pop, tile, wild.at, trainerAt])
+  }, [act, times, clock, notice, tile, wild.at, wild.facing, from])
   return <>
-    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: wild.at.x * tile, top: wild.at.y * tile, width: tile, height: tile,
-      opacity: motion.opacity, transform: [{ translateX: motion.x }, { translateY: motion.y }, { scale: motion.scale }] }}>
-      <OverworldSprite name={wild.name} shiny={wild.shiny} size={tile} facing={towards(wild.at, trainerAt)} />
+    <Animated.View pointerEvents="none" accessible accessibilityLabel={`A wild ${wild.shiny ? 'Shiny ' : ''}${wild.name}, facing you`}
+      style={{ position: 'absolute', left: wild.at.x * tile, top: wild.at.y * tile, width: tile, height: tile,
+        opacity: motion.opacity, transform: [{ translateX: motion.x }, { translateY: motion.y }, { scale: motion.scale }] }}>
+      <OverworldSprite name={wild.name} shiny={wild.shiny} size={tile} facing={wild.facing} />
+      {wild.shiny && <View style={{ position: 'absolute', left: 0, top: 0 }}><ShinyStars size={tile} reduced={reduced} /></View>}
     </Animated.View>
-    {/* Tall grass over its feet, as over the trainer's (less of it: a Pokemon is one tile tall, not two). */}
-    {onGrass && <View pointerEvents="none" style={{ position: 'absolute', left: wild.at.x * tile, top: wild.at.y * tile + tile * 0.7, width: tile, height: tile * 0.3, overflow: 'hidden' }}>
-      <View style={{ position: 'absolute', top: -tile * 0.7 }}><Frame strip={sprites.grass} frame={0} width={tile} height={tile} /></View>
+    {/* Tall grass over its feet, as over the roaming Pokemon's. */}
+    {inGrass && <View pointerEvents="none" style={{ position: 'absolute', left: wild.at.x * tile, top: wild.at.y * tile + tile / 2, width: tile, height: tile / 2, overflow: 'hidden' }}>
+      <View style={{ position: 'absolute', top: -tile / 2 }}><Frame strip={sprites.grass} frame={0} width={tile} height={tile} /></View>
     </View>}
   </>
 })
 
-// Everything over the map for an encounter: a "!" over the trainer as it appears, a Shiny's sparkle, the shrinking ring
-// while you aim, and the thrown ball, berry or rock with the Pokemon's reaction bubble while an act plays out.
-export function WildCover({ scene, game, trainerAt, tile, reduced }: { scene: WildScene, game: SafariGame, trainerAt: Point, tile: number, reduced: boolean }) {
-  const { wild, pop, live, key } = scene
+// Everything over the map for the encounter: the "!" as the Pokemon notices you, the shrinking ring while you aim, and
+// the thrown ball, berry or rock with the Pokemon's reaction bubble while an act plays out.
+export function WildCover({ scene, trainerAt, tile, reduced }: { scene: WildScene, trainerAt: Point, tile: number, reduced: boolean }) {
+  const { wild, encounter, notice, live } = scene
   const centre = { x: (wild.at.x + 0.5) * tile, y: (wild.at.y + 0.5) * tile }
   const ring = tile * 2.4
-  const scale = ringScale(game)
   return <>
-    {!!game.encounter && <Animated.View pointerEvents="none" style={{ position: 'absolute', left: (trainerAt.x + 0.5) * tile - tile * 0.35, top: (trainerAt.y - 1.55) * tile,
-      opacity: pop.interpolate({ inputRange: [0, 0.85, 1], outputRange: [1, 1, 0] }) }}>
+    {!!encounter && <Animated.View pointerEvents="none" style={{ position: 'absolute', left: centre.x - tile * 0.35, top: (wild.at.y - 0.8) * tile,
+      opacity: notice.interpolate({ inputRange: [0, 0.9, 1], outputRange: [1, 1, 0] }) }}>
       <Bubble mark="!" color="#d83a3a" size={tile * 0.7} />
     </Animated.View>}
-    {!!game.encounter && wild.shiny && <Sparkles key={key} centre={centre} size={tile * 1.4} reduced={reduced} />}
-    {!!game.encounter && !live && <View pointerEvents="none" style={{ position: 'absolute', left: centre.x - ring / 2, top: centre.y - ring / 2, width: ring, height: ring,
+    {!!encounter && !live && <View pointerEvents="none" style={{ position: 'absolute', left: centre.x - ring / 2, top: centre.y - ring / 2, width: ring, height: ring,
       alignItems: 'center', justifyContent: 'center' }}>
-      <Ring scale={scale} next={ringScale({ ...game, elapsed: game.elapsed + TICK })} color={qualityColor(throwQuality(scale))} size={ring} reduced={reduced} />
+      <Ring since={encounter.since} size={ring} reduced={reduced} />
     </View>}
     {live && scene.act && scene.times && <ThrowEffects act={scene.act} times={scene.times} clock={scene.clock} from={trainerAt} to={wild.at} tile={tile} />}
   </>
 }
 
 const ThrowEffects = memo(function ThrowEffects({ act, times, clock, from, to, tile }: {
-  act: SafariAct, times: ActTimes, clock: Animated.Value, from: Point, to: Point, tile: number
+  act: WildAct, times: ActTimes, clock: Animated.Value, from: Point, to: Point, tile: number
 }) {
   const { hit, out, done } = times
   const item = act.thrown === 'ball' ? tile * 0.45 : act.thrown === 'berry' ? tile * 0.34 : tile * 0.32
@@ -191,7 +190,7 @@ const ThrowEffects = memo(function ThrowEffects({ act, times, clock, from, to, t
           : act.thrown === 'berry' ? <Berry size={item} /> : <Rock size={item} />}
       </Animated.View>
     </Animated.View>}
-    {bubble && shown && <Animated.View pointerEvents="none" style={{ position: 'absolute', left: (to.x + 0.5) * tile - tile * 0.35, top: (to.y - 0.75) * tile, opacity: shown }}>
+    {bubble && shown && <Animated.View pointerEvents="none" style={{ position: 'absolute', left: (to.x + 0.5) * tile - tile * 0.35, top: (to.y - 0.8) * tile, opacity: shown }}>
       <Bubble mark={bubble.mark} color={bubble.color} size={tile * 0.7} />
     </Animated.View>}
     {stars && <Animated.View pointerEvents="none" style={{ position: 'absolute', left: end.x - item / 2, top: end.y - item, width: item * 2, opacity: stars,
@@ -223,33 +222,22 @@ function Rock({ size }: { size: number }) {
     backgroundColor: '#9a968e', borderWidth: 1.5, borderColor: '#4a4740' }} />
 }
 
-// Emerald's sparkle around a Shiny as it appears: three times through the strip, or one still frame with reduced motion.
-export function Sparkles({ centre, size, reduced }: { centre: { x: number, y: number }, size: number, reduced: boolean }) {
-  const [tick, setTick] = useState(0)
+// The aiming ring, on the same clock the rules use (ringScale in safari.ts): it shrinks from full size to 30% every
+// RING_MS, starting when the Pokemon noticed you, and turns gold, then green, as a throw gets better. It keeps its own
+// time because the map only redraws when something on it moves. With reduced motion it steps a few times a second.
+function Ring({ since, size, reduced }: { since: number, size: number, reduced: boolean }) {
+  const [progress] = useState(() => new Animated.Value(0))
   useEffect(() => {
-    if (reduced) return
-    const timer = setInterval(() => setTick(current => current + 1), 100)
-    return () => clearInterval(timer)
-  }, [reduced])
-  if (!reduced && tick >= sparkle.frames * 3) return null
-  const frame = reduced ? 1 : tick % sparkle.frames
-  const side = size * 0.32
-  return <>{SPARKLES.map(([dx, dy], i) => <View key={i} pointerEvents="none"
-    style={{ position: 'absolute', left: centre.x + dx * size - side / 2, top: centre.y + dy * size - side / 2, width: side, height: side, overflow: 'hidden' }}>
-    <Image source={sparkle.source} fadeDuration={0} resizeMode="stretch"
-      style={{ position: 'absolute', top: 0, left: -frame * side, width: side * sparkle.frames, height: side, ...pixelated }} />
-  </View>)}</>
-}
-
-// Follows the game clock one step ahead so the ring you see matches the throw you get.
-export function Ring({ scale, next, color, size, reduced }: { scale: number, next: number, color: string, size: number, reduced: boolean }) {
-  const [value] = useState(() => new Animated.Value(scale))
-  useEffect(() => {
-    if (reduced || next > scale) { value.setValue(scale); return }
-    const shrink = Animated.timing(value, { toValue: next, duration: TICK, easing: Easing.linear, useNativeDriver: native })
-    shrink.start()
-    return () => shrink.stop()
-  }, [value, scale, next, reduced])
+    const set = () => progress.setValue((Math.max(0, performance.now() - since) % RING_MS) / RING_MS)
+    set()
+    if (reduced) { const timer = setInterval(set, 150); return () => clearInterval(timer) }
+    let frame = requestAnimationFrame(function tick() { set(); frame = requestAnimationFrame(tick) })
+    return () => cancelAnimationFrame(frame)
+  }, [progress, since, reduced])
+  // The scale is 1 - 0.7p: a great throw from 0.7 (p ≈ 0.43), an excellent one from 0.45 (p ≈ 0.79), as throwQuality says.
+  const great = 0.3 / 0.7, excellent = 0.55 / 0.7
+  const color = progress.interpolate({ inputRange: [0, great, great + 0.001, excellent, excellent + 0.001, 1],
+    outputRange: ['#ffffff', '#ffffff', colors.gold, colors.gold, colors.success, colors.success] })
   return <Animated.View pointerEvents="none" style={{ position: 'absolute', width: size, height: size, borderRadius: size / 2, borderWidth: 3,
-    borderColor: color, transform: [{ scale: value }] }} />
+    borderColor: color, transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.3] }) }] }} />
 }
