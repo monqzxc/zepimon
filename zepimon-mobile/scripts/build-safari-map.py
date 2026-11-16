@@ -5,7 +5,7 @@ missing from that cache at the pinned pokeemerald-expansion revision)
        python scripts/build-safari-map.py --reference [secondary]   (metatile contact sheets in ../tmp, for METATILES)
 
 The map is drawn from scripts/safari/layout.txt (one character per tile) and areas.txt (one area letter per tile) with
-Emerald's General + Lilycove tilesets, the pair its own Safari Zone uses. It is cut into 8 x 8-tile chunks: a ground
+Emerald's General + Lilycove tilesets, the pair its own Safari Zone uses, and the Cave tileset for the cave area. It is cut into 8 x 8-tile chunks: a ground
 layer, and a top layer (tree crowns, roofs) only where there is one, drawn over the trainer. The Night Forest is tinted.
 A layout that breaks a rule (see read_layout) stops the build before anything is written.
 
@@ -28,11 +28,13 @@ SECONDARY = 'lilycove'
 LAYOUT = ROOT / 'scripts' / 'safari'
 MAP_DATA = ROOT / 'src' / 'generated' / 'safari-map.js'
 CHUNK = 8
-ITEMS = 12
-WALKABLE_GROUND = '.o@1234'
+ITEMS = 15
+WALKABLE_GROUND = '.o@12345LFD'
 # Area letters (areas.txt) and the start digit each area must hold once.
-AREA_NAMES = {'g': 'gate', 'm': 'meadow', 'l': 'lake', 'k': 'mountain', 'n': 'night'}
-STARTS = {'@': 'g', '1': 'm', '2': 'l', '3': 'k', '4': 'n'}
+AREA_NAMES = {'g': 'gate', 'm': 'meadow', 'l': 'lake', 'k': 'desert', 'n': 'night', 'c': 'cave'}
+STARTS = {'@': 'g', '1': 'm', '2': 'l', '3': 'k', '4': 'n', '5': 'c'}
+# The helper Pokemon's tiles (drawn as ground; the app stands the Pokemon on them): ride, Flash and goggles, once each.
+HELPERS = 'LFD'
 
 # Metatile ids, read off Emerald's Safari Zone layouts. Trees are 2 x 2 blocks: tops (edge variants where the side
 # isn't forest), bottoms over another tree or over open ground (edge variants), and a crown tip that overlaps the
@@ -50,6 +52,10 @@ LEDGE_WEST, LEDGE_EAST = 0x085, 0x086
 # The gate is the Safari rest house; its door (G) is the second tile of the bottom row.
 HOUSE = ((0x008, 0x009, 0x009, 0x00A), (0x010, 0x011, 0x011, 0x012), (0x018, 0x019, 0x00B, 0x01A), (0x020, 0x021, 0x013, 0x022))
 NIGHT_TINT = (0.55, 0.6, 0.8)
+# The cave is Emerald's cave tileset: its speckled floor, boulders for walls, all a little darker.
+CAVE = 'cave'
+CAVE_FLOOR, CAVE_ROCK = 0x201, 0x202
+CAVE_TINT = (0.78, 0.76, 0.84)
 
 # Trainer outfit: (first row, last row, {palette index: colour}) on the 16 x 32 frame, applied before enlarging.
 PURPLE_LIGHT, PURPLE = (0xA4, 0x74, 0xEE), (0x6A, 0x3F, 0xC8)
@@ -142,7 +148,8 @@ def read_layout():
     for y in range(rows):
         for x in range(cols):
             char, area = tiles[y][x], areas[y][x]
-            assert char in '.gT~Rvo<>SG#@1234', f'unsupported tile {char!r} at {x},{y}'
+            assert char in '.gT~Rvo<>SG#@12345LFD', f'unsupported tile {char!r} at {x},{y}'
+            assert area != 'c' or char in '.Ro5', f'the cave holds only floor, boulders and items: {char!r} at {x},{y}'
             assert area in AREA_NAMES, f'unknown area {area!r} at {x},{y}'
             assert not (char == 'g' and area == 'g'), f'grass in the gate area at {x},{y}'
             if char in STARTS:
@@ -156,6 +163,7 @@ def read_layout():
                 assert tuple(int(side) for side in land) in POND, f'water needs a pond shape (no 1-wide water) at {x},{y}'
     assert len(found) == len(STARTS), f'missing starts: {set(STARTS) - set(found)}'
     assert sum(row.count('o') for row in tiles) == ITEMS, f'the map needs {ITEMS} items'
+    assert all(sum(row.count(char) for row in tiles) == 1 for char in HELPERS), 'each helper Pokemon stands on the map once'
     house = [(x, y) for y in range(rows) for x in range(cols) if tiles[y][x] in '#G']
     left, top = min(x for x, _ in house), min(y for _, y in house)
     assert len(house) == 16 and all(tiles[top + dy][left + dx] == ('G' if (dx, dy) == (1, 3) else '#') for dx in range(4) for dy in range(4)), \
@@ -170,6 +178,8 @@ def map_metatile(tiles, areas, house, x, y):
     at = lambda px, py: tiles[py][px] if 0 <= px < cols and 0 <= py < rows else 'T'
     char, area = tiles[y][x], areas[y][x]
     side = x % 2
+    if area == 'c':
+        return CAVE_ROCK if char == 'R' else CAVE_FLOOR
     if char == 'T':
         if y % 2 == 0:
             return (TREE_TOP_EDGE if at(x + (1 if side else -1), y) != 'T' else TREE_TOP)[side]
@@ -203,13 +213,13 @@ def map_metatile(tiles, areas, house, x, y):
     return GROUND
 
 
-def tint(image):
+def tint(image, shade=NIGHT_TINT):
     pixels = image.load()
     for y in range(image.height):
         for x in range(image.width):
             r, g, b, a = pixels[x, y]
             if a:
-                pixels[x, y] = (round(r * NIGHT_TINT[0]), round(g * NIGHT_TINT[1]), round(b * NIGHT_TINT[2]), a)
+                pixels[x, y] = (round(r * shade[0]), round(g * shade[1]), round(b * shade[2]), a)
     return image
 
 
@@ -217,15 +227,17 @@ def build_map():
     """Chunk images (ground and, where there is any, top) and the map data, all in memory until everything passed."""
     tiles, areas, starts, house = read_layout()
     rows, cols = len(tiles), len(tiles[0])
-    sets = Tilesets(PRIMARY, SECONDARY)
+    sets = {False: Tilesets(PRIMARY, SECONDARY), True: Tilesets(PRIMARY, CAVE)}
     cache = {}
+    shades = {'n': NIGHT_TINT, 'c': CAVE_TINT}
 
     def metatile_for(x, y):
-        number = map_metatile(tiles, areas, house, x, y)
-        if number not in cache:
-            cache[number] = sets.metatile(number)
-        below, above = (layer.copy() for layer in cache[number])
-        return (tint(below), tint(above)) if areas[y][x] == 'n' else (below, above)
+        number, cave = map_metatile(tiles, areas, house, x, y), areas[y][x] == 'c'
+        if (number, cave) not in cache:
+            cache[number, cave] = sets[cave].metatile(number)
+        below, above = (layer.copy() for layer in cache[number, cave])
+        shade = shades.get(areas[y][x])
+        return (tint(below, shade), tint(above, shade)) if shade else (below, above)
     images, chunks = chunk_images(tiles, CHUNK, metatile_for)
     return dict(cols=cols, rows=rows, chunk=CHUNK, tiles=tiles, areas=areas, starts=starts, chunks=chunks), images
 

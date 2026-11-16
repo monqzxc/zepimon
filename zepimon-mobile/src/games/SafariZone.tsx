@@ -5,7 +5,7 @@ import { setPreference, usePreferences } from '../preferences'
 import { Button, Chip, Copy, Eyebrow, Heading, IconButton, Panel, colors, fonts, styles, themedStyles } from '../ui'
 import { ZONES, pauseSafari, resumeSafari, wildRules } from './safari'
 import type { Zone } from './safari'
-import { catchWild, confirmLeave, leaveWild, planHunt, roam, spendBalls, startZone, stayInZone, walk, zoneBudget } from './safari-zone'
+import { HELPERS, catchWild, confirmLeave, leaveWild, planHunt, roam, spendBalls, startZone, stayInZone, walk, zoneBudget } from './safari-zone'
 import type { Direction, Point, WalkResult, ZoneEvent, ZoneGame } from './safari-zone'
 import { useStepWalker } from './step-walker'
 import { SafariWorld } from './SafariWorld'
@@ -22,7 +22,7 @@ const native = Platform.OS !== 'web'
 // How long a Pokemon you walked into looks at you, "!" overhead, before its battle opens.
 const FOCUS_MS = 700
 // A tap route stops at anything worth a look, and at any bump.
-const STOPS: ZoneEvent[] = ['encounter', 'item', 'gate', 'out-of-steps']
+const STOPS: ZoneEvent[] = ['encounter', 'help', 'item', 'gate', 'out-of-steps']
 type Props = {
   zone?: Zone, bonusKm: number, bonusNote: string, record: string, goal?: string, dex: Record<string, DexRecord>,
   buddy: { name: string, shiny: boolean } | null, onCatch: (name: string, shiny: boolean) => Promise<void>, onComplete: (catches: number) => void,
@@ -133,6 +133,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   if (!game) return <View style={{ gap: 14 }}>
     <Heading>Safari Zone</Heading>
     <Copy>Walk the Safari Zone with your buddy. Wild Pokemon roam in the open, a few at a time, and some are Shiny. Walk into one to make it notice you, then weaken it with your buddy and throw a Safari Ball. Catches join your Dex with a ◎ Safari mark.</Copy>
+    <Copy small>Three helper Pokemon wait by the places that need them: walk into Lapras by the river to ride across water, Ampharos by the cave to light it with Flash, and Flygon by the desert path for goggles against the sandstorm.</Copy>
     <Copy small>Switching tabs or leaving the app pauses the hunt. Returning to the arcade ends it.</Copy>
     <Panel>
       <Copy color={colors.gold}>{record}</Copy>
@@ -165,6 +166,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
   const chain = game.chain.count ? `Chain: ${game.chain.name} ×${game.chain.count}` : ''
   const message = game.prompt ? '' : game.message
   const nearby = game.wilds.length ? `Nearby: ${game.wilds.map(wild => `${wild.shiny ? '✦ Shiny ' : ''}${wild.name}`).join(', ')}` : 'No Pokemon nearby yet'
+  const helping = `Helpers: ${Object.values(HELPERS).map(helper => `${game.helps.includes(helper.help) ? '✓ ' : ''}${helper.name}`).join(' · ')}`
   const partner = buddy ?? { name: LOANERS[3], shiny: false }
   const battle = battling && encounter ? <LegendaryBattle key={encounter.id} foe={encounter} partner={partner} number={0} reduced={reduced}
     safari={{ balls: game.balls, ...wildRules(encounter.name) }} caughtNote={news} onBalls={balls => act(round => spendBalls(round, balls))}
@@ -183,7 +185,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
         reduced={reduced} tapToWalk={safariControls === 'tap' && walking} onTapTile={tapTile} miss={miss} />
     </Animated.View>}
     hud={`Steps ${game.steps} · Balls ${game.balls} · Caught ${game.catches.length} · ${areaName}`}
-    status={[message, news, nearby, chain].filter(Boolean).join('\n')}
+    status={[message, news, nearby, helping, chain].filter(Boolean).join('\n')}
     dpad={safariControls === 'dpad' ? <DPad overlay reduced={reduced} onPress={press} onRelease={release} disabled={!walking} /> : null}
     // The chips stack up from the corner: Leave lowest.
     actions={[
@@ -205,6 +207,7 @@ export function SafariZone({ zone, bonusKm, bonusNote, record, goal, dex, buddy,
       </View>
       <Text style={zoneLook.area}>{areaName}</Text>
       {!battling && <Text accessibilityLiveRegion="polite" numberOfLines={1} style={zoneLook.nearby}>{nearby}</Text>}
+      {!battling && <Text numberOfLines={1} style={zoneLook.nearby}>{helping}</Text>}
       {!!chain && <Copy small color={colors.gold}>{chain}</Copy>}
     </View>
 

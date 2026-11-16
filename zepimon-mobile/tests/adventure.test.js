@@ -54,8 +54,8 @@ test('free play covers every type and new arcade scores stay within their limits
   assert.deepEqual(restoreScores({ guard: 10, trail: 13, safari: 4, quiz: 3 }), { guard: 10, safari: 4, quiz: 3 })
 })
 
-test('Safari Zone scores allow every ball a round can hold: 24, the walking bonus and 12 items', () => {
-  assert.equal(SCORE_LIMITS.safari, 78)
-  assert.deepEqual(restoreScores({ safari: 78 }), { safari: 78 })
-  assert.deepEqual(restoreScores({ safari: 79 }), {})
+test('Safari Zone scores allow every ball a round can hold: 24, the walking bonus and 15 items', () => {
+  assert.equal(SCORE_LIMITS.safari, 87)
+  assert.deepEqual(restoreScores({ safari: 87 }), { safari: 87 })
+  assert.deepEqual(restoreScores({ safari: 88 }), {})
 })

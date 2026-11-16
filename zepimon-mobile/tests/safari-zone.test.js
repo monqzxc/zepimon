@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAX_WILD, ROAM_MS, ROAM_SPREAD_MS, SPAWN_FAR, SPAWN_MS, SPAWN_NEAR, WANDER_OFF, areaAt, catchWild, confirmLeave, isWalkable, leaveWild,
+import { HELPERS, terrain, MAX_WILD, ROAM_MS, ROAM_SPREAD_MS, SPAWN_FAR, SPAWN_MS, SPAWN_NEAR, WANDER_OFF, areaAt, catchWild, confirmLeave, isWalkable, leaveWild,
   planHunt, planWalk, pointKey, reachableFrom, roam, safariMap, spendBalls, startZone, stayInZone, tileAt, walk, zoneBudget, routeSearch,
   routeTo } from '../src/games/safari-zone.ts'
 import { ZONES, pauseSafari } from '../src/games/safari.ts'
@@ -12,7 +12,7 @@ const rolls = (...values) => () => values.shift() ?? 0.5
 function fixture(tiles, areas = tiles.map(row => [...row].map(c => '@G#'.includes(c) ? 'g' : 'm').join(''))) {
   const y = tiles.findIndex(row => row.includes('@')), at = { x: tiles[y].indexOf('@'), y }
   return { cols: tiles[0].length, rows: tiles.length, chunk: 8, tiles, areas, chunks: {},
-    starts: { gate: at, meadow: at, lake: at, mountain: at, night: at } }
+    starts: { gate: at, meadow: at, lake: at, desert: at, night: at, cave: at } }
 }
 const place = (game, x, y, facing = 'north') => ({ ...game, at: { x, y }, buddy: { x, y }, facing })
 const ROOM = fixture([
@@ -56,7 +56,7 @@ test('bumping costs nothing and names what is in the way', () => {
   const tree = go(place(g, 1, 1), 'north')
   assert.deepEqual([tree.move, tree.game.steps, tree.game.facing, tree.game.message], ['bump', 800, 'north', 'A tree is in the way.'])
   assert.equal(go(place(g, 2, 1), 'south').game.message, 'A boulder is in the way.')
-  assert.equal(go(place(g, 5, 1), 'south').game.message, 'The water is too deep to cross.')
+  assert.equal(go(place(g, 5, 1), 'south').game.message, 'The water is too deep to cross. Lapras, by the river, could carry you.')
   const edge = fixture(['@.'])
   const outside = go(startZone('gate', 0, 0, edge), 'north', edge)
   assert.deepEqual([outside.move, outside.game.message], ['bump', 'A wall is in the way.'])
@@ -166,7 +166,7 @@ test('a wild Pokemon strolls one tile at a time over open ground and grass, or r
   assert.deepEqual([blocked.at, blocked.facing, blocked.steps], [{ x: 2, y: 1 }, 'north', 0], 'A tree: it only turns')
 })
 
-test('a wild Pokemon never steps onto the trainer, the buddy, another Pokemon or the gate area', () => {
+test('a wild Pokemon never steps onto the trainer, the buddy or another Pokemon, or out of its area', () => {
   const south = [0.9, 0.5, 0.3]
   const at = (game, random) => roam(game, 900, rolls(...random), FIELD).wilds[0].at
   const base = { ...place(f, 6, 1), buddy: { x: 6, y: 1 }, spawnAt: 99999 }
@@ -177,7 +177,7 @@ test('a wild Pokemon never steps onto the trainer, the buddy, another Pokemon or
   assert.deepEqual(at({ ...base, wilds: [wild(3, 2, { moveAt: 900 })] }, south), { x: 3, y: 3 }, 'Open ground in the meadow')
   const gated = fixture(['TTTTT', 'T.g.T', 'T.@.T', 'TTGTT'])
   const moved = roam({ ...place(startZone('gate', 0, 0, gated), 1, 2), wilds: [wild(2, 1, { moveAt: 900 })], spawnAt: 99999 }, 900, rolls(...south), gated)
-  assert.deepEqual(moved.wilds[0].at, { x: 2, y: 1 }, 'The gate area is out of bounds')
+  assert.deepEqual(moved.wilds[0].at, { x: 2, y: 1 }, 'It stays in the area it lives in')
 })
 
 test('a Pokemon left more than 10 tiles behind wanders off, making room for a new one', () => {
@@ -214,6 +214,75 @@ test('a Pokemon standing below a ledge blocks the hop', () => {
 })
 
 const met = east({ ...place(f, 2, 2), wilds: [wild(3, 2), wild(6, 1, { id: 2, name: 'Rattata' })] }).game
+
+// m meadow, k desert, c cave; L Lapras, F Ampharos, D Flygon.
+const WILDS = fixture([
+  'TTTTTTTTTT',
+  'T..~~....T',
+  'T.L~~.D..T',
+  'T..~~....T',
+  'T@....F..T',
+  'TGTTTTTTTT'], ['mmmmmmmkkk', 'mmmmmmmkkk', 'mmmmmmmkkk', 'mmmmmmmccc', 'mgmmmmmccc', 'mgmmmmmmmm'])
+const w = { ...startZone('gate', 0, 0, WILDS), area: 'meadow' }
+const step = (game, direction) => walk(game, direction, WILDS)
+
+test('walking into a helper Pokemon gets its help for the round, once, at no cost', () => {
+  assert.deepEqual(w.helps, [])
+  const asked = step(place(w, 1, 2), 'east')
+  assert.deepEqual([asked.move, asked.events, asked.game.helps, asked.game.steps, asked.game.at], ['bump', ['help'], ['ride'], 800, { x: 1, y: 2 }])
+  assert.equal(asked.game.message, HELPERS.L.offer)
+  const again = step(asked.game, 'east')
+  assert.deepEqual([again.move, again.events, again.game.helps, again.game.message], ['bump', [], ['ride'], 'Lapras is already helping you.'])
+  assert.deepEqual(step(place(asked.game, 5, 4), 'east').game.helps, ['ride', 'flash'])
+  assert.deepEqual(step(place(w, 6, 3), 'north').game.helps, ['goggles'])
+  assert.deepEqual(startZone('gate', 0, 0, WILDS).helps, [], 'A new round starts with no help')
+})
+
+test('water is crossed only on Lapras; the buddy waits out of sight and falls in behind after landing', () => {
+  const dry = step(place(w, 2, 1), 'east')
+  assert.deepEqual([dry.move, dry.game.at], ['bump', { x: 2, y: 1 }])
+  const rider = { ...place(w, 2, 1), helps: ['ride'] }
+  const afloat = step(rider, 'east')
+  assert.deepEqual([afloat.move, afloat.game.at, afloat.game.buddy, afloat.game.steps, afloat.game.message], ['step', { x: 3, y: 1 }, { x: 3, y: 1 }, 799, 'You climbed onto Lapras.'])
+  const across = step(step(afloat.game, 'east').game, 'east')
+  assert.deepEqual([across.game.at, across.game.buddy], [{ x: 5, y: 1 }, { x: 5, y: 1 }], 'Just landed')
+  assert.deepEqual(step(across.game, 'east').game.buddy, { x: 5, y: 1 })
+})
+
+test('the sandstorm keeps you out of the desert until Flygon gives you goggles', () => {
+  const stopped = step(place(w, 6, 1), 'east')
+  assert.deepEqual([stopped.move, stopped.game.at, stopped.game.steps], ['bump', { x: 6, y: 1 }, 800])
+  assert.equal(stopped.game.message, 'The sandstorm is too fierce to walk into. Flygon, by the desert path, has goggles to spare.')
+  const lurking = { ...place(w, 6, 1), wilds: [wild(7, 1)] }
+  assert.equal(step(lurking, 'east').game.encounter, null, 'Nor can you reach a Pokemon inside it')
+  const entered = step({ ...place(w, 6, 1), helps: ['goggles'] }, 'east')
+  assert.deepEqual([entered.move, entered.game.area, entered.game.message], ['step', 'desert', 'You entered the Sandstorm desert.'])
+  const inside = { ...place(w, 8, 1), area: 'desert' }
+  assert.equal(step(inside, 'south').move, 'step', 'A round that starts in the desert walks it freely')
+})
+
+test('the cave can be entered in the dark, and says who knows Flash', () => {
+  const lit = step({ ...place(w, 6, 3), helps: ['flash'] }, 'east')
+  assert.deepEqual([lit.move, lit.game.area, lit.game.message], ['step', 'cave', 'You entered the Dark cave.'])
+  const unlit = step(place(w, 6, 3), 'east')
+  assert.equal(unlit.game.message, 'You entered the Dark cave. It is pitch dark! Ampharos, by the cave door, knows Flash.')
+})
+
+test('Pokemon only come out where you can get to, and tap routes use water and desert only with the right help', () => {
+  const start = { ...place(w, 1, 1), spawnAt: 0 }
+  for (let seed = 0; seed < 20; seed++) {
+    const out = roam(start, 0, always(seed / 20), WILDS).wilds[0]
+    assert.equal(tileAt(out.at, WILDS), '.', `${pointKey(out.at)} is open ground`)
+    assert.notEqual(areaAt(out.at, WILDS), 'desert', `${pointKey(out.at)} is outside the sandstorm`)
+  }
+  assert.equal(planHunt(place(w, 1, 1), { x: 5, y: 1 }, WILDS).length, 10, 'Round by the south bank')
+  assert.deepEqual(planHunt({ ...place(w, 1, 1), helps: ['ride'] }, { x: 5, y: 1 }, WILDS), ['east', 'east', 'east', 'east'])
+  assert.equal(planHunt(place(w, 5, 1), { x: 8, y: 1 }, WILDS), null)
+  assert.deepEqual(planHunt({ ...place(w, 5, 1), helps: ['goggles'] }, { x: 8, y: 1 }, WILDS), ['east', 'east', 'east'])
+  const toLapras = planHunt(place(w, 1, 4), { x: 2, y: 2 }, WILDS)
+  const asked = toLapras.reduce((game, direction) => step(game, direction).game, place(w, 1, 4))
+  assert.deepEqual(asked.helps, ['ride'], 'Tapping a helper walks up to it and into it')
+})
 
 test('a caught Pokemon leaves the map, joins the catches and builds the Shiny chain', () => {
   const thrown = spendBalls(met, 22)
@@ -309,8 +378,24 @@ test('unreachable targets give null', () => {
 
 const everywhere = char => safariMap.tiles.flatMap((row, y) => [...row].flatMap((c, x) => c === char ? [{ x, y }] : []))
 
-test('on the real map, every grass tile, item and start can be reached from the gate', () => {
-  const reachable = reachableFrom(safariMap.starts.gate)
+const ALL = ['ride', 'flash', 'goggles']
+const helped = terrain({ helps: ALL, at: safariMap.starts.gate })
+
+test('on the real map, every helper Pokemon can be walked up to with no help at all', () => {
+  const bare = reachableFrom(safariMap.starts.gate, terrain({ helps: [], at: safariMap.starts.gate }))
+  for (const char of Object.keys(HELPERS)) {
+    const [at] = everywhere(char)
+    assert.ok([[0, -1], [0, 1], [-1, 0], [1, 0]].some(([dx, dy]) => bare.has(`${at.x + dx},${at.y + dy}`)), `${HELPERS[char].name} can be reached`)
+  }
+  assert.ok(everywhere('o').filter(point => bare.has(pointKey(point))).length < everywhere('o').length, 'Some items need a helper')
+  assert.ok(!bare.has(pointKey(safariMap.starts.desert)), 'The desert is closed without goggles')
+  assert.ok(bare.has(pointKey(safariMap.starts.cave)), 'The cave is only dark')
+  const far = everywhere('g').filter(point => point.x > 55 && point.y > 30)
+  assert.ok(far.length > 0 && far.every(point => !bare.has(pointKey(point))), 'The far bank needs Lapras')
+})
+
+test('on the real map, every grass tile, item and start can be reached from the gate with the helpers', () => {
+  const reachable = reachableFrom(safariMap.starts.gate, helped)
   for (const point of [...everywhere('g'), ...everywhere('o'), ...Object.values(safariMap.starts)]) {
     assert.ok(reachable.has(pointKey(point)), `${pointKey(point)} (${tileAt(point)}) is unreachable`)
   }
@@ -319,9 +404,9 @@ test('on the real map, every grass tile, item and start can be reached from the 
 
 test('on the real map, no ledge traps you: the gate is reachable from everywhere you can go', () => {
   const gate = everywhere('G')[0]
-  for (const key of reachableFrom(safariMap.starts.gate)) {
+  for (const key of reachableFrom(safariMap.starts.gate, helped)) {
     const [x, y] = key.split(',').map(Number)
-    assert.ok(planWalk({ x, y }, gate), `no way back to the gate from ${key}`)
+    assert.ok(planWalk({ x, y }, gate, helped), `no way back to the gate from ${key}`)
   }
 })
 

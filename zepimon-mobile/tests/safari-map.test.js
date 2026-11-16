@@ -39,15 +39,15 @@ test('the Safari map is a 64 x 64 grid of known tiles with matching areas', () =
   assert.equal(safariMap.tiles.length, 64)
   assert.equal(safariMap.areas.length, 64)
   for (let y = 0; y < 64; y++) {
-    assert.match(safariMap.tiles[y], /^[.gT~RFv<>oSG#@1234]{64}$/, `tiles row ${y}`)
-    assert.match(safariMap.areas[y], /^[gmlkn]{64}$/, `areas row ${y}`)
+    assert.match(safariMap.tiles[y], /^[.gT~RFDLv<>oSG#@12345]{64}$/, `tiles row ${y}`)
+    assert.match(safariMap.areas[y], /^[gmlknc]{64}$/, `areas row ${y}`)
   }
 })
 
 test('each area has its start, sign, three items and 6-8 grass patches; the gate area has none', () => {
-  const area = { meadow: 'm', lake: 'l', mountain: 'k', night: 'n' }
-  const digit = { meadow: '1', lake: '2', mountain: '3', night: '4' }
-  assert.equal(count('o'), 12)
+  const area = { meadow: 'm', lake: 'l', desert: 'k', night: 'n' }
+  const digit = { meadow: '1', lake: '2', desert: '3', night: '4' }
+  assert.equal(count('o'), 15)
   for (const [name, letter] of Object.entries(area)) {
     assert.deepEqual(positions(digit[name]), [safariMap.starts[name]])
     assert.equal(areaOf(safariMap.starts[name]), letter)
@@ -63,6 +63,33 @@ test('each area has its start, sign, three items and 6-8 grass patches; the gate
   assert.equal(positions('g').filter(p => areaOf(p) === 'g').length, 0, 'no grass in the gate area')
   assert.ok(positions('~').filter(p => areaOf(p) === 'l').length >= 100, 'Lakeside has its lakes')
   assert.ok(count('v') + count('<') + count('>') >= 3, 'ledges')
+})
+
+test('the cave is floor, boulders and three items, with its own start; a river runs the length of the lakeside', () => {
+  const cave = safariMap.tiles.flatMap((row, y) => [...row].filter((_, x) => safariMap.areas[y][x] === 'c'))
+  assert.ok(cave.every(tile => '.Ro5'.includes(tile)))
+  assert.ok(cave.filter(tile => tile === '.').length >= 250, 'room to walk')
+  assert.equal(cave.filter(tile => tile === 'o').length, 3)
+  assert.deepEqual(positions('5'), [safariMap.starts.cave])
+  assert.equal(areaOf(safariMap.starts.cave), 'c')
+  const lakeRows = safariMap.areas.map((row, y) => row.includes('l') ? y : -1).filter(y => y >= 0)
+  for (const y of lakeRows.filter(y => y < 62)) assert.ok(safariMap.tiles[y].slice(52, 56) === '~~~~', `the river crosses row ${y}`)
+})
+
+test('each helper Pokemon stands once, just outside the place it helps with', () => {
+  const near = (char, letter, reach = 3) => {
+    const [at] = positions(char)
+    assert.equal(positions(char).length, 1, char)
+    assert.notEqual(areaOf(at), letter, `${char} waits outside`)
+    let found = false
+    for (let y = at.y - reach; y <= at.y + reach; y++) for (let x = at.x - reach; x <= at.x + reach; x++) if (safariMap.areas[y]?.[x] === letter) found = true
+    assert.ok(found, `${char} is within ${reach} tiles of area ${letter}`)
+    return at
+  }
+  near('F', 'c'); near('D', 'k')
+  const lapras = positions('L')[0]
+  assert.equal(positions('L').length, 1)
+  assert.ok([-1, 1].some(dx => safariMap.tiles[lapras.y][lapras.x + dx] === '~'), 'Lapras waits on the river bank')
 })
 
 test('every chunk has a ground image of the right size, and a top image only when flagged', () => {

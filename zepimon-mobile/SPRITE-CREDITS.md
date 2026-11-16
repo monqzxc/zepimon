@@ -23,7 +23,7 @@ The Safari Zone's art comes from the same repository, [rh-hideout/pokeemerald-ex
 - Brendan's and May's walking sheets (`graphics/object_events/pics/people/`), recoloured for Zepimon: a purple-and-white cap and a black-and-white shirt. Only the cap and shirt rows change; bags, shoes, skin and hair keep Emerald's colours.
 - The tall grass, ground dust and shadow field effects (`graphics/field_effects/pics/`), the item ball (`graphics/object_events/pics/misc/`) and the Safari Ball (`graphics/balls/`).
 - The long grass and pond battle backgrounds (`graphics/battle_environment/`), drawn from their tilemaps and palettes.
-- The map tiles: the General and Lilycove tilesets (`data/tilesets/`), the pair Emerald's own Safari Zone uses, arranged into our own layout in `scripts/safari/`. Rocks are Emerald's Safari Zone rock tiles.
+- The map tiles: the General and Lilycove tilesets (`data/tilesets/`), the pair Emerald's own Safari Zone uses, arranged into our own layout in `scripts/safari/`, and the Cave tileset's floor and boulders for the Dark cave. Rocks are Emerald's Safari Zone rock tiles.
 
 # Adventure route
 

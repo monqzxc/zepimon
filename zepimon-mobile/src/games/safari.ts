@@ -3,7 +3,7 @@ import type { DexRecord, Journal } from '../journal.ts'
 
 export const SAFARI_BALLS = 24
 
-export type Zone = 'meadow' | 'lake' | 'mountain' | 'night'
+export type Zone = 'meadow' | 'lake' | 'desert' | 'night' | 'cave'
 // The wild Pokemon that has noticed you (safari-zone.ts keeps where it stands), until its battle ends.
 export type Encounter = { id: number, name: string, shiny: boolean }
 export type SafariCatch = { name: string, shiny: boolean }
@@ -15,8 +15,9 @@ export type SafariGame = {
 export const ZONES: Record<Zone, { label: string, habitat: string, types: string[], blurb: string }> = {
   meadow: { label: 'Sunny meadow', habitat: 'grass', types: ['normal', 'grass', 'bug', 'electric', 'fairy'], blurb: 'Grass, Bug, Normal, Electric and Fairy types' },
   lake: { label: 'Lakeside', habitat: 'water', types: ['water', 'ice'], blurb: 'Water and Ice types' },
-  mountain: { label: 'Rocky mountain', habitat: 'rock', types: ['rock', 'ground', 'fighting', 'steel', 'fire', 'dragon'], blurb: 'Rock, Ground, Fighting, Steel, Fire and Dragon types' },
-  night: { label: 'Night forest', habitat: 'ghost', types: ['ghost', 'dark', 'poison', 'psychic'], blurb: 'Ghost, Dark, Poison and Psychic types' }
+  desert: { label: 'Sandstorm desert', habitat: 'ground', types: ['ground', 'fire', 'dragon'], blurb: 'Ground, Fire and Dragon types' },
+  night: { label: 'Night forest', habitat: 'ghost', types: ['ghost', 'dark', 'poison', 'psychic'], blurb: 'Ghost, Dark, Poison and Psychic types' },
+  cave: { label: 'Dark cave', habitat: 'rock', types: ['rock', 'steel', 'fighting'], blurb: 'Rock, Steel and Fighting types' }
 }
 const pools = Object.fromEntries(Object.entries(ZONES).map(([zone, { types }]) => [zone, wildPool(types)])) as Record<Zone, ReturnType<typeof wildPool>>
 
