@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { HELPERS, terrain, MAX_WILD, ROAM_MS, ROAM_SPREAD_MS, SPAWN_FAR, SPAWN_MS, SPAWN_NEAR, WANDER_OFF, areaAt, confirmLeave, isWalkable,
   planHunt, planWalk, pointKey, reachableFrom, roam, runAway, safariMap, startZone, stayInZone, throwBall, throwBerry, throwRock, tileAt, walk, zoneBudget,
   routeSearch, routeTo } from '../src/games/safari-zone.ts'
-import { RING_MS, ZONES, likesBerry, pauseSafari } from '../src/games/safari.ts'
+import { RING_MS, ZONES, likesBerry, livesInWater, pauseSafari } from '../src/games/safari.ts'
 import { wildPool } from '../src/games/roster.ts'
 
 const always = value => () => value
@@ -463,4 +463,43 @@ test('on the real map, Pokemon come out in every area but the gate, each from it
       assert.ok(planWalk(game.at, item.at), `${item.name} can be reached`)
     }
   }
+})
+
+// A lake ('l' area): a pond whose rim touches the bank, with deep water (x 4-7, y 3) out of reach from the shore.
+const LAKE = fixture([
+  'TTTTTTTTTTTT',
+  'T..........T',
+  'T..~~~~~~..T',
+  'T..~~~~~~..T',
+  'T..~~~~~~..T',
+  'T@.........T',
+  'TGTTTTTTTTTT'], ['gggggggggggg', 'gllllllllllg', 'gllllllllllg', 'gllllllllllg', 'gllllllllllg', 'ggllllllllll', 'gggggggggggg'])
+const lk = { ...startZone('gate', 0, 0, LAKE), area: 'lake' }
+const deep = point => point.y === 3 && point.x >= 4 && point.x <= 7
+
+test('water Pokemon walk out only on water, land Pokemon only on land, and never out of reach', () => {
+  const spawns = helps => Array.from({ length: 40 }, (_, seed) => roam({ ...place(lk, 1, 1), helps, spawnAt: 0 }, 0, always(seed / 40), LAKE).wilds[0])
+  const onFoot = spawns([])
+  for (const out of onFoot) {
+    assert.equal(tileAt(out.at, LAKE), livesInWater(out.name) ? '~' : '.', `${out.name} at ${pointKey(out.at)}`)
+    assert.ok(!deep(out.at), `${out.name} at ${pointKey(out.at)} can be reached from the bank`)
+  }
+  assert.ok(onFoot.some(out => livesInWater(out.name)) && onFoot.some(out => !livesInWater(out.name)), 'Both kinds come out')
+  const riding = spawns(['ride'])
+  for (const out of riding) assert.equal(tileAt(out.at, LAKE), livesInWater(out.name) ? '~' : '.')
+  assert.ok(riding.some(out => deep(out.at)), 'On Lapras the open water is in reach too')
+})
+
+test('a water Pokemon swims about the water and never comes ashore', () => {
+  const fish = { id: 1, name: 'Magikarp', shiny: false, at: { x: 3, y: 2 }, facing: 'south', steps: 0, moveAt: 900 }
+  const game = { ...place(lk, 1, 1), wilds: [fish], spawnAt: 99999 }
+  assert.deepEqual(roam(game, 900, rolls(0.9, 0.5, 0.1), LAKE).wilds[0].at, { x: 3, y: 2 }, 'Not onto the bank')
+  assert.deepEqual(roam(game, 900, rolls(0.9, 0.5, 0.9), LAKE).wilds[0].at, { x: 4, y: 2 }, 'Along the water')
+})
+
+test('you meet a water Pokemon by walking into it from the bank, and tapping it walks you there', () => {
+  const fish = { id: 1, name: 'Magikarp', shiny: false, at: { x: 5, y: 2 }, facing: 'south', steps: 0, moveAt: 99999 }
+  const met = walk({ ...place(lk, 5, 1), wilds: [fish] }, 'south', LAKE)
+  assert.deepEqual([met.events, met.game.encounter?.name, met.game.wilds[0].at], [['encounter'], 'Magikarp', { x: 5, y: 3 }])
+  assert.deepEqual(planHunt({ ...place(lk, 1, 1), wilds: [fish] }, { x: 5, y: 2 }, LAKE), ['east', 'east', 'east', 'east', 'south'])
 })

@@ -1,6 +1,6 @@
 import { ZONES } from './safari.ts'
 import type { Encounter, Mood, SafariCatch, Zone } from './safari.ts'
-import { HELPERS, ROAM_MS, SPAWN_MS, areaAt, isRoamable, isWalkable, pointKey, safariMap, startZone, terrain, tileAt } from './safari-zone.ts'
+import { HELPERS, ROAM_MS, SPAWN_MS, areaAt, isWalkable, standsOn, pointKey, safariMap, startZone, terrain, tileAt } from './safari-zone.ts'
 import type { Direction, Help, Point, SafariMap, Wild, ZoneGame } from './safari-zone.ts'
 
 // Continuing a Safari Zone round later, even after the phone restarts. A round is saved while it can still be played
@@ -61,7 +61,7 @@ export function restoreRound(raw: unknown, now: number, map = safariMap): ZoneGa
     const raw = record(item)
     const spot = point(raw?.at, map)
     if (!raw || !spot || !whole(raw.id, 1) || !named(raw.name) || typeof raw.shiny !== 'boolean' || !facing(raw.facing) || !whole(raw.steps) ||
-        !isRoamable(tileAt(spot, map)) || taken.has(pointKey(spot))) return []
+        !standsOn(raw.name, tileAt(spot, map)) || taken.has(pointKey(spot))) return []
     taken.add(pointKey(spot))
     return [{ id: raw.id as number, name: raw.name, shiny: raw.shiny, at: spot, facing: raw.facing, steps: raw.steps as number, moveAt: now + ROAM_MS }]
   })
