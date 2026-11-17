@@ -20,7 +20,8 @@ import { Button, Chip, Copy, Panel, Screen, Title, colors, fonts, themedStyles, 
 // Narrow enough that the preview and the first choices fit on a phone screen together.
 const PREVIEW_WIDTH = 280
 const DESIGNS: [CardDesign, string, string][] = [['classic', 'Classic', 'Your stats over the route, like Strava.'],
-  ['split', 'Split', 'The route on top, your Pokemon and stats below.']]
+  ['split', 'Split', 'The route on top, your Pokemon and stats below.'],
+  ['starter', 'Starter', 'Your Pokemon as a starter pick over the Zepimon logo, with the run as its Dex entry.']]
 const STYLES: [SpriteStyle, string][] = [['default', 'Default'], ['front', 'Facing front'], ['running', 'Running']]
 const SIZES: [SpriteSize, string][] = [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['huge', 'Extra large']]
 const BACKGROUNDS: [CardBackground, string][] = [['dark', 'Dark'], ['clear', 'Clear'], ['habitat', 'Habitat']]

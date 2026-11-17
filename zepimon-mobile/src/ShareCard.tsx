@@ -5,8 +5,8 @@ import type { ImageSourcePropType, TextStyle } from 'react-native'
 import { router } from 'expo-router'
 import { Asset } from 'expo-asset'
 import { File } from 'expo-file-system'
-import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg'
-import { pokemonType, spriteSource, typeColors } from './catalog'
+import Svg, { Circle, Defs, Ellipse, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg'
+import { dexNumber, pokemonType, spriteSource, typeColors } from './catalog'
 import { trailWalkers } from './generated/trail-walkers.js'
 import { walkingFrames } from './generated/walking.js'
 import { averagePace, km, recordForm } from './journal'
@@ -27,8 +27,9 @@ export const CARD_PIXELS = [1080, 1920] as const
 // The card is laid out at its pixel size, so a capture is 1080 × 1920 without resampling. Previews shrink it.
 export const cardWidth = () => CARD_PIXELS[0] / PixelRatio.get()
 
-// classic puts the stats over the route, like Strava; split puts the route on top and the Pokemon and stats below.
-export type CardDesign = 'classic' | 'split'
+// classic puts the stats over the route, like Strava; split puts the route on top and the Pokemon and stats below;
+// starter shows the Pokemon as a starter pick over a big Zepimon wordmark, with the run as its Dex entry.
+export type CardDesign = 'classic' | 'split' | 'starter'
 // default is the battle sprite; front is the overworld sprite as the Dex shows it, and running the same sprite seen
 // from the side, mid-stride to the right.
 export type SpriteStyle = 'default' | 'front' | 'running'
@@ -162,12 +163,13 @@ export function ShareCard({ ref, width, ...props }: CardProps & { ref?: Ref<View
       .filter(Boolean).join(' · ').toUpperCase(),
     shown: Object.fromEntries(details.filter(detail => available[detail]).map(detail => [detail, available[detail]]))
   }
+  const starter = props.options.design === 'starter'
   return <View ref={ref} collapsable={false} style={{ width, height: width * CARD_PIXELS[1] / CARD_PIXELS[0],
-    backgroundColor: background === 'dark' ? DARK : habitat ? habitat.sky : 'transparent' }}>
+    backgroundColor: background === 'dark' ? starter ? STARTER_SKY[0] : DARK : habitat ? habitat.sky : 'transparent' }}>
     {habitat && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: LANDSCAPE_HEIGHT * u }}>
       <Backdrop theme={habitat} platform={false} />
     </View>}
-    {props.options.design === 'classic' ? <Classic kit={kit} /> : <Split kit={kit} />}
+    {props.options.design === 'classic' ? <Classic kit={kit} /> : props.options.design === 'split' ? <Split kit={kit} /> : <Starter kit={kit} />}
   </View>
 }
 
@@ -231,6 +233,179 @@ function Split({ kit }: { kit: Kit }) {
         </View>)}
       </View>
       {!!notes && <Text allowFontScaling={false} style={[text(30, fonts.bold, 'rgba(255, 255, 255, 0.9)'), { marginTop: 30 * u }]}>{notes}</Text>}
+    </View>
+  </View>
+}
+
+// Starter: a "choose your starter" screen made from the adventure. A big arched Zepimon wordmark sits behind the
+// Pokemon, its neighbours in the evolution line peek in from the sides, and below come its Dex number, name, type,
+// the run's stats and a Dex-style entry written from the details picked on the share screen.
+const STARTER_SKY = ['#18202B', '#2A3848', '#5D7A96']
+const STARTER_SIZES: Record<SpriteSize, number> = { small: 380, medium: 520, large: 640, huge: 760 }
+const LOGO_FILL = '#FFD23F'
+const LOGO_EDGE = '#2452C8'
+const LOGO_DEPTH = '#0F2560'
+// The sprite stands on this line; the wordmark sits behind its upper half.
+const GROUND = 1050
+
+function Starter({ kit }: { kit: Kit }) {
+  const { u, text, title, shown, art, points, record, pokemon, family, facts, options } = kit
+  const dark = options.background === 'dark'
+  const habitat = options.background === 'habitat'
+  const type = pokemonType(pokemon)
+  const tint = typeColors[type] || typeColors.normal
+  const box = STARTER_SIZES[options.size]
+  // The forms either side of this one, as on a starter carousel: the egg comes before the first form.
+  const line = ['Egg', ...family]
+  const at = line.indexOf(pokemon)
+  const neighbours = [at > 0 ? line[at - 1] : null, at >= 0 && at < line.length - 1 ? line[at + 1] : null]
+  const finished = new Date(record.finishedAt)
+  const day = Number.isFinite(finished.getTime()) ? finished.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase() : ''
+  const activity = record.activity === 'running' ? 'Running' : record.activity ? 'Walking' : 'Adventure'
+  const entry = starterEntry(kit)
+  const stats = [['Distance', km(record.meters).replace(' km', ''), 'km'],
+    ['Pace', averagePace(record.elapsedSeconds, record.meters).replace(' /km', ''), '/km'], ['Time', cardTime(record.elapsedSeconds), '']]
+  // The swipe-up handle fits under a one-line entry (about 48 characters); a longer one leaves room only for a small wordmark.
+  const handle = entry.length <= 48
+  // Sized to the name, since the web cannot shrink text to fit: about 0.7 em a letter in the 600 px between the sides.
+  const nameSize = Math.min(112, Math.floor(600 / (title.length * 0.7)))
+  const best = shown.best && facts.bests.length > 1 ? `★ ${facts.bests.length} personal bests` : shown.best
+  return <View style={{ flex: 1 }}>
+    {dark && <View style={{ position: 'absolute', left: 0, top: 0 }}>
+      <Svg width={CARD_PIXELS[0] * u} height={CARD_PIXELS[1] * u} viewBox={`0 0 ${CARD_PIXELS[0]} ${CARD_PIXELS[1]}`}>
+        <Defs>
+          <LinearGradient id="starter-sky" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={STARTER_SKY[0]} /><Stop offset="0.55" stopColor={STARTER_SKY[1]} /><Stop offset="1" stopColor={STARTER_SKY[2]} />
+          </LinearGradient>
+          <RadialGradient id="starter-glow" cx="0.5" cy="0.5" r="0.5">
+            <Stop offset="0" stopColor={tint} stopOpacity={0.55} /><Stop offset="1" stopColor={tint} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect width={CARD_PIXELS[0]} height={CARD_PIXELS[1]} fill="url(#starter-sky)" />
+        <Circle cx={540} cy={GROUND - 300} r={520} fill="url(#starter-glow)" />
+      </Svg>
+    </View>}
+    {habitat && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 900 * u,
+      experimental_backgroundImage: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.6))', backgroundImage: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.6))' } as object} />}
+    {dark && neighbours.map((name, side) => name && <PeekCard key={side} kit={kit} name={name} side={side ? 'right' : 'left'} />)}
+    {points.length > 0 && <View style={{ position: 'absolute', left: 90 * u, top: 360 * u, opacity: habitat ? 0.6 : 0.35 }}>
+      <RouteArt kit={kit} width={900} height={GROUND - 340} />
+    </View>}
+
+    <Text allowFontScaling={false} style={[text(36, fonts.bold, 'rgba(255, 255, 255, 0.85)'),
+      { position: 'absolute', left: 96 * u, top: 120 * u, textAlign: 'left', fontStyle: 'italic' }]}>{`Your ${activity.toLowerCase()} buddy`}</Text>
+    <View style={{ position: 'absolute', left: 0, right: 0, top: 210 * u, alignItems: 'center' }}><Logo u={u} /></View>
+
+    <View style={{ position: 'absolute', left: 0, right: 0, top: (GROUND - box) * u, alignItems: 'center' }}>
+      <View style={{ position: 'absolute', top: (box - 34) * u, width: box * 0.62 * u, height: 56 * u }}>
+        <Svg width={box * 0.62 * u} height={56 * u} viewBox={`0 0 ${box * 0.62} 56`}>
+          <Ellipse cx={box * 0.31} cy={28} rx={box * 0.31} ry={22} fill="rgba(0, 0, 0, 0.35)" />
+        </Svg>
+      </View>
+      <SpriteArt art={art} kit={kit} box={box} />
+    </View>
+
+    <View style={{ position: 'absolute', left: 80 * u, right: 80 * u, top: (GROUND + 40) * u, alignItems: 'center' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', alignSelf: 'stretch' }}>
+        <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'left', marginBottom: 14 * u }]}>
+          {dexNumber(pokemon === 'Egg' ? family[0] : pokemon).replace('No. ', '#')}</Text>
+        <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit
+          style={[text(nameSize, fonts.black), { flex: 1, letterSpacing: 2 * u }]}>{title.toUpperCase()}</Text>
+        <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'right', marginBottom: 14 * u }]}>{day}</Text>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16 * u, marginTop: 14 * u }}>
+        <Pill u={u} label={shown.type ?? activity} dot={shown.type ? tint : ROUTE_COLORS[0]} />
+        {best && <Pill u={u} label={best} dot={STAR} />}
+      </View>
+      <View style={{ flexDirection: 'row', alignSelf: 'stretch', gap: 18 * u, marginTop: 36 * u }}>
+        {stats.map(([label, value, unit]) => <View key={label} style={{ flex: 1, alignItems: 'center', paddingVertical: 22 * u, borderRadius: 36 * u,
+          backgroundColor: 'rgba(255, 255, 255, 0.10)', borderWidth: 2 * u, borderColor: 'rgba(255, 255, 255, 0.18)' }}>
+          <Text allowFontScaling={false} style={[text(26, fonts.heavy, 'rgba(255, 255, 255, 0.75)'), { letterSpacing: 3 * u }]}>{label.toUpperCase()}</Text>
+          <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit style={[text(64, fonts.black), { maxWidth: 270 * u }]}>
+            {value}{!!unit && <Text style={{ fontFamily: fonts.heavy, fontSize: 30 * u }}> {unit}</Text>}</Text>
+        </View>)}
+      </View>
+      {!!entry && <Text allowFontScaling={false} style={[text(34, fonts.heavy, 'rgba(255, 255, 255, 0.92)'),
+        { textAlign: 'left', alignSelf: 'stretch', marginTop: 36 * u, lineHeight: 46 * u }]}>{entry}</Text>}
+    </View>
+    <View style={{ position: 'absolute', left: 0, right: 0, bottom: (handle ? 96 : 80) * u, alignItems: 'center' }}>
+      {handle ? <Handle u={u} tint={tint} /> : <Text allowFontScaling={false}
+        style={[text(30, fonts.black, 'rgba(255, 255, 255, 0.8)'), { letterSpacing: 8 * u }]}>ZEPIMON</Text>}
+    </View>
+  </View>
+}
+
+// The Dex entry: the run told as a sentence or two, then the details picked on the share screen.
+function starterEntry({ title, record, shown, pokemon }: Kit): string {
+  const moved = record.activity === 'walking' ? 'walked' : 'ran'
+  const name = pokemon === 'Egg' ? `This ${title.replace(/ egg$/, '')} egg` : title
+  const sentences = [`${name} ${moved} ${km(record.meters)} at ${averagePace(record.elapsedSeconds, record.meters)}.`]
+  if (shown.evolution) sentences.push(`It grew ${shown.evolution.split(' › ').join(' to ')} on the way.`)
+  if (shown.hatch) sentences.push(`${shown.hatch.replace('Hatched', 'The egg hatched')}.`)
+  if (shown.steps) sentences.push(`${shown.steps[0].toUpperCase()}${shown.steps.slice(1)} together.`)
+  if (shown.clock) sentences.push(`Out from ${shown.clock.replace(' – ', ' to ')}.`)
+  return sentences.join(' ')
+}
+
+// ZEPIMON in chunky arched letters: yellow over a blue outline and a deeper drop, each letter tilted along the arch.
+function Logo({ u }: { u: number }) {
+  const letters = [...'ZEPIMON']
+  const size = 168
+  const ring = Array.from({ length: 12 }, (_, i) => [Math.cos(i * Math.PI / 6) * 11, Math.sin(i * Math.PI / 6) * 11])
+  const face = { fontFamily: fonts.black, fontSize: size * u, lineHeight: size * 1.2 * u, includeFontPadding: false } as const
+  return <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+    {letters.map((letter, i) => {
+      const t = (i - (letters.length - 1) / 2) / ((letters.length - 1) / 2)
+      return <View key={i} style={{ marginHorizontal: -3 * u, transform: [{ translateY: -46 * (1 - t * t) * u }, { rotate: `${t * 7}deg` }] }}>
+        <Text allowFontScaling={false} style={[face, { position: 'absolute', left: 4 * u, top: 18 * u, color: LOGO_DEPTH }]}>{letter}</Text>
+        {ring.map(([x, y], j) => <Text key={j} allowFontScaling={false}
+          style={[face, { position: 'absolute', left: x * u, top: y * u, color: LOGO_EDGE }]}>{letter}</Text>)}
+        <Text allowFontScaling={false} style={[face, { color: LOGO_FILL }]}>{letter}</Text>
+      </View>
+    })}
+  </View>
+}
+
+// Another form of the line, as the next card on a carousel, cut off by the edge of the image.
+function PeekCard({ kit: { u }, name, side }: { kit: Kit, name: string, side: 'left' | 'right' }) {
+  const color = name === 'Egg' ? '#6B7A8A' : typeColors[pokemonType(name)] || typeColors.normal
+  const round = 56 * u
+  return <View style={{ position: 'absolute', top: 600 * u, [side]: 0, width: 150 * u, height: 640 * u, overflow: 'hidden', opacity: 0.75,
+    backgroundColor: color, [side === 'left' ? 'borderTopRightRadius' : 'borderTopLeftRadius']: round,
+    [side === 'left' ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: round }}>
+    <Text allowFontScaling={false} style={{ position: 'absolute', top: 120 * u, [side]: -90 * u, fontFamily: fonts.black, fontSize: 300 * u,
+      lineHeight: 360 * u, color: 'rgba(255, 255, 255, 0.16)' }}>{name[0]}</Text>
+  </View>
+}
+
+function Pill({ u, label, dot }: { u: number, label: string, dot: string }) {
+  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 * u, paddingLeft: 18 * u, paddingRight: 34 * u, paddingVertical: 12 * u,
+    borderRadius: 999, backgroundColor: 'rgba(10, 14, 20, 0.55)', borderWidth: 2 * u, borderColor: 'rgba(255, 255, 255, 0.12)' }}>
+    <View style={{ width: 40 * u, height: 40 * u, borderRadius: 20 * u, backgroundColor: dot, borderWidth: 6 * u, borderColor: 'rgba(255, 255, 255, 0.9)' }} />
+    <Text allowFontScaling={false} style={{ fontFamily: fonts.heavy, fontSize: 34 * u, lineHeight: 44 * u, color: WHITE }}>{label}</Text>
+  </View>
+}
+
+// A story's swipe-up handle: chevrons in a pill, ending in an orb in the Pokemon's type color.
+function Handle({ u, tint }: { u: number, tint: string }) {
+  return <View style={{ alignItems: 'center' }}>
+    <View style={{ width: 86 * u, paddingTop: 20 * u, paddingBottom: 62 * u, borderRadius: 43 * u, alignItems: 'center', gap: 6 * u,
+      backgroundColor: 'rgba(235, 240, 246, 0.9)' }}>
+      {[0, 1, 2].map(i => <Svg key={i} width={40 * u} height={22 * u} viewBox="0 0 40 22">
+        <Path d="M6 18 L20 5 L34 18" fill="none" stroke="#1E2733" strokeOpacity={0.45 + i * 0.2} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>)}
+    </View>
+    <View style={{ marginTop: -56 * u }}>
+      <Svg width={112 * u} height={112 * u} viewBox="0 0 124 124">
+        <Defs>
+          <RadialGradient id="starter-orb" cx="0.38" cy="0.32" r="0.75">
+            <Stop offset="0" stopColor={WHITE} stopOpacity={0.55} /><Stop offset="0.35" stopColor={tint} /><Stop offset="1" stopColor={tint} />
+          </RadialGradient>
+        </Defs>
+        <Circle cx={62} cy={62} r={56} fill="url(#starter-orb)" stroke={WHITE} strokeWidth={8} />
+        <Circle cx={62} cy={62} r={22} fill="none" stroke={WHITE} strokeWidth={8} />
+        <Circle cx={62} cy={62} r={8} fill={WHITE} />
+      </Svg>
     </View>
   </View>
 }
