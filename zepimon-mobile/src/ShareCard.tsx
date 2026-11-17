@@ -237,7 +237,7 @@ function Split({ kit }: { kit: Kit }) {
   </View>
 }
 
-// Starter: a "choose your starter" screen made from the adventure. A big arched Zepimon wordmark sits behind the
+// Starter: a "choose your starter" screen made from the adventure. A faint diagonal Zepimon watermark runs behind the
 // Pokemon, its neighbours in the evolution line peek in from the sides, and below come its Dex number, name, type,
 // the run's stats and a Dex-style entry written from the details picked on the share screen.
 const STARTER_SKY = ['#18202B', '#2A3848', '#5D7A96']
@@ -245,7 +245,7 @@ const STARTER_SIZES: Record<SpriteSize, number> = { small: 380, medium: 520, lar
 const LOGO_FILL = '#FFD23F'
 const LOGO_EDGE = '#2452C8'
 const LOGO_DEPTH = '#0F2560'
-// The sprite stands on this line; the wordmark sits behind its upper half.
+// The sprite stands on this line.
 const GROUND = 1050
 
 function Starter({ kit }: { kit: Kit }) {
@@ -288,13 +288,15 @@ function Starter({ kit }: { kit: Kit }) {
     {habitat && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 900 * u,
       experimental_backgroundImage: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.6))', backgroundImage: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.6))' } as object} />}
     {dark && neighbours.map((name, side) => name && <PeekCard key={side} kit={kit} name={name} side={side ? 'right' : 'left'} />)}
+    {/* The wordmark as a faint diagonal watermark across the sprite's half of the card. */}
+    <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: (GROUND + 160) * u, alignItems: 'center', justifyContent: 'center',
+      opacity: habitat ? 0.18 : 0.14, transform: [{ rotate: '-32deg' }, { scale: 1.2 }] }}><Logo u={u} arch={false} /></View>
     {points.length > 0 && <View style={{ position: 'absolute', left: 90 * u, top: 360 * u, opacity: habitat ? 0.6 : 0.35 }}>
       <RouteArt kit={kit} width={900} height={GROUND - 340} />
     </View>}
 
     <Text allowFontScaling={false} style={[text(36, fonts.bold, 'rgba(255, 255, 255, 0.85)'),
       { position: 'absolute', left: 96 * u, top: 120 * u, textAlign: 'left', fontStyle: 'italic' }]}>{`Your ${activity.toLowerCase()} buddy`}</Text>
-    <View style={{ position: 'absolute', left: 0, right: 0, top: 210 * u, alignItems: 'center' }}><Logo u={u} /></View>
 
     <View style={{ position: 'absolute', left: 0, right: 0, top: (GROUND - box) * u, alignItems: 'center' }}>
       <View style={{ position: 'absolute', top: (box - 34) * u, width: box * 0.62 * u, height: 56 * u }}>
@@ -347,16 +349,17 @@ function starterEntry({ title, record, shown, pokemon }: Kit): string {
   return sentences.join(' ')
 }
 
-// ZEPIMON in chunky arched letters: yellow over a blue outline and a deeper drop, each letter tilted along the arch.
-function Logo({ u }: { u: number }) {
+// ZEPIMON in chunky letters, yellow over a blue outline and a deeper drop; arched, each letter tilts along the arch.
+function Logo({ u, arch = true }: { u: number, arch?: boolean }) {
   const letters = [...'ZEPIMON']
   const size = 168
   const ring = Array.from({ length: 12 }, (_, i) => [Math.cos(i * Math.PI / 6) * 11, Math.sin(i * Math.PI / 6) * 11])
   const face = { fontFamily: fonts.black, fontSize: size * u, lineHeight: size * 1.2 * u, includeFontPadding: false } as const
   return <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
     {letters.map((letter, i) => {
-      const t = (i - (letters.length - 1) / 2) / ((letters.length - 1) / 2)
-      return <View key={i} style={{ marginHorizontal: -3 * u, transform: [{ translateY: -46 * (1 - t * t) * u }, { rotate: `${t * 7}deg` }] }}>
+      const t = arch ? (i - (letters.length - 1) / 2) / ((letters.length - 1) / 2) : 0
+      const lift = arch ? 1 - t * t : 0
+      return <View key={i} style={{ marginHorizontal: -3 * u, transform: [{ translateY: -46 * lift * u }, { rotate: `${t * 7}deg` }] }}>
         <Text allowFontScaling={false} style={[face, { position: 'absolute', left: 4 * u, top: 18 * u, color: LOGO_DEPTH }]}>{letter}</Text>
         {ring.map(([x, y], j) => <Text key={j} allowFontScaling={false}
           style={[face, { position: 'absolute', left: x * u, top: y * u, color: LOGO_EDGE }]}>{letter}</Text>)}
