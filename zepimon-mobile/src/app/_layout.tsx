@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { View } from 'react-native'
@@ -19,6 +19,7 @@ import { lockPortrait } from '../games/useImmersive'
 import { useTour, useTourLoaded } from '../tour'
 import { WelcomeTour } from '../WelcomeTour'
 import { CoachMarks } from '../CoachMarks'
+import { LaunchIntro } from '../LaunchIntro'
 
 // An error on any screen shows what happened, with Share, instead of closing the app.
 export const ErrorBoundary = CrashScreen
@@ -41,8 +42,11 @@ function Navigator() {
   // And for whether the welcome tour is due, so a first launch opens straight into it.
   const tourLoaded = useTourLoaded()
   const { welcome, coach } = useTour()
-  // The tour and the tips cover the app, which screen readers then leave alone.
-  const covered = welcome || !!coach
+  // The opening animation plays over the app as it loads, for at least three seconds (src/LaunchIntro.tsx).
+  const [intro, setIntro] = useState(true)
+  const endIntro = useCallback(() => setIntro(false), [])
+  // The intro, the tour and the tips cover the app, which screen readers then leave alone.
+  const covered = intro || welcome || !!coach
   const { colors: palette, dark } = useTheme()
   // React Navigation paints behind screens and during transitions in these colors.
   const navigationTheme = useMemo(() => {
@@ -52,10 +56,16 @@ function Navigator() {
   // The rounded Nunito weights and Emerald's pixel face ship with the app. If they ever fail to load, text falls back to
   // the system font.
   const [fontsLoaded, fontError] = useFonts({ Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold, Nunito_900Black, PixelifySans_600SemiBold })
-  if (!ready || !preferencesLoaded || !tourLoaded || (!fontsLoaded && !fontError)) return <Screen><View style={{ alignItems: 'center', gap: 20, paddingTop: 96 }}>
-    <PokeballLoader /><Copy>Opening your field journal…</Copy>
-  </View></Screen>
-  return <ThemeProvider value={navigationTheme}>
+  const booted = ready && preferencesLoaded && tourLoaded && (fontsLoaded || !!fontError)
+  // The intro stays mounted, second in this fragment, while the app under it switches from loading to ready.
+  const launch = intro && <LaunchIntro ready={booted} onDone={endIntro} />
+  if (!booted) return <>
+    <Screen><View style={{ alignItems: 'center', gap: 20, paddingTop: 96 }}>
+      <PokeballLoader /><Copy>Opening your field journal…</Copy>
+    </View></Screen>
+    {launch}
+  </>
+  return <><ThemeProvider value={navigationTheme}>
     <StatusBar style={dark ? 'light' : 'dark'} />
     <View style={{ flex: 1 }} aria-hidden={covered} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'}>
     <Stack screenOptions={{ headerStyle: { backgroundColor: colors.bg }, headerShadowVisible: false, headerTintColor: colors.ink,
@@ -87,5 +97,5 @@ function Navigator() {
     <AdventureBanner />
     <CoachMarks />
     <WelcomeTour />
-  </ThemeProvider>
+  </ThemeProvider>{launch}</>
 }

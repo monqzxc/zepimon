@@ -42,18 +42,22 @@ test('every Safari sprite is a strip of its declared frames, enlarged 4x', () =>
   assert.deepEqual(shape(safariSprites.battlePond), { frames: 1, width: 960, height: 448 })
 })
 
-test('Brendan and May wear purple caps and black-and-white shirts, and keep their green bags', () => {
-  const cases = {
-    brendan: { cap: [0, 19], greens: ['#73cd73', '#4a9452'] },
-    may: { cap: [0, 17], greens: ['#6ad541', '#41ac20'] }
-  }
-  for (const [name, { cap, greens }] of Object.entries(cases)) {
-    const capColours = colours(name, 0, ...cap)
-    assert.ok(capColours.has('#6a3fc8') || capColours.has('#a474ee'), `${name}: purple cap`)
-    assert.ok(greens.every(green => !capColours.has(green)), `${name}: no green on the cap`)
-    const shirt = colours(name, 0, 21, 27)
-    assert.ok(shirt.has('#282830'), `${name}: black shirt`)
-    assert.ok(!shirt.has('#c54141') && !shirt.has('#ff625a'), `${name}: no red on the shirt`)
-    assert.ok(greens.some(green => colours(name, 3, 21, 31).has(green)), `${name}: bag stays green (back view)`)
+test('Brendan and May wear the running outfit: black hair, a purple visor, a purple top, no bag, white shoes', () => {
+  // Every frame of both strips: Emerald's greens (hat, bandana, bag) and reds (shirt, gloves, shoes) are all gone.
+  const emerald = ['#73cd73', '#4a9452', '#6ad541', '#41ac20', '#c54141', '#ff625a']
+  const cases = { brendan: { greens: ['#73cd73', '#4a9452'], visor: [11, 19] }, may: { greens: ['#6ad541', '#41ac20'], visor: [11, 16] } }
+  for (const [name, { visor }] of Object.entries(cases)) {
+    for (let frame = 0; frame < 12; frame++) {
+      const all = colours(name, frame, 0, 31)
+      assert.ok(emerald.every(colour => !all.has(colour)), `${name} frame ${frame}: no Emerald green or red`)
+    }
+    const head = colours(name, 0, ...visor)
+    assert.ok(head.has('#2c2c3a'), `${name}: black hair`)
+    assert.ok(head.has('#6a3fc8') || head.has('#a474ee'), `${name}: purple visor`)
+    assert.ok(colours(name, 0, 22, 27).has('#6a3fc8'), `${name}: purple top`)
+    // Facing away, the back is the top's purple where Emerald drew the bag.
+    assert.ok(colours(name, 3, 22, 28).has('#6a3fc8'), `${name}: no bag on the back`)
+    const feet = colours(name, 0, 29, 30)
+    assert.ok(feet.has('#f8f8f8') && !feet.has('#c54141'), `${name}: white shoes`)
   }
 })
