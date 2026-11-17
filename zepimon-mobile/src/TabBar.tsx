@@ -98,6 +98,8 @@ const emerald: Mascot = {
   ball: { body: '#1F9E5C', band: '#0B2A1A', stripe: '#F2C230', rings: ['#1F9E5C', '#4CC383', '#9BE3BC'], rim: '#0B2A1A', shade: '#06180E' },
   aura: ['#063A24', '#0E6E3E', '#1F9E5C', '#5FD49A', '#F2C230'], wisp: ['#0B4A2E', '#1F9E5C', '#F2C230'] }
 const mascots: Record<ThemeName, Mascot> = { emerald, gengar, deoxys, pikachu }
+// The peeking head and the paws in front of it, for anything else that wants a theme's Pokemon over its top edge.
+export const peekArt = (theme: ThemeName) => ({ head: mascots[theme].art.grin, paws: mascots[theme].art.paws })
 // The bar's colors (colors.tab*) come with the theme, like the lilac glass bar of Gengar's light theme.
 const BAR = 66
 const INSET = 6          // between the bar's edge and its tabs
