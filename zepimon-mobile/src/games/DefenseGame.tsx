@@ -277,10 +277,10 @@ export function DefenseGame({ layout, makeSpec, brief, choices, assists, bonus, 
           inspected={selected ? `${selected.col},${selected.row}` : ''} onPress={press} />
         {game.units.map(unit => <View key={unit.id} pointerEvents="none"
           style={[board.cell, { left: unit.col * cell, top: top + unit.row * cell, width: cell, height: cell }]}>
+          {unit.egg && <View style={[board.egg, { width: cell * 0.7, height: cell * 0.7, borderRadius: cell }]} />}
           <View style={[board.shadow, { width: cell * 0.46, height: cell * 0.1, borderRadius: cell, bottom: cell * 0.14 }]} />
           <Ally unit={unit} game={game} size={cell * 0.82} reduced={reduced} />
           {unit.hp < unit.maxHp && <Health ratio={unit.hp / unit.maxHp} width={cell * 0.7} />}
-          {unit.egg && <Text accessible={false} style={board.egg}>EGG</Text>}
           <WeatherArrow sky={unitWeather(spec.weather, unit.name, layout)} size={cell} />
         </View>)}
         {layout === 'lanes' && game.guards.map((awake, lane) => <View key={lane} pointerEvents="none"
@@ -668,7 +668,8 @@ const board = themedStyles(() => ({
   arrowWeak: { color: '#8FC8FF' },
   weatherMark: { position: 'absolute', top: 0, left: 0, color: '#1A1200', backgroundColor: onBoard.gold, borderRadius: 999, overflow: 'hidden',
     paddingHorizontal: 3, fontFamily: fonts.black },
-  egg: { position: 'absolute', top: 2, left: 2, fontSize: 8, fontFamily: fonts.black, color: onBoard.dark, backgroundColor: onBoard.gold, paddingHorizontal: 3, borderRadius: 999, overflow: 'hidden' },
+  // A hatched Pokemon's gold halo, in place of a text tag.
+  egg: { position: 'absolute', borderWidth: 1.5, borderColor: 'rgba(255, 214, 102, 0.9)', backgroundColor: 'rgba(255, 214, 102, 0.22)' },
   stars: { color: colors.star, fontSize: 26, letterSpacing: 4 }
 }))
 
