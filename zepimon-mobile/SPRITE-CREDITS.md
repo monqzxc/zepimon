@@ -14,7 +14,7 @@ The attack animations in Route Guard and Trail Defense are the Gen III battle an
 
 # Tab bar Gengar
 
-The Gengar, Pikachu, Deoxys and Rayquaza peeking over the tab bar and the theme cards are original vector fan art drawn for this app in `scripts/build-nav-peek.mjs`, which renders their head, blink, surprised and paw layers to `assets/nav/` with headless Chrome. These Pokemon belong to their respective owners.
+The Gengar, Pikachu, Deoxys and Rayquaza peeking over the tab bar and the theme cards are original vector fan art drawn for this app in `scripts/build-nav-peek.mjs`, which renders their head, blink, surprised and paw layers to `assets/nav/` with headless Chrome. Rayquaza's design takes its look from a chibi Rayquaza by sinisters.art. These Pokemon belong to their respective owners.
 
 # Safari Zone
 

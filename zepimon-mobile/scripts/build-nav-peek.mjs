@@ -122,8 +122,9 @@ const deoxys = {
   paws: pawsOf('url(#shell)', 6, .3)
 }
 
-// Rayquaza: tall pointed ears, the yellow ring on its forehead, fins sweeping out from its cheeks, fierce orange-to-
-// yellow eyes lined in black, a wide red grin with two fangs, and white claws on its paws.
+// Rayquaza, after a chibi Rayquaza by sinisters.art: tall pointed ears with red bars behind them, the yellow ring on its
+// forehead, fins sweeping out from its cheeks, fierce orange-to-yellow eyes lined in black, a wide red grin with two
+// fangs, and white claws on its paws.
 const rayquazaInk = '#0E1F12'
 const rayquazaSmile = `<path fill="none" stroke-width="1.6" d="M57.6,56.4 Q60,58.4 62.4,56.4"/>`
 const rayquazaMouth = rayquazaSmile + `<path fill="#D7364C" stroke-width="2.2" d="M34,59.5 Q60,80 86,59.5 Q60,68 34,59.5 Z"/>
@@ -142,14 +143,17 @@ const rayquaza = {
   out: 'rayquaza/', names: ['head-idle', 'head-blink', 'head-boo', 'paws'], ink: rayquazaInk,
   defs: skin('skin', ['#7CCB4E', '#55A83A', '#3F8C2E']) +
     `<linearGradient id="iris" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7A21B"/><stop offset=".55" stop-color="#FFD84A"/><stop offset="1" stop-color="#FFF2A0"/></linearGradient>`,
-  head: both(`<path fill="url(#skin)" d="M41,36 C37,25 33,13 31.5,3.5 Q31.2,0.6 34,1.8 C42.5,8 50,18 55,30 Z"/>
-  <path fill="#9BDB6A" stroke="none" opacity=".7" d="M40.5,30 C38,22 35.6,13 34.6,6 C40,11 45,18 48.5,26 Z"/>
-  <path fill="url(#skin)" d="M22,46 C15,45 8,45.5 1.8,48.5 Q0,49.6 2,50.6 C9,53.4 17,54.6 25,54 Z"/>`) +
-    `<path fill="url(#skin)" d="M32,100 L30,82 C18,79 13,70 14,60 C15,45 31,32 51,30 Q60,29.2 69,30 C89,32 105,45 106,60
-    C107,70 102,79 90,82 L88,100 Z"/>
-  <ellipse cx="60" cy="38.5" rx="11.5" ry="7.6" fill="#F7D65C" stroke-width="1.8"/>
-  <ellipse cx="60" cy="38.5" rx="6.4" ry="3.6" fill="url(#skin)" stroke-width="1.8"/>
-  <ellipse cx="40" cy="35" rx="6" ry="2.4" fill="#fff" opacity=".3" stroke="none" transform="rotate(-20 40 35)"/>`,
+  // Behind each ear a red bar (its body's fins), then the ear: broad, rising almost straight up from the head's top
+  // corner to a point, with a paler panel, and a long fin sweeping out and down from the cheek.
+  head: both(`<path fill="#D9364C" d="M53.4,37 L41,7.4 Q40.4,4.8 43,5.4 L45.6,6.6 L59.4,36 Z"/>
+  <path fill="url(#skin)" d="M35.5,42 C33.4,29 32,15.5 32.2,3.4 Q32.4,0.4 34.8,2 C43,9 50,20 54.6,34.4 Z"/>
+  <path fill="#A6E07A" stroke="none" opacity=".75" d="M37.2,33.5 C36,25 35.4,16.4 35.6,8.6 C40.6,13.6 44.6,20 47.6,27.6 Z"/>
+  <path fill="url(#skin)" d="M24,49.5 C16,50.6 8,53.6 1.2,58.4 Q-0.4,59.8 1.6,60.2 C9.6,60.4 17.6,59.2 25.6,57 Z"/>`) +
+    `<path fill="url(#skin)" d="M32,100 L30,82 C18,79 13.5,70 14.5,60 C15.5,47 27,37 44,34.5 Q60,32.5 76,34.5 C93,37 104.5,47 105.5,60
+    C106.5,70 102,79 90,82 L88,100 Z"/>
+  <ellipse cx="60" cy="40.6" rx="10.6" ry="6.8" fill="#F7D65C" stroke-width="1.8"/>
+  <ellipse cx="60" cy="40.6" rx="5.8" ry="3.2" fill="url(#skin)" stroke-width="1.8"/>
+  <ellipse cx="34" cy="41" rx="5.5" ry="2.2" fill="#fff" opacity=".3" stroke="none" transform="rotate(-24 34 41)"/>`,
   faces: {
     grin: rayquazaEye() + rayquazaMouth,
     blink: both(`<path fill="${rayquazaInk}" stroke="none" d="M24.5,39.5 L32,42.6 L54,49.4 L52.8,53.6 L30.8,47.4 C28,45.5 26,43 24.5,39.5 Z"/>
