@@ -244,9 +244,9 @@ over the open tab, floats out of a ball in its colors (Gengar's violet, an
 orange-red Deoxys ball with a teal stripe, a yellow Pikachu ball with a stripe as
 red as its cheeks) through the same six workout poses, and steps on the ball
 during an adventure. With reduced motion the poses change only on a tap. The
-floating poses, and Deoxys's and Pikachu's peeking art, are cut from the
-`*-fitness*.png` sheets in `pokemon_data/` by `scripts/build-nav-poses.py`;
-Pikachu's sheet has no shut-eyed face, so its blink is drawn. Every text color
+floating poses are cut from the `*-fitness*.png` sheets in `pokemon_data/` by
+`scripts/build-nav-poses.py`; the peeking heads and paws are vector art drawn in
+one style by `scripts/build-nav-peek.mjs`. Every text color
 keeps at least 4.5:1 contrast in all eight palettes, which
 `tests/palettes.test.js` checks. Share images and the route map keep their own
 colors. The palettes are in `src/palettes.ts` and the active one in

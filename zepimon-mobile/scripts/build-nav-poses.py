@@ -1,6 +1,5 @@
 """Cuts the tab bar's fitness art (src/TabBar.tsx) from sheets in pokemon_data/: the six poses each Pokemon takes turns
-in while floating over the Adventure button, and the Deoxys, Pikachu and Rayquaza that peek over the bar in their themes. (Gengar's
-peeking art is drawn by scripts/build-nav-gengar.mjs.)
+in while floating over the Adventure button. (The Pokemon peeking over the bar are drawn by scripts/build-nav-peek.mjs.)
 
 Usage: python scripts/build-nav-poses.py   (needs Pillow and numpy)
 
@@ -8,14 +7,8 @@ Each sheet shows the Pokemon in a cap, T-shirt and shorts on a pale background, 
 - assets/nav/<pokemon>/float-stand, float-wave, float-lift, float-tired, float-pushup and float-situp: each pose on a
   320 x 256 canvas (wider than tall, so lifted dumbbells fit) at one scale per Pokemon, centered with the ground on
   one line, so the Pokemon keeps its size as it changes pose.
-- assets/nav/<pokemon>/head-idle, head-blink and head-boo, for Deoxys, Pikachu and Rayquaza: the head peeking over the bar, on
-  the 120 x 100 grid at two pixels per unit with the chin on row 72, the bar's top edge. Idle is the standing pose's
-  head; blink and boo (the surprised pop-up) come from other poses or are drawn, as HEADS says.
-- assets/nav/<pokemon>/paws: Gengar's paw shapes (scripts/build-nav-gengar.mjs) in the Pokemon's colors, at the same
-  spots on the grid.
 """
 from pathlib import Path
-import math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -54,21 +47,6 @@ POSES = {
 SHEET_SCALE = {'gengar-fitness-2.png': 1.4}
 # Sheets on pure white, where the shirts are greyer: there, pure white shut in by an arm or tail is background too.
 WHITE_POCKETS = {'pikachu-fitness.png', 'rayquaza-fitness.png'}
-
-# The peeking heads. cap: the standing pose's cap in its sheet, which lines up the other poses' heads with it. bottom:
-# the sheet row below the chin where the head crop stops. edge: the chin's row, which sits on the bar's edge so the
-# whole face shows. blink and boo: a pose whose head is used as it is ('wave': Deoxys's shut eyes, Pikachu's open-mouthed
-# cheer), the standing head with another pose's sweat drop ('sweat'), or the standing head with its eyes drawn shut
-# ('shut', for a sheet with no shut-eyed face; skin: how bright the skin around the eyes is at least). paws: fill, shine
-# and outline.
-HEADS = {
-    'deoxys': {'cap': (140, 30, 270, 110), 'bottom': 205, 'edge': 186, 'blink': 'wave', 'boo': 'sweat',
-               'paws': ((110, 154, 146), (150, 190, 182), (52, 14, 20))},
-    'pikachu': {'cap': (118, 28, 208, 92), 'bottom': 165, 'edge': 150, 'blink': 'shut', 'boo': 'wave',
-                'paws': ((240, 196, 40), (255, 226, 120), (58, 30, 22))},
-    'rayquaza': {'cap': (465, 38, 555, 92), 'bottom': 160, 'edge': 150, 'blink': 'shut', 'boo': 'sweat', 'skin': 100,
-                 'paws': ((58, 138, 72), (118, 188, 104), (24, 40, 28))}
-}
 
 
 def regions(mask):
@@ -168,138 +146,9 @@ def floats(pokemon, sheets):
         print(f'assets/nav/{pokemon}/float-{name}.png')
 
 
-def offset(pokemon, sheet, pose):
-    """Where pose's copy of the standing pose's cap is, relative to it: found by matching the cap's pixels."""
-    rgb = np.asarray(sheet, dtype=np.int32)
-    x0, y0, x1, y1 = HEADS[pokemon]['cap']
-    cap = rgb[y0:y1, x0:x1]
-    nominal = POSES[pokemon][pose][1][0] - POSES[pokemon]['stand'][1][0]
-    best = min(((np.abs(rgb[y0 + dy:y1 + dy, x0 + nominal + dx:x1 + nominal + dx] - cap).sum(), nominal + dx, dy)
-                for dy in range(-20, 21) for dx in range(-80, 81)
-                if 0 <= y0 + dy and y1 + dy <= rgb.shape[0] and 0 <= x0 + nominal + dx and x1 + nominal + dx <= rgb.shape[1]))
-    return best[1], best[2]
-
-
-def sweat(idle, sweaty):
-    """idle with sweaty's sweat drop: the largest patch of light blue (a dumbbell's shine is light blue too, in specks)
-    and the outline around it."""
-    rgb = np.asarray(sweaty.convert('RGB'), dtype=np.int16)
-    blue = (rgb[..., 2] - rgb[..., 0] > 35) & (rgb[..., 2] > 150)
-    largest = max(regions(blue), key=lambda region: len(region[0]))
-    patch = np.zeros(blue.shape, dtype=np.uint8)
-    patch[largest] = 255
-    out = idle.copy()
-    out.paste(sweaty, (0, 0), Image.fromarray(patch).filter(ImageFilter.MaxFilter(9)))
-    return out
-
-
-def shut(idle, light=150):
-    """idle with its eyes shut: each eye (a dark, roundish patch, set in the face rather than on its outline) is painted
-    over in the skin color around it (the pixels brighter than light: Rayquaza's darker green needs a lower bar than
-    Pikachu's yellow), then drawn as a lid line curving down, in the eye's own dark."""
-    rgba = np.asarray(idle).copy()
-    rgb = rgba[..., :3].astype(np.int16)
-    dark = (rgb.max(axis=2) < 70) & (rgba[..., 3] > 0)
-    height, width = dark.shape
-    eyes = []
-    for rows, columns in regions(dark):
-        top, bottom, left, right = rows.min(), rows.max(), columns.min(), columns.max()
-        h, w = bottom - top + 1, right - left + 1
-        # Each eye is shut in by skin on every side; outline pieces run on into the background.
-        ring = rgba[max(0, top - 3):bottom + 4, max(0, left - 3):right + 4]
-        if 80 <= len(rows) <= 600 and 0.6 <= h / w <= 1.6 and ring[..., 3].min() == 255 and top > height * 0.25:
-            eyes.append((top, bottom, left, right, np.median(rgb[rows, columns], axis=0)))
-    out = Image.fromarray(rgba, 'RGBA')
-    k = 8
-    lines = Image.new('RGBA', (width * k, height * k))
-    draw = ImageDraw.Draw(lines)
-    for top, bottom, left, right, pupil in eyes:
-        cy, cx = (top + bottom) / 2, (left + right) / 2
-        ry, rx = (bottom - top) / 2 + 2.5, (right - left) / 2 + 2.5
-        around = rgb[max(0, top - 5):bottom + 6, max(0, left - 5):right + 6].reshape(-1, 3)
-        skin = np.median(around[around.max(axis=1) > light], axis=0)
-        cover = Image.new('L', (width, height))
-        ImageDraw.Draw(cover).ellipse((cx - rx, cy - ry, cx + rx, cy + ry), fill=255)
-        out.paste(Image.new('RGBA', out.size, tuple(int(c) for c in skin) + (255,)), (0, 0), cover.filter(ImageFilter.GaussianBlur(0.8)))
-        span = (right - left) / 2 + 1
-        draw.arc(((cx - span) * k, (cy - span * 0.9) * k, (cx + span) * k, (cy + span * 0.7) * k), 20, 160,
-                 fill=tuple(int(c) for c in pupil) + (255,), width=round(2.6 * k))
-    out.alpha_composite(lines.resize((width, height), Image.LANCZOS))
-    print(f'  shut {len(eyes)} eyes')
-    return out
-
-
-def heads(pokemon, sheet, art):
-    """The peeking head in three faces, cropped from the top of the sheet to below the chin and placed on the grid."""
-    spec = HEADS[pokemon]
-    x0, _, x1, _ = POSES[pokemon]['stand'][1]
-    def crop(pose):
-        """pose's head region, moved by how far its cap sits from the standing pose's."""
-        dx, dy = (0, 0) if pose == 'stand' else offset(pokemon, sheet, pose)
-        return art.crop((x0 + dx, dy, x1 + dx, spec['bottom'] + dy))
-    def head(pose):
-        """Only the head itself: the largest piece (a tail or raised arm beside it is another piece)."""
-        return keep(crop(pose), lambda size, largest: size == largest)
-    idle = head('stand')
-    def within(image):
-        """image cut to the standing head's outline, so the two swap cleanly."""
-        image.putalpha(Image.fromarray(np.minimum(np.asarray(image.getchannel('A')), np.asarray(idle.getchannel('A')))))
-        return image
-    faces = {'wave': lambda: within(head('wave')), 'sweat': lambda: sweat(idle, crop('lift')), 'shut': lambda: shut(idle, spec.get('skin', 150))}
-    blink, boo = faces[spec['blink']](), faces[spec['boo']]()
-    top = idle.getbbox()[1]
-    scale = min(1.0, (144 - 4) / (spec['edge'] - top))     # the head's top stays at least two rows inside the grid
-    for image, name in ((idle, 'head-idle'), (blink, 'head-blink'), (boo, 'head-boo')):
-        small = resized(image, scale)
-        canvas = Image.new('RGBA', (240, 200))
-        canvas.alpha_composite(small, (round(120 - small.width / 2), round(144 - spec['edge'] * scale)))
-        canvas.save(NAV / pokemon / f'{name}.png')
-        print(f'assets/nav/{pokemon}/{name}.png')
-
-
-def bezier(points, steps=24):
-    """A cubic Bezier from four points, sampled into a polyline."""
-    (ax, ay), (bx, by), (cx, cy), (dx, dy) = points
-    return [((1 - t) ** 3 * ax + 3 * (1 - t) ** 2 * t * bx + 3 * (1 - t) * t * t * cx + t ** 3 * dx,
-             (1 - t) ** 3 * ay + 3 * (1 - t) ** 2 * t * by + 3 * (1 - t) * t * t * cy + t ** 3 * dy) for t in (i / steps for i in range(steps + 1))]
-
-
-def paws(pokemon):
-    """Gengar's paw outline, toe lines and shine, tilted out to follow the bar's shoulders, in the Pokemon's colors."""
-    fill, shine_color, ink = HEADS[pokemon]['paws']
-    k = 16                                                   # supersampled: 16 pixels per grid unit, shrunk to 2
-    outline = (bezier([(6.5, 74.5), (4.5, 67), (9, 61), (16, 61)]) + bezier([(16, 61), (23, 61), (28, 65), (27.5, 71.5)])
-               + bezier([(27.5, 71.5), (27, 75.5), (24.5, 77.5), (21, 77.5)]) + [(10, 77.5)]
-               + bezier([(10, 77.5), (8.2, 77.5), (7, 76.4), (6.5, 74.5)]))
-    toes = [[(13.5, 73), (13.5, 77.5)], [(20, 72.5), (20, 77.5)]]
-    def place(points, mirror):
-        angle = math.radians(-12)
-        out = []
-        for x, y in points:
-            rx = 17 + (x - 17) * math.cos(angle) - (y - 70) * math.sin(angle)
-            ry = 70 + (x - 17) * math.sin(angle) + (y - 70) * math.cos(angle)
-            out.append(((120 - rx if mirror else rx) * k, ry * k))
-        return out
-    image = Image.new('RGBA', (120 * k, 100 * k))
-    draw = ImageDraw.Draw(image)
-    for mirror in (False, True):
-        shape = place(outline, mirror)
-        draw.polygon(shape, fill=fill + (255,))
-        shine = place([(13 + 3.5 * math.cos(a), 65 + 1.6 * math.sin(a)) for a in (i * math.pi / 12 for i in range(25))], mirror)
-        draw.polygon(shine, fill=shine_color + (255,))
-        draw.line(shape + [shape[0]], fill=ink + (255,), width=round(2.6 * k), joint='curve')
-        for toe in toes: draw.line(place(toe, mirror), fill=ink + (255,), width=round(1.8 * k))
-    image.convert('RGBa').resize((240, 200), Image.LANCZOS).convert('RGBA').save(NAV / pokemon / 'paws.png')
-    print(f'assets/nav/{pokemon}/paws.png')
-
-
 for pokemon in POSES:
     (NAV / pokemon).mkdir(parents=True, exist_ok=True)
-    for old in (NAV / pokemon).glob('*.png'): old.unlink()      # each folder holds exactly what this script writes
+    for old in (NAV / pokemon).glob('float-*.png'): old.unlink()      # the floats are exactly what this script writes
 sources = {path.name: Image.open(path).convert('RGB') for path in SHEETS.glob('*-fitness*.png')}
 cut = {name: cut_out(sheet, name in WHITE_POCKETS) for name, sheet in sources.items()}
 for pokemon in POSES: floats(pokemon, cut)
-for pokemon in HEADS:
-    sheet = POSES[pokemon]['stand'][0]
-    heads(pokemon, sources[sheet], cut[sheet])
-    paws(pokemon)

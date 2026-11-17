@@ -17,7 +17,8 @@ import { useCoachTarget } from './tour'
 
 // A floating glass tab bar. The middle tab (Adventure) is a Poke Ball sitting in a notch cut into the bar.
 // The open tab shows in the bar's accent with a heavier label, and the theme's Pokemon (Rayquaza, Gengar, Deoxys or Pikachu; see
-// mascots) peeks over the bar's top edge above it: the head is drawn behind the bar and the paws in front.
+// mascots) peeks over the bar's top edge above it: the head is drawn behind the bar and the paws in front. All four
+// peeking Pokemon are drawn in one cartoon style by scripts/build-nav-peek.mjs.
 // That art sits on a 120 x 100 grid whose row 72 meets the edge. The Pokemon bobs and blinks while idle, ducks behind
 // the bar when you switch tabs and pops up wide-eyed on the new one, and the labels change over as it passes. Tapping
 // another open tab makes it peek. Tapping the ball spins it and the Pokemon pops out of it in its training gear,
@@ -53,7 +54,7 @@ const gengar: Mascot = {
   ball: { body: '#8A5CDB', band: '#2E1A4A', stripe: '#9E72EC', rings: ['#8A5CDB', '#A47EEE', '#C2A4F6'], rim: '#2A1745', shade: '#1A0B33' },
   aura: ['#1B0833', '#3D1872', '#5A2DA3', '#7B4CCB', '#8A5CDB'], wisp: ['#2A0F4F', '#4B2289', '#6B3BB8']
 }
-// All of Deoxys's art, the peeking head too, is cut from pokemon_data/deoxys-fitness.png. Its ball is orange-red with a
+// Deoxys's floating poses are cut from pokemon_data/deoxys-fitness.png. Its ball is orange-red with a
 // teal stripe.
 const deoxys: Mascot = {
   walker: 'Deoxys',
@@ -67,7 +68,7 @@ const deoxys: Mascot = {
   ball: { body: '#D4502E', band: '#3A1A12', stripe: '#3FB6C8', rings: ['#D4502E', '#E8785A', '#F5AE95'], rim: '#35160E', shade: '#2A0C06' },
   aura: ['#0E4450', '#177A8A', '#2FA3B8', '#4FD3E3', '#7FE3EE'], wisp: ['#0F4A57', '#1F8CA0', '#4FD3E3']
 }
-// Pikachu's art is all cut from pokemon_data/pikachu-fitness.png; its blink is drawn, as no pose there shuts its eyes.
+// Pikachu's floating poses are cut from pokemon_data/pikachu-fitness.png.
 // Its ball is yellow with a stripe as red as its cheeks, and its aura an electric yellow glow.
 const pikachu: Mascot = {
   walker: 'Pikachu',
@@ -81,10 +82,9 @@ const pikachu: Mascot = {
   ball: { body: '#F2C21B', band: '#3B2A0A', stripe: '#E0483A', rings: ['#F2C21B', '#FFD95A', '#FFF0A6'], rim: '#3B2A0A', shade: '#4A3300' },
   aura: ['#5C4500', '#A07800', '#E8B800', '#FFDA4A', '#FFE98A'], wisp: ['#7A5A00', '#D9A800', '#FFE066']
 }
-// Emerald's mascot is Rayquaza, the Legendary on Pokemon Emerald's box, all cut from pokemon_data/rayquaza-fitness.png:
-// a kettlebell swing, a cap-tip, dumbbells on a glowing pad, a plank, sit-ups and an ab roller (in that order, standing
-// in for the others' stand, wave, lift, push-up, sit-up and worn-out). Its blink is drawn and its surprise borrows the
-// dumbbell pose's sweat drop. The ball is emerald green with a Rayquaza-gold stripe, the aura glows like the Legendary
+// Emerald's mascot is Rayquaza, the Legendary on Pokemon Emerald's box. Its floating poses, cut from
+// pokemon_data/rayquaza-fitness.png, are a kettlebell swing, a cap-tip, dumbbells on a glowing pad, a plank, sit-ups and
+// an ab roller (in that order, standing in for the others' stand, wave, lift, push-up, sit-up and worn-out). The ball is emerald green with a Rayquaza-gold stripe, the aura glows like the Legendary
 // Gate.
 const emerald: Mascot = {
   walker: 'Rayquaza',
