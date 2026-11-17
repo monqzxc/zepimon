@@ -1,7 +1,7 @@
 """Bake a region's walkthrough road into the Adventure tab's town map.
 
-Usage: python scripts/build-town-map.py kanto|johto   (needs Pillow and Node; rerun after changing the roads in
-src/kanto-map.ts or src/johto-map.ts)
+Usage: python scripts/build-town-map.py kanto|johto|hoenn|sinnoh   (needs Pillow and Node; rerun after changing the
+roads in src/<region>-map.ts)
 
 The whole walkthrough is drawn once onto the clean art (scripts/<region>/town-map.*) as the road still ahead: a dark
 line under white dashes, as the app drew it live before. The app then draws only the gold line you have walked, which
@@ -10,8 +10,8 @@ nothing to redraw while it pans and zooms. Lines are drawn 4x and scaled down, f
 
 The open sea around the map (scripts/<region>/sea.jpg, a seamless tile cut from the map's sea) is laid out 4 x 4 into
 one block: the app places a few blocks around the map rather than repeating the tile, as an image set to repeat on
-Android allocates a bitmap the size of the whole view. Johto's tile is cut here from its own open sea (SEA_CUT), its
-edges cross-faded into the opposite ones so it repeats without a seam.
+Android allocates a bitmap the size of the whole view. Johto's, Hoenn's and Sinnoh's tiles are cut here from their own
+open sea (sea_cut), the edges cross-faded into the opposite ones so they repeat without a seam.
 
 Writes assets/route/<region>.jpg and assets/route/<region>-sea.jpg.
 """
@@ -23,11 +23,16 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
-# Each region: its clean art, its map module and the road there, and for Johto where on the art its sea tile is cut
-# (left, top, width, height, then how much of each edge is cross-faded).
+# Each region: its clean art, its map module and the road there, and, but for Kanto, where on the art its sea tile is cut
+# (left, top, width, height, then how much of each edge is cross-faded), and how many tiles across and down make its
+# sea block when not 4 x 4 (Hoenn's tile is a thin strip of its top edge, so its block takes more rows). Hoenn's and
+# Sinnoh's art is scaled to 1024 high.
 REGIONS = {
     'kanto': {'art': 'town-map.jpg', 'module': './src/kanto-map.ts', 'road': 'kantoRoad'},
     'johto': {'art': 'town-map.png', 'module': './src/johto-map.ts', 'road': 'johtoRoad', 'sea_cut': (40, 800, 380, 180, 50, 30)},
+    'hoenn': {'art': 'town-map.png', 'module': './src/hoenn-map.ts', 'road': 'hoennRoad', 'sea_cut': (560, 0, 320, 34, 50, 12),
+              'sea_tiles': (4, 16)},
+    'sinnoh': {'art': 'town-map.png', 'module': './src/sinnoh-map.ts', 'road': 'sinnohRoad', 'sea_cut': (30, 30, 280, 160, 50, 30)},
 }
 SEA_TILES = 4
 SS = 4
@@ -106,9 +111,10 @@ def main():
     print(f'{out.relative_to(ROOT)}: {art.size[0]}x{art.size[1]}, {len(points)} road points, {out.stat().st_size // 1024} KB')
 
     tile = Image.open(folder / 'sea.jpg').convert('RGB')
-    sea = Image.new('RGB', (tile.width * SEA_TILES, tile.height * SEA_TILES))
-    for row in range(SEA_TILES):
-        for col in range(SEA_TILES):
+    cols, rows = region.get('sea_tiles', (SEA_TILES, SEA_TILES))
+    sea = Image.new('RGB', (tile.width * cols, tile.height * rows))
+    for row in range(rows):
+        for col in range(cols):
             sea.paste(tile, (col * tile.width, row * tile.height))
     sea.save(sea_out, quality=80, optimize=True)
     print(f'{sea_out.relative_to(ROOT)}: {sea.size[0]}x{sea.size[1]}, {sea_out.stat().st_size // 1024} KB')

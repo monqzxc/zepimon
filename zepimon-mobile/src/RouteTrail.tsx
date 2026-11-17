@@ -16,6 +16,8 @@ import type { Place, StripKind, StripShape } from './adventure-route'
 import type { Activity } from './phone-adventure'
 import { KANTO_HEIGHT, KANTO_WIDTH, kantoRoad } from './kanto-map'
 import { JOHTO_HEIGHT, JOHTO_WIDTH, johtoRoad } from './johto-map'
+import { HOENN_HEIGHT, HOENN_WIDTH, hoennRoad } from './hoenn-map'
+import { SINNOH_HEIGHT, SINNOH_WIDTH, sinnohRoad } from './sinnoh-map'
 import { cameraBounds, clampCamera, nearestOf, roadPoint, roadTrail } from './town-map'
 import type { Camera, Point, TownRoad } from './town-map'
 import { Frame } from './games/TileWorld'
@@ -60,18 +62,23 @@ const FLOAT_GAP = 16
 // The folded card's bubble, and how the card folds into it and opens again.
 const BUBBLE = 58
 const FOLD = { duration: 340, easing: Ease.bezier(0.2, 0, 0, 1) }
-// Kanto and Johto are drawn on their own town maps (src/kanto-map.ts, src/johto-map.ts), from Pallet Town to Johto's
-// Route 26; the regions after them walk the strips. The road still ahead is part of the art
+// Kanto, Johto, Hoenn and Sinnoh are drawn on their own town maps (src/kanto-map.ts, src/johto-map.ts,
+// src/hoenn-map.ts, src/sinnoh-map.ts), from Pallet Town to Sinnoh's Route 223; Unova walks the strips. The road still ahead is part of the art
 // (scripts/build-town-map.py); only the stretch walked is drawn here. Around the edges is the map's own open sea, a
 // seamless tile laid out 4 x 4 into one block (seaBlock), in its colour (seaColor) beyond. first is the milestone of
-// the map's first stop; Johto's walk comes in from Kanto's last stop at its edge.
+// the map's first stop; each later region's walk comes in from the last stop of the one before at its edge.
 type TownMap = { region: string, art: ImageSourcePropType, sea: ImageSourcePropType, seaBlock: { width: number, height: number },
   seaColor: string, width: number, height: number, road: TownRoad, first: number }
 const townMaps: TownMap[] = [
   { region: 'Kanto', art: require('../assets/route/kanto.jpg'), sea: require('../assets/route/kanto-sea.jpg'), seaBlock: { width: 1520, height: 1280 },
     seaColor: '#0E62DC', width: KANTO_WIDTH, height: KANTO_HEIGHT, road: kantoRoad, first: 0 },
   { region: 'Johto', art: require('../assets/route/johto.jpg'), sea: require('../assets/route/johto-sea.jpg'), seaBlock: { width: 1520, height: 720 },
-    seaColor: '#1778E3', width: JOHTO_WIDTH, height: JOHTO_HEIGHT, road: johtoRoad, first: kantoRoad.stops.length }
+    seaColor: '#1778E3', width: JOHTO_WIDTH, height: JOHTO_HEIGHT, road: johtoRoad, first: kantoRoad.stops.length },
+  { region: 'Hoenn', art: require('../assets/route/hoenn.jpg'), sea: require('../assets/route/hoenn-sea.jpg'), seaBlock: { width: 1280, height: 544 },
+    seaColor: '#066BC2', width: HOENN_WIDTH, height: HOENN_HEIGHT, road: hoennRoad, first: kantoRoad.stops.length + johtoRoad.stops.length },
+  { region: 'Sinnoh', art: require('../assets/route/sinnoh.jpg'), sea: require('../assets/route/sinnoh-sea.jpg'), seaBlock: { width: 1120, height: 640 },
+    seaColor: '#037AF8', width: SINNOH_WIDTH, height: SINNOH_HEIGHT, road: sinnohRoad,
+    first: kantoRoad.stops.length + johtoRoad.stops.length + hoennRoad.stops.length }
 ]
 // The distances a town map's walk starts and ends at: its first stop, or its entry the milestone before, to its last.
 const roadStart = (map: TownMap) => (map.first - (map.road.legs.length - map.road.stops.length + 1)) * MILESTONE
@@ -587,7 +594,7 @@ function MapPicker({ meters, current, shown, onPick }: {
       <Text numberOfLines={1} style={look.nextText}>Your trail · {later.region}</Text>
       {!shown ? <Icon name="check" size={18} color={colors.edge} /> : <Icon name="chevron" size={18} color={colors.edge} />}
     </Pressable>}
-    <Text style={look.tipLine}>Hoenn, Sinnoh and Unova are walked on the route trail.</Text>
+    <Text style={look.tipLine}>Unova is walked on the route trail.</Text>
   </View>
 }
 
