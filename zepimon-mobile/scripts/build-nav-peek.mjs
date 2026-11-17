@@ -123,7 +123,7 @@ const deoxys = {
 }
 
 // Rayquaza, soft and chibi: tall leaf-shaped ears, a rounded head narrowing to its snout (below the edge), a big yellow
-// ring on the forehead with a stripe running up over the crown, and slanted black eye patches with yellow eyes.
+// ring on the forehead, and slanted black eye patches with yellow eyes.
 const rayquazaInk = '#173A2E'
 const rayquazaEye = (scale = 1) => both(`<path fill="#14221D" stroke-width="1.6" d="M24,48.5 C31,48.5 42,52 51,58 C52,64.5 48,69.6 41.2,69.6 C32.6,69.6 25.6,61.4 24,48.5 Z"/>
   <ellipse cx="41.4" cy="60.6" rx="${6.4 * scale}" ry="${7 * scale}" fill="url(#iris)" stroke-width="1.2"/>
@@ -139,8 +139,6 @@ const rayquaza = {
   <path fill="#3E8467" stroke="none" opacity=".55" d="M47.6,26 C42.6,18.6 36,12 29.4,7.6 C33,13 37,19.6 40,27.6 Z"/>`) +
     `<path fill="url(#skin)" d="M36,100 L38,86 C30,80 22,74 18,66 C12,55 14,42 26,35 C36,29.5 48,28 60,28 C72,28 84,29.5 94,35
     C106,42 108,55 102,66 C98,74 90,80 82,86 L84,100 Z"/>
-  <path fill="none" stroke-width="5.6" d="M61.5,31 Q66,27.2 74.5,27.6 Q85,28.4 93.5,34.8"/>
-  <path fill="none" stroke="#EFCB45" stroke-width="3" d="M61.5,31 Q66,27.2 74.5,27.6 Q85,28.4 93.5,34.8"/>
   <ellipse cx="60" cy="43" rx="13.6" ry="12.6" fill="#EFCB45" stroke-width="1.6"/>
   <ellipse cx="60" cy="43.4" rx="9.6" ry="8.8" fill="url(#skin)" stroke-width="1.6"/>
   <ellipse cx="36" cy="38" rx="5.5" ry="2.2" fill="#fff" opacity=".3" stroke="none" transform="rotate(-28 36 38)"/>`,
