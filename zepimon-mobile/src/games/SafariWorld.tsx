@@ -9,6 +9,7 @@ import { Sprite, TileWorld, Walker } from './TileWorld'
 import type { Strip, TileChunks } from './TileWorld'
 import { ShinyStars } from './ShinyAura'
 import { WildCover, WildFoe, useWildScene } from './SafariWild'
+import { AURA, Sandstorm } from './SafariSandstorm'
 
 const sprites = safariSprites as Record<'grass' | 'item', Strip>
 const chunkImages = safariChunks as TileChunks
@@ -36,8 +37,9 @@ type Props = {
 
 // The Safari Zone map: the shared tile world, seen from a little further back, with the Safari's items, its helper and
 // roaming wild Pokemon and missed-tap marks on the ground. Seen from outside, the cave is dark and the desert hazy with
-// its sandstorm (thick until you have goggles). Inside the cave only a small window around the trainer is lit, a wide one
-// with Flash; inside the desert the whole view is hazy. On water the trainer rides Lapras. The Pokemon you walked into
+// its sandstorm (thick, thicker still until you have goggles). Inside the cave only a small window around the trainer is
+// lit, a wide one with Flash; inside the desert a never-ending sandstorm blows over the whole view, with only a small
+// clear circle round the trainer once Flygon's goggles keep the sand off (wider while you face a Pokemon). On water the trainer rides Lapras. The Pokemon you walked into
 // is drawn by SafariWild.tsx, with everything you throw at it.
 export function SafariWorld({ game, move, trainer, buddy, width, height, reduced, tapToWalk, onTapTile, miss, jump = 0, fitHeight = false, playing = null }: Props) {
   const tile = tileSizeFor(width, fitHeight ? height : undefined, SAFARI_ACROSS)
@@ -53,7 +55,7 @@ export function SafariWorld({ game, move, trainer, buddy, width, height, reduced
     mount={tileAt(game.at) === '~' ? HELPERS.L.name : undefined}
     cover={<>
       {area !== 'cave' && box(CAVE, 'rgba(6, 4, 12, 0.8)')}
-      {area !== 'desert' && box(DESERT, game.helps.includes('goggles') ? 'rgba(226, 190, 120, 0.18)' : 'rgba(226, 190, 120, 0.55)')}
+      {area !== 'desert' && box(DESERT, game.helps.includes('goggles') ? 'rgba(214, 168, 100, 0.5)' : 'rgba(214, 168, 100, 0.78)')}
       {scene && <WildCover scene={scene} trainerAt={game.at} tile={tile} reduced={reduced} />}
     </>}>
     {items.filter(point => !game.items.includes(pointKey(point))).map(point =>
@@ -75,7 +77,8 @@ export function SafariWorld({ game, move, trainer, buddy, width, height, reduced
       <View style={{ position: 'absolute', left: 0, top: cy - sight, width: Math.max(0, cx - sight), height: sight * 2, backgroundColor: dark }} />
       <View style={{ position: 'absolute', left: cx + sight, top: cy - sight, width: Math.max(0, width - cx - sight), height: sight * 2, backgroundColor: dark }} />
     </View>}
-    {area === 'desert' && <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width, height, backgroundColor: 'rgba(226, 190, 120, 0.18)' }} />}
+    {area === 'desert' && <Sandstorm width={width} height={height} tile={tile} reduced={reduced}
+      aura={!game.helps.includes('goggles') ? AURA.none : game.encounter || (scene && playing === game.act?.id) ? AURA.encounter : AURA.goggles} />}
   </View>
 }
 

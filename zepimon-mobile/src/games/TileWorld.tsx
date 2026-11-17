@@ -31,7 +31,8 @@ type Props = {
 // of sight. `fitHeight` (immersive play) sizes tiles by the shorter side, so a landscape view doesn't zoom in too far.
 // `fit` shows a small map whole (a Legendary's lair): the camera stays centred on the map and the trainer walks across it.
 // `across` is how many tiles span the view (the Safari Zone zooms out a little); the default is tileSizeFor's.
-// `mount` is the Pokemon the trainer is riding (over water in the Safari Zone): it swims under them, facing their way.
+// `mount` is the Pokemon the trainer is riding (over water in the Safari Zone): it swims under them, facing their way,
+// drawn big enough to carry them, and the trainer sits on its back (see RIDE).
 export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move, trainer, buddy, onGrass, width, height, reduced, jump, background,
   tapToWalk, onTapTile, children, cover, falling = false, fitHeight = false, fit = false, across, mount }: Props) {
   const tile = fit ? fitTile(width, height, map) : tileSizeFor(width, fitHeight ? height : undefined, across)
@@ -58,11 +59,11 @@ export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move,
     {fit ? layer(<Walking at={at} tile={tile} reduced={reduced}>
       <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile} left={0} top={0} reduced={reduced} falling={falling} />
     </Walking>) : <>
-      {!!mount && !!walkers[mount] && <View pointerEvents="none" style={{ position: 'absolute', left: width / 2 - tile * 0.7, top: height / 2 - tile * 0.75 }}>
-        <Frame strip={{ source: walkers[mount], frames: 8, width: 44, height: 44 }} frame={buddyFrame(facing, (move.id % 2) as 0 | 1)} width={tile * 1.4} height={tile * 1.4} />
+      {!!mount && !!walkers[mount] && <View pointerEvents="none" style={{ position: 'absolute', left: width / 2 - tile * RIDE.size / 2, top: height / 2 + tile * (RIDE.bottom - RIDE.size) }}>
+        <Frame strip={{ source: walkers[mount], frames: 8, width: 44, height: 44 }} frame={buddyFrame(facing, (move.id % 2) as 0 | 1)} width={tile * RIDE.size} height={tile * RIDE.size} />
       </View>}
-      <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile}
-        left={width / 2 - tile / 2} top={height / 2 - tile / 2 - (mount ? tile * 0.45 : 0)} reduced={reduced} falling={falling} />
+      <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile} seated={!!mount}
+        left={width / 2 - tile / 2 + (mount ? tile * (RIDE.back[facing] ?? 0) : 0)} top={height / 2 - tile / 2 + (mount ? tile * RIDE.lift : 0)} reduced={reduced} falling={falling} />
     </>}
     {layer(<Chunks map={map} chunks={chunks} keys={keys} tile={tile} layer="top" />)}
     {!!cover && layer(cover)}
@@ -148,10 +149,18 @@ export function Walker({ name, shiny, at, frame, tile, reduced, jump, scale = 1 
   </Animated.View>
 }
 
+// Riding: the mount is drawn RIDE.size tiles square with its bottom RIDE.bottom tiles below the view's middle. The trainer
+// sits on its shell: drawn standing still (no step frames, so no treadmill walk) and cut off at the waist (SEAT, in px of
+// the 128 px frame), with the waist a little below the middle (lift) and, side-on, moved back onto the shell (back), so
+// the mount's head shows in front of them.
+const RIDE = { size: 2, bottom: 0.8, lift: -0.07, back: { west: 0.3, east: -0.3 } as Partial<Record<Direction, number>> }
+const SEAT = 108 / 128
+
 // The trainer, fixed in the middle of the view: a step frame on each step, a hop with a shadow and a dust puff over
 // ledges, tall grass over their feet while they stand in it, and a 300 ms drop through the floor while falling.
-function Trainer({ trainer, facing, move, onGrass, tile, left, top, reduced, falling }: {
-  trainer: 'brendan' | 'may', facing: Direction, move: Move, onGrass: boolean, tile: number, left: number, top: number, reduced: boolean, falling: boolean
+function Trainer({ trainer, facing, move, onGrass, tile, left, top, reduced, falling, seated = false }: {
+  trainer: 'brendan' | 'may', facing: Direction, move: Move, onGrass: boolean, tile: number, left: number, top: number, reduced: boolean, falling: boolean,
+  seated?: boolean
 }) {
   // The step frame shows until this move has settled; a hop lasts until it has landed. Both are set by timers.
   const [settled, setSettled] = useState(move.id)
@@ -166,7 +175,7 @@ function Trainer({ trainer, facing, move, onGrass, tile, left, top, reduced, fal
     drop.start()
     return () => drop.stop()
   }, [falling, reduced, sink])
-  const phase = move.kind !== 'none' && move.id !== settled ? (move.id % 2 ? 1 : 2) : 0
+  const phase = !seated && move.kind !== 'none' && move.id !== settled ? (move.id % 2 ? 1 : 2) : 0
   const hopping = move.kind === 'hop' && !reduced && move.id !== landed
   useEffect(() => {
     if (move.kind === 'none') return
@@ -186,7 +195,7 @@ function Trainer({ trainer, facing, move, onGrass, tile, left, top, reduced, fal
     return () => timers.forEach(clearTimeout)
   }, [move.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const strip = sprites[trainer]
-  return <View pointerEvents="none" style={{ position: 'absolute', left, top: top - tile, width: tile, height: tile * 2 }}>
+  return <View pointerEvents="none" style={{ position: 'absolute', left, top: top - tile, width: tile, height: tile * 2 * (seated ? SEAT : 1), overflow: seated ? 'hidden' : 'visible' }}>
     {hopping && <View style={{ position: 'absolute', left: 0, top: tile * 1.6 }}>
       <Frame strip={sprites.shadow} frame={0} width={tile} height={tile / 2} />
     </View>}
