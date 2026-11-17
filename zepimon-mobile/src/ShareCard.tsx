@@ -237,14 +237,11 @@ function Split({ kit }: { kit: Kit }) {
   </View>
 }
 
-// Starter: a "choose your starter" screen made from the adventure. A faint diagonal Zepimon watermark runs behind the
-// Pokemon, its neighbours in the evolution line peek in from the sides, and below come its Dex number, name, type,
+// Starter: a "choose your starter" screen made from the adventure. The Pokemon stands in the middle
+// with pastel cards peeking in from the sides for the other forms of its line, and below come its Dex number, name, type,
 // the run's stats and a Dex-style entry written from the details picked on the share screen.
 const STARTER_SKY = ['#18202B', '#2A3848', '#5D7A96']
 const STARTER_SIZES: Record<SpriteSize, number> = { small: 380, medium: 520, large: 640, huge: 760 }
-const LOGO_FILL = '#FFD23F'
-const LOGO_EDGE = '#2452C8'
-const LOGO_DEPTH = '#0F2560'
 // The sprite stands on this line.
 const GROUND = 1050
 
@@ -265,7 +262,7 @@ function Starter({ kit }: { kit: Kit }) {
   const entry = starterEntry(kit)
   const stats = [['Distance', km(record.meters).replace(' km', ''), 'km'],
     ['Pace', averagePace(record.elapsedSeconds, record.meters).replace(' /km', ''), '/km'], ['Time', cardTime(record.elapsedSeconds), '']]
-  // The swipe-up handle fits under a one-line entry (about 48 characters); a longer one leaves room only for a small wordmark.
+  // The swipe-up handle fits under a one-line entry (about 48 characters); a longer one leaves the bottom clear.
   const handle = entry.length <= 48
   // Sized to the name, since the web cannot shrink text to fit: about 0.7 em a letter in the 600 px between the sides.
   const nameSize = Math.min(112, Math.floor(600 / (title.length * 0.7)))
@@ -288,15 +285,13 @@ function Starter({ kit }: { kit: Kit }) {
     {habitat && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 900 * u,
       experimental_backgroundImage: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.6))', backgroundImage: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.6))' } as object} />}
     {dark && neighbours.map((name, side) => name && <PeekCard key={side} kit={kit} name={name} side={side ? 'right' : 'left'} />)}
-    {/* The wordmark as a faint diagonal watermark across the sprite's half of the card. */}
-    <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: (GROUND + 160) * u, alignItems: 'center', justifyContent: 'center',
-      opacity: habitat ? 0.18 : 0.14, transform: [{ rotate: '-32deg' }, { scale: 1.2 }] }}><Logo u={u} arch={false} /></View>
     {points.length > 0 && <View style={{ position: 'absolute', left: 90 * u, top: 360 * u, opacity: habitat ? 0.6 : 0.35 }}>
       <RouteArt kit={kit} width={900} height={GROUND - 340} />
     </View>}
 
     <Text allowFontScaling={false} style={[text(36, fonts.bold, 'rgba(255, 255, 255, 0.85)'),
       { position: 'absolute', left: 96 * u, top: 120 * u, textAlign: 'left', fontStyle: 'italic' }]}>{`Your ${activity.toLowerCase()} buddy`}</Text>
+    <View style={{ position: 'absolute', right: 96 * u, top: 120 * u }}><Tag u={u} tint={tint} /></View>
 
     <View style={{ position: 'absolute', left: 0, right: 0, top: (GROUND - box) * u, alignItems: 'center' }}>
       <View style={{ position: 'absolute', top: (box - 34) * u, width: box * 0.62 * u, height: 56 * u }}>
@@ -330,10 +325,7 @@ function Starter({ kit }: { kit: Kit }) {
       {!!entry && <Text allowFontScaling={false} style={[text(34, fonts.heavy, 'rgba(255, 255, 255, 0.92)'),
         { textAlign: 'left', alignSelf: 'stretch', marginTop: 36 * u, lineHeight: 46 * u }]}>{entry}</Text>}
     </View>
-    <View style={{ position: 'absolute', left: 0, right: 0, bottom: (handle ? 96 : 80) * u, alignItems: 'center' }}>
-      {handle ? <Handle u={u} tint={tint} /> : <Text allowFontScaling={false}
-        style={[text(30, fonts.black, 'rgba(255, 255, 255, 0.8)'), { letterSpacing: 8 * u }]}>ZEPIMON</Text>}
-    </View>
+    {handle && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 96 * u, alignItems: 'center' }}><Handle u={u} tint={tint} /></View>}
   </View>
 }
 
@@ -349,35 +341,41 @@ function starterEntry({ title, record, shown, pokemon }: Kit): string {
   return sentences.join(' ')
 }
 
-// ZEPIMON in chunky letters, yellow over a blue outline and a deeper drop; arched, each letter tilts along the arch.
-function Logo({ u, arch = true }: { u: number, arch?: boolean }) {
-  const letters = [...'ZEPIMON']
-  const size = 168
-  const ring = Array.from({ length: 12 }, (_, i) => [Math.cos(i * Math.PI / 6) * 11, Math.sin(i * Math.PI / 6) * 11])
-  const face = { fontFamily: fonts.black, fontSize: size * u, lineHeight: size * 1.2 * u, includeFontPadding: false } as const
-  return <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
-    {letters.map((letter, i) => {
-      const t = arch ? (i - (letters.length - 1) / 2) / ((letters.length - 1) / 2) : 0
-      const lift = arch ? 1 - t * t : 0
-      return <View key={i} style={{ marginHorizontal: -3 * u, transform: [{ translateY: -46 * lift * u }, { rotate: `${t * 7}deg` }] }}>
-        <Text allowFontScaling={false} style={[face, { position: 'absolute', left: 4 * u, top: 18 * u, color: LOGO_DEPTH }]}>{letter}</Text>
-        {ring.map(([x, y], j) => <Text key={j} allowFontScaling={false}
-          style={[face, { position: 'absolute', left: x * u, top: y * u, color: LOGO_EDGE }]}>{letter}</Text>)}
-        <Text allowFontScaling={false} style={[face, { color: LOGO_FILL }]}>{letter}</Text>
-      </View>
-    })}
+// Another form of the line, as the next card on a carousel: a tilted pastel card in its type color, cut off by the edge,
+// with polka dots, a sparkle and a little trail of footprints.
+function PeekCard({ kit: { u }, name, side }: { kit: Kit, name: string, side: 'left' | 'right' }) {
+  const color = name === 'Egg' ? '#9AA8B8' : typeColors[pokemonType(name)] || typeColors.normal
+  const left = side === 'left'
+  // The card is 240 wide and shows about 120 of it; drawn for the left side and mirrored for the right.
+  return <View style={{ position: 'absolute', top: 640 * u, [side]: -120 * u, width: 240 * u, height: 520 * u,
+    transform: [{ rotate: `${left ? 7 : -7}deg` }] }}>
+    <Svg width={240 * u} height={520 * u} viewBox="0 0 240 520">
+      <Defs>
+        <LinearGradient id={`peek-${side}`} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={WHITE} stopOpacity={0.55} /><Stop offset="1" stopColor={WHITE} stopOpacity={0.2} />
+        </LinearGradient>
+      </Defs>
+      <Rect x={0} y={0} width={240} height={520} rx={64} fill={color} />
+      <Rect x={0} y={0} width={240} height={520} rx={64} fill={`url(#peek-${side})`} />
+      <Rect x={10} y={10} width={220} height={500} rx={56} fill="none" stroke={WHITE} strokeOpacity={0.6} strokeWidth={6} strokeDasharray="2 16" strokeLinecap="round" />
+      {[[left ? 190 : 50, 70, 14], [left ? 160 : 80, 120, 8], [left ? 200 : 40, 170, 10], [left ? 175 : 65, 440, 12], [left ? 205 : 35, 480, 7]]
+        .map(([x, y, r], i) => <Circle key={i} cx={x} cy={y} r={r} fill={WHITE} fillOpacity={0.55} />)}
+      {/* A four-point sparkle. */}
+      <Path d={`M${left ? 175 : 65} 222 Q${left ? 179 : 69} 242 ${left ? 197 : 87} 246 Q${left ? 179 : 69} 250 ${left ? 175 : 65} 270 Q${left ? 171 : 61} 250 ${left ? 153 : 43} 246 Q${left ? 171 : 61} 242 ${left ? 175 : 65} 222 Z`}
+        fill={WHITE} fillOpacity={0.9} />
+      {[[left ? 165 : 75, 330, -14], [left ? 195 : 45, 372, 10], [left ? 168 : 72, 408, -14]].map(([x, y, turn], i) => <Path key={i}
+        transform={`rotate(${left ? turn : -turn} ${x} ${y})`} fill={WHITE} fillOpacity={0.75}
+        d={`M${x - 7} ${y - 2} a7 10 0 1 0 14 0 a7 10 0 1 0 -14 0 M${x - 8} ${y - 18} a3 3.5 0 1 0 6 0 a3 3.5 0 1 0 -6 0 M${x + 2} ${y - 19} a3 3.5 0 1 0 6 0 a3 3.5 0 1 0 -6 0`} />)}
+    </Svg>
   </View>
 }
 
-// Another form of the line, as the next card on a carousel, cut off by the edge of the image.
-function PeekCard({ kit: { u }, name, side }: { kit: Kit, name: string, side: 'left' | 'right' }) {
-  const color = name === 'Egg' ? '#6B7A8A' : typeColors[pokemonType(name)] || typeColors.normal
-  const round = 56 * u
-  return <View style={{ position: 'absolute', top: 600 * u, [side]: 0, width: 150 * u, height: 640 * u, overflow: 'hidden', opacity: 0.75,
-    backgroundColor: color, [side === 'left' ? 'borderTopRightRadius' : 'borderTopLeftRadius']: round,
-    [side === 'left' ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: round }}>
-    <Text allowFontScaling={false} style={{ position: 'absolute', top: 120 * u, [side]: -90 * u, fontFamily: fonts.black, fontSize: 300 * u,
-      lineHeight: 360 * u, color: 'rgba(255, 255, 255, 0.16)' }}>{name[0]}</Text>
+// A small "made with Zepimon" mark for the corner: a tiny orb in the Pokemon's type color and the name.
+function Tag({ u, tint }: { u: number, tint: string }) {
+  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 * u, opacity: 0.8 }}>
+    <View style={{ width: 22 * u, height: 22 * u, borderRadius: 11 * u, backgroundColor: tint, borderWidth: 4 * u, borderColor: WHITE }} />
+    <Text allowFontScaling={false} style={{ fontFamily: fonts.black, fontSize: 30 * u, lineHeight: 38 * u, letterSpacing: 2 * u, color: WHITE,
+      textShadowColor: 'rgba(0, 0, 0, 0.5)', textShadowOffset: { width: 0, height: 2 * u }, textShadowRadius: 8 * u }}>zepimon</Text>
   </View>
 }
 
