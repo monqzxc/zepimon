@@ -87,15 +87,21 @@ function cardWords(card: TeamCard, layout: Layout, weather?: Weather) {
     `${perk ? `, egg move ${perk.move}: ${perk.text}` : ''}${evolves ? `, evolves to ${evolves}` : ''}${card.loaner ? ', loaner' : ''}`
 }
 
-// The small marks a card carries: EGG for an egg move, ▲ / ▼ for the weather.
+const knowsEggMove = (card: TeamCard, layout: Layout) => card.hatched && !!eggPerk(placedForm({ layout }, card), layout)
+
+// A hatched Pokemon's sprite sits in a gold halo instead of carrying a text tag; screen readers get the egg move from cardWords.
+function Sprite({ card, layout, size }: { card: TeamCard, layout: Layout, size: number }) {
+  const sprite = <PixelSprite name={placedForm({ layout }, card)} shiny={card.shiny} size={size} />
+  if (!knowsEggMove(card, layout)) return sprite
+  return <View style={[picker.halo, { width: size + 6, height: size + 6, borderRadius: size }]}>{sprite}</View>
+}
+
+// The weather mark a card carries: ▲ / ▼.
 function Badges({ card, layout, weather }: { card: TeamCard, layout: Layout, weather?: Weather }) {
-  const form = placedForm({ layout }, card)
-  const egg = card.hatched && !!eggPerk(form, layout)
-  const sky = unitWeather(weather, form, layout)
-  if (!egg && !sky) return null
+  const sky = unitWeather(weather, placedForm({ layout }, card), layout)
+  if (!sky) return null
   return <View style={picker.badges}>
-    {egg && <Text style={[picker.badge, picker.egg]}>EGG</Text>}
-    {sky && <Text style={[picker.badge, sky === 'boosted' ? picker.up : picker.down]}>{sky === 'boosted' ? '▲' : '▼'}</Text>}
+    <Text style={[picker.badge, sky === 'boosted' ? picker.up : picker.down]}>{sky === 'boosted' ? '▲' : '▼'}</Text>
   </View>
 }
 
@@ -105,7 +111,7 @@ function Slot({ card, layout, weather, editing, onPress }: { card: TeamCard, lay
   const kit = kitFor(form, layout)
   return <Pressable accessibilityRole="button" accessibilityLabel={`${cardWords(card, layout, weather)}${editing ? '. Tap to remove' : ''}`}
     onPress={onPress} style={({ pressed }) => [picker.slot, { opacity: pressed ? 0.7 : 1 }]}>
-    <PixelSprite name={form} shiny={card.shiny} size={44} />
+    <Sprite card={card} layout={layout} size={44} />
     <Text numberOfLines={1} style={picker.slotName}>{form}</Text>
     <Text numberOfLines={1} style={picker.detail}>◉ {kit.cost}</Text>
     <Badges card={card} layout={layout} weather={weather} />
@@ -121,7 +127,7 @@ function TeamChip({ card, layout, weather, selected, disabled = false, onPress }
   return <Pressable accessibilityRole="checkbox" accessibilityLabel={cardWords(card, layout, weather)} accessibilityState={{ checked: selected, disabled }}
     disabled={disabled} onPress={onPress}
     style={({ pressed }) => [picker.chip, selected && picker.selected, { opacity: disabled ? 0.4 : pressed ? 0.7 : 1 }]}>
-    <PixelSprite name={form} shiny={card.shiny} size={36} />
+    <Sprite card={card} layout={layout} size={36} />
     <View style={{ flex: 1 }}>
       <Text numberOfLines={1} style={picker.name}>{form}{card.shiny ? ' ✦' : ''}</Text>
       <Text numberOfLines={1} style={picker.detail}>{kit.label} · ◉ {kit.cost}</Text>
@@ -152,7 +158,7 @@ const picker = themedStyles(() => ({
   detail: { color: colors.muted, fontSize: 12, lineHeight: 16, fontFamily: fonts.body },
   badges: { flexDirection: 'row', gap: 3, marginTop: 2 },
   badge: { fontSize: 10, lineHeight: 14, fontFamily: fonts.black, paddingHorizontal: 5, borderRadius: 999, overflow: 'hidden' },
-  egg: { color: colors.ink, backgroundColor: colors.goldTint },
+  halo: { alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.gold, backgroundColor: colors.goldTint },
   up: { color: colors.gold },
   down: { color: colors.danger }
 }))
