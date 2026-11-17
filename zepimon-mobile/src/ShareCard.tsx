@@ -238,7 +238,7 @@ function Split({ kit }: { kit: Kit }) {
 }
 
 // Starter: a "choose your starter" screen made from the adventure. The Pokemon stands in the middle
-// with pastel cards peeking in from the sides for the other forms of its line, and below come its Dex number, name, type,
+// in front of its route, and below come its Dex number, name, type,
 // the run's stats and a Dex-style entry written from the details picked on the share screen.
 const STARTER_SKY = ['#18202B', '#2A3848', '#5D7A96']
 const STARTER_SIZES: Record<SpriteSize, number> = { small: 380, medium: 520, large: 640, huge: 760 }
@@ -252,10 +252,6 @@ function Starter({ kit }: { kit: Kit }) {
   const type = pokemonType(pokemon)
   const tint = typeColors[type] || typeColors.normal
   const box = STARTER_SIZES[options.size]
-  // The forms either side of this one, as on a starter carousel: the egg comes before the first form.
-  const line = ['Egg', ...family]
-  const at = line.indexOf(pokemon)
-  const neighbours = [at > 0 ? line[at - 1] : null, at >= 0 && at < line.length - 1 ? line[at + 1] : null]
   const finished = new Date(record.finishedAt)
   const day = Number.isFinite(finished.getTime()) ? finished.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase() : ''
   const activity = record.activity === 'running' ? 'Running' : record.activity ? 'Walking' : 'Adventure'
@@ -284,9 +280,9 @@ function Starter({ kit }: { kit: Kit }) {
     </View>}
     {habitat && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 900 * u,
       experimental_backgroundImage: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.6))', backgroundImage: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.6))' } as object} />}
-    {dark && neighbours.map((name, side) => name && <PeekCard key={side} kit={kit} name={name} side={side ? 'right' : 'left'} />)}
-    {points.length > 0 && <View style={{ position: 'absolute', left: 90 * u, top: 360 * u, opacity: habitat ? 0.6 : 0.35 }}>
-      <RouteArt kit={kit} width={900} height={GROUND - 340} />
+    {/* The route behind the Pokemon, raised so most of it shows above the sprite. */}
+    {points.length > 0 && <View style={{ position: 'absolute', left: 90 * u, top: 200 * u, opacity: habitat ? 0.85 : 0.9 }}>
+      <RouteArt kit={kit} width={900} height={GROUND - 300} />
     </View>}
 
     <Text allowFontScaling={false} style={[text(36, fonts.bold, 'rgba(255, 255, 255, 0.85)'),
@@ -339,35 +335,6 @@ function starterEntry({ title, record, shown, pokemon }: Kit): string {
   if (shown.steps) sentences.push(`${shown.steps[0].toUpperCase()}${shown.steps.slice(1)} together.`)
   if (shown.clock) sentences.push(`Out from ${shown.clock.replace(' – ', ' to ')}.`)
   return sentences.join(' ')
-}
-
-// Another form of the line, as the next card on a carousel: a tilted pastel card in its type color, cut off by the edge,
-// with polka dots, a sparkle and a little trail of footprints.
-function PeekCard({ kit: { u }, name, side }: { kit: Kit, name: string, side: 'left' | 'right' }) {
-  const color = name === 'Egg' ? '#9AA8B8' : typeColors[pokemonType(name)] || typeColors.normal
-  const left = side === 'left'
-  // The card is 240 wide and shows about 120 of it; drawn for the left side and mirrored for the right.
-  return <View style={{ position: 'absolute', top: 640 * u, [side]: -120 * u, width: 240 * u, height: 520 * u,
-    transform: [{ rotate: `${left ? 7 : -7}deg` }] }}>
-    <Svg width={240 * u} height={520 * u} viewBox="0 0 240 520">
-      <Defs>
-        <LinearGradient id={`peek-${side}`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={WHITE} stopOpacity={0.55} /><Stop offset="1" stopColor={WHITE} stopOpacity={0.2} />
-        </LinearGradient>
-      </Defs>
-      <Rect x={0} y={0} width={240} height={520} rx={64} fill={color} />
-      <Rect x={0} y={0} width={240} height={520} rx={64} fill={`url(#peek-${side})`} />
-      <Rect x={10} y={10} width={220} height={500} rx={56} fill="none" stroke={WHITE} strokeOpacity={0.6} strokeWidth={6} strokeDasharray="2 16" strokeLinecap="round" />
-      {[[left ? 190 : 50, 70, 14], [left ? 160 : 80, 120, 8], [left ? 200 : 40, 170, 10], [left ? 175 : 65, 440, 12], [left ? 205 : 35, 480, 7]]
-        .map(([x, y, r], i) => <Circle key={i} cx={x} cy={y} r={r} fill={WHITE} fillOpacity={0.55} />)}
-      {/* A four-point sparkle. */}
-      <Path d={`M${left ? 175 : 65} 222 Q${left ? 179 : 69} 242 ${left ? 197 : 87} 246 Q${left ? 179 : 69} 250 ${left ? 175 : 65} 270 Q${left ? 171 : 61} 250 ${left ? 153 : 43} 246 Q${left ? 171 : 61} 242 ${left ? 175 : 65} 222 Z`}
-        fill={WHITE} fillOpacity={0.9} />
-      {[[left ? 165 : 75, 330, -14], [left ? 195 : 45, 372, 10], [left ? 168 : 72, 408, -14]].map(([x, y, turn], i) => <Path key={i}
-        transform={`rotate(${left ? turn : -turn} ${x} ${y})`} fill={WHITE} fillOpacity={0.75}
-        d={`M${x - 7} ${y - 2} a7 10 0 1 0 14 0 a7 10 0 1 0 -14 0 M${x - 8} ${y - 18} a3 3.5 0 1 0 6 0 a3 3.5 0 1 0 -6 0 M${x + 2} ${y - 19} a3 3.5 0 1 0 6 0 a3 3.5 0 1 0 -6 0`} />)}
-    </Svg>
-  </View>
 }
 
 // A small "made with Zepimon" mark for the corner: a tiny orb in the Pokemon's type color and the name.
