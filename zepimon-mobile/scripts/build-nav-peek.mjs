@@ -122,43 +122,34 @@ const deoxys = {
   paws: pawsOf('url(#shell)', 6, .3)
 }
 
-// Rayquaza, after a chibi Rayquaza by sinisters.art: tall pointed ears with red bars behind them, the yellow ring on its
-// forehead, fins sweeping out from its cheeks, fierce orange-to-yellow eyes lined in black, a wide red grin with two
-// fangs, and white claws on its paws.
-const rayquazaInk = '#0E1F12'
-const rayquazaSmile = `<path fill="none" stroke-width="1.6" d="M57.6,56.4 Q60,58.4 62.4,56.4"/>`
-const rayquazaMouth = rayquazaSmile + `<path fill="#D7364C" stroke-width="2.2" d="M34,59.5 Q60,80 86,59.5 Q60,68 34,59.5 Z"/>
-  <path fill="none" stroke="#8E1F33" stroke-width="1.2" d="M42,64.4 L45,66.2 L48,65.6 L51,67.2 L54,66.8 L57,68 L60,67.4 L63,68 L66,66.8 L69,67.2 L72,65.6 L75,66.2 L78,64.4"/>
-  ${both('<path fill="#fff" stroke-width="1.3" d="M47.4,63.4 L49.8,69.4 L52.6,64.6 Z"/>')}`
-const rayquazaEye = (wide = false) => wide
-  ? both(`<ellipse cx="41" cy="52.5" rx="8.4" ry="8.8" fill="url(#iris)" stroke-width="2.4"/>
-  <ellipse cx="41.8" cy="53.2" rx="2.5" ry="5.2" fill="#101010" stroke="none"/><circle cx="39.6" cy="57.8" r="1.5" fill="#fff" opacity=".85" stroke="none"/>
-  <path fill="none" stroke-width="3" d="M30.5,41 Q37,38 44.5,40"/>`)
-  : both(`<path fill="url(#iris)" stroke-width="2" d="M30.5,45.5 L52.5,51.8 C53.5,59.5 50,64.6 44,64.6 C37,64.6 31.5,57 30.5,45.5 Z"/>
-  <ellipse cx="44.4" cy="56.8" rx="2.6" ry="5.2" fill="#101010" stroke="none"/><circle cx="42.4" cy="61.4" r="1.4" fill="#fff" opacity=".85" stroke="none"/>
-  <path fill="${rayquazaInk}" stroke="none" d="M24.5,39.5 L32,42.6 L54,49.4 L52.8,53.6 L30.8,47.4 C28,45.5 26,43 24.5,39.5 Z"/>`)
+// Rayquaza, soft and chibi: tall leaf-shaped ears, a rounded head narrowing to its snout (below the edge), a big yellow
+// ring on the forehead with a stripe running up over the crown, and slanted black eye patches with yellow eyes.
+const rayquazaInk = '#173A2E'
+const rayquazaEye = (scale = 1) => both(`<path fill="#14221D" stroke-width="1.6" d="M24,48.5 C31,48.5 42,52 51,58 C52,64.5 48,69.6 41.2,69.6 C32.6,69.6 25.6,61.4 24,48.5 Z"/>
+  <ellipse cx="41.4" cy="60.6" rx="${6.4 * scale}" ry="${7 * scale}" fill="url(#iris)" stroke-width="1.2"/>
+  <ellipse cx="42.2" cy="61" rx="${2.6 / scale}" ry="${4.2 / scale}" fill="#101010" stroke="none"/>
+  <circle cx="${39.8 - (scale - 1) * 4}" cy="${57.6 - (scale - 1) * 4}" r="1.7" fill="#fff" stroke="none"/>`)
 const rayquazaClaws = `<g fill="#E9EDF5" stroke-width="1.5"><ellipse cx="10.5" cy="78.6" rx="2.3" ry="3.6"/><ellipse cx="16.4" cy="79.4" rx="2.3" ry="3.6"/>
   <ellipse cx="22.3" cy="78.6" rx="2.3" ry="3.6"/></g>`
 const rayquaza = {
   out: 'rayquaza/', names: ['head-idle', 'head-blink', 'head-boo', 'paws'], ink: rayquazaInk,
-  defs: skin('skin', ['#7CCB4E', '#55A83A', '#3F8C2E']) +
-    `<linearGradient id="iris" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7A21B"/><stop offset=".55" stop-color="#FFD84A"/><stop offset="1" stop-color="#FFF2A0"/></linearGradient>`,
-  // Behind each ear a red bar (its body's fins), then the ear: broad, rising almost straight up from the head's top
-  // corner to a point, with a paler panel, and a long fin sweeping out and down from the cheek.
-  head: both(`<path fill="#D9364C" d="M53.4,37 L41,7.4 Q40.4,4.8 43,5.4 L45.6,6.6 L59.4,36 Z"/>
-  <path fill="url(#skin)" d="M35.5,42 C33.4,29 32,15.5 32.2,3.4 Q32.4,0.4 34.8,2 C43,9 50,20 54.6,34.4 Z"/>
-  <path fill="#A6E07A" stroke="none" opacity=".75" d="M37.2,33.5 C36,25 35.4,16.4 35.6,8.6 C40.6,13.6 44.6,20 47.6,27.6 Z"/>
-  <path fill="url(#skin)" d="M24,49.5 C16,50.6 8,53.6 1.2,58.4 Q-0.4,59.8 1.6,60.2 C9.6,60.4 17.6,59.2 25.6,57 Z"/>`) +
-    `<path fill="url(#skin)" d="M32,100 L30,82 C18,79 13.5,70 14.5,60 C15.5,47 27,37 44,34.5 Q60,32.5 76,34.5 C93,37 104.5,47 105.5,60
-    C106.5,70 102,79 90,82 L88,100 Z"/>
-  <ellipse cx="60" cy="40.6" rx="10.6" ry="6.8" fill="#F7D65C" stroke-width="1.8"/>
-  <ellipse cx="60" cy="40.6" rx="5.8" ry="3.2" fill="url(#skin)" stroke-width="1.8"/>
-  <ellipse cx="34" cy="41" rx="5.5" ry="2.2" fill="#fff" opacity=".3" stroke="none" transform="rotate(-24 34 41)"/>`,
+  defs: skin('skin', ['#7DC4A6', '#529E80', '#43896C']) +
+    `<linearGradient id="iris" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F2D24E"/><stop offset="1" stop-color="#C99A1E"/></linearGradient>`,
+  head: both(`<path fill="url(#skin)" d="M30,46 C24,34 21.6,18 24.6,4.4 Q25.6,1 28.6,2.8 C40,9.6 49,19.4 54,31 Z"/>
+  <path fill="#3E8467" stroke="none" opacity=".55" d="M47.6,26 C42.6,18.6 36,12 29.4,7.6 C33,13 37,19.6 40,27.6 Z"/>`) +
+    `<path fill="url(#skin)" d="M36,100 L38,86 C30,80 22,74 18,66 C12,55 14,42 26,35 C36,29.5 48,28 60,28 C72,28 84,29.5 94,35
+    C106,42 108,55 102,66 C98,74 90,80 82,86 L84,100 Z"/>
+  <path fill="none" stroke-width="5.6" d="M61.5,31 Q66,27.2 74.5,27.6 Q85,28.4 93.5,34.8"/>
+  <path fill="none" stroke="#EFCB45" stroke-width="3" d="M61.5,31 Q66,27.2 74.5,27.6 Q85,28.4 93.5,34.8"/>
+  <ellipse cx="60" cy="43" rx="13.6" ry="12.6" fill="#EFCB45" stroke-width="1.6"/>
+  <ellipse cx="60" cy="43.4" rx="9.6" ry="8.8" fill="url(#skin)" stroke-width="1.6"/>
+  <ellipse cx="36" cy="38" rx="5.5" ry="2.2" fill="#fff" opacity=".3" stroke="none" transform="rotate(-28 36 38)"/>`,
   faces: {
-    grin: rayquazaEye() + rayquazaMouth,
-    blink: both(`<path fill="${rayquazaInk}" stroke="none" d="M24.5,39.5 L32,42.6 L54,49.4 L52.8,53.6 L30.8,47.4 C28,45.5 26,43 24.5,39.5 Z"/>
-  <path fill="none" stroke-width="2.8" d="M32,48.6 Q42,57.5 52.6,52.6"/>`) + rayquazaMouth,
-    boo: rayquazaEye(true) + rayquazaSmile + '<ellipse cx="60" cy="65.5" rx="4.6" ry="4" fill="#7A1A24" stroke-width="2"/>'
+    grin: rayquazaEye(),
+    // The eye patches narrow to shut lids.
+    blink: both('<path fill="#14221D" stroke-width="1.6" d="M24,53 C32,55 42,58.4 50.4,60.4 C45,64.4 31.6,62.6 24,53 Z"/>'),
+    // Bigger eyes and a small round mouth just above the edge.
+    boo: rayquazaEye(1.1) + '<ellipse cx="60" cy="68" rx="3.4" ry="3" fill="#2A1A1A" stroke-width="1.6"/>'
   },
   paws: pawsOf('url(#skin)', 6, .3, rayquazaClaws)
 }
