@@ -266,8 +266,9 @@ function Starter({ kit }: { kit: Kit }) {
   const entry = starterEntry(kit)
   const stats = [['Distance', km(record.meters).replace(' km', ''), 'km'],
     ['Pace', averagePace(record.elapsedSeconds, record.meters).replace(' /km', ''), '/km'], ['Time', cardTime(record.elapsedSeconds), '']]
-  // The swipe-up handle fits under a one-line entry (about 48 characters); a longer one leaves the bottom clear.
-  const handle = entry.length <= 48
+  // The swipe-up handle always shows. It fits under a one-line entry (about 48 characters), drops nearer the edge
+  // under two lines, and under a longer entry keeps only its orb.
+  const handle = entry.length <= 48 ? 'full' : entry.length <= 96 ? 'low' : 'orb'
   // Sized to the name, since the web cannot shrink text to fit: about 0.7 em a letter across the 920 px row.
   const nameSize = Math.min(112, Math.floor(920 / (title.length * 0.7)))
   const best = shown.best && facts.bests.length > 1 ? `★ ${facts.bests.length} personal bests` : shown.best
@@ -331,7 +332,8 @@ function Starter({ kit }: { kit: Kit }) {
       {!!entry && <Text allowFontScaling={false} style={[text(34, fonts.heavy, 'rgba(255, 255, 255, 0.92)'),
         { textAlign: 'left', alignSelf: 'stretch', marginTop: 36 * u, lineHeight: 46 * u }]}>{entry}</Text>}
     </View>
-    {handle && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 96 * u, alignItems: 'center' }}><Handle u={u} tint={tint} /></View>}
+    <View style={{ position: 'absolute', left: 0, right: 0, bottom: (handle === 'full' ? 96 : 40) * u, alignItems: 'center' }}>
+      <Handle u={u} tint={tint} orbOnly={handle === 'orb'} /></View>
   </View>
 }
 
@@ -368,15 +370,15 @@ function Pill({ u, label, dot, icon }: { u: number, label: string, dot: string, 
 }
 
 // A story's swipe-up handle: chevrons in a pill, ending in an orb in the Pokemon's type color.
-function Handle({ u, tint }: { u: number, tint: string }) {
+function Handle({ u, tint, orbOnly }: { u: number, tint: string, orbOnly?: boolean }) {
   return <View style={{ alignItems: 'center' }}>
-    <View style={{ width: 86 * u, paddingTop: 20 * u, paddingBottom: 62 * u, borderRadius: 43 * u, alignItems: 'center', gap: 6 * u,
+    {!orbOnly && <View style={{ width: 86 * u, paddingTop: 20 * u, paddingBottom: 62 * u, borderRadius: 43 * u, alignItems: 'center', gap: 6 * u,
       backgroundColor: 'rgba(235, 240, 246, 0.9)' }}>
       {[0, 1, 2].map(i => <Svg key={i} width={40 * u} height={22 * u} viewBox="0 0 40 22">
         <Path d="M6 18 L20 5 L34 18" fill="none" stroke="#1E2733" strokeOpacity={0.45 + i * 0.2} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
       </Svg>)}
-    </View>
-    <View style={{ marginTop: -56 * u }}>
+    </View>}
+    <View style={{ marginTop: orbOnly ? 0 : -56 * u }}>
       <Svg width={112 * u} height={112 * u} viewBox="0 0 124 124">
         <Defs>
           <RadialGradient id="starter-orb" cx="0.38" cy="0.32" r="0.75">
