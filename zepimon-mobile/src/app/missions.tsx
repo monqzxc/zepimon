@@ -8,14 +8,14 @@ import { BadgeSprite } from '../games/Pixels'
 
 export default function MissionsScreen() {
   useTheme()
-  const { journal, progress } = useJournal()
+  const { journal, progress, bestFriend } = useJournal()
   const [now, setNow] = useState(Date.now)
   useFocusEffect(useCallback(() => {
     setNow(Date.now())
     const timer = setInterval(() => setNow(Date.now()), 60000)
     return () => clearInterval(timer)
   }, []))
-  const all = missions(journal, progress, now)
+  const all = missions(journal, progress, now, { bestFriend })
   const earned = all.filter(mission => !mission.weekly && progress.unlocked[mission.id]).length
   const sections = [
     { title: 'This week', items: all.filter(mission => mission.weekly) },

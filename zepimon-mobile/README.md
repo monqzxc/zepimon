@@ -634,6 +634,27 @@ The Safari Zone and the Legendary Trial (including Shrine Revisit practice rooms
 
 Turning the phone needs the native `expo-screen-orientation` module, so this release needs a new app build (an over-the-air update can't add it). The layout maths are in `src/games/immersive.ts`; `src/games/useImmersive.ts` applies and undoes the orientation lock, the hidden bars and the back button.
 
+### Buddy Friendship
+
+Every walk or run you start with a buddy grows your friendship with it, at any distance, on the watch or this
+phone. A watch adventure that syncs later still counts for the buddy you had when it **started**. Normal and Shiny
+are separate friends. Friendship counts from the day this version first opened, because the app can't know who
+walked with you before then.
+
+| Hearts | Title | Together | Unlocks |
+| --- | --- | --- | --- |
+| ♥ | Walking pals | 5 km | Hearts and distance under your buddy on the Journal |
+| ♥♥ | Good friends | 25 km | Your buddy says hello with a heart bubble when the Journal opens |
+| ♥♥♥ | Great friends | 75 km | A **Buddy** option on share images: *"With Pikachu · 75 km together"* |
+| ♥♥♥♥ | Trusted partners | 150 km | Your buddy cheers when your egg hatches or evolves |
+| ♥♥♥♥♥ | Best buddies | 300 km | A Best Buddy ribbon in the Dex and over your buddy in the Safari Zone, and the hidden badge **Best buddies** |
+
+The perks are only for looks: no extra Safari Balls, Shiny odds or permits. A new level shows once, as a message
+above the tab bar; tap it to open that Pokémon's record, where **Friendship** shows the hearts, the distance to the
+next level and every perk. Friendship isn't stored as a total. It's worked out each time from your saved adventures
+(each counted once, as everywhere else) and a log of buddy changes (`src/friendship.ts`), so syncing or importing
+again can never add to it. The log is part of **Save a backup file**.
+
 ### Collection and games
 
 - All 1,025 Pokémon through Gen 9, plus Mega, Dynamax and Gigantamax forms, with bundled sprites and type-themed habitats. Gen 5–9 Legendaries hatch from ordinary eggs until Expeditions offer them.

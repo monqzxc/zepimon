@@ -16,6 +16,7 @@ import { cardTitle } from './ShareCard'
 import { PixelSprite } from './games/TeamPicker'
 import { Sprite } from './Sprite'
 import { CoachTarget } from './CoachMarks'
+import { BuddyHearts, HelloBubble } from './FriendshipCard'
 import { useCoachTarget } from './tour'
 import { GradientFill, Icon, PokeballIcon, RetroFrame, colors, displayFont, fonts, glass, retro, themedStyles, typeInks, typeTints } from './ui'
 import type { IconName } from './ui'
@@ -103,6 +104,7 @@ export function Greeting({ name, greeting, buddy, pokemon, weeks, meters, week, 
       </Squish>
       </CoachTarget>
     </View>
+    <BuddyHearts buddy={buddy} />
     <Buddy buddy={buddy} reduced={reduced} />
     <View ref={distanceTarget} collapsable={false} style={[hello.card, retro() && hello.retroCard]}>
       <GradientFill radius={retro() ? 8 : 30} />
@@ -132,7 +134,7 @@ export function Greeting({ name, greeting, buddy, pokemon, weeks, meters, week, 
 }
 
 // Your buddy facing front, as in its record, breathing gently (still with reduced motion). Tap it to say hello; hold it
-// to open its record. Without a buddy an Egg waits in its place.
+// to open its record. Without a buddy an Egg waits in its place. From two friendship hearts it greets you with a bubble.
 function Buddy({ buddy, reduced }: { buddy: string | null, reduced: boolean }) {
   const [bob] = useState(() => new Animated.Value(0))
   useEffect(() => {
@@ -149,6 +151,7 @@ function Buddy({ buddy, reduced }: { buddy: string | null, reduced: boolean }) {
         onLongPress={() => router.push({ pathname: '/pokemon', params: { name: species } })} />
         : <View accessible accessibilityLabel="No buddy yet"><PixelSprite name="Egg" size={BUDDY} /></View>}
     </Animated.View>
+    <HelloBubble buddy={buddy} reduced={reduced} />
   </View>
 }
 // Four times the 44 px overworld frame, so its pixels stay even.

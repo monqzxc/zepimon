@@ -7,6 +7,7 @@ import { dexNumber, pokemonType } from '../catalog'
 import { eggOf } from '../plan'
 import { formDistance, openEggs } from '../phone-adventure'
 import { useCloud } from '../cloud'
+import { FriendshipDetails } from '../FriendshipCard'
 import { Button, Copy, Eyebrow, Habitat, Heading, Panel, Screen, TypeBadge, colors, useTheme } from '../ui'
 
 export default function PokemonScreen() {
@@ -60,6 +61,7 @@ export default function PokemonScreen() {
           ? `Hatched from an egg · ${eggMoves.length} egg moves: ${eggMoves.slice(0, 5).map(move => move.name).join(', ')}${eggMoves.length > 5 ? ' and more' : ''}. They power it up in Route Guard and Trail Defense.`
           : 'Hatched from an egg · this family has no Gen II–IV egg moves.'}</Copy>}
         <Copy small>{caught ? 'Caught' : 'Latest saved record'}: {new Date(record.finishedAt).toLocaleString()}</Copy>
+        <FriendshipDetails friendKey={key} isBuddy={buddy === key} />
         <Button title={buddy === key ? 'Your current buddy' : `Choose ${shiny ? 'Shiny' : 'Normal'} buddy`} disabled={buddy === key}
           onPress={() => { chooseBuddy(key).then(() => setMessage('Buddy saved to your phone.')).catch(() => setMessage('Could not save your buddy. Please try again.')) }} />
       </Habitat>

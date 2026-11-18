@@ -31,7 +31,7 @@ const SAVE_MS = 1000
 const STOPS: ZoneEvent[] = ['encounter', 'help', 'item', 'gate', 'out-of-steps']
 type Props = {
   zone?: Zone, bonusKm: number, bonusNote: string, record: string, goal?: string, dex: Record<string, DexRecord>,
-  buddy: { name: string, shiny: boolean } | null, onCatch: (name: string, shiny: boolean) => Promise<void>, onComplete: (catches: number) => void,
+  buddy: { name: string, shiny: boolean, ribbon?: boolean } | null, onCatch: (name: string, shiny: boolean) => Promise<void>, onComplete: (catches: number) => void,
   // Back to the arcade or the map, from full screen (where the arcade's own back button is hidden).
   onLeave?: () => void,
   // Where the round's save lives: one per place a round starts (the arcade, or an Adventure Map stop).

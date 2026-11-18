@@ -52,3 +52,18 @@ export function strideMs(ms: number): number {
 
 // The intro leaves once it has played MIN_MS and the app is ready under it.
 export const canLeave = (ms: number, ready: boolean) => ready && ms >= MIN_MS
+
+// Whether the opening animation has finished, for screens that wait until it is out of the way (the buddy's hello
+// bubble, src/FriendshipCard.tsx). Set once by the root layout.
+let introOver = false
+const introListeners = new Set<() => void>()
+export const introFinished = () => introOver
+export function finishIntro() {
+  if (introOver) return
+  introOver = true
+  introListeners.forEach(listener => listener())
+}
+export function subscribeIntro(listener: () => void) {
+  introListeners.add(listener)
+  return () => { introListeners.delete(listener) }
+}

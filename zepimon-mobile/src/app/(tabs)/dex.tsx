@@ -16,6 +16,8 @@ import { useReducedMotion } from '../../games/hooks'
 import { useCoach, useCoachTarget } from '../../tour'
 import { Button, Copy, Icon, PokeballIcon, Sprite, Title, TypeBadge, colors, displayFont, fonts, gradient, retro, shadows, styles, themedStyles,
   typeLabel, typeTints, useTheme } from '../../ui'
+import { PERKS, heartsFor } from '../../friendship'
+import { Ribbon } from '../../FriendshipCard'
 
 // Your collection as a Pokedex: a slanted banner in the theme's colours with the count and the sort button, a search,
 // and three dropdown pills (variant, generation, type) over a grid of cards. A variant caught in the Safari Zone keeps
@@ -41,7 +43,9 @@ export default function DexScreen() {
   const filtersTarget = useCoachTarget('dex.filters')
   // The list runs on behind the floating tab bar, so its end is padded clear of it.
   const tabBar = useBottomTabBarHeight()
-  const { journal, dex } = useJournal()
+  const { journal, dex, friends } = useJournal()
+  // Species with a Best Buddy (five friendship hearts, Normal or Shiny) wear its ribbon (src/friendship.ts).
+  const ribbons = new Set(Object.entries(friends).filter(([, meters]) => heartsFor(meters) >= PERKS.ribbon).map(([key]) => key.replace(/^Shiny /, '')))
   const [filter, setFilter] = useState<DexFilter>(defaultDexFilter)
   const [sheet, setSheet] = useState<Sheet>(null)
   const [scroll] = useState(() => new Animated.Value(0))
@@ -122,7 +126,7 @@ export default function DexScreen() {
         <Title>Your Dex is empty</Title>
         <Copy>{journal ? 'No Pokemon yet. Hatch an egg on an adventure to meet your first.' : 'Import your Zepp journal, or catch Pokemon in the Safari Zone, to meet your team.'}</Copy>
       </View>}
-      renderItem={({ item, index }) => <DexCard entry={item} index={index} shinyView={filter.variant === 'shiny'} reduced={reduced} />} />
+      renderItem={({ item, index }) => <DexCard entry={item} index={index} shinyView={filter.variant === 'shiny'} reduced={reduced} ribbon={ribbons.has(item.name)} />} />
     <PickerSheet visible={sheet === 'variant'} title="Show" options={variants} value={filter.variant}
       onPick={variant => change({ variant })} onClose={() => setSheet(null)} />
     <PickerSheet visible={sheet === 'generation'} title="Generation" options={generations} value={filter.generation}
@@ -138,7 +142,7 @@ export default function DexScreen() {
 // and type. The sprite says hello when tapped; the rest of the card opens its record, and so does holding the sprite.
 // The card's button is a layer behind the content rather than around it, so the sprite stays its own button: a button
 // inside a button is invalid on the web and hides the inner one from screen readers.
-function DexCard({ entry, index, shinyView, reduced }: { entry: DexEntry, index: number, shinyView: boolean, reduced: boolean }) {
+function DexCard({ entry, index, shinyView, reduced, ribbon }: { entry: DexEntry, index: number, shinyView: boolean, reduced: boolean, ribbon: boolean }) {
   const [rise] = useState(() => new Animated.Value(reduced || index >= STAGGERED ? 1 : 0))
   const [press] = useState(() => new Animated.Value(1))
   const squeeze = (toValue: number, bounciness: number) => reduced ? press.setValue(toValue)
@@ -151,7 +155,7 @@ function DexCard({ entry, index, shinyView, reduced }: { entry: DexEntry, index:
   }, [rise, index, reduced])
   const type = pokemonType(entry.name)
   const open = () => router.push({ pathname: '/pokemon', params: { name: entry.name } })
-  const marks = [entry.shiny && 'Shiny caught', fromSafari(entry) && 'from the Safari Zone'].filter(Boolean).join(', ')
+  const marks = [entry.shiny && 'Shiny caught', fromSafari(entry) && 'from the Safari Zone', ribbon && 'Best Buddy'].filter(Boolean).join(', ')
   return <Animated.View style={{ width: '33.333%', padding: GAP, opacity: rise,
     transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
       { scale: rise.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }}>
@@ -163,6 +167,7 @@ function DexCard({ entry, index, shinyView, reduced }: { entry: DexEntry, index:
         <View style={look.marks}>
           {entry.shiny && <Icon name="sparkle" size={14} color={colors.gold} />}
           {fromSafari(entry) && <Icon name="explore" size={14} color={colors.gold} />}
+          {ribbon && <Ribbon size={14} />}
         </View>
       </View>
       <View pointerEvents="box-none" style={look.stage}>

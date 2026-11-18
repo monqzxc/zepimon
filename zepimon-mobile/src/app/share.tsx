@@ -14,6 +14,7 @@ import { habitatTheme } from '../HabitatScene'
 import { FilterSection } from '../PokedexFilters'
 import { PixelSprite } from '../games/TeamPicker'
 import { Button, Chip, Copy, Panel, Screen, Title, colors, fonts, themedStyles, useTheme } from '../ui'
+import { shareLine } from '../friendship'
 
 // The share image of one saved adventure, opened from its card or details. id is a Journal run's id or a phone
 // adventure's own (see src/adventures.ts); only phone adventures have a route to draw.
@@ -26,7 +27,7 @@ const STYLES: [SpriteStyle, string][] = [['default', 'Default'], ['front', 'Faci
 const SIZES: [SpriteSize, string][] = [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['huge', 'Extra large']]
 const BACKGROUNDS: [CardBackground, string][] = [['dark', 'Dark'], ['clear', 'Clear'], ['habitat', 'Habitat']]
 const DETAILS: [CardDetail, string][] = [['type', 'Type'], ['best', 'Personal best'], ['evolution', 'Evolutions'], ['hatch', 'Hatch time'],
-  ['steps', 'Steps'], ['clock', 'Start and finish time']]
+  ['steps', 'Steps'], ['clock', 'Start and finish time'], ['buddy', 'Buddy']]
 // The choices stay as you left them until the app closes, like the egg list's filters. The Pokemon starts as the one
 // each adventure reached, and a detail an adventure lacks is simply left off its card.
 let remembered: CardOptions = { design: 'classic', style: 'default', size: 'medium', background: 'dark', details: [] }
@@ -47,7 +48,9 @@ export default function ShareScreen() {
 
 function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
   const { family, record } = run
-  const { journal } = useJournal()
+  const { journal, friendship, friends } = useJournal()
+  // From three friendship hearts, the buddy this adventure was walked with can join the card (src/friendship.ts).
+  const friend = shareLine(run, friendship.log, friends)
   const points = useMemo(() => path ? decodePath(path) : [], [path])
   const facts = useMemo(() => adventureFacts(run, journal), [run, journal])
   const reached = recordForm(family, record)
@@ -74,7 +77,7 @@ function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
   const available = spriteStyles(pokemon, record.shiny)
   const options = { ...chosen, style: available.includes(chosen.style) ? chosen.style : 'default' }
   const art = usePixelArt(pokemon, record.shiny, options.style)
-  const details = cardDetails(facts, record, pokemon)
+  const details = cardDetails(facts, record, pokemon, friend)
   // Saves the PNG to the gallery (asking for photo access once) or opens the share sheet.
   async function save(to: 'gallery' | 'share') {
     setBusy(to); setNote(null)
@@ -96,7 +99,7 @@ function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
         {/* The card keeps its full size and is shrunk to fit; captures draw it unscaled (see src/card-image.ts). */}
         <View style={{ position: 'absolute', left: 0, top: 0, transform: [{ scale: frame / width }], transformOrigin: 'top left' }}>
           <ShareCard ref={card} family={family} record={record} pokemon={pokemon} points={points} art={art} facts={facts}
-            options={options} width={width} />
+            options={options} width={width} friend={friend} />
         </View>
       </View>}
     </View>

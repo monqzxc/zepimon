@@ -35,7 +35,7 @@ export type CardDesign = 'classic' | 'split' | 'starter'
 export type SpriteStyle = 'default' | 'front' | 'running'
 export type SpriteSize = 'small' | 'medium' | 'large' | 'huge'
 export type CardBackground = 'dark' | 'clear' | 'habitat'
-export type CardDetail = 'type' | 'best' | 'evolution' | 'hatch' | 'steps' | 'clock'
+export type CardDetail = 'type' | 'best' | 'evolution' | 'hatch' | 'steps' | 'clock' | 'buddy'
 export type CardOptions = { design: CardDesign, style: SpriteStyle, size: SpriteSize, background: CardBackground, details: CardDetail[] }
 
 // The sprite's longest side, before rounding down to a whole-number enlargement. Split shows it smaller below the
@@ -117,7 +117,8 @@ function cardTime(seconds?: number | null): string {
 const clock = (time: number) => new Date(time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
 // The extra details this adventure can show, as they read on the card. The share screen offers a checkbox for each.
-export function cardDetails(facts: AdventureFacts, record: DexRecord, pokemon: string): Partial<Record<CardDetail, string>> {
+// friend: the Buddy Friendship line, for a buddy with three hearts (src/friendship.ts shareLine).
+export function cardDetails(facts: AdventureFacts, record: DexRecord, pokemon: string, friend: string | null = null): Partial<Record<CardDetail, string>> {
   const details: Partial<Record<CardDetail, string>> = {}
   if (pokemon !== 'Egg') details.type = typeLabel(pokemonType(pokemon))
   if (facts.bests.length) details.best = `★ ${facts.bests.map(metric => bestLabels[metric]).join(' · ')}`
@@ -125,6 +126,7 @@ export function cardDetails(facts: AdventureFacts, record: DexRecord, pokemon: s
   if (facts.hatchSeconds) details.hatch = `Hatched in ${cardTime(facts.hatchSeconds)}`
   if (facts.steps) details.steps = `${facts.steps.toLocaleString()} steps`
   if (facts.started) details.clock = `${clock(facts.started)} – ${clock(Date.parse(record.finishedAt))}`
+  if (friend) details.buddy = friend
   return details
 }
 
@@ -142,7 +144,7 @@ export function cardFileName(family: string[], record: DexRecord, form?: string)
 }
 
 type CardProps = { family: string[], record: DexRecord, pokemon: string, points: [number, number][], art: PixelArt | null | undefined,
-  facts: AdventureFacts, options: CardOptions }
+  facts: AdventureFacts, options: CardOptions, friend?: string | null }
 // What both designs draw with: u turns image pixels into layout units, and text styles a line at a pixel size.
 type Kit = CardProps & { u: number, text: (size: number, fontFamily: string, color?: string) => TextStyle, title: string, subtitle: string,
   shown: Partial<Record<CardDetail, string>> }
@@ -152,7 +154,7 @@ export function ShareCard({ ref, width, ...props }: CardProps & { ref?: Ref<View
   const u = width / CARD_PIXELS[0]
   const habitat = background === 'habitat' ? habitatTheme(pokemon) : null
   const finished = new Date(record.finishedAt)
-  const available = cardDetails(facts, record, pokemon)
+  const available = cardDetails(facts, record, pokemon, props.friend ?? null)
   const kit: Kit = { ...props, u,
     // A soft shadow keeps white text readable where it crosses the route, the scenery or a photo behind a clear card.
     text: (size, fontFamily, color = WHITE) => ({ fontFamily, fontSize: size * u, lineHeight: Math.round(size * 1.22) * u, color, textAlign: 'center',
@@ -178,7 +180,7 @@ function Classic({ kit }: { kit: Kit }) {
   const { u, text, title, subtitle, shown, art, points, record, options } = kit
   const box = SPRITE_SIZES[options.size]
   const tags = tagRow(kit)
-  const notes = [shown.hatch, shown.steps, shown.clock].filter(Boolean).join(' · ')
+  const notes = [shown.hatch, shown.steps, shown.clock, shown.buddy].filter(Boolean).join(' · ')
   // A big sprite with every detail would run off the card, so the stats shrink to make room.
   const tall = 71 + 36 + box + 94 + 37 + (tags ? 74 : 0) + (shown.evolution ? 50 : 0) + 657 + (notes ? 90 : 0) > 1820
   const stats = [['Distance', km(record.meters)], ['Pace', averagePace(record.elapsedSeconds, record.meters)], ['Time', cardTime(record.elapsedSeconds)]]
@@ -207,7 +209,7 @@ function Split({ kit }: { kit: Kit }) {
   const { u, text, title, subtitle, shown, art, points, record, options } = kit
   const [area, setArea] = useState<{ width: number, height: number } | null>(null)
   const tags = tagRow(kit)
-  const notes = [shown.hatch, shown.steps, shown.clock].filter(Boolean).join(' · ')
+  const notes = [shown.hatch, shown.steps, shown.clock, shown.buddy].filter(Boolean).join(' · ')
   const pace = averagePace(record.elapsedSeconds, record.meters)
   const stats = [['Distance', km(record.meters).replace(' km', ''), 'km'], ['Pace', pace.replace(' /km', ''), '/km'], ['Time', cardTime(record.elapsedSeconds), '']]
   return <View style={{ flex: 1, paddingHorizontal: 70 * u, paddingTop: 100 * u, paddingBottom: 110 * u }}>
@@ -338,6 +340,7 @@ function starterEntry({ title, record, shown, pokemon }: Kit): string {
   if (shown.hatch) sentences.push(`${shown.hatch.replace('Hatched', 'The egg hatched')}.`)
   if (shown.steps) sentences.push(`${shown.steps[0].toUpperCase()}${shown.steps.slice(1)} together.`)
   if (shown.clock) sentences.push(`Out from ${shown.clock.replace(' – ', ' to ')}.`)
+  if (shown.buddy) sentences.push(`${shown.buddy.replace(/ ♥+$/, '').replace(' · ', ', ')}.`)
   return sentences.join(' ')
 }
 

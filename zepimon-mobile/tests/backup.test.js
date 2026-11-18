@@ -55,3 +55,9 @@ test('backup summary counts what will be saved, and empty phones have nothing to
   assert.equal(hasBackupData(backupSummary(data())), true)
   assert.match(backupFileName(new Date(2026, 9, 26, 9, 5).getTime()), /^zepimon-backup-2026-10-26-0905\.json$/)
 })
+
+test('a backup keeps the buddy log that friendship counts from', () => {
+  const friendship = { log: [{ key: 'Shiny Bulbasaur', at: now - 864e5 }], seen: { 'Shiny Bulbasaur': 1 } }
+  assert.deepEqual(JSON.parse(createBackup(data({ friendship }), now)).phoneBackup.friendship, friendship)
+  assert.equal(JSON.parse(createBackup(data(), now)).phoneBackup.friendship, undefined, 'older callers without one still work')
+})

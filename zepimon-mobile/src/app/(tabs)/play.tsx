@@ -30,6 +30,7 @@ import { OverworldSprite } from '../../games/OverworldSprite'
 import { legendaryPoints } from '../../games/achievements'
 import { CoachTarget } from '../../CoachMarks'
 import { useCoach, useCoachTarget } from '../../tour'
+import { PERKS, heartsFor } from '../../friendship'
 
 type Launch = { game: 'guard' | 'trail' | 'safari', stop?: Stop, level?: Level }
 type Selected = 'memory' | 'quiz' | 'berries' | 'map' | 'levels' | Launch | null
@@ -37,7 +38,7 @@ type Selected = 'memory' | 'quiz' | 'berries' | 'map' | 'levels' | Launch | null
 export default function PlayScreen() {
   useTheme()
   const { dex, buddy, progress, adventure, trailLevels, bestMoves, recordWin, arcadeScores, recordArcadeScore, recordStars, recordLevelStars, recordSafariCatch,
-    trialRecords, safari, phoneRuns } = useJournal()
+    trialRecords, safari, phoneRuns, friends } = useJournal()
   const [message, setMessage] = useState('')
   const [view, setView] = useState<'games' | 'achievements'>('games')
   const [bonusOpen, setBonusOpen] = useState(false)
@@ -193,7 +194,7 @@ export default function PlayScreen() {
       onFinish={result => launch.stop ? saveStars(launch.stop, result.stars) : saveScore(launch.game, result.score)} />}
     {launch?.game === 'safari' && <SafariZone key={launch.stop?.id ?? 'safari'} zone={launch.stop?.mode === 'safari' ? launch.stop.zone : undefined}
       bonusKm={bonus.km} bonusNote={ballsNote} dex={dex} goal={launch.stop ? STAR_GOALS.safari : undefined}
-      buddy={buddy ? { name: buddy.replace(/^Shiny /, ''), shiny: buddy.startsWith('Shiny ') } : null}
+      buddy={buddy ? { name: buddy.replace(/^Shiny /, ''), shiny: buddy.startsWith('Shiny '), ribbon: heartsFor(friends[buddy] ?? 0) >= PERKS.ribbon } : null}
       record={launch.stop ? stopRecord(launch.stop) : safariBest}
       onCatch={recordSafariCatch} onLeave={back} saveKey={launch.stop?.id ?? 'arcade'} onRunning={setSafariRunning}
       onComplete={catches => launch.stop ? saveStars(launch.stop, safariStars(catches)) : saveScore('safari', catches)} />}

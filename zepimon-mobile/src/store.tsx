@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Constants from 'expo-constants'
 import { parseJournal, receiveCloudJournal } from './journal'
@@ -30,9 +30,11 @@ import { restorePhoneRuns, withPhoneRuns, withPhoneTrail } from './phone-adventu
 import type { PhoneRun } from './phone-adventure'
 import { restorePlan, withEgg, withoutEgg, withPhone } from './plan'
 import type { Plan } from './plan'
+import { LEVELS, emptyFriendship, friendshipMeters, logBuddy, markSeen, restoreFriendship } from './friendship'
+import type { Friendship } from './friendship'
 
 const KEY = 'zepimon-mobile-v1'
-type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null, expeditions: ExpeditionProgress, quest: Quest, encounters: Encounters, safari: SafariDex, adventure: Record<string, number>, trailLevels: Record<string, number>, trialRecords: TrialRecords, rematchWins: RematchWins, phoneRuns: PhoneRun[], plan: Plan | null }
+type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null, expeditions: ExpeditionProgress, quest: Quest, encounters: Encounters, safari: SafariDex, adventure: Record<string, number>, trailLevels: Record<string, number>, trialRecords: TrialRecords, rematchWins: RematchWins, phoneRuns: PhoneRun[], plan: Plan | null, friendship: Friendship }
 type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRecord>, importText: (text: string) => Promise<void>, importCloud: (text: string, owner: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void>, befriend: (key: string, index: number) => Promise<void>,
   finishTrial: (key: string, index: number, results: Record<string, number>) => Promise<void>,
   recordPracticeClear: (name: string, shiny: boolean, results: Record<string, number>) => Promise<void>, recordRematchWin: (name: string, shiny: boolean) => Promise<void>, saveTrialCheckpoint: (key: string, index: number, run: TrialRun) => Promise<void>, enterLair: (key: string, index: number) => Promise<void>,
@@ -40,8 +42,10 @@ type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRec
   releaseLegendaries: (keys: string[]) => Promise<void>,
   completeQuestChallenge: () => Promise<void>, earnPermit: () => Promise<void>, earnArcadePermit: () => Promise<void>, claimRunningTickets: () => Promise<void>, unlockWithPermit: (key: string) => Promise<void>, recordSafariCatch: (name: string, shiny: boolean) => Promise<void>, recordStars: (stop: string, stars: number) => Promise<void>,
   recordLevelStars: (level: string, stars: number) => Promise<void>, savePhoneRun: (run: PhoneRun) => Promise<void>, chooseEgg: (family: string[], mega: string | null) => Promise<void>,
-  setPhoneAdventure: (phone: Plan['phone']) => Promise<void>, dropEgg: () => Promise<void>, receivePlan: (plan: unknown) => Promise<void>, makeBackup: () => string, backupInfo: ReturnType<typeof backupSummary> }
-const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), quest: emptyQuest(), encounters: {}, safari: {}, adventure: {}, trailLevels: {}, trialRecords: {}, rematchWins: {}, phoneRuns: [], plan: null }
+  setPhoneAdventure: (phone: Plan['phone']) => Promise<void>, dropEgg: () => Promise<void>, receivePlan: (plan: unknown) => Promise<void>, makeBackup: () => string, backupInfo: ReturnType<typeof backupSummary>,
+  // Metres walked with each buddy (src/friendship.ts), the most with any one, and marking level-ups as celebrated.
+  friends: Record<string, number>, bestFriend: number, celebrateFriends: () => Promise<void> }
+const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), quest: emptyQuest(), encounters: {}, safari: {}, adventure: {}, trailLevels: {}, trialRecords: {}, rematchWins: {}, phoneRuns: [], plan: null, friendship: emptyFriendship() }
 const Context = createContext<Store | null>(null)
 
 // Watch records with this phone's own adventures layered on top; missions and Expeditions count both.
@@ -50,6 +54,21 @@ const walkedJournal = (saved: Pick<Saved, 'journal' | 'expeditions' | 'phoneRuns
 function collectionOf(saved: Pick<Saved, 'journal' | 'expeditions' | 'safari' | 'phoneRuns'>) {
   const journal = withSafariCatches(walkedJournal(saved), saved.safari)
   return { journal, dex: journal?.snapshot.dex ?? { ...saved.safari } }
+}
+const friendsOf = (saved: Pick<Saved, 'progress' | 'phoneRuns' | 'friendship'>) =>
+  friendshipMeters(allAdventures(saved.progress, saved.phoneRuns), saved.friendship.log)
+const BEST_BUDDIES = LEVELS[LEVELS.length - 1].meters
+const most = (friends: Record<string, number>) => Math.max(0, ...Object.values(friends))
+// Every write: the buddy log follows the buddy, however it changed (chosen, or dropped by an import or a release), and
+// the Best buddies badge unlocks once a friendship reaches it.
+function settle(saved: Saved, now = Date.now()): Saved {
+  const friendship = logBuddy(saved.friendship, saved.buddy, now)
+  const next = friendship === saved.friendship ? saved : { ...saved, friendship }
+  if (next.progress.unlocked['best-buddies']) return next
+  const bestFriend = most(friendsOf(next))
+  if (bestFriend < BEST_BUDDIES) return next
+  const progress = unlockMissions(walkedJournal(next), next.progress, now, { bestFriend })
+  return progress.unlocked['best-buddies'] ? { ...next, progress } : next
 }
 
 export function JournalProvider({ children }: React.PropsWithChildren) {
@@ -61,6 +80,8 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   useEffect(() => {
     let mounted = true
     AsyncStorage.getItem(KEY).then(async raw => {
+      // A fresh install starts the buddy log now, so its first adventures count once a buddy is chosen.
+      if (!raw) latest.current = settle(latest.current)
       if (!mounted || !raw) return
       const value = JSON.parse(raw)
       const journal = value.journal ? parseJournal(JSON.stringify(value.journal)) : null
@@ -84,9 +105,12 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
       latest.current = { journal, buddy, bestMoves, progress, arcadeScores: restoreScores(value.arcadeScores),
         cloudOwner: typeof value.cloudOwner === 'string' ? value.cloudOwner : null, expeditions, quest, encounters, safari, adventure: restoreStars(value.adventure),
         trailLevels: restoreLevelStars(value.trailLevels), trialRecords: restoreTrialRecords(value.trialRecords),
-        rematchWins: restoreRematchWins(value.rematchWins), phoneRuns, plan: restorePlan(value.plan) }
+        rematchWins: restoreRematchWins(value.rematchWins), phoneRuns, plan: restorePlan(value.plan), friendship: restoreFriendship(value.friendship) }
+      // The first launch of Buddy Friendship starts the log here, and a buddy dropped above is logged too.
+      latest.current = settle(latest.current)
       setSaved(latest.current)
-      if (JSON.stringify(value.progress) !== JSON.stringify(progress) || JSON.stringify(value.expeditions) !== JSON.stringify(expeditions) ||
+      if (JSON.stringify(value.progress) !== JSON.stringify(latest.current.progress) || JSON.stringify(value.expeditions) !== JSON.stringify(expeditions) ||
+          JSON.stringify(value.friendship) !== JSON.stringify(latest.current.friendship) ||
           JSON.stringify(value.quest) !== JSON.stringify(quest) || JSON.stringify(value.encounters) !== JSON.stringify(encounters)) {
         try { await AsyncStorage.setItem(KEY, JSON.stringify(latest.current)) }
         catch { if (mounted) setError('Your journal opened, but mission updates could not be saved. Try importing again.') }
@@ -99,7 +123,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   function persist(change: (current: Saved) => Saved): Promise<void> {
     if (!ready) return Promise.reject(new Error('Your journal is still loading.'))
     const next = writes.current.then(async () => {
-      const value = change(latest.current)
+      const value = settle(change(latest.current))
       await AsyncStorage.setItem(KEY, JSON.stringify(value))
       latest.current = value
       setSaved(value)
@@ -188,11 +212,13 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   const recordLevelStars = (level: string, stars: number) => persist(current => ({ ...current, trailLevels: saveLevelStars(current.trailLevels, level, stars) }))
   // Backups use the raw saved data, so the watch journal stays exactly as the watch sent it.
   const makeBackup = () => createBackup(latest.current, Date.now(), Constants.expoConfig?.version ?? '')
+  const friends = useMemo(() => friendsOf(saved), [saved])
+  const celebrateFriends = () => persist(current => ({ ...current, friendship: markSeen(current.friendship, friendsOf(current)) }))
   return <Context.Provider value={{ ...saved, ...collectionOf(saved), ready, error, importText, importCloud, chooseBuddy, recordWin, recordArcadeScore,
     befriend, finishTrial: finishEncounterTrial, recordPracticeClear, recordRematchWin, saveTrialCheckpoint, enterLair: enterEncounterLair, leaveLair: leaveEncounterLair, resetLair: resetEncounterLair,
     engageLegendary: beginBattle, releaseLegendaries: release,
     completeQuestChallenge, earnPermit: earnQuestPermit, earnArcadePermit: earnPointsPermit, claimRunningTickets, unlockWithPermit, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
-    backupInfo: backupSummary(saved) }}>{children}</Context.Provider>
+    backupInfo: backupSummary(saved), friends, bestFriend: most(friends), celebrateFriends }}>{children}</Context.Provider>
 }
 
 export function useJournal() {

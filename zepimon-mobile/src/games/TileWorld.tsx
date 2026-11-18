@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Easing, Image, Platform, Pressable, View } from 'react-native'
+import { Animated, Easing, Image, Platform, Pressable, Text, View } from 'react-native'
 import type { ImageSourcePropType } from 'react-native'
 import { safariSprites } from '../generated/safari-assets.js'
 import { trailWalkers } from '../generated/trail-walkers.js'
@@ -19,7 +19,7 @@ const pixelated = Platform.OS === 'web' ? { imageRendering: 'pixelated' as const
 
 type Props = {
   map: TileMap, chunks: TileChunks, at: Point, facing: Direction, buddyAt: Point, buddyFacing: Direction, move: Move,
-  trainer: 'brendan' | 'may', buddy: { name: string, shiny: boolean } | null, onGrass: boolean, width: number, height: number,
+  trainer: 'brendan' | 'may', buddy: { name: string, shiny: boolean, ribbon?: boolean } | null, onGrass: boolean, width: number, height: number,
   reduced: boolean, jump: number, background: string, tapToWalk: boolean, onTapTile: (tile: Point) => void,
   children?: ReactNode, cover?: ReactNode, falling?: boolean, fitHeight?: boolean, fit?: boolean, across?: number, mount?: string
 }
@@ -54,7 +54,7 @@ export function TileWorld({ map, chunks, at, facing, buddyAt, buddyFacing, move,
       {children}
       {buddy && (buddyAt.x !== at.x || buddyAt.y !== at.y) &&
         <Walker name={buddy.name} shiny={buddy.shiny} at={buddyAt} frame={buddyFrame(buddyFacing, (move.id % 2) as 0 | 1)} tile={tile} reduced={reduced} jump={jump}
-          scale={BUDDY_SCALE} />}
+          scale={BUDDY_SCALE} ribbon={buddy.ribbon} />}
     </>)}
     {fit ? layer(<Walking at={at} tile={tile} reduced={reduced}>
       <Trainer trainer={trainer} facing={facing} move={move} onGrass={onGrass} tile={tile} left={0} top={0} reduced={reduced} falling={falling} />
@@ -127,8 +127,8 @@ export const BUDDY_SCALE = (TRAINER_TILES * 0.5) * (44 / 40)
 
 // A Pokemon on the map as its overworld sprite, gliding a tile per step: the buddy behind the trainer, and the Safari
 // Zone's wild Pokemon. A new `jump` value snaps it into place. `scale` draws it bigger than its tile, feet still on it.
-export function Walker({ name, shiny, at, frame, tile, reduced, jump, scale = 1 }: {
-  name: string, shiny: boolean, at: Point, frame: number, tile: number, reduced: boolean, jump: number, scale?: number
+export function Walker({ name, shiny, at, frame, tile, reduced, jump, scale = 1, ribbon = false }: {
+  name: string, shiny: boolean, at: Point, frame: number, tile: number, reduced: boolean, jump: number, scale?: number, ribbon?: boolean
 }) {
   const [position] = useState(() => new Animated.ValueXY({ x: at.x * tile, y: at.y * tile }))
   const jumped = useRef(jump)
@@ -146,6 +146,12 @@ export function Walker({ name, shiny, at, frame, tile, reduced, jump, scale = 1 
       {strip ? <Frame strip={{ source: strip, frames: 8, width: 44, height: 44 }} frame={frame} width={size} height={size} />
         : <PixelSprite name={name} shiny={shiny} size={size} />}
     </View>
+    {/* A Best Buddy (five friendship hearts, src/friendship.ts) wears its ribbon over its head. */}
+    {ribbon && <View style={{ position: 'absolute', left: tile / 2 - tile * 0.15, top: tile - size - tile * 0.32, width: tile * 0.3, height: tile * 0.3,
+      borderRadius: tile * 0.15, backgroundColor: '#F8C830', borderWidth: Math.max(1, tile * 0.03), borderColor: '#FFFFFF',
+      alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ color: '#FFFFFF', fontSize: tile * 0.18, lineHeight: tile * 0.22, fontWeight: '900' }}>★</Text>
+    </View>}
   </Animated.View>
 }
 

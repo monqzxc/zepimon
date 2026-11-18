@@ -20,6 +20,8 @@ import { useTour, useTourLoaded } from '../tour'
 import { WelcomeTour } from '../WelcomeTour'
 import { CoachMarks } from '../CoachMarks'
 import { LaunchIntro } from '../LaunchIntro'
+import { finishIntro } from '../launch-intro'
+import { FriendshipToast } from '../FriendshipCard'
 
 // An error on any screen shows what happened, with Share, instead of closing the app.
 export const ErrorBoundary = CrashScreen
@@ -44,7 +46,7 @@ function Navigator() {
   const { welcome, coach } = useTour()
   // The opening animation plays over the app as it loads, for at least three seconds (src/LaunchIntro.tsx).
   const [intro, setIntro] = useState(true)
-  const endIntro = useCallback(() => setIntro(false), [])
+  const endIntro = useCallback(() => { setIntro(false); finishIntro() }, [])
   // The intro, the tour and the tips cover the app, which screen readers then leave alone.
   const covered = intro || welcome || !!coach
   const { colors: palette, dark } = useTheme()
@@ -95,6 +97,8 @@ function Navigator() {
     </View>
     <CrashReport />
     <AdventureBanner />
+    {/* A new Buddy Friendship level, celebrated once; it waits while the intro, tour or tips cover the app. */}
+    {!covered && <FriendshipToast />}
     <CoachMarks />
     <WelcomeTour />
   </ThemeProvider>{launch}</>

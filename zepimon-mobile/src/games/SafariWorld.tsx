@@ -29,7 +29,7 @@ const SIGHT = { dark: 1.5, flash: 4.5 }
 
 type Props = {
   game: ZoneGame, move: { kind: WalkResult['move'], id: number }, trainer: 'brendan' | 'may',
-  buddy: { name: string, shiny: boolean } | null, width: number, height: number, reduced: boolean,
+  buddy: { name: string, shiny: boolean, ribbon?: boolean } | null, width: number, height: number, reduced: boolean,
   tapToWalk: boolean, onTapTile: (tile: Point) => void, miss: { tile: Point, id: number } | null, jump?: number, fitHeight?: boolean,
   // The id of the encounter action being played out on the map, or null.
   playing?: number | null

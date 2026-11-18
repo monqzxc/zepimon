@@ -5,6 +5,7 @@ import { EVOLVE_MS } from './games/battle'
 import { PixelSprite } from './games/TeamPicker'
 import { changeVerb } from './phone-adventure'
 import { Button, fonts } from './ui'
+import { BuddyCheer } from './FriendshipCard'
 
 const native = Platform.OS !== 'web'
 // The beat before it starts, with the old form on its own: "What? Ivysaur is evolving!"
@@ -54,6 +55,7 @@ export function EvolutionScene({ from, to, shiny, label, reduced, onEvolved, onC
     <View style={scene.box} accessibilityLiveRegion="polite">
       <Text style={scene.text}>{headline}</Text>
     </View>
+    {phase === 'done' && <BuddyCheer />}
     <View style={{ minHeight: 52, alignSelf: 'stretch' }}>
       {phase === 'done' && <Button title="Continue" onPress={onClose} />}
     </View>
