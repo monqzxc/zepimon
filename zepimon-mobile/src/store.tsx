@@ -9,7 +9,7 @@ import { restoreScores, saveBestScore } from './games/scores'
 import type { ArcadeGame, ArcadeScores } from './games/scores'
 import { emptyExpeditions, expeditionJournal, importExpeditions, restoreExpeditions } from './expeditions'
 import type { ExpeditionProgress } from './expeditions'
-import { claimTickets, completeChallenge, earnArcadePermit, earnPermit, emptyQuest, questSessions, restoreQuest, spendPermit } from './expedition-quest'
+import { claimGymPermits, claimTickets, completeChallenge, earnArcadePermit, earnPermit, emptyQuest, questSessions, restoreQuest, spendPermit } from './expedition-quest'
 import { legendaryPoints } from './games/achievements'
 import { allAdventures } from './adventures'
 import { runningTickets } from './running'
@@ -32,7 +32,7 @@ import { restorePlan, withEgg, withoutEgg, withPhone } from './plan'
 import type { Plan } from './plan'
 import { LEVELS, emptyFriendship, friendshipMeters, logBuddy, markSeen, restoreFriendship } from './friendship'
 import type { Friendship } from './friendship'
-import { countSession, countStarted, decline, emptyTraining, goBack, pause, quitPlan, restoreTraining, resume, skipSession, startPlan } from './training'
+import { baselineFrom, countSession, countStarted, decline, emptyTraining, goBack, pause, quitPlan, refreshZones, restoreTraining, resume, skipSession, startPlan } from './training'
 import type { Training } from './training'
 import type { GymId } from './training-plans'
 
@@ -51,7 +51,8 @@ type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRec
   // Gym Training (src/training.ts).
   startGym: (gym: GymId, family: string[], mega: string | null) => Promise<void>, quitGym: () => Promise<void>, skipGymSession: () => Promise<void>,
   gymGoBack: (weeks: number) => Promise<void>, pauseGym: () => Promise<void>, resumeGym: () => Promise<void>,
-  countForGym: (adventureId: string) => Promise<void>, declineForGym: (adventureId: string) => Promise<void> }
+  countForGym: (adventureId: string) => Promise<void>, declineForGym: (adventureId: string) => Promise<void>,
+  refreshGymZones: (seconds: number) => Promise<void>, claimGymPermits: () => Promise<void> }
 const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), quest: emptyQuest(), encounters: {}, safari: {}, adventure: {}, trailLevels: {}, trialRecords: {}, rematchWins: {}, phoneRuns: [], plan: null, friendship: emptyFriendship(), training: emptyTraining() }
 const Context = createContext<Store | null>(null)
 
@@ -215,7 +216,11 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     return { ...current, phoneRuns, expeditions, progress: importProgress(current.progress, collection), training }
   })
   const gym = (change: (training: Training, current: Saved) => Training) => persist(current => ({ ...current, training: change(current.training, current) }))
-  const startGym = (id: GymId, family: string[], mega: string | null) => gym(training => startPlan(training, id, family, mega, Date.now()))
+  // Paced Gyms take their zones from the fastest 5 km of the last 12 weeks.
+  const startGym = (id: GymId, family: string[], mega: string | null) => gym((training, current) =>
+    startPlan(training, id, family, mega, Date.now(), baselineFrom(allAdventures(current.progress, current.phoneRuns), Date.now())))
+  const refreshGymZones = (seconds: number) => gym(training => refreshZones(training, seconds))
+  const claimBadgePermits = () => persist(current => ({ ...current, quest: claimGymPermits(current.quest, Object.keys(current.training.badges).length) }))
   const quitGym = () => gym(quitPlan)
   const skipGymSession = () => gym(training => skipSession(training, Date.now()))
   const gymGoBack = (weeks: number) => gym(training => goBack(training, weeks))
@@ -248,7 +253,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     engageLegendary: beginBattle, releaseLegendaries: release,
     completeQuestChallenge, earnPermit: earnQuestPermit, earnArcadePermit: earnPointsPermit, claimRunningTickets, unlockWithPermit, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
     backupInfo: backupSummary(saved), friends, bestFriend: most(friends), missionExtras: { bestFriend: most(friends), ...gymExtras(saved.training) }, celebrateFriends,
-    startGym, quitGym, skipGymSession, gymGoBack, pauseGym, resumeGym, countForGym, declineForGym }}>{children}</Context.Provider>
+    startGym, quitGym, skipGymSession, gymGoBack, pauseGym, resumeGym, countForGym, declineForGym, refreshGymZones, claimGymPermits: claimBadgePermits }}>{children}</Context.Provider>
 }
 
 export function useJournal() {

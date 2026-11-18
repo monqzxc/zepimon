@@ -643,25 +643,48 @@ Guided plans that build up to one adventure that hatches the egg you bring. Open
 | --- | --- | --- | --- | --- |
 | **Steady Steps** | Walkers | 6 weeks, 3 walks a week, from 20 to 50 minutes, with brisk stretches from week 3 | Hatch Day: walk 5 km | Sprout Badge |
 | **First Hatch** | New runners | 8 weeks, 3 run/walk sessions a week, from 1 minute jogs to 30 minutes | Hatch Day: 5 km, walking breaks allowed | Hatch Badge |
+| **Evolution Road** | 5 km to 10 km | 8 weeks, 4 a week: easy runs, strides, fartlek, a long run (19–26 km a week) | Evolution Day: 10 km, evolving an egg that evolves at 10 km | Stride Badge |
+| **Speed Gym** | A faster 5 km | 6 weeks, 4 a week: intervals, easy, tempo, long (27–35 km a week) | Gym Trial: a 5 km faster than your best | Spark Badge |
+| **Mega Trial** | A half marathon | 12 weeks, 4 a week, long runs to 18 km (27–44 km a week) | Summit Day: 21.1 km, Mega Evolving an egg with a Mega form | Summit Badge |
+
+The picker suggests a Gym from your saved adventures (a 5 km a day with a recent 5 km best points to Speed Gym)
+and shows it first. Evolution Road and Mega Trial say when they're best started (5 km in one go for the first;
+10 km in one go and about 15 km a week for the second), but you can **Start anyway**.
 
 - **Today first.** The Gym screen opens on the next session: what it is, how long, whether it's open, and
   **Start session**. Below it, the plan egg in its incubator (it warms with every session, cracks showing at a
   quarter, half and three quarters) and the plan as a ladder of weeks ending in the egg.
-- **Rest days.** One session a day, and a rest day between two run/walk sessions. Walks can be on back-to-back days.
+- **Rest days.** One session a day, and a rest day between two hard sessions (run/walk, quality sessions, long runs).
+  Walks and easy runs can be on back-to-back days.
+- **Your paces.** The running Gyms take pace zones from your fastest 5 km of the last 12 weeks: easy 1.20–1.40 ×
+  your 5 km pace, tempo 1.05–1.09 ×, fast 0.97–1.00 ×, half pace 1.07–1.11 ×. From a 25:00 5 km that is easy
+  6:00–7:00 /km, tempo 5:15–5:27, fast 4:51–5:00, and an estimated half marathon of about 1:55, labelled as an
+  estimate. Without a recent 5 km best you run by feel, and Speed Gym starts with a 5 km **entry trial** that sets
+  them. From week 4, Speed Gym offers once to use a faster 5 km you ran since starting.
+- **Stars.** Paced sessions earn 1–3 stars: efforts in their zone (two in three for ★★, all of them without fading
+  for ★★★), and easy runs kept easy (average no faster than easy for ★★, every kilometre for ★★★). Beginner
+  sessions earn ★★ for doing every minute. Stars come from the phone's pace log, which marks every 100 m, so short
+  efforts like 400 m get more room (about 9%) than long ones; watch adventures earn one star.
 - **Live cues.** A session started from the Gym shows a banner on the recording screen: **Jog**, **Walk** or
-  **Brisk walk** with a countdown, the next step and the step number. Each change buzzes (two pulses into an
+  **Brisk walk**, **Tempo**, **Fast** or **Easy run** with a countdown, the next step and the step number. Paced steps
+  show their target and your last minute's pace in words: **On pace**, **Ease off** or **Pick it up**. Each change buzzes (two pulses into an
   effort, one into a walk, a tap 10 s before) and is read out by screen readers. For now cues need the screen
   on; with it off the session still records and counts.
 - **Counting.** A session started from the Gym counts when you save it, if you did at least 90% of its time.
   A watch adventure, or a phone one started normally, shows under **Count a saved adventure** when it's enough
   for the next session: tap **Count it** or **Not this one**. Nothing counts on its own.
+- **The graduation** carries the plan egg and needs its full distance in one adventure (5 km, 10 km, or 21.1 km for the
+  half marathon), exactly as the egg's forms need it.
+- **Speed Gym's trial** earns the Spark Badge only with a new best. Coming up short is normal: one retry after two
+  rest days, within 14 days. After that the plan ends without the badge, and the egg has hatched either way.
 - **Hatch Day** carries the plan egg and needs the full 5 km in one adventure, exactly like any egg. Training on
   the watch? **Send the egg to my watch**, then cover 5 km with it. Coming up short just saves an ordinary
   adventure, and you can try again any day.
 - **Flexible.** One skip a week (it gives no warmth, and Hatch Day can't be skipped), **Repeat week** where a plan
   steps up, **Pause plan** for up to 28 days, and after 10 or 21 days away an offer to go back one or two weeks.
-- **Badges.** Graduating earns the Gym Badge, kept in the badge case, and the hidden badges **Gym graduate** and,
-  with no session skipped, **Warm welcome**. Training is saved on this phone and included in backups.
+- **Badges.** Graduating earns the Gym Badge, kept in the badge case (Spark with its trial time, and **Mega Pacer**
+  for a Summit Day with a faster second half), and the hidden badges **Gym graduate** and, with no session skipped,
+  **Warm welcome**. Every Gym Badge also earns one **Expedition Permit**: **Claim** it in the badge case. Training is saved on this phone and included in backups.
 
 The plans are general fitness guidance, not medical advice, and the Gym screen says so before you start.
 The logic lives in `src/training-plans.ts` (the plans), `src/training.ts` (progress, rest days, matching) and

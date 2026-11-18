@@ -15,10 +15,11 @@ export const QUEST_SESSION_METERS = 1000
 // number: permits earned so far. since: sessions finished at or after it count toward this quest; null means since the
 // first trail began, so the first quest counts the same saved adventures as the distance route. challenge: this quest's
 // shrine challenge is done. arcade: permits traded for arcade achievement points (src/games/achievements.ts). running:
-// permits claimed with running tickets (src/running.ts runningTickets). permits: earned any way and not yet used.
+// permits claimed with running tickets (src/running.ts runningTickets). gyms: permits claimed with Gym Badges
+// (src/training.ts), one per badge. permits: earned any way and not yet used.
 // unlocks: per trail key, encounters opened with a permit.
-export type Quest = { number: number, since: number | null, challenge: boolean, arcade: number, running: number, permits: number, unlocks: Record<string, number> }
-export const emptyQuest = (): Quest => ({ number: 0, since: null, challenge: false, arcade: 0, running: 0, permits: 0, unlocks: {} })
+export type Quest = { number: number, since: number | null, challenge: boolean, arcade: number, running: number, gyms: number, permits: number, unlocks: Record<string, number> }
+export const emptyQuest = (): Quest => ({ number: 0, since: null, challenge: false, arcade: 0, running: 0, gyms: 0, permits: 0, unlocks: {} })
 
 // The saved sessions counting toward this quest, oldest first. Only completed, saved adventures are in progress.runs,
 // keyed by a stable id, and completedRuns counts one adventure saved by both devices once, so importing the same
@@ -58,6 +59,15 @@ export function claimTickets(quest: Quest, tickets: number): Quest {
   return { ...quest, running: quest.running + left, permits: quest.permits + left }
 }
 
+// Each Gym Badge earns one permit, counted against those already claimed, so claiming twice or restoring a backup never
+// makes more. Claiming takes every one waiting.
+export const gymPermitsLeft = (quest: Quest, badges: number) => Math.max(0, badges - quest.gyms)
+export function claimGymPermits(quest: Quest, badges: number): Quest {
+  const left = gymPermitsLeft(quest, badges)
+  if (!left) throw new Error('No Gym Badge permit to claim yet.')
+  return { ...quest, gyms: quest.gyms + left, permits: quest.permits + left }
+}
+
 export const trailPermits = (quest: Quest, key: string) => quest.unlocks[key] || 0
 export const trailUnlocked = (quest: Quest, key: string, trail: Trail) => unlockedEncounters(trail, trailPermits(quest, key))
 export const encounterReady = (quest: Quest, key: string, trail: Trail) => trail.claimed < trailUnlocked(quest, key, trail)
@@ -87,6 +97,7 @@ export function restoreQuest(raw: unknown): Quest {
   quest.challenge = value.challenge === true
   quest.arcade = count(value.arcade, 1000)
   quest.running = count(value.running, 4000)
+  quest.gyms = count(value.gyms, 100)
   quest.permits = count(value.permits, 4000)
   if (value.unlocks && typeof value.unlocks === 'object' && !Array.isArray(value.unlocks)) {
     for (const [key, permits] of Object.entries(value.unlocks)) {

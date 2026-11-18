@@ -204,3 +204,13 @@ test('trial achievements read the records', () => {
   assert.equal(arcadePoints(at) - before, 30, 'trial-switch 10 + trial-par 20; the crumble tutorial earns no trial-crumble')
   assert.equal(find({ ...at, trialRecords: { ...par, 'switch-3': 102 } }, 'trial-par').value, 4, 'One move over par does not count')
 })
+
+test('each Gym Badge earns one Expedition Permit, claimed once', async () => {
+  const { claimGymPermits, gymPermitsLeft, emptyQuest: fresh, restoreQuest: restore } = await import('../src/expedition-quest.ts')
+  const quest = claimGymPermits(fresh(), 2)
+  assert.deepEqual([quest.gyms, quest.permits, gymPermitsLeft(quest, 2)], [2, 2, 0])
+  assert.throws(() => claimGymPermits(quest, 2), /No Gym Badge permit/)
+  assert.equal(claimGymPermits(quest, 3).permits, 3)
+  assert.equal(restore({ ...quest, gyms: undefined }).gyms, 0, 'older saves have claimed none')
+  assert.equal(restore(quest).gyms, 2)
+})

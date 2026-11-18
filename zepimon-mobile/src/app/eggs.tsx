@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { FlatList, Pressable, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useJournal } from '../store'
-import { allEggs, eggOpen } from '../phone-adventure'
+import { allEggs, eggOpen, megaChoices } from '../phone-adventure'
 import { caughtCount, defaultEggFilter, filterEggs, generationsOf, isFiltered, mysteryLine, spokenLine, typesOf } from '../pokedex'
 import type { EggFilter, EggStatus } from '../pokedex'
 import { FilterSection, GenerationFilter, ResultLine, SearchBox, SortSwitch, TypeFilter } from '../PokedexFilters'
@@ -27,7 +27,8 @@ const remember = (filter: EggFilter) => { remembered = filter }
 export default function EggsScreen() {
   useTheme()
   // for=gym: picking a Gym's plan egg (src/app/gym.tsx), which leaves the Adventure tab's egg as it is.
-  const { current, for: purpose } = useLocalSearchParams<{ current?: string, for?: string }>()
+  // rule: the Gym's egg rule (src/training-plans.ts), which narrows the list: 'evolves' at 10 km, or has a 'mega' form.
+  const { current, for: purpose, rule } = useLocalSearchParams<{ current?: string, for?: string, rule?: string }>()
   const { dex, expeditions, chooseEgg } = useJournal()
   const [filter, setFilter] = useState<EggFilter>(() => ({ ...remembered, query: '' }))
   function change(next: Partial<EggFilter>) {
@@ -36,7 +37,8 @@ export default function EggsScreen() {
     remember(value)
   }
   const caught = (name: string) => !!(dex[name] || dex[`Shiny ${name}`])
-  const results = filterEggs(allEggs, filter, caught)
+  const fits = (family: string[]) => rule === 'evolves' ? family.length >= 2 : rule === 'mega' ? megaChoices(family).length > 0 : true
+  const results = filterEggs(allEggs, filter, caught).filter(fits)
   const open = (family: string[]) => eggOpen(family, expeditions.dex)
   const choices = results.filter(open)
   function choose(family: string[]) {

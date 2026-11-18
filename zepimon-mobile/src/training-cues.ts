@@ -29,6 +29,32 @@ function secondsAt(recorded: Recorded, meters: number, now: number): number {
   return at[i] + (mark - i) * (at[i + 1] - at[i])
 }
 
+// Where each step started and ended in a saved adventure, in seconds from its start and metres, for the steps it
+// finished. Stars are scored from these (src/training.ts scoreStars).
+export type Span = { index: number, step: Step, from: { seconds: number, meters: number }, to: { seconds: number, meters: number } }
+export function stepSpans(session: Session, recorded: Recorded, elapsed: number): Span[] {
+  const spans: Span[] = []
+  let seconds = 0
+  let meters = recorded.pace.start * 100
+  for (let index = 0; index < session.steps.length; index++) {
+    const step = session.steps[index]
+    const from = { seconds, meters }
+    if (step.seconds) {
+      const end = seconds + step.seconds
+      if (elapsed < end) break
+      seconds = end
+      meters = metersAt(recorded, end)
+    } else {
+      const end = meters + (step.meters ?? 0)
+      if (recorded.meters < end) break
+      meters = end
+      seconds = secondsAt(recorded, end, elapsed)
+    }
+    spans.push({ index, step, from, to: { seconds, meters } })
+  }
+  return spans
+}
+
 export function cueAt(session: Session, recorded: Recorded, now: number): Cue {
   const elapsed = Math.max(0, (now - recorded.startedAt) / 1000)
   const total = session.steps.length
@@ -53,10 +79,14 @@ export function cueAt(session: Session, recorded: Recorded, now: number): Cue {
   return { index: total - 1, step: last, next: null, remainingSeconds: 0, remainingMeters: 0, done: true, total }
 }
 
-const labels: Record<StepKind, string> = { warmup: 'Warm-up walk', walk: 'Walk', brisk: 'Brisk walk', jog: 'Jog', run: 'Run', cooldown: 'Cool-down walk' }
-export const stepLabel = (step: Step) => labels[step.kind]
+const labels: Record<StepKind, string> = { warmup: 'Warm-up walk', walk: 'Walk', brisk: 'Brisk walk', jog: 'Jog', run: 'Run', cooldown: 'Cool-down walk',
+  easy: 'Easy run', tempo: 'Tempo', interval: 'Fast', half: 'Half pace', stride: 'Stride', recover: 'Recovery jog', race: 'Race' }
+// A warm-up or cool-down measured in metres is a jog; a timed one, in the beginner plans, a walk.
+export const stepLabel = (step: Step) => step.meters && step.kind === 'warmup' ? 'Warm-up jog'
+  : step.meters && step.kind === 'cooldown' ? 'Cool-down jog' : labels[step.kind]
+const efforts: StepKind[] = ['jog', 'run', 'brisk', 'tempo', 'interval', 'half', 'stride', 'race']
 // Whether a step is an effort (two pulses) or an easy stretch (one).
-export const isEffort = (step: Step) => step.kind === 'jog' || step.kind === 'run' || step.kind === 'brisk'
+export const isEffort = (step: Step) => efforts.includes(step.kind)
 
 export function remainingText(cue: Cue): string {
   if (cue.remainingMeters !== null) return cue.remainingMeters >= 1000 ? `${(cue.remainingMeters / 1000).toFixed(2)} km` : `${Math.ceil(cue.remainingMeters)} m`
