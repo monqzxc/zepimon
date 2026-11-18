@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { Animated, Platform, Pressable, Text, View } from 'react-native'
+import Svg, { Path } from 'react-native-svg'
 import { router, useFocusEffect } from 'expo-router'
 import { useJournal } from './store'
 import { MAX_HEARTS, PERKS, countingSince, friendshipLevel, levelUps } from './friendship'
 import { PixelSprite } from './games/TeamPicker'
 import { introFinished, subscribeIntro } from './launch-intro'
-import { Copy, Eyebrow, colors, displayFont, fonts, themedStyles, useTheme } from './ui'
+import { Copy, colors, displayFont, fonts, themedStyles, useTheme } from './ui'
 
 // Buddy Friendship on screen (src/friendship.ts): the hearts, the panel on a Pokemon's record, the Best Buddy ribbon, the
 // hello bubble over your buddy on the Journal and the toast that celebrates a new level once.
@@ -15,9 +16,15 @@ const species = (key: string) => key.replace(/^Shiny /, '')
 
 export function Hearts({ hearts, size = 15 }: { hearts: number, size?: number }) {
   return <View accessible accessibilityLabel={`${hearts} of ${MAX_HEARTS} friendship hearts`} style={sheet.hearts}>
-    {Array.from({ length: MAX_HEARTS }, (_, i) =>
-      <Text key={i} style={{ fontSize: size, lineHeight: size * 1.25, color: i < hearts ? colors.danger : colors.track }}>♥</Text>)}
+    {Array.from({ length: MAX_HEARTS }, (_, i) => <Heart key={i} size={size} color={i < hearts ? colors.danger : colors.track} />)}
   </View>
+}
+
+// One heart, drawn, so it matches on every platform and font.
+export function Heart({ size, color }: { size: number, color: string }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Path d="M12 21 C11.2 20.3 3 14.6 3 8.8 C3 5.9 5.2 3.8 7.9 3.8 C9.7 3.8 11.2 4.8 12 6.3 C12.8 4.8 14.3 3.8 16.1 3.8 C18.8 3.8 21 5.9 21 8.8 C21 14.6 12.8 20.3 12 21 Z" fill={color} />
+  </Svg>
 }
 
 // Under your buddy on the Journal, from the first heart: hearts and the distance together. Opens its record.
@@ -38,7 +45,9 @@ export function BuddyHearts({ buddy }: { buddy: string | null }) {
 // The Best Buddy ribbon, from five hearts.
 export function Ribbon({ size = 16 }: { size?: number }) {
   return <View accessible accessibilityLabel="Best Buddy ribbon" style={[sheet.ribbon, { width: size, height: size, borderRadius: size / 2 }]}>
-    <Text style={{ fontSize: size * 0.62, lineHeight: size * 0.8, color: colors.onBrand, fontFamily: fonts.black }}>★</Text>
+    <Svg width={size * 0.66} height={size * 0.66} viewBox="0 0 24 24">
+      <Path d="M12 2.5 L14.9 8.6 L21.5 9.4 L16.6 13.9 L17.9 20.5 L12 17.2 L6.1 20.5 L7.4 13.9 L2.5 9.4 L9.1 8.6 Z" fill={colors.onBrand} />
+    </Svg>
   </View>
 }
 
@@ -58,7 +67,7 @@ export function FriendshipDetails({ friendKey, isBuddy }: { friendKey: string, i
     [PERKS.ribbon, 'Best Buddy ribbon in the Dex and the Safari Zone']
   ]
   return <View style={sheet.details}>
-    <Eyebrow>FRIENDSHIP</Eyebrow>
+    <Text accessibilityRole="header" style={sheet.section}>Friendship</Text>
     <View style={sheet.titleRow}>
       {level.hearts >= PERKS.ribbon && <Ribbon size={20} />}
       <Text style={sheet.title}>{level.title}</Text>
@@ -69,10 +78,14 @@ export function FriendshipDetails({ friendKey, isBuddy }: { friendKey: string, i
       accessibilityValue={{ min: 0, max: 100, now: Math.round(level.progress * 100) }} style={sheet.track}>
       <View style={[sheet.fill, { width: `${Math.round(level.progress * 100)}%` }]} />
     </View>}
-    {perks.map(([hearts, text]) => <Text key={hearts} style={[sheet.perk, { color: level.hearts >= hearts ? colors.ink : colors.muted }]}
+    {perks.map(([hearts, text]) => <View key={hearts} accessible style={sheet.perkRow}
       accessibilityLabel={`${text}: ${level.hearts >= hearts ? 'unlocked' : `unlocks at ${hearts} hearts`}`}>
-      {level.hearts >= hearts ? '♥' : '♡'} {hearts}  {text}
-    </Text>)}
+      <View style={sheet.perkLevel}>
+        <Heart size={14} color={level.hearts >= hearts ? colors.danger : colors.track} />
+        <Text style={sheet.perkCount}>{hearts}</Text>
+      </View>
+      <Text style={[sheet.perk, { color: level.hearts >= hearts ? colors.ink : colors.muted }]}>{text}</Text>
+    </View>)}
     <Copy small>{isBuddy ? 'Every walk or run you start with this buddy counts, on your watch or this phone.' : 'Choose it as your buddy to keep walking together.'}
       {since ? ` Friendship counts from ${new Date(since).toLocaleDateString()}.` : ''}</Copy>
   </View>
@@ -85,7 +98,8 @@ export function BuddyCheer() {
   const name = species(buddy)
   return <View accessible accessibilityLabel={`${name} cheers you on`} style={sheet.cheer}>
     <PixelSprite name={name} shiny={buddy.startsWith('Shiny ')} size={56} />
-    <Text style={sheet.cheerText}>{name} cheers you on! ♥</Text>
+    <Text style={sheet.cheerText}>{name} cheers you on!</Text>
+    <Heart size={16} color="#FF8FA3" />
   </View>
 }
 
@@ -120,7 +134,7 @@ export function HelloBubble({ buddy, reduced }: { buddy: string | null, reduced:
   if (!friendly || !shown) return null
   return <Animated.View pointerEvents="none" accessible accessibilityLabel={`${species(buddy!)} says hello`}
     style={[sheet.bubble, { opacity: fade, transform: [{ scale: fade.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }] }]}>
-    <Text style={sheet.bubbleText}>♥</Text>
+    <Heart size={20} color={colors.danger} />
   </Animated.View>
 }
 
@@ -156,11 +170,15 @@ const sheet = themedStyles(() => ({
   pillText: { fontFamily: fonts.bold, color: colors.ink, fontSize: 13, lineHeight: 18 },
   ribbon: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.gold },
   details: { gap: 8, paddingTop: 6 },
+  section: { fontFamily: fonts.heavy, color: colors.muted, fontSize: 14, lineHeight: 19 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   title: { fontFamily: displayFont(), color: colors.ink, fontSize: 18, lineHeight: 24 },
   track: { height: 8, borderRadius: 4, backgroundColor: colors.track, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4, backgroundColor: colors.danger },
-  perk: { fontFamily: fonts.body, fontSize: 13, lineHeight: 19 },
+  perk: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  perkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 24 },
+  perkLevel: { width: 30, flexDirection: 'row', alignItems: 'center', gap: 3 },
+  perkCount: { fontFamily: fonts.heavy, color: colors.muted, fontSize: 12, lineHeight: 16, fontVariant: ['tabular-nums'] },
   bubble: { position: 'absolute', top: 6, right: '22%', minWidth: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.danger },
   bubbleText: { fontSize: 20, lineHeight: 24, color: colors.danger },

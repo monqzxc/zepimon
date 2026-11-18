@@ -634,6 +634,39 @@ The Safari Zone and the Legendary Trial (including Shrine Revisit practice rooms
 
 Turning the phone needs the native `expo-screen-orientation` module, so this release needs a new app build (an over-the-air update can't add it). The layout maths are in `src/games/immersive.ts`; `src/games/useImmersive.ts` applies and undoes the orientation lock, the hidden bars and the back button.
 
+### Gym Training
+
+Guided plans that build up to one adventure that hatches the egg you bring. Open **Gym** on the Adventure tab
+(or the Gym card on the Journal), choose a Gym and a plan egg, and train:
+
+| Gym | For | Plan | Graduation | Badge |
+| --- | --- | --- | --- | --- |
+| **Steady Steps** | Walkers | 6 weeks, 3 walks a week, from 20 to 50 minutes, with brisk stretches from week 3 | Hatch Day: walk 5 km | Sprout Badge |
+| **First Hatch** | New runners | 8 weeks, 3 run/walk sessions a week, from 1 minute jogs to 30 minutes | Hatch Day: 5 km, walking breaks allowed | Hatch Badge |
+
+- **Today first.** The Gym screen opens on the next session: what it is, how long, whether it's open, and
+  **Start session**. Below it, the plan egg in its incubator (it warms with every session, cracks showing at a
+  quarter, half and three quarters) and the plan as a ladder of weeks ending in the egg.
+- **Rest days.** One session a day, and a rest day between two run/walk sessions. Walks can be on back-to-back days.
+- **Live cues.** A session started from the Gym shows a banner on the recording screen: **Jog**, **Walk** or
+  **Brisk walk** with a countdown, the next step and the step number. Each change buzzes (two pulses into an
+  effort, one into a walk, a tap 10 s before) and is read out by screen readers. For now cues need the screen
+  on; with it off the session still records and counts.
+- **Counting.** A session started from the Gym counts when you save it, if you did at least 90% of its time.
+  A watch adventure, or a phone one started normally, shows under **Count a saved adventure** when it's enough
+  for the next session: tap **Count it** or **Not this one**. Nothing counts on its own.
+- **Hatch Day** carries the plan egg and needs the full 5 km in one adventure, exactly like any egg. Training on
+  the watch? **Send the egg to my watch**, then cover 5 km with it. Coming up short just saves an ordinary
+  adventure, and you can try again any day.
+- **Flexible.** One skip a week (it gives no warmth, and Hatch Day can't be skipped), **Repeat week** where a plan
+  steps up, **Pause plan** for up to 28 days, and after 10 or 21 days away an offer to go back one or two weeks.
+- **Badges.** Graduating earns the Gym Badge, kept in the badge case, and the hidden badges **Gym graduate** and,
+  with no session skipped, **Warm welcome**. Training is saved on this phone and included in backups.
+
+The plans are general fitness guidance, not medical advice, and the Gym screen says so before you start.
+The logic lives in `src/training-plans.ts` (the plans), `src/training.ts` (progress, rest days, matching) and
+`src/training-cues.ts` (where you are in a session, worked out afresh from the adventure each second).
+
 ### Buddy Friendship
 
 Every walk or run you start with a buddy grows your friendship with it, at any distance, on the watch or this

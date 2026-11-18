@@ -21,6 +21,7 @@ import { LegendaryGate } from '../../LegendaryGate'
 import { CoachTarget } from '../../CoachMarks'
 import { useCoach } from '../../tour'
 import { Button, Copy, Icon, Panel, Screen, Title, colors, displayFont, fonts, themedStyles, useTheme } from '../../ui'
+import { GymCard } from '../../Gym'
 
 // The Journal: a greeting with your buddy over the distance you've travelled, your progress over this week, month or year (a ring of the days
 // you walked, the distance and what it adds up to), your weekly streak, the Legendary Gate (src/LegendaryGate.tsx),
@@ -90,6 +91,7 @@ export default function JournalScreen() {
         period={period} onPeriod={setPeriod} reduced={reduced} />
     </CoachTarget>
     <StreakBanner {...walking} reduced={reduced} onPress={() => openCalendar()} />
+    <GymCard now={now} />
     <LegendaryGate variant="strip" pulse />
 
     <SectionHead title="Recent activity" action={runs.length ? 'View all' : undefined} onAction={() => router.push('/adventures')} />

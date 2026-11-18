@@ -61,3 +61,8 @@ test('a backup keeps the buddy log that friendship counts from', () => {
   assert.deepEqual(JSON.parse(createBackup(data({ friendship }), now)).phoneBackup.friendship, friendship)
   assert.equal(JSON.parse(createBackup(data(), now)).phoneBackup.friendship, undefined, 'older callers without one still work')
 })
+
+test('a backup keeps Gym Training', () => {
+  const training = { active: null, badges: { 'first-hatch': { at: now, adventureId: 'phone-1', warm: true } }, declined: [] }
+  assert.deepEqual(JSON.parse(createBackup(data({ training }), now)).phoneBackup.training, training)
+})

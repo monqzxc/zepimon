@@ -10,6 +10,7 @@ import { FilterSection, GenerationFilter, ResultLine, SearchBox, SortSwitch, Typ
 import { dexNumber, pokemonType } from '../catalog'
 import { PixelSprite } from '../games/TeamPicker'
 import { Chip, Copy, Icon, PokeballIcon, TypeBadge, colors, fonts, shadows, styles, themedStyles, typeTints, useTheme } from '../ui'
+import { pickGymEgg } from '../gym-egg'
 
 // Choose the next egg like browsing a Pokedex: sort by number or name, filter by generation, type and what your Dex
 // still misses, or search a name or number. Opened from the Adventure tab; the choice goes to the watch as well.
@@ -25,7 +26,8 @@ const remember = (filter: EggFilter) => { remembered = filter }
 
 export default function EggsScreen() {
   useTheme()
-  const { current } = useLocalSearchParams<{ current?: string }>()
+  // for=gym: picking a Gym's plan egg (src/app/gym.tsx), which leaves the Adventure tab's egg as it is.
+  const { current, for: purpose } = useLocalSearchParams<{ current?: string, for?: string }>()
   const { dex, expeditions, chooseEgg } = useJournal()
   const [filter, setFilter] = useState<EggFilter>(() => ({ ...remembered, query: '' }))
   function change(next: Partial<EggFilter>) {
@@ -38,9 +40,10 @@ export default function EggsScreen() {
   const open = (family: string[]) => eggOpen(family, expeditions.dex)
   const choices = results.filter(open)
   function choose(family: string[]) {
-    chooseEgg(family, null).catch(() => {})
+    if (purpose === 'gym') pickGymEgg(family)
+    else chooseEgg(family, null).catch(() => {})
     if (router.canGoBack()) router.back()
-    else router.navigate('/adventure')
+    else router.navigate(purpose === 'gym' ? '/gym' : '/adventure')
   }
   return <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.screen}>
     <FlatList data={results} keyExtractor={family => family.join('>')} numColumns={3}

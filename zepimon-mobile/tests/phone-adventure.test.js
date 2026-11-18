@@ -277,3 +277,14 @@ test('a hatch or evolution reached with the screen off waits to be seen on the A
   assert.equal(changeVerb('Bulbasaur', 'Ivysaur'), 'evolved')
   assert.equal(changeVerb('Venusaur', 'Mega Venusaur'), 'Mega Evolved')
 })
+
+test('the Gym session an adventure was started for is kept while recording and saved with it', async () => {
+  const { newAdventure: create, finishAdventure: finish, saveActive: save, restoreActive: restore, restorePhoneRuns: restoreRuns } = await import('../src/phone-adventure.ts')
+  const active = { ...create(['Pichu', 'Pikachu', 'Raichu'], 'running', null, 1_800_000_000_000, () => 0.5), training: { gym: 'first-hatch', session: 'first-hatch-w1-s1' } }
+  const back = restore(save(active))
+  assert.deepEqual(back.training, active.training)
+  const run = finish(back, 1_800_000_000_000 + 60e3)
+  assert.deepEqual(run.training, active.training)
+  assert.deepEqual(restoreRuns(JSON.parse(JSON.stringify([run])))[0].training, active.training)
+  assert.equal(restore(save({ ...active, training: { gym: 5 } })).training, undefined)
+})

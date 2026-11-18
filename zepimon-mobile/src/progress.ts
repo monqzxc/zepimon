@@ -52,8 +52,9 @@ export function completedRuns(progress: Progress, now = Date.now()): SavedRun[] 
   return runs
 }
 
-// extras: figures kept outside progress. bestFriend is the most metres walked with one buddy (src/friendship.ts).
-export type MissionExtras = { bestFriend?: number }
+// extras: figures kept outside progress. bestFriend is the most metres walked with one buddy (src/friendship.ts);
+// gymBadges the Gym Badges earned and warmWelcome whether one came with no session skipped (src/training.ts).
+export type MissionExtras = { bestFriend?: number, gymBadges?: number, warmWelcome?: boolean }
 
 export function missions(journal: Journal | null, progress: Progress, now = Date.now(), extras: MissionExtras = {}): Mission[] {
   const runs = completedRuns(progress, now)
@@ -85,6 +86,8 @@ export function missions(journal: Journal | null, progress: Progress, now = Date
     { id: 'dynamax-friend', title: 'Marathon power', description: 'Save an adventure that reached a Dynamax form at 42 km.', value: Number(reached('Dynamax ')), goal: 1, unit: 'badge', hidden: true },
     { id: 'gigantamax-friend', title: 'Larger than life', description: 'Save an adventure that reached a Gigantamax form at 50 km.', value: Number(reached('Gigantamax ')), goal: 1, unit: 'badge', hidden: true },
     { id: 'best-buddies', title: 'Best buddies', description: 'Walk or run 300 km together with one buddy.', value: Math.floor((extras.bestFriend ?? 0) / 1000), goal: 300, unit: 'km', hidden: true },
+    { id: 'gym-badge', title: 'Gym graduate', description: 'Earn your first Gym Badge.', value: Math.min(1, extras.gymBadges ?? 0), goal: 1, unit: 'badge', hidden: true },
+    { id: 'warm-welcome', title: 'Warm welcome', description: 'Graduate from a Gym without skipping a session.', value: Number(!!extras.warmWelcome), goal: 1, unit: 'badge', hidden: true },
     { id: 'patient-explorer', title: 'The scenic route', description: 'Finish an adventure lasting an hour, with at least 1 km recorded.', value: Number(runs.some(({ record }) => record.meters >= 1000 && (record.elapsedSeconds || 0) >= 3600)), goal: 1, unit: 'badge', hidden: true },
   ]
 }

@@ -8,7 +8,7 @@ import { showLive, stopLive } from '../modules/zepimon-live'
 import { spriteSource } from './catalog'
 import { cloudClient } from './cloud-client'
 import { addFix, liveText, newAdventure, restoreActive, saveActive } from './phone-adventure'
-import type { ActiveAdventure, Activity } from './phone-adventure'
+import type { ActiveAdventure, Activity, GymTag } from './phone-adventure'
 import { followShared, fromShared, restoreShared, sharedFrom, takenOver } from './shared-adventure'
 import type { SharedAdventure, SharedTrail } from './shared-adventure'
 
@@ -188,12 +188,13 @@ async function startUpdates() {
 }
 
 // Starts a new adventure. Returns the location problem that stopped it, if any; other failures throw.
-export async function startAdventure(family: string[], activity: Activity, mega: string | null): Promise<LocationIssue | null> {
+// training: the Gym session this adventure is for (src/training.ts), which counts it when saved.
+export async function startAdventure(family: string[], activity: Activity, mega: string | null, training?: GymTag): Promise<LocationIssue | null> {
   await loaded
   if (state.active) return resumeAdventure()
   const issue = await prepare()
   if (issue && issue !== 'approximate') return issue
-  return begin(newAdventure(family, activity, mega, Date.now()), issue)
+  return begin({ ...newAdventure(family, activity, mega, Date.now()), ...training ? { training } : {} }, issue)
 }
 
 // Continue here: takes over the adventure the watch is recording, with its egg, start and distance so far. The watch

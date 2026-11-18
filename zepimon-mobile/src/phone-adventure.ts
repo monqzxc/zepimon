@@ -48,11 +48,19 @@ export type ActiveAdventure = {
   deviceAt: number,             // when this phone started it or took it over
   // The latest form seen on the Adventure screen: a hatch or evolution reached with the screen off waits for it, so
   // it plays there (src/Evolution.tsx). Missing on adventures taken from the watch or saved before it was kept: seen.
-  seen?: string
+  seen?: string,
+  training?: GymTag              // the Gym session it was started for (src/training.ts), if any
+}
+// The Gym session an adventure was started for, which counts it as soon as it is saved.
+export type GymTag = { gym: string, session: string }
+const gymTag = (value: unknown): { training?: GymTag } => {
+  const tag = value as GymTag | undefined
+  return tag && typeof tag.gym === 'string' && typeof tag.session === 'string' && tag.gym.length < 40 && tag.session.length < 60
+    ? { training: { gym: tag.gym, session: tag.session } } : {}
 }
 // A saved phone adventure. record has the same shape the watch saves; path is the route as an encoded polyline.
 // movingSeconds and pace are kept beside the record, which the watch's format has no room for; older adventures have neither.
-export type PhoneRun = { id: string, family: string[], record: DexRecord, path: string, movingSeconds?: number, pace?: PaceLog }
+export type PhoneRun = { id: string, family: string[], record: DexRecord, path: string, movingSeconds?: number, pace?: PaceLog, training?: GymTag }
 
 const families = catalogRoutes as string[][]
 // Every egg, Expedition Legendaries and Mythicals included. Those open once one of the family is caught on a Legendary
@@ -201,7 +209,8 @@ export function finishAdventure(active: ActiveAdventure, finishedAt: number): Ph
     form: currentForm(active.family, meters, active.mega) }
   const moving = active.movingSeconds === null ? {} : { movingSeconds: Math.min(elapsedSeconds, Math.floor(active.movingSeconds)) }
   const pace = active.pace.at.length > 1 ? { pace: active.pace } : {}
-  return { id: `phone-${active.startedAt}`, family: [...active.family], record, path: encodePath(simplifyPath(active.points)), ...moving, ...pace }
+  return { id: `phone-${active.startedAt}`, family: [...active.family], record, path: encodePath(simplifyPath(active.points)), ...moving, ...pace,
+    ...gymTag(active.training) }
 }
 
 // Douglas-Peucker on a flat local projection, loosened until the route has at most maxPoints points.
@@ -320,7 +329,7 @@ export function restorePhoneRuns(raw: unknown): PhoneRun[] {
         ? { movingSeconds: item.movingSeconds } : {}
       const mended = mendPace(item.pace)
       const pace = validPace(mended) ? { pace: mended } : {}
-      runs.set(item.id, { id: item.id, family: journal.routes[0], record, path: item.path, ...moving, ...pace })
+      runs.set(item.id, { id: item.id, family: journal.routes[0], record, path: item.path, ...moving, ...pace, ...gymTag(item.training) })
     } catch { /* skip a damaged adventure, keep the rest */ }
   }
   return [...runs.values()]
@@ -372,7 +381,7 @@ export function restoreActive(text: string): ActiveAdventure | null {
       // Adventures saved before sharing existed get the id they would have had.
       shareId: typeof value.shareId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value.shareId) ? value.shareId : `adv-${value.startedAt}`,
       deviceAt: Number.isFinite(value.deviceAt) ? value.deviceAt : value.startedAt,
-      ...typeof value.seen === 'string' && value.seen.length < 80 ? { seen: value.seen } : {} }
+      ...typeof value.seen === 'string' && value.seen.length < 80 ? { seen: value.seen } : {}, ...gymTag(value.training) }
   } catch {
     return null
   }

@@ -40,6 +40,8 @@ import { PixelSprite } from '../../games/TeamPicker'
 import { EvolutionScene } from '../../Evolution'
 import { useReducedMotion } from '../../games/hooks'
 import { Button, Chip, Copy, Eyebrow, GradientFill, Heading, Icon, IconBubble, Panel, PokeballLoader, Screen, Title, colors, displayFont, fonts, retro, styles, themedStyles, typeInks, typeTints, glass, useTheme } from '../../ui'
+import { SessionBanner, SessionResult } from '../../GymCue'
+import { gyms } from '../../training-plans'
 
 // The phone version of the watch adventure: pick an egg, walk or run, and the phone measures the distance by GPS and
 // draws the route on a map. Saving adds it to the Journal, Dex, missions and Expeditions just like a watch adventure.
@@ -327,7 +329,7 @@ function MilestoneTip({ meters, adventures }: { meters: number, adventures: Adve
 // ring, Legendary Expeditions with a gold dot when an encounter or permit is waiting, and Routes, the log of every
 // place walked and the Pokemon that walked it.
 function Rail({ issue, onLocation, reduced }: { issue: LocationIssue | null, onLocation: () => void, reduced: boolean }) {
-  const { journal, progress } = useJournal()
+  const { journal, progress, training } = useJournal()
   const gate = useGateStatus()
   const week = missions(journal, progress).find(mission => mission.id === 'week-distance')
   const share = week ? Math.min(1, week.value / week.goal) : 0
@@ -357,6 +359,13 @@ function Rail({ issue, onLocation, reduced }: { issue: LocationIssue | null, onL
         <Icon name="missions" size={16} color={colors.edge} />
       </View>
       <Text style={adventure.railLabel}>Missions</Text>
+    </Squish>
+    <Squish reduced={reduced} onPress={() => router.push('/gym')} style={adventure.tile}
+      accessibilityLabel={training.active ? `Gym Training. ${gyms[training.active.gym].name}` : 'Gym Training'}>
+      <View style={[adventure.ring, { backgroundColor: colors.goldTint }]}>
+        <Icon name="trophy" size={17} color={colors.gold} />
+      </View>
+      <Text style={adventure.railLabel}>Gym</Text>
     </Squish>
     <Squish reduced={reduced} onPress={() => router.push('/expeditions')} style={adventure.tile}
       accessibilityLabel={`Expeditions. ${gate.line}`}>
@@ -657,6 +666,7 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
         <Button title="Record with the screen off" secondary disabled={busy} onPress={() => { void recordInBackground() }} />
       </View>}
       {!!error && <Text style={[adventure.note, { color: colors.danger }]}>{error}</Text>}
+      <SessionBanner active={active} now={now} />
 
       <View style={adventure.hero}>
         <View style={[adventure.heroArt, { backgroundColor: typeTints[type] || colors.sunken }]}>
@@ -737,6 +747,7 @@ function Recording({ active, recording, screenOnly, shareError, onSaved }: {
         </View>
       </View>
       {!earned.length && <Text style={adventure.note}>Under 5 km, so this one ends as an egg.</Text>}
+      {active.training && <Text style={adventure.note}>Saving counts it for your Gym session if you did enough of it.</Text>}
       {!!error && <Text style={[adventure.note, { color: colors.danger }]}>{error}</Text>}
       <Button title="Save & finish" loading={busy} onPress={() => { void save() }} />
       <Button title={keepGoing} secondary disabled={busy} onPress={() => setConfirm(null)} />
@@ -823,6 +834,7 @@ function Saved({ summary: { run, news }, onDone }: { summary: Summary, onDone: (
       <Copy color={colors.ink}>{km(run.record.meters)} · {duration(run.record.elapsedSeconds)} · {averagePace(run.movingSeconds ?? run.record.elapsedSeconds, run.record.meters)}</Copy>
       {run.movingSeconds !== undefined && <Copy small>Moving time {duration(run.movingSeconds)}</Copy>}
     </Panel>
+    <SessionResult run={run} />
     <RouteMap path={run.path} height={260} label={`Map of the route, ${km(run.record.meters)}`} />
     <Panel>
       {earned.length ? <>

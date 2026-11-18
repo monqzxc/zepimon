@@ -8,17 +8,18 @@ import type { TrialRecords } from './games/trials.ts'
 import type { RematchWins } from './games/revisits.ts'
 import type { PhoneRun } from './phone-adventure.ts'
 import type { Friendship } from './friendship.ts'
+import type { Training } from './training.ts'
 
 export const BACKUP_VERSION = 1
 export type PhoneData = {
   journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress,
   arcadeScores: ArcadeScores, expeditions: ExpeditionProgress, quest: Quest, encounters: Encounters, safari: Record<string, DexRecord>, adventure: Record<string, number>,
-  trailLevels: Record<string, number>, trialRecords: TrialRecords, rematchWins: RematchWins, phoneRuns: PhoneRun[], friendship?: Friendship
+  trailLevels: Record<string, number>, trialRecords: TrialRecords, rematchWins: RematchWins, phoneRuns: PhoneRun[], friendship?: Friendship, training?: Training
 }
 
 // A backup is an ordinary Zepimon Export JSON, so "Choose JSON file" can bring the watch journal back, with this
 // phone's own data (missions, scores, stars, Expedition friends, permits and waiting encounters, Safari catches and
-// phone adventures with their routes, and the buddy log that Buddy Friendship counts from) under phoneBackup.
+// phone adventures with their routes, the buddy log that Buddy Friendship counts from, and Gym Training) under phoneBackup.
 // Account links and sign-in sessions are never included.
 export function createBackup(data: PhoneData, now = Date.now(), appVersion = ''): string {
   const createdAt = new Date(now).toISOString()
@@ -28,7 +29,8 @@ export function createBackup(data: PhoneData, now = Date.now(), appVersion = '')
     bestMoves: data.bestMoves, progress: data.progress, arcadeScores: data.arcadeScores, expeditions: data.expeditions,
     quest: data.quest, encounters: data.encounters,
     safari: data.safari, adventure: data.adventure, trailLevels: data.trailLevels, trialRecords: data.trialRecords,
-    rematchWins: data.rematchWins, phoneRuns: data.phoneRuns, ...data.friendship ? { friendship: data.friendship } : {} } }, null, 2)
+    rematchWins: data.rematchWins, phoneRuns: data.phoneRuns, ...data.friendship ? { friendship: data.friendship } : {},
+    ...data.training ? { training: data.training } : {} } }, null, 2)
 }
 
 export function backupFileName(now = Date.now()): string {

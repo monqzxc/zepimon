@@ -32,9 +32,12 @@ import { restorePlan, withEgg, withoutEgg, withPhone } from './plan'
 import type { Plan } from './plan'
 import { LEVELS, emptyFriendship, friendshipMeters, logBuddy, markSeen, restoreFriendship } from './friendship'
 import type { Friendship } from './friendship'
+import { countSession, countStarted, decline, emptyTraining, goBack, pause, quitPlan, restoreTraining, resume, skipSession, startPlan } from './training'
+import type { Training } from './training'
+import type { GymId } from './training-plans'
 
 const KEY = 'zepimon-mobile-v1'
-type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null, expeditions: ExpeditionProgress, quest: Quest, encounters: Encounters, safari: SafariDex, adventure: Record<string, number>, trailLevels: Record<string, number>, trialRecords: TrialRecords, rematchWins: RematchWins, phoneRuns: PhoneRun[], plan: Plan | null, friendship: Friendship }
+type Saved = { journal: Journal | null, buddy: string | null, bestMoves: Record<string, number>, progress: Progress, arcadeScores: ArcadeScores, cloudOwner: string | null, expeditions: ExpeditionProgress, quest: Quest, encounters: Encounters, safari: SafariDex, adventure: Record<string, number>, trailLevels: Record<string, number>, trialRecords: TrialRecords, rematchWins: RematchWins, phoneRuns: PhoneRun[], plan: Plan | null, friendship: Friendship, training: Training }
 type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRecord>, importText: (text: string) => Promise<void>, importCloud: (text: string, owner: string) => Promise<void>, chooseBuddy: (key: string) => Promise<void>, recordWin: (pairs: number, moves: number) => Promise<void>, recordArcadeScore: (game: ArcadeGame, score: number) => Promise<void>, befriend: (key: string, index: number) => Promise<void>,
   finishTrial: (key: string, index: number, results: Record<string, number>) => Promise<void>,
   recordPracticeClear: (name: string, shiny: boolean, results: Record<string, number>) => Promise<void>, recordRematchWin: (name: string, shiny: boolean) => Promise<void>, saveTrialCheckpoint: (key: string, index: number, run: TrialRun) => Promise<void>, enterLair: (key: string, index: number) => Promise<void>,
@@ -44,8 +47,12 @@ type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRec
   recordLevelStars: (level: string, stars: number) => Promise<void>, savePhoneRun: (run: PhoneRun) => Promise<void>, chooseEgg: (family: string[], mega: string | null) => Promise<void>,
   setPhoneAdventure: (phone: Plan['phone']) => Promise<void>, dropEgg: () => Promise<void>, receivePlan: (plan: unknown) => Promise<void>, makeBackup: () => string, backupInfo: ReturnType<typeof backupSummary>,
   // Metres walked with each buddy (src/friendship.ts), the most with any one, and marking level-ups as celebrated.
-  friends: Record<string, number>, bestFriend: number, celebrateFriends: () => Promise<void> }
-const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), quest: emptyQuest(), encounters: {}, safari: {}, adventure: {}, trailLevels: {}, trialRecords: {}, rematchWins: {}, phoneRuns: [], plan: null, friendship: emptyFriendship() }
+  friends: Record<string, number>, bestFriend: number, missionExtras: ReturnType<typeof extrasOf>, celebrateFriends: () => Promise<void>,
+  // Gym Training (src/training.ts).
+  startGym: (gym: GymId, family: string[], mega: string | null) => Promise<void>, quitGym: () => Promise<void>, skipGymSession: () => Promise<void>,
+  gymGoBack: (weeks: number) => Promise<void>, pauseGym: () => Promise<void>, resumeGym: () => Promise<void>,
+  countForGym: (adventureId: string) => Promise<void>, declineForGym: (adventureId: string) => Promise<void> }
+const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), quest: emptyQuest(), encounters: {}, safari: {}, adventure: {}, trailLevels: {}, trialRecords: {}, rematchWins: {}, phoneRuns: [], plan: null, friendship: emptyFriendship(), training: emptyTraining() }
 const Context = createContext<Store | null>(null)
 
 // Watch records with this phone's own adventures layered on top; missions and Expeditions count both.
@@ -59,16 +66,22 @@ const friendsOf = (saved: Pick<Saved, 'progress' | 'phoneRuns' | 'friendship'>) 
   friendshipMeters(allAdventures(saved.progress, saved.phoneRuns), saved.friendship.log)
 const BEST_BUDDIES = LEVELS[LEVELS.length - 1].meters
 const most = (friends: Record<string, number>) => Math.max(0, ...Object.values(friends))
+// Figures outside progress that missions count (src/progress.ts MissionExtras).
+const gymExtras = (training: Training) => {
+  const badges = Object.values(training.badges)
+  return { gymBadges: badges.length, warmWelcome: badges.some(badge => badge?.warm) }
+}
+const extrasOf = (saved: Saved) => ({ bestFriend: most(friendsOf(saved)), ...gymExtras(saved.training) })
 // Every write: the buddy log follows the buddy, however it changed (chosen, or dropped by an import or a release), and
-// the Best buddies badge unlocks once a friendship reaches it.
+// the hidden badges that count figures outside progress (Best buddies, Gym graduate, Warm welcome) unlock once earned.
 function settle(saved: Saved, now = Date.now()): Saved {
   const friendship = logBuddy(saved.friendship, saved.buddy, now)
   const next = friendship === saved.friendship ? saved : { ...saved, friendship }
-  if (next.progress.unlocked['best-buddies']) return next
-  const bestFriend = most(friendsOf(next))
-  if (bestFriend < BEST_BUDDIES) return next
-  const progress = unlockMissions(walkedJournal(next), next.progress, now, { bestFriend })
-  return progress.unlocked['best-buddies'] ? { ...next, progress } : next
+  const { unlocked } = next.progress
+  const extras = extrasOf(next)
+  const due = (!unlocked['best-buddies'] && extras.bestFriend >= BEST_BUDDIES) || (!unlocked['gym-badge'] && extras.gymBadges > 0) ||
+    (!unlocked['warm-welcome'] && extras.warmWelcome)
+  return due ? { ...next, progress: unlockMissions(walkedJournal(next), next.progress, now, extras) } : next
 }
 
 export function JournalProvider({ children }: React.PropsWithChildren) {
@@ -105,7 +118,8 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
       latest.current = { journal, buddy, bestMoves, progress, arcadeScores: restoreScores(value.arcadeScores),
         cloudOwner: typeof value.cloudOwner === 'string' ? value.cloudOwner : null, expeditions, quest, encounters, safari, adventure: restoreStars(value.adventure),
         trailLevels: restoreLevelStars(value.trailLevels), trialRecords: restoreTrialRecords(value.trialRecords),
-        rematchWins: restoreRematchWins(value.rematchWins), phoneRuns, plan: restorePlan(value.plan), friendship: restoreFriendship(value.friendship) }
+        rematchWins: restoreRematchWins(value.rematchWins), phoneRuns, plan: restorePlan(value.plan), friendship: restoreFriendship(value.friendship),
+        training: restoreTraining(value.training) }
       // The first launch of Buddy Friendship starts the log here, and a buddy dropped above is logged too.
       latest.current = settle(latest.current)
       setSaved(latest.current)
@@ -192,12 +206,27 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     quest: claimTickets(current.quest, runningTickets(allAdventures(current.progress, current.phoneRuns)).length) }))
   const unlockWithPermit = (key: string) => persist(current => ({ ...current, quest: spendPermit(current.quest, current.expeditions, key) }))
   // A phone adventure is saved like a watch one: it joins the journal, missions and the phone's Expedition trail.
+  // One started for a Gym session counts for it in the same write, if it did the session (src/training.ts).
   const savePhoneRun = (run: PhoneRun) => persist(current => {
     const phoneRuns = [run, ...current.phoneRuns.filter(item => item.id !== run.id)]
     const expeditions = withPhoneTrail(current.expeditions, phoneRuns)
     const collection = walkedJournal({ ...current, expeditions, phoneRuns })!
-    return { ...current, phoneRuns, expeditions, progress: importProgress(current.progress, collection) }
+    const training = run.training?.gym === current.training.active?.gym ? countStarted(current.training, run, run.training?.session, Date.now()) : current.training
+    return { ...current, phoneRuns, expeditions, progress: importProgress(current.progress, collection), training }
   })
+  const gym = (change: (training: Training, current: Saved) => Training) => persist(current => ({ ...current, training: change(current.training, current) }))
+  const startGym = (id: GymId, family: string[], mega: string | null) => gym(training => startPlan(training, id, family, mega, Date.now()))
+  const quitGym = () => gym(quitPlan)
+  const skipGymSession = () => gym(training => skipSession(training, Date.now()))
+  const gymGoBack = (weeks: number) => gym(training => goBack(training, weeks))
+  const pauseGym = () => gym(training => pause(training, Date.now()))
+  const resumeGym = () => gym(training => resume(training, Date.now()))
+  const countForGym = (adventureId: string) => gym((training, current) => {
+    const adventure = allAdventures(current.progress, current.phoneRuns).find(item => item.id === adventureId)
+    if (!adventure) throw new Error('That adventure is no longer saved.')
+    return countSession(training, adventure, Date.now())
+  })
+  const declineForGym = (adventureId: string) => gym(training => decline(training, adventureId))
   // The plan shared with the watch (see src/plan.ts); the cloud provider sends each change.
   const chooseEgg = (family: string[], mega: string | null) => persist(current => ({ ...current, plan: withEgg(current.plan, family, mega) }))
   const setPhoneAdventure = (phone: Plan['phone']) => persist(current => ({ ...current, plan: withPhone(current.plan, phone) }))
@@ -218,7 +247,8 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     befriend, finishTrial: finishEncounterTrial, recordPracticeClear, recordRematchWin, saveTrialCheckpoint, enterLair: enterEncounterLair, leaveLair: leaveEncounterLair, resetLair: resetEncounterLair,
     engageLegendary: beginBattle, releaseLegendaries: release,
     completeQuestChallenge, earnPermit: earnQuestPermit, earnArcadePermit: earnPointsPermit, claimRunningTickets, unlockWithPermit, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
-    backupInfo: backupSummary(saved), friends, bestFriend: most(friends), celebrateFriends }}>{children}</Context.Provider>
+    backupInfo: backupSummary(saved), friends, bestFriend: most(friends), missionExtras: { bestFriend: most(friends), ...gymExtras(saved.training) }, celebrateFriends,
+    startGym, quitGym, skipGymSession, gymGoBack, pauseGym, resumeGym, countForGym, declineForGym }}>{children}</Context.Provider>
 }
 
 export function useJournal() {
