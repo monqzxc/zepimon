@@ -19,6 +19,7 @@ import type { PixelArt } from './pixel-art'
 import { routeShape } from './RouteView'
 import { Backdrop, habitatTheme } from './HabitatScene'
 import { Icon, PokeballIcon, colors, fonts, typeLabel, themedStyles } from './ui'
+import type { IconName } from './ui'
 
 // A saved adventure as a story-sized image, like a Strava share card: the route and a Pokemon from the adventure,
 // drawn as enlarged pixel art, with its distance, pace and time. The share screen (src/app/share.tsx) picks the
@@ -254,7 +255,8 @@ function Starter({ kit }: { kit: Kit }) {
   const box = STARTER_SIZES[options.size]
   const finished = new Date(record.finishedAt)
   const day = Number.isFinite(finished.getTime()) ? finished.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase() : ''
-  const activity = record.activity === 'running' ? 'Running' : record.activity ? 'Walking' : 'Adventure'
+  const activity = record.activity === 'running' ? 'Run' : record.activity ? 'Walk' : 'Adventure'
+  const activityIcon = record.activity === 'running' ? 'run' : record.activity ? 'walk' : 'explore'
   const entry = starterEntry(kit)
   const stats = [['Distance', km(record.meters).replace(' km', ''), 'km'],
     ['Pace', averagePace(record.elapsedSeconds, record.meters).replace(' /km', ''), '/km'], ['Time', cardTime(record.elapsedSeconds), '']]
@@ -285,8 +287,6 @@ function Starter({ kit }: { kit: Kit }) {
       <RouteArt kit={kit} width={900} height={GROUND - 300} />
     </View>}
 
-    <Text allowFontScaling={false} style={[text(36, fonts.bold, 'rgba(255, 255, 255, 0.85)'),
-      { position: 'absolute', left: 96 * u, top: 120 * u, textAlign: 'left', fontStyle: 'italic' }]}>{`Your ${activity.toLowerCase()} buddy`}</Text>
     <View style={{ position: 'absolute', right: 96 * u, top: 120 * u }}><Tag u={u} tint={tint} /></View>
 
     <View style={{ position: 'absolute', left: 0, right: 0, top: (GROUND - box) * u, alignItems: 'center' }}>
@@ -307,7 +307,7 @@ function Starter({ kit }: { kit: Kit }) {
         <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'right', marginBottom: 14 * u }]}>{day}</Text>
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16 * u, marginTop: 14 * u }}>
-        <Pill u={u} label={shown.type ?? activity} dot={shown.type ? tint : ROUTE_COLORS[0]} />
+        {shown.type ? <Pill u={u} label={shown.type} dot={tint} /> : <Pill u={u} label={activity} dot={ROUTE_COLORS[0]} icon={activityIcon} />}
         {best && <Pill u={u} label={best} dot={STAR} />}
       </View>
       <View style={{ flexDirection: 'row', alignSelf: 'stretch', gap: 18 * u, marginTop: 36 * u }}>
@@ -346,10 +346,13 @@ function Tag({ u, tint }: { u: number, tint: string }) {
   </View>
 }
 
-function Pill({ u, label, dot }: { u: number, label: string, dot: string }) {
+// A dot in the given color, or with icon, a small badge holding the icon (the activity's figure).
+function Pill({ u, label, dot, icon }: { u: number, label: string, dot: string, icon?: IconName }) {
   return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 * u, paddingLeft: 18 * u, paddingRight: 34 * u, paddingVertical: 12 * u,
     borderRadius: 999, backgroundColor: 'rgba(10, 14, 20, 0.55)', borderWidth: 2 * u, borderColor: 'rgba(255, 255, 255, 0.12)' }}>
-    <View style={{ width: 40 * u, height: 40 * u, borderRadius: 20 * u, backgroundColor: dot, borderWidth: 6 * u, borderColor: 'rgba(255, 255, 255, 0.9)' }} />
+    {icon ? <View style={{ width: 48 * u, height: 48 * u, borderRadius: 24 * u, backgroundColor: dot, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon name={icon} size={34 * u} color={DARK} />
+    </View> : <View style={{ width: 40 * u, height: 40 * u, borderRadius: 20 * u, backgroundColor: dot, borderWidth: 6 * u, borderColor: 'rgba(255, 255, 255, 0.9)' }} />}
     <Text allowFontScaling={false} style={{ fontFamily: fonts.heavy, fontSize: 34 * u, lineHeight: 44 * u, color: WHITE }}>{label}</Text>
   </View>
 }
