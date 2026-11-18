@@ -6,7 +6,7 @@ import { useJournal } from '../store'
 import { averagePace, km, recordForm } from '../journal'
 import { decodePath } from '../phone-adventure'
 import type { SavedRun } from '../progress'
-import { adventureFacts, findAdventure } from '../adventures'
+import { adventureFacts, allAdventures, findAdventure } from '../adventures'
 import { GalleryDenied, exportCard, saveCardToGallery } from '../card-image'
 import { CARD_PIXELS, ShareCard, cardDetails, cardFileName, cardTitle, cardWidth, spriteStyles, usePixelArt } from '../ShareCard'
 import type { CardBackground, CardDesign, CardDetail, CardOptions, SpriteSize, SpriteStyle } from '../ShareCard'
@@ -47,7 +47,13 @@ export default function ShareScreen() {
 
 function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
   const { family, record } = run
-  const { journal } = useJournal()
+  const { journal, progress, phoneRuns } = useJournal()
+  // Which adventure this was, counting from the first (the list is newest first).
+  const count = useMemo(() => {
+    const list = allAdventures(progress, phoneRuns)
+    const at = list.findIndex(item => item.id === run.id)
+    return at < 0 ? null : list.length - at
+  }, [progress, phoneRuns, run.id])
   const points = useMemo(() => path ? decodePath(path) : [], [path])
   const facts = useMemo(() => adventureFacts(run, journal), [run, journal])
   const reached = recordForm(family, record)
@@ -96,7 +102,7 @@ function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
         {/* The card keeps its full size and is shrunk to fit; captures draw it unscaled (see src/card-image.ts). */}
         <View style={{ position: 'absolute', left: 0, top: 0, transform: [{ scale: frame / width }], transformOrigin: 'top left' }}>
           <ShareCard ref={card} family={family} record={record} pokemon={pokemon} points={points} art={art} facts={facts}
-            options={options} width={width} />
+            options={options} width={width} count={count} />
         </View>
       </View>}
     </View>

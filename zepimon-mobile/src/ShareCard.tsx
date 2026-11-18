@@ -6,7 +6,7 @@ import { router } from 'expo-router'
 import { Asset } from 'expo-asset'
 import { File } from 'expo-file-system'
 import Svg, { Circle, Defs, Ellipse, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg'
-import { dexNumber, pokemonType, spriteSource, typeColors } from './catalog'
+import { pokemonType, spriteSource, typeColors } from './catalog'
 import { trailWalkers } from './generated/trail-walkers.js'
 import { walkingFrames } from './generated/walking.js'
 import { averagePace, km, recordForm } from './journal'
@@ -143,7 +143,7 @@ export function cardFileName(family: string[], record: DexRecord, form?: string)
 }
 
 type CardProps = { family: string[], record: DexRecord, pokemon: string, points: [number, number][], art: PixelArt | null | undefined,
-  facts: AdventureFacts, options: CardOptions }
+  facts: AdventureFacts, options: CardOptions, count?: number | null }
 // What both designs draw with: u turns image pixels into layout units, and text styles a line at a pixel size.
 type Kit = CardProps & { u: number, text: (size: number, fontFamily: string, color?: string) => TextStyle, title: string, subtitle: string,
   shown: Partial<Record<CardDetail, string>> }
@@ -239,7 +239,7 @@ function Split({ kit }: { kit: Kit }) {
 }
 
 // Starter: a "choose your starter" screen made from the adventure. The Pokemon stands in the middle
-// in front of its route, and below come its Dex number, name, type,
+// in front of its route, and below come which adventure it was (#0042 is the 42nd), its name, type,
 // the run's stats and a Dex-style entry written from the details picked on the share screen.
 const STARTER_SKY = ['#18202B', '#2A3848', '#5D7A96']
 const STARTER_SIZES: Record<SpriteSize, number> = { small: 380, medium: 520, large: 640, huge: 760 }
@@ -247,7 +247,7 @@ const STARTER_SIZES: Record<SpriteSize, number> = { small: 380, medium: 520, lar
 const GROUND = 1050
 
 function Starter({ kit }: { kit: Kit }) {
-  const { u, text, title, shown, art, points, record, pokemon, family, facts, options } = kit
+  const { u, text, title, shown, art, points, record, pokemon, facts, options, count } = kit
   const dark = options.background === 'dark'
   const habitat = options.background === 'habitat'
   const type = pokemonType(pokemon)
@@ -255,6 +255,8 @@ function Starter({ kit }: { kit: Kit }) {
   const box = STARTER_SIZES[options.size]
   const finished = new Date(record.finishedAt)
   const day = Number.isFinite(finished.getTime()) ? finished.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase() : ''
+  // The year sits in the top corner, away from the day and month by the name.
+  const year = Number.isFinite(finished.getTime()) ? String(finished.getFullYear()) : ''
   const activity = record.activity === 'running' ? 'Run' : record.activity ? 'Walk' : 'Adventure'
   const activityIcon = record.activity === 'running' ? 'run' : record.activity ? 'walk' : 'explore'
   const entry = starterEntry(kit)
@@ -287,6 +289,9 @@ function Starter({ kit }: { kit: Kit }) {
       <RouteArt kit={kit} width={900} height={GROUND - 300} />
     </View>}
 
+    {!!year && <Text allowFontScaling={false} style={{ position: 'absolute', left: 96 * u, top: 120 * u, fontFamily: fonts.black, fontSize: 30 * u,
+      lineHeight: 38 * u, letterSpacing: 4 * u, color: 'rgba(255, 255, 255, 0.8)', textShadowColor: 'rgba(0, 0, 0, 0.5)',
+      textShadowOffset: { width: 0, height: 2 * u }, textShadowRadius: 8 * u }}>{year}</Text>}
     <View style={{ position: 'absolute', right: 96 * u, top: 120 * u }}><Tag u={u} tint={tint} /></View>
 
     <View style={{ position: 'absolute', left: 0, right: 0, top: (GROUND - box) * u, alignItems: 'center' }}>
@@ -301,7 +306,7 @@ function Starter({ kit }: { kit: Kit }) {
     <View style={{ position: 'absolute', left: 80 * u, right: 80 * u, top: (GROUND + 40) * u, alignItems: 'center' }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', alignSelf: 'stretch' }}>
         <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'left', marginBottom: 14 * u }]}>
-          {dexNumber(pokemon === 'Egg' ? family[0] : pokemon).replace('No. ', '#')}</Text>
+          {count ? `#${String(count).padStart(4, '0')}` : ''}</Text>
         <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit
           style={[text(nameSize, fonts.black), { flex: 1, letterSpacing: 2 * u }]}>{title.toUpperCase()}</Text>
         <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'right', marginBottom: 14 * u }]}>{day}</Text>
