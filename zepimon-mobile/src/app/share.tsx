@@ -51,9 +51,11 @@ function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
   // Which adventure this was, counting from the first (the list is newest first).
   const count = useMemo(() => {
     const list = allAdventures(progress, phoneRuns)
-    const at = list.findIndex(item => item.id === run.id)
+    // A phone adventure is also saved to the Journal under another id, with the same family and finish time.
+    const line = run.family.join('>')
+    const at = list.findIndex(item => item.id === run.id || (item.record.finishedAt === run.record.finishedAt && item.family.join('>') === line))
     return at < 0 ? null : list.length - at
-  }, [progress, phoneRuns, run.id])
+  }, [progress, phoneRuns, run])
   const points = useMemo(() => path ? decodePath(path) : [], [path])
   const facts = useMemo(() => adventureFacts(run, journal), [run, journal])
   const reached = recordForm(family, record)
