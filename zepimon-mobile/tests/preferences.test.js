@@ -51,3 +51,11 @@ test('people who had the app before Emerald keep the Gengar look they were seein
   assert.equal(prefs.restorePreferences({ theme: 'teal' }).theme, 'gengar')
   assert.equal(prefs.startingPreferences({ appearance: 'dark' }, false).theme, 'gengar', 'Any saved settings mean an earlier install')
 })
+
+test('voice cues are on and kilometre splits off until changed', () => {
+  const pick = ({ voiceCues, voiceSplits }) => ({ voiceCues, voiceSplits })
+  assert.deepEqual(pick(prefs.defaultPreferences), { voiceCues: true, voiceSplits: false })
+  assert.deepEqual(pick(prefs.restorePreferences({})), { voiceCues: true, voiceSplits: false })
+  assert.deepEqual(pick(prefs.restorePreferences({ voiceCues: false, voiceSplits: true })), { voiceCues: false, voiceSplits: true })
+  assert.deepEqual(pick(prefs.restorePreferences({ voiceCues: 'no', voiceSplits: 1 })), { voiceCues: true, voiceSplits: false })
+})

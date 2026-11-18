@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { AccessibilityInfo, Text, Vibration, View } from 'react-native'
+import { useEffect } from 'react'
+import { AccessibilityInfo, Text, View } from 'react-native'
 import { router } from 'expo-router'
 import { useJournal } from './store'
 import { currentPace } from './phone-adventure'
@@ -8,34 +8,31 @@ import { maxStars, paceZones } from './training'
 import { clock, paceText } from './running'
 import { findSession, gyms, sessionMeters, sessionSeconds } from './training-plans'
 import type { GymId } from './training-plans'
-import { buzzFor, cueAt, isEffort, remainingText, spokenCue, stepLabel } from './training-cues'
-import type { Cue } from './training-cues'
+import { cueAt, isEffort, remainingText, spokenCue, stepLabel } from './training-cues'
+import { alertCue } from './cue-alerts'
 import { Button, Copy, Panel, Title, colors, displayFont, fonts, themedStyles, useTheme } from './ui'
 
 // The Gym session on the recording screen: what to do now in big letters, how long is left, what comes next, and the
-// step number. Each change buzzes (two pulses into an effort, one into a walk, a tap 10 s before) and is read out by
-// screen readers. It follows the adventure (src/training-cues.ts), so it is right again as soon as the screen is back.
-// Cues need the screen on for now: with it off, the session still counts, but nothing buzzes.
+// step number. Each change buzzes (two pulses into an effort, one into a walk, a tap 10 s before), is spoken, and is
+// read out by screen readers. It follows the adventure (src/training-cues.ts), so it is right again as soon as the
+// screen is back; with the screen off the GPS task and, on Android, the notification keep cueing.
 export function SessionBanner({ active, now }: { active: ActiveAdventure, now: number }) {
   useTheme()
   const { training } = useJournal()
   const session = active.training ? findSession(active.training.session) : undefined
-  const cue = session ? cueAt(session, active, now) : null
+  const cue = session ? cueAt(session, active, now, active.training?.marks) : null
   // The pace target for this step, from the plan's 5 km best, and how the last minute compares: words, never colour alone.
   const baseline = training.active && session && training.active.gym === session.gym ? training.active.baseline5k : null
   const zone = cue && !cue.done && cue.step.zone && cue.step.zone !== 'any' && baseline ? paceZones(baseline)[cue.step.zone] : null
   const pace = zone ? currentPace(active, now) : null
   const verdict = !zone || pace === null ? null : cue!.step.zone === 'easy' ? pace < zone[0] * 0.97 ? 'Ease off' : 'Nice and easy'
     : pace < zone[0] * 0.97 ? 'Ease off' : pace > zone[1] * 1.03 ? 'Pick it up' : 'On pace'
-  const previous = useRef<Cue | null>(null)
+  // Buzzes, speech and the notification come from src/cue-alerts.ts, shared with the GPS task so each change is
+  // announced once; the screen also tells screen readers.
   useEffect(() => {
-    if (!cue) return
-    const before = previous.current
-    const buzz = buzzFor(before, cue)
-    if (buzz) Vibration.vibrate(buzz)
-    if (!before || before.index !== cue.index || cue.done !== before.done) AccessibilityInfo.announceForAccessibility(spokenCue(cue))
-    previous.current = cue
-  })
+    const { cue: current, changed } = alertCue(active, now)
+    if (current && changed) AccessibilityInfo.announceForAccessibility(spokenCue(current))
+  }, [active, now])
   if (!session || !cue) return null
   const effort = isEffort(cue.step) && !cue.done
   const ink = effort ? colors.onEdge : colors.ink

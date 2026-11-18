@@ -55,12 +55,57 @@ export function stepSpans(session: Session, recorded: Recorded, elapsed: number)
   return spans
 }
 
-export function cueAt(session: Session, recorded: Recorded, now: number): Cue {
+// Step marks: where each step began, as [step index, seconds from the start, metres], recorded on the phone from GPS fix
+// to fix (src/tracker.ts), so a boundary is found between two fixes 2-3 s apart rather than between the pace log's 100 m
+// marks. A mark at the step count means the session is done. They drive the cues while recording and score the stars.
+export type Mark = [number, number, number]
+type Point = { seconds: number, meters: number }
+
+// The marks after the adventure moved from `before` to `after`: every step boundary crossed in between, placed by
+// straight-line interpolation between the two fixes. A timed step ends at its exact second, a measured one at its
+// exact metre.
+export function advanceMarks(session: Session, marks: Mark[], before: Point, after: Point): Mark[] {
+  const next = marks.length ? [...marks] : [[0, 0, before.meters] as Mark]
+  const total = session.steps.length
+  const span = { seconds: after.seconds - before.seconds, meters: after.meters - before.meters }
+  for (;;) {
+    const [index, seconds, meters] = next[next.length - 1]
+    if (index >= total) return next
+    const step = session.steps[index]
+    if (step.seconds) {
+      const end = seconds + step.seconds
+      if (after.seconds < end) return next
+      const share = span.seconds > 0 ? Math.min(1, Math.max(0, (end - before.seconds) / span.seconds)) : 1
+      next.push([index + 1, end, Math.max(meters, before.meters + share * span.meters)])
+    } else {
+      const end = meters + (step.meters ?? 0)
+      if (after.meters < end) return next
+      const share = span.meters > 0 ? Math.min(1, Math.max(0, (end - before.meters) / span.meters)) : 1
+      next.push([index + 1, Math.max(seconds, before.seconds + share * span.seconds), end])
+    }
+  }
+}
+
+// Spans from marks: step k from its mark to the next one.
+export function markSpans(session: Session, marks: Mark[]): Span[] {
+  const spans: Span[] = []
+  for (let i = 0; i + 1 < marks.length; i++) {
+    const [index, seconds, meters] = marks[i]
+    const [, toSeconds, toMeters] = marks[i + 1]
+    const step = session.steps[index]
+    if (step) spans.push({ index, step, from: { seconds, meters }, to: { seconds: toSeconds, meters: toMeters } })
+  }
+  return spans
+}
+
+// marks: the step marks recorded so far, when there are any; the cue then starts from the last one.
+export function cueAt(session: Session, recorded: Recorded, now: number, marks: Mark[] = []): Cue {
   const elapsed = Math.max(0, (now - recorded.startedAt) / 1000)
   const total = session.steps.length
-  let seconds = 0
-  let meters = 0
-  for (let index = 0; index < total; index++) {
+  const last = marks[marks.length - 1]
+  let seconds = last ? last[1] : 0
+  let meters = last ? last[2] : 0
+  for (let index = last ? last[0] : 0; index < total; index++) {
     const step = session.steps[index]
     const next = session.steps[index + 1] ?? null
     if (step.seconds) {
@@ -75,8 +120,7 @@ export function cueAt(session: Session, recorded: Recorded, now: number): Cue {
       seconds = secondsAt(recorded, end, elapsed)
     }
   }
-  const last = session.steps[total - 1]
-  return { index: total - 1, step: last, next: null, remainingSeconds: 0, remainingMeters: 0, done: true, total }
+  return { index: total - 1, step: session.steps[total - 1], next: null, remainingSeconds: 0, remainingMeters: 0, done: true, total }
 }
 
 const labels: Record<StepKind, string> = { warmup: 'Warm-up walk', walk: 'Walk', brisk: 'Brisk walk', jog: 'Jog', run: 'Run', cooldown: 'Cool-down walk',
@@ -110,14 +154,3 @@ export function spokenCue(cue: Cue): string {
 export const VIBRATE = { effort: [0, 400, 200, 400], easy: [0, 700], warning: [0, 120], done: [0, 200, 100, 200, 100, 600] }
 export const WARN_SECONDS = 10
 export const WARN_METERS = 50
-// The pattern for a change from one cue to the next, or null when nothing changed worth a buzz.
-export function buzzFor(before: Cue | null, after: Cue): number[] | null {
-  if (!before) return null
-  if (after.done && !before.done) return VIBRATE.done
-  if (after.index !== before.index) return isEffort(after.step) ? VIBRATE.effort : VIBRATE.easy
-  if (after.next && !after.done) {
-    const warned = (cue: Cue) => cue.remainingSeconds !== null ? cue.remainingSeconds <= WARN_SECONDS : (cue.remainingMeters ?? Infinity) <= WARN_METERS
-    if (warned(after) && !warned(before)) return VIBRATE.warning
-  }
-  return null
-}

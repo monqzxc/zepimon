@@ -14,6 +14,14 @@ class LiveOptions : Record {
   @Field var icon: String? = null
 }
 
+class CueOptions : Record {
+  @Field var label: String = ""
+  @Field var until: Double = 0.0
+  @Field var remaining: String = ""
+  @Field var next: String? = null
+  @Field var nextEffort: Boolean = false
+}
+
 class ZepimonLiveModule : Module() {
   private val context
     get() = appContext.reactContext ?: throw Exceptions.ReactContextLost()
@@ -25,5 +33,9 @@ class ZepimonLiveModule : Module() {
         options.pokemon, options.icon))
     }
     Function("stop") { LiveNotification.stop(context) }
+    Function("cue") { options: CueOptions ->
+      LiveNotification.setCue(context, LiveNotification.Cue(options.label, options.until.toLong(), options.remaining, options.next, options.nextEffort))
+    }
+    Function("clearCue") { LiveNotification.setCue(context, null) }
   }
 }

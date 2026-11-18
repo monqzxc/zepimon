@@ -10,11 +10,12 @@ import type { ThemeName } from './palettes.ts'
 // Settings profile, blank until you set one. safariControls: walk the Safari Zone with the D-pad or by tapping a tile.
 // safariTrainer: Brendan or May. playOrientation: how the walking games open in full screen, so the next immersive session
 // turns the same way (the rest of the app stays portrait).
+// voiceCues: Gym sessions speak each step aloud (src/cue-alerts.ts); voiceSplits: they also speak each kilometre.
 export type Appearance = 'system' | 'light' | 'dark'
 export type Preferences = { activity: Activity, motion: 'system' | 'reduced', theme: ThemeName, appearance: Appearance, name: string,
-  safariControls: 'dpad' | 'tap', safariTrainer: 'brendan' | 'may', playOrientation: 'portrait' | 'landscape' }
+  safariControls: 'dpad' | 'tap', safariTrainer: 'brendan' | 'may', playOrientation: 'portrait' | 'landscape', voiceCues: boolean, voiceSplits: boolean }
 export const defaultPreferences: Preferences = { activity: 'walking', motion: 'system', theme: 'emerald', appearance: 'system', name: '',
-  safariControls: 'dpad', safariTrainer: 'brendan', playOrientation: 'portrait' }
+  safariControls: 'dpad', safariTrainer: 'brendan', playOrientation: 'portrait', voiceCues: true, voiceSplits: false }
 export const NAME_LIMIT = 24
 const KEY = 'zepimon-preferences-v1'
 
@@ -33,7 +34,9 @@ export function restorePreferences(raw: unknown): Preferences {
     name: typeof value.name === 'string' ? value.name.replace(/\s+/g, ' ').trim().slice(0, NAME_LIMIT) : '',
     safariControls: value.safariControls === 'tap' ? 'tap' : 'dpad',
     safariTrainer: value.safariTrainer === 'may' ? 'may' : 'brendan',
-    playOrientation: value.playOrientation === 'landscape' ? 'landscape' : 'portrait'
+    playOrientation: value.playOrientation === 'landscape' ? 'landscape' : 'portrait',
+    voiceCues: value.voiceCues !== false,
+    voiceSplits: value.voiceSplits === true
   }
 }
 

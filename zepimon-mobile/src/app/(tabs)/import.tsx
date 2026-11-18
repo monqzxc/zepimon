@@ -26,7 +26,7 @@ const title = (word: string) => word[0].toUpperCase() + word.slice(1)
 
 export default function SettingsScreen() {
   useTheme()
-  const { activity, motion, theme, appearance } = usePreferences()
+  const { activity, motion, theme, appearance, voiceCues, voiceSplits } = usePreferences()
   const { screenOnly } = useTracker()
   const [choosing, setChoosing] = useState(false)
   const [problem, setProblem] = useState('')
@@ -44,6 +44,10 @@ export default function SettingsScreen() {
         onChange={value => { setProblem(''); setScreenOnly(!value).catch(() => setProblem('Could not switch recording. Try again.')) }} />}
     </SettingsGroup></CoachTarget>
     {!!problem && <Text style={[page.note, { color: colors.danger }]}>{problem}</Text>}
+    <SettingsGroup label="Gym Training" footer="During a Gym session your phone speaks each step (“Jog for 90 seconds”) and, if you like, each kilometre's time. It uses your phone's text-to-speech voice and media volume.">
+      <SettingsSwitch icon="trophy" label="Voice cues" value={voiceCues} onChange={value => setPreference('voiceCues', value)} />
+      <SettingsSwitch icon="map" label="Speak kilometre splits" value={voiceSplits} onChange={value => setPreference('voiceSplits', value)} />
+    </SettingsGroup>
     <AccountGroup />
     <SettingsGroup label="Your data">
       <SettingsRow icon="backup" label="Back up your data" onPress={() => router.push('/settings/backup')} />

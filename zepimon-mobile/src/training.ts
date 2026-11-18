@@ -2,7 +2,8 @@ import type { SavedRun } from './progress.ts'
 import type { Adventure } from './adventures.ts'
 import type { PaceLog } from './phone-adventure.ts'
 import { averagePace, bestEffort, negativeSplit, splits } from './running.ts'
-import { stepSpans } from './training-cues.ts'
+import { markSpans, stepSpans } from './training-cues.ts'
+import type { Mark } from './training-cues.ts'
 import { entryTrial, gymOrder, gyms, sessionMeters, sessionSeconds, sessionsOf } from './training-plans.ts'
 import type { GymId, PaceZone, Session } from './training-plans.ts'
 
@@ -30,7 +31,8 @@ export type Finished = { gym: GymId, adventureId: string, badge: boolean, time?:
 export type Training = { active: ActivePlan | null, badges: Partial<Record<GymId, GymBadge>>, declined: string[], finished?: Finished }
 export const emptyTraining = (): Training => ({ active: null, badges: {}, declined: [] })
 // An adventure as counting needs it: phone ones bring their pace log, which stars and trial times are read from.
-export type Counted = SavedRun & { pace?: PaceLog, movingSeconds?: number }
+// training.marks: the step marks recorded while it ran (src/training-cues.ts), which judge efforts precisely.
+export type Counted = SavedRun & { pace?: PaceLog, movingSeconds?: number, training?: { marks?: Mark[] } }
 
 const DAY = 864e5
 export const MAX_PAUSE = 28 * DAY
@@ -229,14 +231,19 @@ export function scoreStars(session: Session, plan: ActivePlan, adventure: Counte
     const kms = splits(asAdventure(adventure)).filter(split => split.meters === 1000)
     return kms.length && kms.every(split => split.pace >= floor) ? 3 : 2
   }
-  const spans = stepSpans(session, { startedAt: adventure.record.startedAt, meters: adventure.record.meters, pace },
-    adventure.record.elapsedSeconds ?? 0).filter(span => span.step.zone && QUALITY.includes(span.step.zone))
   const efforts = session.steps.filter(item => item.zone && QUALITY.includes(item.zone)).length
+  const isEffort = (span: { step: { zone?: PaceZone } }) => !!span.step.zone && QUALITY.includes(span.step.zone)
+  // Step marks recorded fix by fix place each effort to within a few metres; without them (or when they stop short) the
+  // efforts are found in the pace log.
+  const marked = adventure.training?.marks ? markSpans(session, adventure.training.marks).filter(isEffort) : []
+  const precise = marked.length >= efforts
+  const spans = precise ? marked : stepSpans(session, { startedAt: adventure.record.startedAt, meters: adventure.record.meters, pace },
+    adventure.record.elapsedSeconds ?? 0).filter(isEffort)
   if (!spans.length || spans.length < efforts) return 1
   const paces = spans.map(span => span.to.meters > span.from.meters ? (span.to.seconds - span.from.seconds) / (span.to.meters - span.from.meters) * 1000 : Infinity)
-  // The pace log has a mark every 100 m, so an effort's edges blend with the jog either side: short efforts get more room
-  // (3% plus 25 m's worth: about 9% on 400 m, 5.5% on 1 km, under 4% on a 3 km tempo).
-  const room = spans.map(span => TOLERANCE + 25 / Math.max(100, span.to.meters - span.from.meters))
+  // The pace log has a mark every 100 m, so there an effort's edges blend with the jog either side: short efforts get
+  // more room (3% plus 25 m's worth: about 9% on 400 m, 5.5% on 1 km, under 4% on a 3 km tempo). Marked efforts get 3%.
+  const room = spans.map(span => TOLERANCE + (precise ? 0 : 25 / Math.max(100, span.to.meters - span.from.meters)))
   const inZone = spans.map((span, i) => {
     const [fast, slow] = zones[span.step.zone as Exclude<PaceZone, 'any'>]
     return paces[i] >= fast * (1 - room[i]) && paces[i] <= slow * (1 + room[i])

@@ -8,6 +8,9 @@ import { showLive, stopLive } from '../modules/zepimon-live'
 import { spriteSource } from './catalog'
 import { cloudClient } from './cloud-client'
 import { addFix, liveText, newAdventure, restoreActive, saveActive } from './phone-adventure'
+import { findSession } from './training-plans'
+import { advanceMarks } from './training-cues'
+import { alertCue, resetCueAlerts } from './cue-alerts'
 import type { ActiveAdventure, Activity, GymTag } from './phone-adventure'
 import { followShared, fromShared, restoreShared, sharedFrom, takenOver } from './shared-adventure'
 import type { SharedAdventure, SharedTrail } from './shared-adventure'
@@ -74,12 +77,23 @@ async function receive(locations: Location.LocationObject[]) {
   await loaded
   let active = state.active
   if (!active) return
+  const session = active.training ? findSession(active.training.session) : undefined
   for (const { coords, timestamp } of [...locations].sort((a, b) => a.timestamp - b.timestamp)) {
+    const before = active
     active = addFix(active, { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy, at: timestamp,
       altitude: coords.altitude, altitudeAccuracy: coords.altitudeAccuracy })
+    // A Gym session's step marks, placed between this fix and the one before (src/training-cues.ts advanceMarks).
+    if (session && active.training) {
+      const from = { seconds: Math.max(0, ((before.last?.at ?? before.startedAt) - before.startedAt) / 1000), meters: before.meters }
+      const to = { seconds: Math.max(from.seconds, (timestamp - active.startedAt) / 1000), meters: active.meters }
+      const marks = advanceMarks(session, active.training.marks ?? [], from, to)
+      if (marks.length !== active.training.marks?.length) active = { ...active, training: { ...active.training, marks } }
+    }
   }
   update({ active })
   live()
+  // Cues from the background too: a buzz, the spoken step and the notification's cue line (src/cue-alerts.ts).
+  alertCue(active, Date.now())
   await persist(active)
   void share()
 }
@@ -231,6 +245,7 @@ export async function resumeAdventure(): Promise<LocationIssue | null> {
 
 async function stopUpdates() {
   stopLive()
+  resetCueAlerts()
   webWatch?.remove()
   webWatch = null
   if (background) {

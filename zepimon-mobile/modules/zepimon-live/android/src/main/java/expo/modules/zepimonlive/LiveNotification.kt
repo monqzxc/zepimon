@@ -11,6 +11,9 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import java.net.URI
 
 // The adventure in progress as a live notification, like a running app's: "Run · 0:05 · 1.23 km" over the Pokemon
@@ -18,8 +21,20 @@ import java.net.URI
 // already shows a notification (on the channel "<app id>:zepimon-adventure-route"); this one takes that notification's
 // place by posting under its id, so there is only ever one. Without that service (recording only while the screen is
 // on) it posts its own. The time ticks here every second, since JavaScript only runs when a location arrives.
+//
+// During a Gym session it also carries the cue ("Jog · 0:45 left · then Walk", see src/cue-alerts.ts). A timed step's
+// end is known in advance, so the buzz for it (and the tap 10 s before) is scheduled here: it comes on the second even
+// with the screen off and no new location to wake JavaScript, say while walking on the spot. Measured steps end with a
+// location, so JavaScript buzzes for those.
 object LiveNotification {
   data class State(val activity: String, val startedAt: Long, val distance: String, val pokemon: String, val icon: String?)
+  // until: when a timed step ends (ms since the epoch), 0 for a measured one, whose remaining distance is `remaining`.
+  data class Cue(val label: String, val until: Long, val remaining: String, val next: String?, val nextEffort: Boolean)
+
+  private val EFFORT = longArrayOf(0, 400, 200, 400)
+  private val EASY = longArrayOf(0, 700)
+  private val WARNING = longArrayOf(0, 120)
+  private val DONE = longArrayOf(0, 200, 100, 200, 100, 600)
 
   private const val SERVICE_CHANNEL_SUFFIX = ":zepimon-adventure-route"
   private const val OWN_CHANNEL = "zepimon-adventure"
@@ -30,6 +45,12 @@ object LiveNotification {
   private lateinit var app: Context
   @Volatile private var state: State? = null
   @Volatile private var icon: Bitmap? = null
+  @Volatile private var cue: Cue? = null
+  private val warn = Runnable { vibrate(WARNING) }
+  private val change = Runnable {
+    val ending = cue ?: return@Runnable
+    vibrate(if (ending.next == null) DONE else if (ending.nextEffort) EFFORT else EASY)
+  }
   private var iconKey: String? = null
   private var ownPosted = false
 
@@ -54,9 +75,55 @@ object LiveNotification {
     }
   }
 
+  fun setCue(context: Context, next: Cue?) {
+    handler.post {
+      app = context.applicationContext
+      val same = next != null && cue?.let { it.label == next.label && it.until == next.until && it.next == next.next } == true
+      cue = next
+      if (!same) {
+        handler.removeCallbacks(warn)
+        handler.removeCallbacks(change)
+        if (next != null && next.until > 0) {
+          val now = System.currentTimeMillis()
+          if (next.until - 10_000 > now && next.next != null) handler.postDelayed(warn, next.until - 10_000 - now)
+          if (next.until > now) handler.postDelayed(change, next.until - now)
+        }
+      }
+      if (state != null) post()
+    }
+  }
+
+  private fun vibrate(pattern: LongArray) {
+    try {
+      val found: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        app.getSystemService(VibratorManager::class.java)?.defaultVibrator
+      } else {
+        @Suppress("DEPRECATION")
+        app.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+      }
+      val vibrator = found ?: return
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
+      } else {
+        @Suppress("DEPRECATION")
+        vibrator.vibrate(pattern, -1)
+      }
+    } catch (_: Exception) { /* no vibrator: the notification and voice still cue */ }
+  }
+
+  // "Jog · 0:45 left · then Walk", ticking with the notification.
+  private fun cueLine(): String? {
+    val current = cue ?: return null
+    val left = if (current.until > 0) elapsed(current.until - System.currentTimeMillis()) else current.remaining
+    return "${current.label} · $left left" + (current.next?.let { " · then $it" } ?: "")
+  }
+
   fun stop(context: Context) {
     handler.post {
       handler.removeCallbacks(tick)
+      handler.removeCallbacks(warn)
+      handler.removeCallbacks(change)
+      cue = null
       state = null
       if (ownPosted) context.getSystemService(NotificationManager::class.java)?.cancel(OWN_ID)
       ownPosted = false
@@ -90,7 +157,7 @@ object LiveNotification {
       @Suppress("DEPRECATION") Notification.Builder(app)
     }
     builder.setContentTitle("${current.activity} · ${elapsed(System.currentTimeMillis() - current.startedAt)} · ${current.distance}")
-      .setContentText(current.pokemon)
+      .setContentText(cueLine() ?: current.pokemon)
       .setSmallIcon(smallIcon())
       .setOngoing(true)
       .setOnlyAlertOnce(true)

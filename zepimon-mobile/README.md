@@ -665,11 +665,19 @@ and shows it first. Evolution Road and Mega Trial say when they're best started 
   for ★★★), and easy runs kept easy (average no faster than easy for ★★, every kilometre for ★★★). Beginner
   sessions earn ★★ for doing every minute. Stars come from the phone's pace log, which marks every 100 m, so short
   efforts like 400 m get more room (about 9%) than long ones; watch adventures earn one star.
-- **Live cues.** A session started from the Gym shows a banner on the recording screen: **Jog**, **Walk** or
+- **Live cues.** A session started from the Gym shows a banner on the recording screen: **Jog**, **Walk**,
   **Brisk walk**, **Tempo**, **Fast** or **Easy run** with a countdown, the next step and the step number. Paced steps
-  show their target and your last minute's pace in words: **On pace**, **Ease off** or **Pick it up**. Each change buzzes (two pulses into an
-  effort, one into a walk, a tap 10 s before) and is read out by screen readers. For now cues need the screen
-  on; with it off the session still records and counts.
+  show their target and your last minute's pace in words: **On pace**, **Ease off** or **Pick it up**. Each change
+  buzzes (two pulses into an effort, one into an easy stretch, a tap 10 s or 50 m before), is **spoken** ("Jog for 90
+  seconds. Then walk.") and is read out by screen readers. **Settings → Gym Training** turns the voice off or adds
+  **kilometre splits** ("Kilometre 3, 5 minutes 42 seconds."); speech uses the phone's text-to-speech voice.
+- **With the screen off.** The GPS task cues on every location, so buzzes and speech carry on in your pocket. On
+  Android the live notification shows the cue ("Jog · 0:45 left · then Walk", ticking) and buzzes the end of each
+  timed step on the second by itself, even standing still. Elsewhere, and for measured steps, a change is cued with the
+  next location, 2-3 s later at most while moving. Speech while the screen is off on iPhone depends on iOS letting a
+  background app talk; it needs checking on a real phone.
+- **Exact steps.** The phone marks where each step began between two GPS fixes 2-3 s apart, so stars judge every
+  effort to 3%, 400 m repeats included; adventures without those marks (a watch run) fall back to the pace log.
 - **Counting.** A session started from the Gym counts when you save it, if you did at least 90% of its time.
   A watch adventure, or a phone one started normally, shows under **Count a saved adventure** when it's enough
   for the next session: tap **Count it** or **Not this one**. Nothing counts on its own.

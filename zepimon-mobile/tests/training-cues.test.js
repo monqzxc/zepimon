@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { VIBRATE, buzzFor, cueAt, remainingText, spokenCue } from '../src/training-cues.ts'
+import { cueAt, remainingText, spokenCue } from '../src/training-cues.ts'
 import { sessionsOf } from '../src/training-plans.ts'
 
 const startedAt = 1_800_000_000_000
@@ -41,17 +41,6 @@ test('a measured step after a timed one starts from the distance reached then', 
   const cool = cueAt(session, recorded(780, 2166), at(780))
   assert.equal(cool.step.kind, 'cooldown')
   assert.ok(Math.abs(cool.remainingSeconds - 60) < 1, 'the cool-down runs from when 2 km was reached (720 s)')
-})
-
-test('buzzes: two pulses into an effort, one into a walk, a tap before a change, a fanfare at the end', () => {
-  const cue = seconds => cueAt(firstRun, recorded(seconds), at(seconds))
-  assert.equal(buzzFor(null, cue(10)), null)
-  assert.equal(buzzFor(cue(100), cue(101)), null)
-  assert.deepEqual(buzzFor(cue(289), cue(291)), VIBRATE.warning)
-  assert.equal(buzzFor(cue(291), cue(292)), null, 'the warning taps once')
-  assert.deepEqual(buzzFor(cue(299), cue(301)), VIBRATE.effort)
-  assert.deepEqual(buzzFor(cue(359), cue(361)), VIBRATE.easy)
-  assert.deepEqual(buzzFor(cue(34 * 60 - 1), cue(34 * 60 + 1)), VIBRATE.done)
 })
 
 test('what a screen reader hears', () => {
