@@ -268,8 +268,8 @@ function Starter({ kit }: { kit: Kit }) {
     ['Pace', averagePace(record.elapsedSeconds, record.meters).replace(' /km', ''), '/km'], ['Time', cardTime(record.elapsedSeconds), '']]
   // The swipe-up handle fits under a one-line entry (about 48 characters); a longer one leaves the bottom clear.
   const handle = entry.length <= 48
-  // Sized to the name, since the web cannot shrink text to fit: about 0.7 em a letter in the 600 px between the sides.
-  const nameSize = Math.min(112, Math.floor(600 / (title.length * 0.7)))
+  // Sized to the name, since the web cannot shrink text to fit: about 0.7 em a letter across the 920 px row.
+  const nameSize = Math.min(112, Math.floor(920 / (title.length * 0.7)))
   const best = shown.best && facts.bests.length > 1 ? `★ ${facts.bests.length} personal bests` : shown.best
   return <View style={{ flex: 1 }}>
     {dark && <View style={{ position: 'absolute', left: 0, top: 0 }}>
@@ -308,16 +308,17 @@ function Starter({ kit }: { kit: Kit }) {
     </View>
 
     <View style={{ position: 'absolute', left: 80 * u, right: 80 * u, top: (GROUND + 40) * u, alignItems: 'center' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', alignSelf: 'stretch' }}>
-        <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'left', marginBottom: 14 * u }]}>
+      {/* The name gets the whole row; the number and date sit a line lower, either side of the pills, so a long name never runs into them. */}
+      <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit
+        style={[text(nameSize, fonts.black), { alignSelf: 'stretch', letterSpacing: 2 * u }]}>{title.toUpperCase()}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', marginTop: 14 * u }}>
+        <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'left' }]}>
           {count && !hide.number ? `#${String(count).padStart(4, '0')}` : ''}</Text>
-        <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit
-          style={[text(nameSize, fonts.black), { flex: 1, letterSpacing: 2 * u }]}>{title.toUpperCase()}</Text>
-        <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'right', marginBottom: 14 * u }]}>{hide.date ? '' : day}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16 * u, marginTop: 14 * u }}>
-        {shown.type ? <Pill u={u} label={shown.type} dot={tint} /> : <Pill u={u} label={activity} dot={ROUTE_COLORS[0]} icon={activityIcon} />}
-        {best && <Pill u={u} label={best} dot={STAR} />}
+        <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16 * u }}>
+          {shown.type ? <Pill u={u} label={shown.type} dot={tint} /> : <Pill u={u} label={activity} dot={ROUTE_COLORS[0]} icon={activityIcon} />}
+          {best && <Pill u={u} label={best} dot={STAR} />}
+        </View>
+        <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'right' }]}>{hide.date ? '' : day}</Text>
       </View>
       <View style={{ flexDirection: 'row', alignSelf: 'stretch', gap: 18 * u, marginTop: 36 * u }}>
         {stats.map(([label, value, unit]) => <View key={label} style={{ flex: 1, alignItems: 'center', paddingVertical: 22 * u, borderRadius: 36 * u,
