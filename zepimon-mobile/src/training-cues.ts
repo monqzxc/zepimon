@@ -6,8 +6,9 @@ import type { Session, Step, StepKind } from './training-plans.ts'
 // so closing the app, a restart or the screen going off never loses your place. Timed steps follow the clock (stops
 // included, as the session's time is); measured steps follow the distance.
 export type Recorded = { startedAt: number, meters: number, pace: PaceLog }
+// capped: the session ended at its time cap (a long run that stops at 3 h 15 min, say) rather than its distance.
 export type Cue = { index: number, step: Step, next: Step | null, remainingSeconds: number | null, remainingMeters: number | null,
-  done: boolean, total: number }
+  done: boolean, total: number, capped?: boolean }
 
 // The distance reached at `seconds` into the adventure, from the pace log; the latest distance beyond it.
 function metersAt(recorded: Recorded, seconds: number): number {
@@ -102,6 +103,9 @@ export function markSpans(session: Session, marks: Mark[]): Span[] {
 export function cueAt(session: Session, recorded: Recorded, now: number, marks: Mark[] = []): Cue {
   const elapsed = Math.max(0, (now - recorded.startedAt) / 1000)
   const total = session.steps.length
+  if (session.capSeconds && elapsed >= session.capSeconds) {
+    return { index: total - 1, step: session.steps[total - 1], next: null, remainingSeconds: 0, remainingMeters: 0, done: true, total, capped: true }
+  }
   const last = marks[marks.length - 1]
   let seconds = last ? last[1] : 0
   let meters = last ? last[2] : 0
@@ -124,11 +128,11 @@ export function cueAt(session: Session, recorded: Recorded, now: number, marks: 
 }
 
 const labels: Record<StepKind, string> = { warmup: 'Warm-up walk', walk: 'Walk', brisk: 'Brisk walk', jog: 'Jog', run: 'Run', cooldown: 'Cool-down walk',
-  easy: 'Easy run', tempo: 'Tempo', interval: 'Fast', half: 'Half pace', stride: 'Stride', recover: 'Recovery jog', race: 'Race' }
+  easy: 'Easy run', tempo: 'Tempo', interval: 'Fast', half: 'Half pace', marathon: 'Marathon pace', stride: 'Stride', hill: 'Hill', recover: 'Recovery jog', race: 'Race' }
 // A warm-up or cool-down measured in metres is a jog; a timed one, in the beginner plans, a walk.
 export const stepLabel = (step: Step) => step.meters && step.kind === 'warmup' ? 'Warm-up jog'
   : step.meters && step.kind === 'cooldown' ? 'Cool-down jog' : labels[step.kind]
-const efforts: StepKind[] = ['jog', 'run', 'brisk', 'tempo', 'interval', 'half', 'stride', 'race']
+const efforts: StepKind[] = ['jog', 'run', 'brisk', 'tempo', 'interval', 'half', 'marathon', 'stride', 'hill', 'race']
 // Whether a step is an effort (two pulses) or an easy stretch (one).
 export const isEffort = (step: Step) => efforts.includes(step.kind)
 
@@ -145,6 +149,7 @@ function amount(step: Step): string {
 }
 // What a screen reader says when a step starts: "Jog for 90 seconds".
 export function spokenCue(cue: Cue): string {
+  if (cue.capped) return "That's the long run done. Time on your feet counts, not just the distance."
   if (cue.done) return 'Session complete. Great work!'
   return `${stepLabel(cue.step)} for ${amount(cue.step)}.${cue.next ? ` Then ${stepLabel(cue.next).toLowerCase()}.` : ''}`
 }
@@ -154,3 +159,13 @@ export function spokenCue(cue: Cue): string {
 export const VIBRATE = { effort: [0, 400, 200, 400], easy: [0, 700], warning: [0, 120], done: [0, 200, 100, 200, 100, 600] }
 export const WARN_SECONDS = 10
 export const WARN_METERS = 50
+
+// Walking breaks (Gigantamax Ultra's run/walk switch): a 1 minute walk after every `every` minutes, counted from the
+// start by the clock. null when there are none.
+export const BREAK_SECONDS = 60
+export function walkBreak(every: number | undefined, elapsed: number): { walking: boolean, remaining: number } | null {
+  if (!every || every <= 0) return null
+  const cycle = every * 60 + BREAK_SECONDS
+  const at = Math.max(0, elapsed) % cycle
+  return at >= every * 60 ? { walking: true, remaining: cycle - at } : { walking: false, remaining: every * 60 - at }
+}

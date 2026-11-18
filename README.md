@@ -7,7 +7,7 @@ Zepimon is a Pokémon walking game for Amazfit watches. Pick an egg, then walk o
 - The 39 Legendary and Mythical Pokémon come from Legendary Expeditions instead of eggs.
 - Everything works offline. Syncing is optional.
 
-Current versions: watch app 1.11.4, phone app 1.9.2.
+Current versions: watch app 1.11.4, phone app 2.0.0.
 
 ## How it fits together
 
@@ -101,7 +101,7 @@ The app works the same on Android and iPhone. It has five tabs:
 
 | Tab | What's there |
 | --- | --- |
-| **Journal** | Your buddy, the watch adventure in progress (as of the last sync), personal bests and recent adventures. **View missions** opens weekly goals, missions and badges. **Explore expeditions** opens Legendary Expeditions. |
+| **Journal** | Your buddy and your friendship with it, the watch adventure in progress (as of the last sync), today's Gym session, personal bests and recent adventures. **View missions** opens weekly goals, missions and badges. **Explore expeditions** opens Legendary Expeditions. |
 | **Dex** | Every Pokémon you've collected, Normal and Shiny. Tap a name to see its records or make it your buddy. |
 | **Adventure** | The violet Poké Ball in the middle. Records a walk or run with the phone's GPS. |
 | **Play** | Adventure Map, Route Guard, Trail Defense, Safari Hunt, Memory Match, Who's That Pokémon? and Berry Catch. |
@@ -114,6 +114,8 @@ The app works the same on Android and iPhone. It has five tabs:
 - **Android** keeps recording with the screen off and shows a notification while it does.
 - **iPhone** keeps recording in the background and shows the blue location indicator.
 - Both only need **While using the app** location permission.
+
+**Gym Training (2.0).** Guided plans from a first 5 km walk to a marathon, and an ultra beyond it, each ending in an adventure that hatches, evolves, Mega Evolves, Dynamaxes or Gigantamaxes the egg you bring. Open **Gym** on the Adventure tab. Sessions are cued on screen, by vibration and by voice, paces come from your own 5 km best, and every Gym Badge earns an Expedition Permit. **Buddy Friendship (2.0)** grows with every kilometre you walk or run with your buddy.
 
 **Legendary Expeditions.** Open a Legendary encounter with 25 km of saved walks and runs, an Expedition Quest (three saved sessions plus a shrine challenge) or 100 arcade achievement points. Then clear its Legendary Trial (a Switch Maze, Crumbling Floor, Dark Labyrinth, Ancient Temple or Warp Chamber, or the Shattered Star island puzzle for Deoxys), see its result in the chamber (1 in 100 Shiny, resettable before the battle), and battle and catch it with a Poké Ball. Only a successful catch adds it to your Dex.
 

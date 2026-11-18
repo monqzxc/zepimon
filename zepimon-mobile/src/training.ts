@@ -21,10 +21,13 @@ export type ActivePlan = {
   pausedAt: number | null, pausedMs: number,     // the current pause, and the total of earlier ones
   baseline5k: number | null,                     // seconds: the 5 km best the paces come from
   entry: boolean,                                // Speed Gym without a baseline starts with its entry trial
-  trials: TrialAttempt[], refreshed: boolean     // Speed Gym: missed trials, and whether the paces were refreshed
+  trials: TrialAttempt[], refreshed: boolean,    // Speed Gym: missed trials; whether the paces were refreshed (Speed Gym, Marathon)
+  runWalk: number | null                         // Gigantamax Ultra: minutes between 1 minute walking breaks, null when off
 }
 // time: the Speed Gym trial's 5 km. perfect: every session at its most stars. pacer: a Mega Trial with a negative split.
-export type GymBadge = { at: number, adventureId: string, warm: boolean, perfect: boolean, time?: number, pacer?: boolean }
+// wall: a marathon whose second half was no more than 5% slower than its first (Wall Breaker). steady: an ultra with every
+// long run and back-to-back kept easy (Ultra Steady).
+export type GymBadge = { at: number, adventureId: string, warm: boolean, perfect: boolean, time?: number, pacer?: boolean, wall?: boolean, steady?: boolean }
 // finished: how the latest plan ended, for the screen after saving its last adventure (badge false: a Speed Gym trial
 // that never beat the baseline).
 export type Finished = { gym: GymId, adventureId: string, badge: boolean, time?: number }
@@ -64,7 +67,8 @@ export function restoreTraining(raw: unknown): Training {
     for (const [gym, badge] of Object.entries(value.badges)) {
       if (!isGym(gym) || !badge || !validTime(badge.at) || typeof badge.adventureId !== 'string') continue
       badges[gym] = { at: badge.at, adventureId: badge.adventureId, warm: badge.warm === true, perfect: badge.perfect === true,
-        ...validTime(badge.time) ? { time: badge.time } : {}, ...badge.pacer ? { pacer: true } : {} }
+        ...validTime(badge.time) ? { time: badge.time } : {}, ...badge.pacer ? { pacer: true } : {}, ...badge.wall ? { wall: true } : {},
+        ...badge.steady ? { steady: true } : {} }
     }
   }
   const declined = Array.isArray(value.declined) ? value.declined.filter((id): id is string => typeof id === 'string').slice(-500) : []
@@ -91,16 +95,21 @@ function restorePlan(raw: unknown): ActivePlan | null {
     .map(item => ({ at: item.at, adventureId: item.adventureId, seconds: validTime(item.seconds) ? item.seconds : null })).slice(0, 2) : []
   return { gym: plan.gym, startedAt: plan.startedAt, egg: { family: [...plan.egg.family], mega: typeof plan.egg.mega === 'string' ? plan.egg.mega : null },
     done, pausedAt: validTime(plan.pausedAt) ? plan.pausedAt : null, pausedMs: Number.isFinite(plan.pausedMs) && plan.pausedMs! > 0 ? plan.pausedMs! : 0,
-    baseline5k: validTime(plan.baseline5k) ? plan.baseline5k : null, entry, trials, refreshed: plan.refreshed === true }
+    baseline5k: validTime(plan.baseline5k) ? plan.baseline5k : null, entry, trials, refreshed: plan.refreshed === true,
+    runWalk: plan.gym === 'gigantamax-ultra' && Number.isInteger(plan.runWalk) && plan.runWalk! >= 5 && plan.runWalk! <= 25 ? plan.runWalk! : null }
 }
 
 // Pace zones in seconds per km, from a 5 km best (standard rules of thumb; the half from Riegel's formula, about 1.09 ×).
-export type Zones = Record<Exclude<PaceZone, 'any'>, [number, number]> & { halfEstimate: number }
+export type Zones = Record<Exclude<PaceZone, 'any'>, [number, number]> & { halfEstimate: number, marathonEstimate: number }
+// The marathon from Riegel's formula comes out at about 1.14 × the 5 km pace, and is often too fast for anyone without
+// the long runs yet, which the screen says.
 export function paceZones(baseline5k: number): Zones {
   const p = baseline5k / 5
   return { easy: [p * 1.20, p * 1.40], tempo: [p * 1.05, p * 1.09], interval: [p * 0.97, p * 1.00], half: [p * 1.07, p * 1.11],
-    halfEstimate: baseline5k * Math.pow(21.0975 / 5, 1.06) }
+    marathon: [p * 1.12, p * 1.16], halfEstimate: riegel(baseline5k, 5, 21.0975), marathonEstimate: riegel(baseline5k, 5, 42.195) }
 }
+// Riegel's formula: the time over `to` km from a time over `from` km.
+export const riegel = (seconds: number, from: number, to: number) => seconds * Math.pow(to / from, 1.06)
 
 // The fastest 5 km in saved adventures of the last 12 weeks, the baseline paces come from; null without one.
 export function baselineFrom(adventures: Counted[], now: number, since = now - BASELINE_DAYS * DAY): number | null {
@@ -115,13 +124,16 @@ export function baselineFrom(adventures: Counted[], now: number, since = now - B
 }
 
 // Whether an egg can be a Gym's plan egg: Evolution Road needs one that evolves at 10 km, Mega Trial one with a Mega form.
-export function eggAllowed(gym: GymId, family: string[], megas: string[]): boolean {
+export function eggAllowed(gym: GymId, family: string[], forms: { megas: string[], gigantamax: string[] }): boolean {
   const rule = gyms[gym].eggRule
-  return rule === 'any' || (rule === 'evolves' ? family.length >= 2 : megas.length > 0)
+  return rule === 'any' || (rule === 'evolves' ? family.length >= 2 : rule === 'mega' ? forms.megas.length > 0 : forms.gigantamax.length > 0)
 }
 
 // Whether a Gym is recommended now, and why not. These are soft gates: the player can start anyway after a confirm.
-export function entryCheck(gym: GymId, adventures: Counted[], badges: Training['badges'], now: number): { ok: boolean, reason: string } {
+// The ultra is stricter: it stays locked until the Titan Badge or a saved 42 km, or a confirmed marathon elsewhere with
+// about 50 km a week now (confirm: the statement to agree to before starting).
+export type EntryCheck = { ok: boolean, reason: string, locked?: boolean, confirm?: string }
+export function entryCheck(gym: GymId, adventures: Counted[], badges: Training['badges'], now: number): EntryCheck {
   const within = (days: number) => adventures.filter(item => Date.parse(item.record.finishedAt) >= now - days * DAY && Date.parse(item.record.finishedAt) <= now)
   const longest = (days: number) => Math.max(0, ...within(days).map(item => item.record.meters))
   const weekly = within(28).reduce((sum, item) => sum + item.record.meters, 0) / 4
@@ -131,6 +143,14 @@ export function entryCheck(gym: GymId, adventures: Counted[], badges: Training['
   if (gym === 'mega-trial' && !badges['evolution-road'] && (longest(42) < 10000 || weekly < 15000)) {
     return { ok: false, reason: 'Recommended once you have run 10 km in one go in the last 6 weeks and about 15 km a week, or earned the Stride Badge.' }
   }
+  if (gym === 'dynamax-marathon' && !badges['mega-trial'] && (longest(56) < 16000 || weekly < 30000)) {
+    return { ok: false, reason: 'Recommended once you have run 16 km in one go in the last 8 weeks and about 30 km a week, or earned the Summit Badge.' }
+  }
+  if (gym === 'gigantamax-ultra' && !badges['dynamax-marathon'] && !adventures.some(item => item.record.meters >= 42000)) {
+    return weekly >= 50000
+      ? { ok: false, locked: true, reason: 'Opens after a marathon: the Titan Badge, or a saved run of 42 km.', confirm: "I've run a marathon in the last 12 months" }
+      : { ok: false, locked: true, reason: 'Opens after a marathon: the Titan Badge, or a saved run of 42 km. Running a marathon elsewhere counts too, once you run about 50 km a week.' }
+  }
   return { ok: true, reason: '' }
 }
 
@@ -139,6 +159,7 @@ export function suggestGym(adventures: Counted[], badges: Training['badges'], no
   const recent = adventures.filter(item => Date.parse(item.record.finishedAt) >= now - 56 * DAY)
   const longest = Math.max(0, ...recent.map(item => item.record.meters))
   const weekly = recent.filter(item => Date.parse(item.record.finishedAt) >= now - 28 * DAY).reduce((sum, item) => sum + item.record.meters, 0) / 4
+  if ((longest >= 16000 && weekly >= 30000) || badges['mega-trial']) return 'dynamax-marathon'
   if (longest >= 10000 || badges['evolution-road']) return 'mega-trial'
   if (baselineFrom(adventures, now) && weekly >= 15000) return 'speed-gym'
   if (longest >= 5000 || badges['first-hatch']) return 'evolution-road'
@@ -150,7 +171,8 @@ export function startPlan(training: Training, gym: GymId, family: string[], mega
   if (training.active) throw new Error('Finish or quit your current Gym first.')
   const paced = gyms[gym].paced
   return { ...training, active: { gym, startedAt: now, egg: { family: [...family], mega }, done: {}, pausedAt: null, pausedMs: 0,
-    baseline5k: paced ? baseline5k : null, entry: gym === 'speed-gym' && !baseline5k, trials: [], refreshed: false } }
+    baseline5k: paced ? baseline5k : null, entry: gym === 'speed-gym' && !baseline5k, trials: [], refreshed: false,
+    runWalk: gym === 'gigantamax-ultra' ? 10 : null } }
 }
 export const quitPlan = (training: Training): Training => ({ ...training, active: null })
 
@@ -178,6 +200,8 @@ export function unlockAt(plan: ActivePlan): number {
   const last = lastCounted(plan)
   if (!next || !last) return plan.startedAt
   if (plan.trials.length && next.kind === 'graduation') return dayStart(plan.trials.at(-1)!.at, 3)
+  // A back-to-back is meant for the day after its long run.
+  if (next.pairedWith && last.session.id === next.pairedWith) return dayStart(last.at, 1)
   return dayStart(last.at, next.hard && last.session.hard ? 2 : 1)
 }
 // After a missed Speed Gym trial: the last day the retry can be run, or null.
@@ -198,6 +222,8 @@ export function meetsSession(session: Session, plan: ActivePlan, adventure: Coun
     return sameEgg && record.meters >= gyms[plan.gym].graduationMeters && (plan.gym !== 'speed-gym' || bestEffort(asAdventure(adventure), 5000) !== null)
   }
   const meters = sessionMeters(session)
+  // A long run with a time cap also counts once the cap has passed.
+  if (session.capSeconds && (record.elapsedSeconds ?? 0) >= session.capSeconds) return true
   if (meters && record.meters < meters * DISTANCE_SHARE) return false
   const seconds = sessionSeconds(session)
   return !!meters || !seconds || (record.elapsedSeconds ?? 0) >= seconds * TIME_SHARE
@@ -208,6 +234,8 @@ export function meetsSession(session: Session, plan: ActivePlan, adventure: Coun
 export function maxStars(session: Session, plan: ActivePlan): number {
   if (session.kind === 'graduation' || session.kind === 'trial') return 1
   if (session.kind === 'walk' || session.kind === 'runwalk' || session.kind === 'run') return 2
+  // Hills are run by effort, not pace: finishing them is the star.
+  if (session.kind === 'hills') return 1
   return plan.baseline5k ? 3 : 1
 }
 const QUALITY: PaceZone[] = ['tempo', 'interval', 'half']
@@ -269,6 +297,15 @@ export function matchCandidates<T extends Counted>(training: Training, adventure
     .sort((a, b) => startOf(a) - startOf(b))
 }
 
+// The second half no more than 5% slower than the first, by the clock, from a pace log logged from the start.
+export function evenHalves(adventure: Counted): boolean {
+  const pace = adventure.pace
+  if (!pace || pace.start !== 0 || pace.at.length < 51) return false
+  const last = pace.at.length - 1
+  const half = pace.at[Math.floor(last / 2)] + (last % 2 ? (pace.at[Math.ceil(last / 2)] - pace.at[Math.floor(last / 2)]) / 2 : 0)
+  return pace.at[last] - half <= half * 1.05
+}
+
 function perfectRun(plan: ActivePlan): boolean {
   return planSessions(plan).filter(item => item.kind !== 'graduation' && item.kind !== 'trial')
     .every(item => plan.done[item.id] && !plan.done[item.id].skipped && (plan.done[item.id].stars ?? 1) >= maxStars(item, plan))
@@ -307,6 +344,9 @@ export function countSession(training: Training, adventure: Counted, now: number
     badge.time = time
   }
   if (plan.gym === 'mega-trial' && negativeSplit(asAdventure(adventure))) badge.pacer = true
+  if (plan.gym === 'dynamax-marathon' && evenHalves(adventure)) badge.wall = true
+  if (plan.gym === 'gigantamax-ultra' && planSessions(finished).filter(item => item.kind === 'long' || item.kind === 'backtoback')
+    .every(item => (finished.done[item.id]?.stars ?? 0) >= maxStars(item, finished))) badge.steady = true
   const earned = training.badges[plan.gym]
   return { ...training, active: null, finished: { gym: plan.gym, adventureId: adventure.id, badge: true, ...badge.time ? { time: badge.time } : {} },
     badges: { ...training.badges, [plan.gym]: earned ? { ...earned, ...badge.time && (!earned.time || badge.time < earned.time) ? { time: badge.time } : {} } : badge } }
@@ -356,11 +396,27 @@ export function resume(training: Training, now: number): Training {
   return { ...training, active: { ...plan, pausedAt: null, pausedMs: plan.pausedMs + Math.min(MAX_PAUSE, Math.max(0, now - plan.pausedAt)) } }
 }
 
-// Speed Gym from week 4: a faster 5 km since the plan began can reset the paces, once.
-export function refreshOffer(plan: ActivePlan, adventures: Counted[], now: number): number | null {
-  if (plan.gym !== 'speed-gym' || plan.refreshed || !plan.baseline5k || currentWeek(plan) < 3) return null
-  const best = baselineFrom(adventures, now, plan.startedAt)
-  return best && best < plan.baseline5k ? best : null
+// Fresher paces, once: Speed Gym from week 4 from a faster 5 km since the plan began; Dynamax Marathon from week 9 from
+// a half marathon, a much better guide to the marathon than a 5 km. baseline: the 5 km the zones then come from
+// (for the half, its equivalent by Riegel's formula); from, seconds: what it came from, to show.
+export type Refresh = { baseline: number, from: '5 km' | 'half marathon', seconds: number }
+export function refreshOffer(plan: ActivePlan, adventures: Counted[], now: number): Refresh | null {
+  if (plan.refreshed || !plan.baseline5k) return null
+  if (plan.gym === 'speed-gym' && currentWeek(plan) >= 3) {
+    const best = baselineFrom(adventures, now, plan.startedAt)
+    return best && best < plan.baseline5k ? { baseline: best, from: '5 km', seconds: best } : null
+  }
+  if (plan.gym === 'dynamax-marathon' && currentWeek(plan) >= 8) {
+    let half: number | null = null
+    for (const adventure of adventures) {
+      const finished = Date.parse(adventure.record.finishedAt)
+      if (!(finished >= now - BASELINE_DAYS * DAY && finished <= now)) continue
+      const effort = bestEffort(asAdventure(adventure), 21097.5)
+      if (effort && (half === null || effort < half)) half = effort
+    }
+    return half ? { baseline: riegel(half, 21.0975, 5), from: 'half marathon', seconds: half } : null
+  }
+  return null
 }
 export function refreshZones(training: Training, seconds: number): Training {
   const plan = training.active
@@ -401,3 +457,12 @@ export function starsOf(plan: ActivePlan): { earned: number, possible: number } 
   }
   return { earned, possible }
 }
+
+// Gigantamax Ultra's walking breaks: a minute's walk every `minutes` (5 to 25), or none.
+export function setRunWalk(training: Training, minutes: number | null): Training {
+  const plan = training.active
+  if (!plan || plan.gym !== 'gigantamax-ultra') return training
+  return { ...training, active: { ...plan, runWalk: minutes && minutes >= 5 && minutes <= 25 ? Math.round(minutes) : null } }
+}
+// Sessions that take the walking breaks: the long runs, back-to-backs and the graduation.
+export const takesBreaks = (session: Session) => session.kind === 'long' || session.kind === 'backtoback' || session.kind === 'graduation'

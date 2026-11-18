@@ -634,7 +634,7 @@ The Safari Zone and the Legendary Trial (including Shrine Revisit practice rooms
 
 Turning the phone needs the native `expo-screen-orientation` module, so this release needs a new app build (an over-the-air update can't add it). The layout maths are in `src/games/immersive.ts`; `src/games/useImmersive.ts` applies and undoes the orientation lock, the hidden bars and the back button.
 
-### Gym Training
+### Gym Training (2.0.0)
 
 Guided plans that build up to one adventure that hatches the egg you bring. Open **Gym** on the Adventure tab
 (or the Gym card on the Journal), choose a Gym and a plan egg, and train:
@@ -646,21 +646,35 @@ Guided plans that build up to one adventure that hatches the egg you bring. Open
 | **Evolution Road** | 5 km to 10 km | 8 weeks, 4 a week: easy runs, strides, fartlek, a long run (19–26 km a week) | Evolution Day: 10 km, evolving an egg that evolves at 10 km | Stride Badge |
 | **Speed Gym** | A faster 5 km | 6 weeks, 4 a week: intervals, easy, tempo, long (27–35 km a week) | Gym Trial: a 5 km faster than your best | Spark Badge |
 | **Mega Trial** | A half marathon | 12 weeks, 4 a week, long runs to 18 km (27–44 km a week) | Summit Day: 21.1 km, Mega Evolving an egg with a Mega form | Summit Badge |
+| **Dynamax Marathon** | The summit: a marathon | 16 weeks, 4 then 5 a week, long runs to 32 km (34–71 km a week) | Dynamax Day: 42.2 km, Dynamaxing the egg (and Mega Evolving it at 21 km if it can) | Titan Badge |
+| **Gigantamax Ultra** | Beyond the marathon | 12 weeks, 5 a week: hills, long runs to 38 km and back-to-backs (54–90 km a week) | Gigantamax Day: 50 km, Gigantamaxing an egg with a Gigantamax form | Colossus Badge |
 
 The picker suggests a Gym from your saved adventures (a 5 km a day with a recent 5 km best points to Speed Gym)
-and shows it first. Evolution Road and Mega Trial say when they're best started (5 km in one go for the first;
+and shows it first. The marathon is the summit the ladder builds to; Gigantamax Ultra sits apart as **Beyond the
+marathon**, is never suggested, and opens only after the Titan Badge or a saved run of 42 km (or, at about 50 km a
+week, by confirming a marathon run elsewhere in the last 12 months). Evolution Road and Mega Trial say when they're best started (5 km in one go for the first;
 10 km in one go and about 15 km a week for the second), but you can **Start anyway**.
 
 - **Today first.** The Gym screen opens on the next session: what it is, how long, whether it's open, and
   **Start session**. Below it, the plan egg in its incubator (it warms with every session, cracks showing at a
   quarter, half and three quarters) and the plan as a ladder of weeks ending in the egg.
 - **Rest days.** One session a day, and a rest day between two hard sessions (run/walk, quality sessions, long runs).
-  Walks and easy runs can be on back-to-back days.
+  Walks, easy and recovery runs can be on back-to-back days, and the ultra's **back-to-back** run is meant for the day
+  right after its long run, on tired legs.
+- **Long runs stop at a time cap**: 3 h 15 min in the marathon (and at 32 km at most), 4 h 30 min in the ultra
+  (38 km at most), 2 h 30 min for back-to-backs. A long run counts when it reaches its distance or its cap, whichever
+  comes first, and the banner says "Long run done!". Graduations have no cap. Long runs from 16 km remind you to
+  bring water and food and practise your race-day fuel; the marathon and ultra graduations suggest a full charge, a
+  power bank or the watch.
+- **Walking breaks** (Gigantamax Ultra): a minute's walk every 5 to 25 minutes (10 by default, or off) on long
+  runs, back-to-backs and Gigantamax Day, cued like any step. Walking never costs a star.
 - **Your paces.** The running Gyms take pace zones from your fastest 5 km of the last 12 weeks: easy 1.20–1.40 ×
-  your 5 km pace, tempo 1.05–1.09 ×, fast 0.97–1.00 ×, half pace 1.07–1.11 ×. From a 25:00 5 km that is easy
+  your 5 km pace, tempo 1.05–1.09 ×, fast 0.97–1.00 ×, half pace 1.07–1.11 ×, marathon pace 1.12–1.16 ×. From a 25:00 5 km that is easy
   6:00–7:00 /km, tempo 5:15–5:27, fast 4:51–5:00, and an estimated half marathon of about 1:55, labelled as an
   estimate. Without a recent 5 km best you run by feel, and Speed Gym starts with a 5 km **entry trial** that sets
-  them. From week 4, Speed Gym offers once to use a faster 5 km you ran since starting.
+  them. From week 4, Speed Gym offers once to use a faster 5 km you ran since starting. The marathon estimate (about
+  4:00 from a 25:00 5 km) is labelled as often optimistic until your long runs reach 30 km, and from week 9 Dynamax
+  Marathon offers once to set your paces from a half marathon, a much better guide.
 - **Stars.** Paced sessions earn 1–3 stars: efforts in their zone (two in three for ★★, all of them without fading
   for ★★★), and easy runs kept easy (average no faster than easy for ★★, every kilometre for ★★★). Beginner
   sessions earn ★★ for doing every minute. Stars come from the phone's pace log, which marks every 100 m, so short
@@ -691,14 +705,15 @@ and shows it first. Evolution Road and Mega Trial say when they're best started 
 - **Flexible.** One skip a week (it gives no warmth, and Hatch Day can't be skipped), **Repeat week** where a plan
   steps up, **Pause plan** for up to 28 days, and after 10 or 21 days away an offer to go back one or two weeks.
 - **Badges.** Graduating earns the Gym Badge, kept in the badge case (Spark with its trial time, and **Mega Pacer**
-  for a Summit Day with a faster second half), and the hidden badges **Gym graduate** and, with no session skipped,
+  for a Summit Day with a faster second half, **Wall Breaker** for a marathon whose second half was no more than 5%
+  slower, **Ultra Steady** for an ultra with every long run and back-to-back kept easy), and the hidden badges **Gym graduate** and, with no session skipped,
   **Warm welcome**. Every Gym Badge also earns one **Expedition Permit**: **Claim** it in the badge case. Training is saved on this phone and included in backups.
 
 The plans are general fitness guidance, not medical advice, and the Gym screen says so before you start.
 The logic lives in `src/training-plans.ts` (the plans), `src/training.ts` (progress, rest days, matching) and
 `src/training-cues.ts` (where you are in a session, worked out afresh from the adventure each second).
 
-### Buddy Friendship
+### Buddy Friendship (2.0.0)
 
 Every walk or run you start with a buddy grows your friendship with it, at any distance, on the watch or this
 phone. A watch adventure that syncs later still counts for the buddy you had when it **started**. Normal and Shiny

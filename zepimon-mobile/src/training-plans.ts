@@ -4,20 +4,23 @@ import type { Activity } from './phone-adventure.ts'
 // in a graduation adventure carrying the plan egg. This file only describes the plans; src/training.ts keeps the
 // player's progress. Sessions are lists of steps, timed or measured in metres, that src/training-cues.ts walks through
 // while recording. Every recovery is moving (a walk or a jog), never standing still: GPS fixes only arrive while you move.
-export type GymId = 'steady-steps' | 'first-hatch' | 'evolution-road' | 'speed-gym' | 'mega-trial'
-export type StepKind = 'warmup' | 'walk' | 'brisk' | 'jog' | 'run' | 'cooldown' | 'easy' | 'tempo' | 'interval' | 'half' | 'stride' | 'recover' | 'race'
+export type GymId = 'steady-steps' | 'first-hatch' | 'evolution-road' | 'speed-gym' | 'mega-trial' | 'dynamax-marathon' | 'gigantamax-ultra'
+export type StepKind = 'warmup' | 'walk' | 'brisk' | 'jog' | 'run' | 'cooldown' | 'easy' | 'tempo' | 'interval' | 'half' | 'marathon' | 'stride' | 'hill' | 'recover' | 'race'
 // The pace a step is run at, from your 5 km best (src/training.ts paceZones); 'any' has no target.
-export type PaceZone = 'easy' | 'tempo' | 'interval' | 'half' | 'any'
+export type PaceZone = 'easy' | 'tempo' | 'interval' | 'half' | 'marathon' | 'any'
 export type Step = { kind: StepKind, seconds?: number, meters?: number, zone?: PaceZone }
-export type SessionKind = 'walk' | 'runwalk' | 'run' | 'easy' | 'strides' | 'long' | 'fartlek' | 'tempo' | 'intervals' | 'half' | 'trial' | 'graduation'
+export type SessionKind = 'walk' | 'runwalk' | 'run' | 'easy' | 'recovery' | 'strides' | 'long' | 'backtoback' | 'hills' | 'fartlek' | 'tempo' | 'intervals' | 'half' | 'marathon' | 'trial' | 'graduation'
 // hard: needs a rest day before the next hard session. week and index are 0-based; id is unique across Gyms.
 // meters: the distance the whole session covers, warm-up, recoveries and cool-down included, which it is counted by.
+// capSeconds: a long run that also counts, and ends, once this much time has passed, so slower runners stop at a useful
+// length. pairedWith: a back-to-back run that belongs the day after this long run (it opens the next day, hard or not).
 export type Session = { id: string, gym: GymId, week: number, index: number, kind: SessionKind, title: string, detail: string, hard: boolean,
-  steps: Step[], meters?: number }
-export type Level = 'beginner' | 'intermediate' | 'advanced'
-// eggRule: which eggs the plan egg can be. evolves: one that evolves at 10 km. mega: one with a Mega form, chosen at the start.
+  steps: Step[], meters?: number, capSeconds?: number, pairedWith?: string }
+export type Level = 'beginner' | 'intermediate' | 'advanced' | 'elite' | 'beyond'
+// eggRule: which eggs the plan egg can be. evolves: one that evolves at 10 km. mega: one with a Mega form. gigantamax:
+// one with a Gigantamax form. The form is chosen at the start where there is a choice.
 export type Gym = { id: GymId, name: string, badge: string, level: Level, blurb: string, activity: Activity, weeks: Session[][],
-  graduationMeters: number, eggRule: 'any' | 'evolves' | 'mega', paced: boolean }
+  graduationMeters: number, eggRule: 'any' | 'evolves' | 'mega' | 'gigantamax', paced: boolean }
 
 const MIN = 60
 const step = (kind: StepKind, minutes: number, zone?: PaceZone): Step => ({ kind, seconds: Math.round(minutes * MIN), ...zone ? { zone } : {} })
@@ -31,7 +34,9 @@ export const sessionMeters = (session: Session) => session.meters ?? session.ste
 
 type Draft = Omit<Session, 'id' | 'gym' | 'week' | 'index'>
 function weeks(gym: GymId, drafts: Draft[][]): Session[][] {
-  return drafts.map((sessions, week) => sessions.map((draft, index) => ({ ...draft, id: `${gym}-w${week + 1}-s${index + 1}`, gym, week, index })))
+  return drafts.map((sessions, week) => sessions.map((draft, index) => ({ ...draft, id: `${gym}-w${week + 1}-s${index + 1}`, gym, week, index,
+    // A back-to-back belongs to the long run just before it.
+    ...draft.kind === 'backtoback' && index > 0 ? { pairedWith: `${gym}-w${week + 1}-s${index}` } : {} })))
 }
 
 // "90 s", "2 min", "2:30 min" style durations for titles.
@@ -72,8 +77,20 @@ const same = (draft: Draft): Draft[] => [draft, draft, draft]
 // walk back; quality sessions warm up and cool down at easy pace around their efforts.
 const easy = (km: number): Draft => ({ kind: 'easy', title: `Easy ${kmText(km)}`, hard: false, meters: km * 1000,
   detail: 'Easy pace: you could chat the whole way. Slower than you think.', steps: [run('easy', km, 'easy')] })
-const long = (km: number): Draft => ({ kind: 'long', title: `Long run ${kmText(km)}`, hard: true, meters: km * 1000,
-  detail: 'Your longest run of the week, all at easy pace. Time on your feet is the point.', steps: [run('easy', km, 'easy')] })
+const FUEL = ' Bring water and something to eat, and practise your race-day fuel.'
+// capMinutes: the long run also ends there (3 h 15 min in the marathon, 4 h 30 min in the ultra).
+const long = (km: number, capMinutes?: number): Draft => ({ kind: 'long', title: `Long run ${kmText(km)}`, hard: true, meters: km * 1000,
+  detail: `Your longest run of the week, all at easy pace. Time on your feet is the point.${capMinutes ? ` It ends at ${kmText(km)} or ${Math.floor(capMinutes / 60)} h${capMinutes % 60 ? ` ${capMinutes % 60} min` : ''}, whichever comes first.` : ''}${km >= 16 ? FUEL : ''}`,
+  steps: [run('easy', km, 'easy')], ...capMinutes ? { capSeconds: capMinutes * 60 } : {} })
+const recovery = (km: number): Draft => ({ kind: 'recovery', title: `Recovery ${kmText(km)}`, hard: false, meters: km * 1000,
+  detail: 'Very easy: slower than your easy runs. It loosens your legs and adds distance without tiring you.', steps: [run('easy', km, 'easy')] })
+// The day after a long run, on tired legs (Gigantamax Ultra).
+const backToBack = (km: number): Draft => ({ kind: 'backtoback', title: `Back-to-back ${kmText(km)}`, hard: true, meters: km * 1000, capSeconds: 150 * 60,
+  detail: `The day after your long run, easy, on tired legs: that is the point. It ends at ${kmText(km)} or 2 h 30 min.`, steps: [run('easy', km, 'easy')] })
+// Uphill efforts with a jog back down, inside a run of `total` km.
+const hills = (total: number, n: number): Draft => ({ kind: 'hills', title: `${kmText(total)} with ${n} hills`, hard: true, meters: total * 1000,
+  detail: `${n} × 90 s uphill, strong but controlled, jogging back down, inside a ${kmText(total)} run. Walking a steep one is fine.`,
+  steps: [run('warmup', 2, 'easy'), ...repeat(n, step('hill', 1.5, 'any'), step('recover', 1.5, 'easy')).slice(0, -1), run('cooldown', Math.max(1, total - 2 - n * 0.5), 'easy')] })
 const strides = (km: number, n: number): Draft => ({ kind: 'strides', title: `${kmText(km)} + ${n} strides`, hard: false, meters: km * 1000 + n * 100,
   detail: `An easy ${kmText(km)}, then ${n} × 20 s strides: quick and relaxed, walking back between.`,
   steps: [run('easy', km, 'easy'), ...repeat(n, step('stride', 1 / 3, 'any'), step('walk', 1))] })
@@ -98,20 +115,21 @@ const tempo = (n: number, minutes: number, rest = 2): Draft => ({ kind: 'tempo',
     run('cooldown', 1.5, 'easy')] })
 // A run of `total` km with efforts measured in km inside it (Mega Trial): warm-up, n × the effort with jogs between,
 // then easy to the total.
-function inside(total: number, n: number, km: number, zone: 'tempo' | 'interval' | 'half', rest: number, warm = n > 1 ? 2 : 1): Draft {
+function inside(total: number, n: number, km: number, zone: 'tempo' | 'interval' | 'half' | 'marathon', rest: number, warm = n > 1 ? 2 : 1): Draft {
   const efforts = repeat(n, run(zone, km, zone), ...rest ? [step('recover', rest, 'easy')] : []).slice(0, rest && n > 1 ? -1 : undefined)
   const cool = Math.max(0.5, total - warm - n * km)
-  const what = { tempo: 'tempo', interval: 'interval pace', half: 'half marathon pace' }[zone]
-  const kind: SessionKind = zone === 'interval' ? 'intervals' : zone === 'half' ? 'half' : 'tempo'
+  const what = { tempo: 'tempo', interval: 'interval pace', half: 'half marathon pace', marathon: 'marathon pace' }[zone]
+  const kind: SessionKind = zone === 'interval' ? 'intervals' : zone === 'half' ? 'half' : zone === 'marathon' ? 'marathon' : 'tempo'
+  const at = { tempo: 'tempo', interval: 'fast', half: 'at half pace', marathon: 'at marathon pace' }[zone]
   return { kind, hard: true, meters: total * 1000,
-    title: n === 1 ? `${kmText(total)} with ${kmText(km)} ${zone === 'half' ? 'at half pace' : 'tempo'}` : `${kmText(total)} with ${n} × ${kmText(km)}`,
+    title: n === 1 ? `${kmText(total)} with ${kmText(km)} ${at}` : `${kmText(total)} with ${n} × ${kmText(km)}`,
     detail: n === 1 ? `${kmText(km)} at ${what} inside a ${kmText(total)} run.` : `${n} × ${kmText(km)} at ${what}${rest ? `, ${clockText(rest)} jog between` : ''}, inside a ${kmText(total)} run.`,
     steps: [run('warmup', warm, 'easy'), ...efforts, run('cooldown', cool, 'easy')] }
 }
 const graduation = (km: number, title: string, detail: string): Draft => ({ kind: 'graduation', title, detail, hard: true, meters: km * 1000,
   steps: [run('run', km, 'any')] })
 
-export const gyms: Record<GymId, Gym> = {
+export const gyms = {
   'steady-steps': {
     id: 'steady-steps', name: 'Steady Steps', badge: 'Sprout Badge', level: 'beginner', activity: 'walking', graduationMeters: 5000, eggRule: 'any', paced: false,
     blurb: 'Walking only. Six weeks of walks, a little longer each week, to a 5 km walk that hatches your egg.',
@@ -186,8 +204,52 @@ export const gyms: Record<GymId, Gym> = {
       graduation(21.1, 'Summit Day: 21.1 km', 'Run a half marathon with your plan egg. It Mega Evolves at 21 km.')]
     ])
   }
+} as Record<GymId, Gym>
+gyms['dynamax-marathon'] = {
+  id: 'dynamax-marathon', name: 'Dynamax Marathon', badge: 'Titan Badge', level: 'elite', activity: 'running', graduationMeters: 42195, eggRule: 'any',
+  paced: true,
+  blurb: 'The summit: sixteen weeks to a marathon. Five runs a week from week 5, long runs to 32 km, then 42.2 km that Dynamaxes your egg.',
+  weeks: weeks('dynamax-marathon', [
+    [easy(6), inside(8, 1, 5, 'tempo', 0), easy(6), long(14, 195)],
+    [easy(6), inside(9, 5, 1, 'interval', 2), easy(6), long(16, 195)],
+    [easy(7), inside(10, 1, 6, 'tempo', 0, 2), easy(7), long(18, 195)],
+    [easy(6), strides(8, 6), easy(6), long(14, 195)],
+    [easy(8), inside(10, 6, 1, 'interval', 2), easy(7), recovery(4), long(19, 195)],
+    [easy(8), inside(12, 1, 8, 'marathon', 0, 2), easy(8), recovery(6), long(21, 195)],
+    [easy(8), inside(12, 2, 4, 'tempo', 3), easy(8), recovery(8), long(23, 195)],
+    [easy(7), inside(10, 1, 6, 'marathon', 0, 2), easy(6), recovery(5), long(18, 195)],
+    [easy(9), inside(12, 6, 1, 'interval', 2), easy(8), recovery(8), long(24, 195)],
+    [easy(9), inside(16, 1, 12, 'marathon', 0, 2), easy(8), recovery(8), long(26, 195)],
+    [easy(10), inside(13, 3, 3, 'tempo', 3), easy(9), recovery(8), long(28, 195)],
+    [easy(8), inside(12, 1, 8, 'marathon', 0, 2), easy(7), recovery(6), long(21, 195)],
+    [easy(10), inside(12, 1, 7, 'tempo', 0, 2), easy(9), recovery(8), long(32, 195)],
+    [easy(9), inside(16, 1, 12, 'marathon', 0, 2), easy(8), recovery(6), long(26, 195)],
+    [easy(7), inside(10, 1, 6, 'marathon', 0, 2), easy(6), recovery(5), long(19, 195)],
+    [easy(6), inside(8, 3, 1.6, 'marathon', 1.5), easy(5),
+      graduation(42.195, 'Dynamax Day: 42.2 km', 'Run a marathon with your plan egg. It Dynamaxes at 42 km, in its red glow.' + FUEL)]
+  ])
 }
-export const gymOrder: GymId[] = ['steady-steps', 'first-hatch', 'evolution-road', 'speed-gym', 'mega-trial']
+gyms['gigantamax-ultra'] = {
+  id: 'gigantamax-ultra', name: 'Gigantamax Ultra', badge: 'Colossus Badge', level: 'beyond', activity: 'running', graduationMeters: 50000,
+  eggRule: 'gigantamax', paced: true,
+  blurb: 'Beyond the marathon: twelve weeks of back-to-back long runs and hills, walking breaks welcome, to 50 km that Gigantamaxes your egg.',
+  weeks: weeks('gigantamax-ultra', [
+    [easy(8), inside(12, 1, 6, 'tempo', 0, 2), easy(8), long(24, 270), backToBack(10)],
+    [easy(8), hills(12, 8), easy(8), long(26, 270), backToBack(12)],
+    [easy(9), inside(13, 1, 7, 'tempo', 0, 2), easy(9), long(28, 270), backToBack(14)],
+    [easy(8), strides(10, 6), easy(7), long(21, 270), backToBack(8)],
+    [easy(9), hills(13, 10), easy(9), long(30, 270), backToBack(15)],
+    [easy(10), inside(14, 1, 10, 'marathon', 0, 2), easy(9), long(32, 270), backToBack(16)],
+    [easy(10), inside(14, 1, 8, 'tempo', 0, 2), easy(10), long(35, 270), backToBack(16)],
+    [easy(8), strides(10, 6), easy(8), long(24, 270), backToBack(10)],
+    [easy(10), hills(14, 12), easy(10), long(38, 270), backToBack(18)],
+    [easy(10), inside(14, 1, 10, 'marathon', 0, 2), easy(10), long(32, 270), backToBack(20)],
+    [easy(8), inside(12, 1, 6, 'tempo', 0, 2), easy(8), long(24, 270), backToBack(10)],
+    [easy(6), strides(8, 4), easy(5),
+      graduation(50, 'Gigantamax Day: 50 km', 'Run 50 km with your plan egg, walking whenever you need. It Gigantamaxes at 50 km. Expect 5 to 7 hours.' + FUEL)]
+  ])
+}
+export const gymOrder: GymId[] = ['steady-steps', 'first-hatch', 'evolution-road', 'speed-gym', 'mega-trial', 'dynamax-marathon', 'gigantamax-ultra']
 
 // Speed Gym starts with this 5 km time trial when there is no recent 5 km best to pace it from.
 export const entryTrial: Session = { id: 'speed-gym-entry', gym: 'speed-gym', week: 0, index: -1, kind: 'trial', hard: true, meters: 5000,

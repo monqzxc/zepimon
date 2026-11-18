@@ -8,7 +8,7 @@ import { maxStars, paceZones } from './training'
 import { clock, paceText } from './running'
 import { findSession, gyms, sessionMeters, sessionSeconds } from './training-plans'
 import type { GymId } from './training-plans'
-import { cueAt, isEffort, remainingText, spokenCue, stepLabel } from './training-cues'
+import { cueAt, isEffort, remainingText, spokenCue, stepLabel, walkBreak } from './training-cues'
 import { alertCue } from './cue-alerts'
 import { Button, Copy, Panel, Title, colors, displayFont, fonts, themedStyles, useTheme } from './ui'
 
@@ -34,12 +34,24 @@ export function SessionBanner({ active, now }: { active: ActiveAdventure, now: n
     if (current && changed) AccessibilityInfo.announceForAccessibility(spokenCue(current))
   }, [active, now])
   if (!session || !cue) return null
+  // Gigantamax Ultra's walking breaks run alongside the step.
+  const pause = cue.done ? null : walkBreak(active.training?.breaks, Math.max(0, (now - active.startedAt) / 1000))
+  if (pause?.walking) {
+    return <View accessible accessibilityLabel={`Walk break, ${clock(pause.remaining)} left, then run again`} style={[banner.box, { backgroundColor: colors.mint }]}>
+      <View style={banner.row}>
+        <Text style={[banner.step, { color: colors.ink }]}>Walk break</Text>
+        <Text style={[banner.time, { color: colors.ink }]}>{clock(pause.remaining)}</Text>
+      </View>
+      <Text style={[banner.next, { color: colors.ink }]}>Then run again · {stepLabel(cue.step)}, {remainingText(cue)} left</Text>
+      <Text style={[banner.context, { color: colors.ink }]}>{gyms[session.gym].name} · {session.title}</Text>
+    </View>
+  }
   const effort = isEffort(cue.step) && !cue.done
   const ink = effort ? colors.onEdge : colors.ink
   return <View accessible accessibilityLabel={`${gyms[session.gym].name}, ${session.title}. ${cue.done ? 'Session complete' : `${stepLabel(cue.step)}, ${remainingText(cue)} left`}`}
     style={[banner.box, { backgroundColor: effort ? colors.edge : colors.mint }]}>
     {cue.done ? <>
-      <Text style={[banner.step, { color: ink }]}>{session.kind === 'trial' || (session.kind === 'graduation' && session.gym === 'speed-gym') ? 'Trial complete!' : 'Session complete!'}</Text>
+      <Text style={[banner.step, { color: ink }]}>{cue.capped ? 'Long run done!' : session.kind === 'trial' || (session.kind === 'graduation' && session.gym === 'speed-gym') ? 'Trial complete!' : 'Session complete!'}</Text>
       <Text style={[banner.next, { color: ink }]}>{session.kind === 'graduation' ? 'Finish & save to graduate.' : 'Finish & save to count it, or keep going.'}</Text>
     </> : <>
       <View style={banner.row}>
@@ -48,7 +60,8 @@ export function SessionBanner({ active, now }: { active: ActiveAdventure, now: n
       </View>
       {zone && <Text accessibilityLiveRegion="polite" style={[banner.target, { color: ink }]}>
         {paceText(zone[0])}–{paceText(zone[1])} /km{pace !== null ? ` · now ${paceText(pace)} · ${verdict}` : ''}</Text>}
-      <Text style={[banner.next, { color: ink }]}>{cue.next ? `Then: ${stepLabel(cue.next)}` : 'Last step'} · Step {cue.index + 1} of {cue.total}</Text>
+      <Text style={[banner.next, { color: ink }]}>{cue.next ? `Then: ${stepLabel(cue.next)}` : 'Last step'} · Step {cue.index + 1} of {cue.total}
+        {pause ? ` · walk break in ${clock(pause.remaining)}` : ''}</Text>
     </>}
     <Text style={[banner.context, { color: ink }]}>{gyms[session.gym].name} · {session.title}</Text>
   </View>

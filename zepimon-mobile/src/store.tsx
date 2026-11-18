@@ -32,7 +32,7 @@ import { restorePlan, withEgg, withoutEgg, withPhone } from './plan'
 import type { Plan } from './plan'
 import { LEVELS, emptyFriendship, friendshipMeters, logBuddy, markSeen, restoreFriendship } from './friendship'
 import type { Friendship } from './friendship'
-import { baselineFrom, countSession, countStarted, decline, emptyTraining, goBack, pause, quitPlan, refreshZones, restoreTraining, resume, skipSession, startPlan } from './training'
+import { baselineFrom, countSession, countStarted, decline, emptyTraining, goBack, pause, quitPlan, refreshZones, restoreTraining, resume, setRunWalk, skipSession, startPlan } from './training'
 import type { Training } from './training'
 import type { GymId } from './training-plans'
 
@@ -52,7 +52,7 @@ type Store = Saved & { ready: boolean, error: string, dex: Record<string, DexRec
   startGym: (gym: GymId, family: string[], mega: string | null) => Promise<void>, quitGym: () => Promise<void>, skipGymSession: () => Promise<void>,
   gymGoBack: (weeks: number) => Promise<void>, pauseGym: () => Promise<void>, resumeGym: () => Promise<void>,
   countForGym: (adventureId: string) => Promise<void>, declineForGym: (adventureId: string) => Promise<void>,
-  refreshGymZones: (seconds: number) => Promise<void>, claimGymPermits: () => Promise<void> }
+  refreshGymZones: (seconds: number) => Promise<void>, claimGymPermits: () => Promise<void>, setGymRunWalk: (minutes: number | null) => Promise<void> }
 const empty: Saved = { journal: null, buddy: null, bestMoves: {}, progress: emptyProgress(), arcadeScores: {}, cloudOwner: null, expeditions: emptyExpeditions(), quest: emptyQuest(), encounters: {}, safari: {}, adventure: {}, trailLevels: {}, trialRecords: {}, rematchWins: {}, phoneRuns: [], plan: null, friendship: emptyFriendship(), training: emptyTraining() }
 const Context = createContext<Store | null>(null)
 
@@ -220,6 +220,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
   const startGym = (id: GymId, family: string[], mega: string | null) => gym((training, current) =>
     startPlan(training, id, family, mega, Date.now(), baselineFrom(allAdventures(current.progress, current.phoneRuns), Date.now())))
   const refreshGymZones = (seconds: number) => gym(training => refreshZones(training, seconds))
+  const setGymRunWalk = (minutes: number | null) => gym(training => setRunWalk(training, minutes))
   const claimBadgePermits = () => persist(current => ({ ...current, quest: claimGymPermits(current.quest, Object.keys(current.training.badges).length) }))
   const quitGym = () => gym(quitPlan)
   const skipGymSession = () => gym(training => skipSession(training, Date.now()))
@@ -253,7 +254,7 @@ export function JournalProvider({ children }: React.PropsWithChildren) {
     engageLegendary: beginBattle, releaseLegendaries: release,
     completeQuestChallenge, earnPermit: earnQuestPermit, earnArcadePermit: earnPointsPermit, claimRunningTickets, unlockWithPermit, recordSafariCatch, recordStars, recordLevelStars, savePhoneRun, chooseEgg, setPhoneAdventure, dropEgg, receivePlan, makeBackup,
     backupInfo: backupSummary(saved), friends, bestFriend: most(friends), missionExtras: { bestFriend: most(friends), ...gymExtras(saved.training) }, celebrateFriends,
-    startGym, quitGym, skipGymSession, gymGoBack, pauseGym, resumeGym, countForGym, declineForGym, refreshGymZones, claimGymPermits: claimBadgePermits }}>{children}</Context.Provider>
+    startGym, quitGym, skipGymSession, gymGoBack, pauseGym, resumeGym, countForGym, declineForGym, refreshGymZones, claimGymPermits: claimBadgePermits, setGymRunWalk }}>{children}</Context.Provider>
 }
 
 export function useJournal() {

@@ -53,14 +53,16 @@ export type ActiveAdventure = {
 }
 // The Gym session an adventure was started for, which counts it as soon as it is saved.
 // marks: where each of its steps began, [step, seconds, metres], recorded fix by fix (src/training-cues.ts advanceMarks).
-export type GymTag = { gym: string, session: string, marks?: [number, number, number][] }
+// breaks: minutes between 1 minute walking breaks (Gigantamax Ultra's long runs), when on.
+export type GymTag = { gym: string, session: string, marks?: [number, number, number][], breaks?: number }
 const validMark = (mark: unknown) => Array.isArray(mark) && mark.length === 3 && Number.isSafeInteger(mark[0]) && mark[0] >= 0 &&
   mark.slice(1).every(value => Number.isFinite(value) && value >= 0)
 const gymTag = (value: unknown): { training?: GymTag } => {
   const tag = value as GymTag | undefined
   if (!(tag && typeof tag.gym === 'string' && typeof tag.session === 'string' && tag.gym.length < 40 && tag.session.length < 60)) return {}
   const marks = Array.isArray(tag.marks) && tag.marks.length <= 400 && tag.marks.every(validMark) ? { marks: tag.marks.map(mark => [...mark] as [number, number, number]) } : {}
-  return { training: { gym: tag.gym, session: tag.session, ...marks } }
+  const breaks = Number.isInteger(tag.breaks) && tag.breaks! >= 5 && tag.breaks! <= 25 ? { breaks: tag.breaks } : {}
+  return { training: { gym: tag.gym, session: tag.session, ...marks, ...breaks } }
 }
 // A saved phone adventure. record has the same shape the watch saves; path is the route as an encoded polyline.
 // movingSeconds and pace are kept beside the record, which the watch's format has no room for; older adventures have neither.

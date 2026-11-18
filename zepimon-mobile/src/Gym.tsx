@@ -6,7 +6,7 @@ import { useJournal } from './store'
 import { allAdventures } from './adventures'
 import type { Adventure } from './adventures'
 import { km } from './journal'
-import { megaChoices, openEggs } from './phone-adventure'
+import { formChoices, gigantamaxChoices, megaChoices, openEggs } from './phone-adventure'
 import { currentAdventure, startAdventure } from './tracker'
 import type { LocationIssue } from './tracker'
 import { pokemonType } from './catalog'
@@ -18,7 +18,7 @@ import { pickGymEgg, usePickedGymEgg } from './gym-egg'
 import { gymOrder, gyms, sessionMeters, sessionSeconds, stepUpNote } from './training-plans'
 import type { Gym, GymId, Level, Session } from './training-plans'
 import { baselineFrom, canSkip, currentWeek, eggAllowed, entryCheck, isOpen, matchCandidates, maxStars, nextSession, paceZones, progressOf,
-  refreshOffer, retryClosed, retryUntil, starsOf, suggestGym, unlockAt, warmth, welcomeBack } from './training'
+  refreshOffer, retryClosed, retryUntil, starsOf, suggestGym, takesBreaks, unlockAt, warmth, welcomeBack } from './training'
 import type { ActivePlan } from './training'
 import { Button, Chip, Copy, Heading, Icon, Panel, Title, colors, displayFont, fonts, styles, themedStyles, typeTints, useTheme } from './ui'
 
@@ -29,10 +29,13 @@ import { Button, Chip, Copy, Heading, Icon, Panel, Title, colors, displayFont, f
 const DAY = 864e5
 const SAFETY = 'These plans are general fitness guidance, not medical advice. If you have a health condition, are pregnant or haven\'t ' +
   'exercised in a long time, check with a doctor first. Stop if you feel pain, dizziness or chest discomfort.'
-const levelNames: Record<Level, string> = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' }
+const LONG_SAFETY = 'Marathon and ultra training puts real strain on your body. Sleep, food and water matter as much as the runs. Sharp or ' +
+  'worsening pain is a reason to stop, not to push through. Use Pause freely; the plan waits for you.'
+const ULTRA_SAFETY = 'Tell someone your route on long runs, carry water and a phone, and be ready to cut a run short in heat.'
+const levelNames: Record<Level, string> = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced', elite: 'The summit', beyond: 'Beyond the marathon' }
 
 const randomEgg = (opened: string[][]) => opened[Math.floor(Math.random() * opened.length)]
-const fitsGym = (gym: GymId) => (family: string[]) => eggAllowed(gym, family, megaChoices(family))
+const fitsGym = (gym: GymId) => (family: string[]) => eggAllowed(gym, family, { megas: megaChoices(family), gigantamax: gigantamaxChoices(family) })
 
 const locationProblems: Partial<Record<LocationIssue, string>> = {
   off: 'Location is off. Turn it on to record the session.',
@@ -42,7 +45,7 @@ const locationProblems: Partial<Record<LocationIssue, string>> = {
 
 // Each Gym's badge colour, used on its emblem and its ladder.
 const badgeHue = (gym: GymId) => ({ 'steady-steps': colors.success, 'first-hatch': colors.gold, 'evolution-road': colors.alt,
-  'speed-gym': colors.star, 'mega-trial': colors.edge })[gym]
+  'speed-gym': colors.star, 'mega-trial': colors.edge, 'dynamax-marathon': colors.danger, 'gigantamax-ultra': colors.ink })[gym]
 
 // How much a week asks: in the beginner plans the longest walk or the most jogging in one session, in minutes; in the
 // running plans the week's kilometres, before the graduation.
@@ -82,7 +85,8 @@ function PaceTable({ baseline, gym }: { baseline: number, gym: GymId }) {
   const zones = paceZones(baseline)
   const rows: [string, [number, number], string][] = [['Easy', zones.easy, 'You could chat the whole way'],
     ['Tempo', zones.tempo, 'Comfortably hard'], ['Fast', zones.interval, 'Hard: about your 5 km pace'],
-    ...gym === 'mega-trial' ? [['Half pace', zones.half, 'Your half marathon goal'] as [string, [number, number], string]] : []]
+    ...gym === 'mega-trial' ? [['Half pace', zones.half, 'Your half marathon goal'] as [string, [number, number], string]] : [],
+    ...gym === 'dynamax-marathon' || gym === 'gigantamax-ultra' ? [['Marathon pace', zones.marathon, 'Steady, for hours'] as [string, [number, number], string]] : []]
   return <View style={{ gap: 8 }}>
     {rows.map(([name, [fast, slow], feel]) => <View key={name} accessible accessibilityLabel={`${name}: ${paceText(fast)} to ${paceText(slow)} per kilometre. ${feel}`}
       style={sheet.paceRow}>
@@ -93,7 +97,8 @@ function PaceTable({ baseline, gym }: { baseline: number, gym: GymId }) {
       <Text style={sheet.paceValue}>{paceText(fast)}–{paceText(slow)}<Text style={sheet.paceUnit}> /km</Text></Text>
     </View>)}
     <Text style={sheet.caption}>From your 5 km best of {clock(baseline)}.{gym === 'mega-trial'
-      ? ` Estimated half marathon: ${clock(zones.halfEstimate)}. An estimate, not a promise.` : ''}</Text>
+      ? ` Estimated half marathon: ${clock(zones.halfEstimate)}. An estimate, not a promise.`
+      : gym === 'dynamax-marathon' ? ` Estimated marathon: ${clock(zones.marathonEstimate)}. An estimate, often optimistic until your long runs reach 30 km.` : ''}</Text>
   </View>
 }
 
@@ -109,22 +114,24 @@ export function GymPicker() {
   const picked = usePickedGymEgg()
   const [fallback, setFallback] = useState<string[]>(() => randomEgg(opened))
   const egg = picked && choosing && fitsGym(choosing)(picked) ? picked : fallback
-  const megas = megaChoices(egg)
+  // The Mega or Gigantamax form the graduation reaches, where the egg has a choice.
+  const forms = formChoices(egg)
   const [mega, setMega] = useState<string | null>(null)
+  const [confirmed, setConfirmed] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   function choose(gym: GymId) {
-    setChoosing(gym); setError(''); setMega(null)
+    setChoosing(gym); setError(''); setMega(null); setConfirmed(false)
     const allowed = opened.filter(fitsGym(gym))
     if (!fitsGym(gym)(fallback)) setFallback(randomEgg(allowed))
   }
   async function begin(gym: GymId) {
     setBusy(true); setError('')
-    try { await startGym(gym, egg, gyms[gym].eggRule === 'mega' ? mega ?? megas[0] ?? null : null); pickGymEgg(null) } catch (caught) {
+    try { await startGym(gym, egg, forms.length ? mega && forms.includes(mega) ? mega : forms[0] : null); pickGymEgg(null) } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not start this Gym. Please try again.')
     } finally { setBusy(false) }
   }
-  const levels: Level[] = ['beginner', 'intermediate', 'advanced']
+  const levels: Level[] = ['beginner', 'intermediate', 'advanced', 'elite', 'beyond']
   return <>
     <View style={{ gap: 6 }}>
       <Heading>Choose a Gym</Heading>
@@ -151,18 +158,20 @@ export function GymPicker() {
           <Text style={sheet.caption}>{ladderUnit(gym)}, then {gym.weeks.at(-1)!.at(-1)!.title.split(':')[0]}.</Text>
           {badge && <Copy small color={colors.gold}>{gym.badge} earned {new Date(badge.at).toLocaleDateString()}{badge.time ? ` with ${clock(badge.time)}` : ''}. You can train here again.</Copy>}
           {!check.ok && <Copy small color={colors.gold}>{check.reason}</Copy>}
-          {!open ? <Button title={`Choose ${gym.name}`} secondary={suggested !== id} onPress={() => choose(id)} /> : <View style={{ gap: 12 }}>
+          {!open ? check.locked && !check.confirm ? null : <Button title={`Choose ${gym.name}`} secondary={suggested !== id} onPress={() => choose(id)} /> : <View style={{ gap: 12 }}>
             <View style={sheet.row}>
               <View style={[sheet.eggArt, { backgroundColor: typeTints[pokemonType(egg[0])] || colors.sunken }]}><PixelSprite name="Egg" size={44} /></View>
               <View style={{ flex: 1 }}>
                 <Title>Your plan egg: {egg[0]}</Title>
-                <Copy small>{gym.eggRule === 'mega' ? 'It hatches at 5 km, evolves on the way, and Mega Evolves at 21 km on Summit Day.'
-                  : gym.eggRule === 'evolves' ? 'It hatches at 5 km and evolves at 10 km on Evolution Day.'
-                    : 'It warms with every session and hatches at 5 km on the last day.'}</Copy>
+                <Copy small>{gym.eggRule === 'gigantamax' ? 'It hatches at 5 km, evolves on the way, Dynamaxes at 42 km and Gigantamaxes at 50 km on Gigantamax Day.'
+                  : gym.id === 'dynamax-marathon' ? `It hatches at 5 km, evolves on the way${megaChoices(egg).length ? ', Mega Evolves at 21 km' : ''} and Dynamaxes at 42 km on Dynamax Day.`
+                    : gym.eggRule === 'mega' ? 'It hatches at 5 km, evolves on the way, and Mega Evolves at 21 km on Summit Day.'
+                      : gym.eggRule === 'evolves' ? 'It hatches at 5 km and evolves at 10 km on Evolution Day.'
+                        : 'It warms with every session and hatches at 5 km on the last day.'}</Copy>
               </View>
             </View>
-            {gym.eggRule === 'mega' && megas.length > 1 && <View style={styles.row}>
-              {megas.map(name => <Chip key={name} label={name} selected={(mega ?? megas[0]) === name} onPress={() => setMega(name)} />)}
+            {forms.length > 1 && (gym.eggRule !== 'any' || gym.graduationMeters >= 42195) && <View style={styles.row}>
+              {forms.map(name => <Chip key={name} label={name} selected={(mega && forms.includes(mega) ? mega : forms[0]) === name} onPress={() => setMega(name)} />)}
             </View>}
             <Button title="Choose another egg" secondary onPress={() => router.push({ pathname: '/eggs',
               params: { for: 'gym', current: egg.join('>'), ...gym.eggRule !== 'any' ? { rule: gym.eggRule } : {} } })} />
@@ -170,14 +179,16 @@ export function GymPicker() {
               : <Copy small>{id === 'speed-gym' ? 'No 5 km best in the last 12 weeks, so the plan starts with a 5 km entry trial that sets your paces.'
                 : 'No 5 km best in the last 12 weeks: run by feel. Easy means you could chat; tempo is comfortably hard. Stars for pace need a 5 km best.'}</Copy>)}
             <Copy small>{SAFETY}</Copy>
+            {(gym.level === 'elite' || gym.level === 'beyond') && <Copy small>{LONG_SAFETY}{gym.level === 'beyond' ? ` ${ULTRA_SAFETY}` : ''}</Copy>}
+            {check.confirm && <Chip label={check.confirm} selected={confirmed} onPress={() => setConfirmed(!confirmed)} />}
             {!!error && <Copy small color={colors.danger}>{error}</Copy>}
-            <Button title={check.ok ? `Start ${gym.name}` : 'Start anyway'} loading={busy} onPress={() => { void begin(id) }} />
+            <Button title={check.ok ? `Start ${gym.name}` : 'Start anyway'} loading={busy} disabled={!!check.locked && !confirmed}
+              onPress={() => { void begin(id) }} />
             <Button title="Not now" secondary disabled={busy} onPress={() => setChoosing(null)} />
           </View>}
         </Panel>
       })}
     </View>)}
-    <Copy small>A marathon Gym, the summit, is on the way.</Copy>
     <BadgeCase />
   </>
 }
@@ -188,7 +199,9 @@ const marks: Record<GymId, string> = {
   'first-hatch': 'M24 15 C29 15 32 22 32 27 C32 31.5 28.5 34 24 34 C19.5 34 16 31.5 16 27 C16 22 19 15 24 15 Z M20 25 L23 27.5 L21.5 30',
   'evolution-road': 'M24 34 L24 16 M17 23 L24 16 L31 23 M18 31 L24 25 L30 31',
   'speed-gym': 'M26 14 L18 26 L24 26 L22 34 L30 22 L24 22 Z',
-  'mega-trial': 'M14 32 L21 20 L25 26 L28 22 L34 32 Z M21 20 L23 23'
+  'mega-trial': 'M14 32 L21 20 L25 26 L28 22 L34 32 Z M21 20 L23 23',
+  'dynamax-marathon': 'M16 24 A8 8 0 1 0 32 24 A8 8 0 1 0 16 24 M24 11 L24 15 M24 33 L24 37 M11 24 L15 24 M33 24 L37 24',
+  'gigantamax-ultra': 'M24 12 L27.5 20.5 L36 21 L29.5 26.5 L31.5 35 L24 30.5 L16.5 35 L18.5 26.5 L12 21 L20.5 20.5 Z'
 }
 function BadgeEmblem({ gym, earned, size = 48 }: { gym: Gym, earned: boolean, size?: number }) {
   const hue = badgeHue(gym.id)
@@ -226,6 +239,8 @@ export function BadgeCase() {
           <Text style={sheet.badgeName}>{gyms[id].badge}</Text>
           {badge?.time && <Text style={sheet.caption}>{clock(badge.time)}</Text>}
           {badge?.pacer && <Text style={sheet.caption}>Mega Pacer</Text>}
+          {badge?.wall && <Text style={sheet.caption}>Wall Breaker</Text>}
+          {badge?.steady && <Text style={sheet.caption}>Ultra Steady</Text>}
         </View>
       })}
     </View>
@@ -262,7 +277,7 @@ function sessionLength(session: Session) {
 export function GymPlan({ plan, now }: { plan: ActivePlan, now: number }) {
   useTheme()
   const { training, progress, phoneRuns, plan: shared, chooseEgg, setPhoneAdventure, skipGymSession, gymGoBack, pauseGym, resumeGym, quitGym,
-    countForGym, declineForGym, refreshGymZones, expeditions } = useJournal()
+    countForGym, declineForGym, refreshGymZones, setGymRunWalk, expeditions } = useJournal()
   const gym = gyms[plan.gym]
   const next = nextSession(plan)
   const week = currentWeek(plan)
@@ -292,7 +307,8 @@ export function GymPlan({ plan, now }: { plan: ActivePlan, now: number }) {
     const family = next.kind === 'graduation' ? plan.egg.family : planned ?? randomEgg(opened)
     const mega = next.kind === 'graduation' ? plan.egg.mega : planned ? shared!.egg!.mega : null
     try {
-      const problem = await startAdventure(family, gym.activity, mega, { gym: plan.gym, session: next.id })
+      const breaks = plan.runWalk && takesBreaks(next) ? { breaks: plan.runWalk } : {}
+      const problem = await startAdventure(family, gym.activity, mega, { gym: plan.gym, session: next.id, ...breaks })
       const message = problem && locationProblems[problem]
       if (message) setError(message)
       else {
@@ -343,7 +359,8 @@ export function GymPlan({ plan, now }: { plan: ActivePlan, now: number }) {
         <Button title="Resume plan" onPress={() => act(resumeGym())} />
       </> : open ? <>
         {next.kind === 'graduation' && <Copy small>Your {plan.egg.family[0]} egg comes along. Training on your watch? Send it the egg, then
-          cover {sessionLength(next)} with it: the adventure counts once it syncs.</Copy>}
+          cover {sessionLength(next)} with it: the adventure counts once it syncs.{gym.graduationMeters >= 42195
+            ? ' A phone recording GPS for hours can run flat: start fully charged, carry a power bank, or record on your watch.' : ''}</Copy>}
         <Button title={next.kind === 'graduation' ? `Start ${graduationName}` : next.kind === 'trial' ? 'Start the trial' : 'Start session'} loading={busy}
           onPress={() => { void startSession() }} />
         {next.kind === 'graduation' && <Button title="Send the egg to my watch" secondary
@@ -386,9 +403,21 @@ export function GymPlan({ plan, now }: { plan: ActivePlan, now: number }) {
       {plan.baseline5k ? <PaceTable baseline={plan.baseline5k} gym={plan.gym} />
         : <Copy>{plan.entry ? 'Your entry trial sets them.' : 'Run by feel: easy means you could chat, tempo is comfortably hard. A 5 km best in the last 12 weeks would set paces and stars.'}</Copy>}
       {refresh && <>
-        <Copy small color={colors.gold}>You ran 5 km in {clock(refresh)} since the plan began. Use it to set faster paces?</Copy>
-        <Button title={`Use ${clock(refresh)}`} secondary onPress={() => act(refreshGymZones(refresh), 'Your paces are updated.')} />
+        <Copy small color={colors.gold}>{refresh.from === 'half marathon'
+          ? `You ran a half marathon in ${clock(refresh.seconds)}: a much better guide to your marathon than a 5 km. Set your paces from it?`
+          : `You ran 5 km in ${clock(refresh.seconds)} since the plan began. Use it to set faster paces?`}</Copy>
+        <Button title={`Use ${clock(refresh.seconds)}`} secondary onPress={() => act(refreshGymZones(refresh.baseline), 'Your paces are updated.')} />
       </>}
+    </Panel>}
+
+    {plan.gym === 'gigantamax-ultra' && <Panel>
+      <Title>Walking breaks</Title>
+      <Copy>A minute’s walk on every long run, back-to-back and Gigantamax Day. Walking breaks never cost stars, and walking hills is smart.</Copy>
+      <View style={styles.row}>
+        <Chip label="Off" selected={!plan.runWalk} onPress={() => act(setGymRunWalk(null))} />
+        {[5, 10, 15, 20, 25].map(minutes => <Chip key={minutes} label={`Every ${minutes} min`} selected={plan.runWalk === minutes}
+          onPress={() => act(setGymRunWalk(minutes))} />)}
+      </View>
     </Panel>}
 
     {next && next.kind !== 'trial' && <Panel>

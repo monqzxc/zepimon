@@ -4,7 +4,7 @@ import { clearCue, nativeCues, showCue } from '../modules/zepimon-live'
 import type { ActiveAdventure } from './phone-adventure'
 import { getPreferences } from './preferences'
 import { findSession } from './training-plans'
-import { cueAt, isEffort, remainingText, stepLabel } from './training-cues'
+import { cueAt, isEffort, remainingText, stepLabel, walkBreak } from './training-cues'
 import type { Cue } from './training-cues'
 import { cueEvents } from './cue-events'
 import type { AlertState } from './cue-events'
@@ -22,12 +22,14 @@ export function alertCue(active: ActiveAdventure | null, now: number): { cue: Cu
   const cue = cueAt(session, active, now, active.training?.marks)
   const seconds = Math.max(0, (now - active.startedAt) / 1000)
   const preferences = getPreferences()
+  const pause = walkBreak(active.training?.breaks, seconds)
   const events = cueEvents(state, active.startedAt, cue, active.meters, seconds, { native, splits: preferences.voiceSplits },
-    index => !!session.steps[index]?.seconds)
+    index => !!session.steps[index]?.seconds, pause ? pause.walking : undefined)
   state = events.state
   if (events.buzz) Vibration.vibrate(events.buzz)
   if (preferences.voiceCues) for (const line of events.speech) Speech.speak(line)
   if (cue.done) clearCue()
+  else if (pause?.walking) showCue({ label: 'Walk break', until: Math.round(now + pause.remaining * 1000), remaining: '', next: 'run again', nextEffort: true })
   else showCue({ label: stepLabel(cue.step), remaining: remainingText(cue), next: cue.next ? stepLabel(cue.next) : null,
     until: cue.remainingSeconds !== null ? Math.round(now + cue.remainingSeconds * 1000) : 0, nextEffort: !!cue.next && isEffort(cue.next) })
   return { cue, changed: events.changed }

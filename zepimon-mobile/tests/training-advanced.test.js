@@ -141,11 +141,14 @@ test('Mega Trial graduates at 21.1 km with the plan egg, and a negative split is
 })
 
 test('egg rules, entry checks and the suggested Gym', () => {
-  assert.equal(eggAllowed('evolution-road', ['Tauros'], []), false, 'no evolution at 10 km')
-  assert.equal(eggAllowed('evolution-road', egg, []), true)
-  assert.equal(eggAllowed('mega-trial', egg, []), false)
-  assert.equal(eggAllowed('mega-trial', egg, ['Mega Charizard X']), true)
-  assert.equal(eggAllowed('speed-gym', ['Tauros'], []), true)
+  const forms = (megas = [], gigantamax = []) => ({ megas, gigantamax })
+  assert.equal(eggAllowed('evolution-road', ['Tauros'], forms()), false, 'no evolution at 10 km')
+  assert.equal(eggAllowed('evolution-road', egg, forms()), true)
+  assert.equal(eggAllowed('mega-trial', egg, forms()), false)
+  assert.equal(eggAllowed('mega-trial', egg, forms(['Mega Charizard X'])), true)
+  assert.equal(eggAllowed('gigantamax-ultra', egg, forms(['Mega Charizard X'])), false)
+  assert.equal(eggAllowed('gigantamax-ultra', egg, forms([], ['Gigantamax Charizard'])), true)
+  assert.equal(eggAllowed('speed-gym', ['Tauros'], forms()), true)
 
   assert.equal(entryCheck('evolution-road', [steady(at(-3), 3, 400)], {}, at(0)).ok, false)
   assert.equal(entryCheck('evolution-road', [steady(at(-3), 5, 400)], {}, at(0)).ok, true)
@@ -164,7 +167,7 @@ test('egg rules, entry checks and the suggested Gym', () => {
 test('Speed Gym offers to refresh its paces once, from week 4, after a faster 5 km', () => {
   let training = fill(begin('speed-gym'), 12)
   const faster = steady(at(1), 5, 290)
-  assert.equal(refreshOffer(training.active, [faster], at(2)), 1450)
+  assert.deepEqual(refreshOffer(training.active, [faster], at(2)), { baseline: 1450, from: '5 km', seconds: 1450 })
   assert.equal(refreshOffer(training.active, [steady(at(1), 5, 310)], at(2)), null)
   training = refreshZones(training, 1450)
   assert.equal(training.active.baseline5k, 1450)
