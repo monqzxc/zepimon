@@ -37,7 +37,10 @@ export type SpriteStyle = 'default' | 'front' | 'running'
 export type SpriteSize = 'small' | 'medium' | 'large' | 'huge'
 export type CardBackground = 'dark' | 'clear' | 'habitat'
 export type CardDetail = 'type' | 'best' | 'evolution' | 'hatch' | 'steps' | 'clock'
-export type CardOptions = { design: CardDesign, style: SpriteStyle, size: SpriteSize, background: CardBackground, details: CardDetail[] }
+// What can be left off a card: the dates, the Zepimon mark and (on Starter) the adventure's number.
+export type CardHidden = 'date' | 'mark' | 'number'
+export type CardOptions = { design: CardDesign, style: SpriteStyle, size: SpriteSize, background: CardBackground, details: CardDetail[],
+  hidden: CardHidden[] }
 
 // The sprite's longest side, before rounding down to a whole-number enlargement. Split shows it smaller below the
 // route, or at the full size in the route's place when there is none.
@@ -160,7 +163,7 @@ export function ShareCard({ ref, width, ...props }: CardProps & { ref?: Ref<View
       textShadowColor: habitat ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.6)', textShadowOffset: { width: 0, height: 3 * u }, textShadowRadius: 14 * u }),
     title: cardTitle(family, record, pokemon),
     subtitle: [record.activity && (record.activity === 'running' ? 'Run' : 'Walk'),
-      Number.isFinite(finished.getTime()) && finished.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })]
+      !props.options.hidden.includes('date') && Number.isFinite(finished.getTime()) && finished.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })]
       .filter(Boolean).join(' · ').toUpperCase(),
     shown: Object.fromEntries(details.filter(detail => available[detail]).map(detail => [detail, available[detail]]))
   }
@@ -187,7 +190,7 @@ function Classic({ kit }: { kit: Kit }) {
     {points.length > 0 && <View style={{ position: 'absolute', left: 60 * u, top: 250 * u }}>
       <RouteArt kit={kit} width={960} height={1420} />
     </View>}
-    <Wordmark kit={kit} size={58} />
+    {!options.hidden.includes('mark') && <Wordmark kit={kit} size={58} />}
     <View style={{ marginTop: 36 * u }}><SpriteArt art={art} kit={kit} box={box} /></View>
     <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit
       style={[text(64, fonts.black), { maxWidth: 960 * u, marginTop: 16 * u }]}>{title}</Text>
@@ -213,7 +216,7 @@ function Split({ kit }: { kit: Kit }) {
   const stats = [['Distance', km(record.meters).replace(' km', ''), 'km'], ['Pace', pace.replace(' /km', ''), '/km'], ['Time', cardTime(record.elapsedSeconds), '']]
   return <View style={{ flex: 1, paddingHorizontal: 70 * u, paddingTop: 100 * u, paddingBottom: 110 * u }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 20 * u }}>
-      <Wordmark kit={kit} size={46} />
+      {options.hidden.includes('mark') ? <View /> : <Wordmark kit={kit} size={46} />}
       {!!subtitle && <Text allowFontScaling={false} style={[text(28, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { letterSpacing: 3 * u, flexShrink: 1 }]}>{subtitle}</Text>}
     </View>
     <View style={{ flex: 1, marginVertical: 40 * u, alignItems: 'center', justifyContent: 'center' }}
@@ -257,6 +260,7 @@ function Starter({ kit }: { kit: Kit }) {
   const day = Number.isFinite(finished.getTime()) ? finished.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase() : ''
   // The year sits in the top corner, away from the day and month by the name.
   const year = Number.isFinite(finished.getTime()) ? String(finished.getFullYear()) : ''
+  const hide = { date: options.hidden.includes('date'), mark: options.hidden.includes('mark'), number: options.hidden.includes('number') }
   const activity = record.activity === 'running' ? 'Run' : record.activity ? 'Walk' : 'Adventure'
   const activityIcon = record.activity === 'running' ? 'run' : record.activity ? 'walk' : 'explore'
   const entry = starterEntry(kit)
@@ -289,10 +293,10 @@ function Starter({ kit }: { kit: Kit }) {
       <RouteArt kit={kit} width={900} height={GROUND - 300} />
     </View>}
 
-    {!!year && <Text allowFontScaling={false} style={{ position: 'absolute', left: 96 * u, top: 120 * u, fontFamily: fonts.black, fontSize: 30 * u,
+    {!!year && !hide.date && <Text allowFontScaling={false} style={{ position: 'absolute', left: 96 * u, top: 120 * u, fontFamily: fonts.black, fontSize: 30 * u,
       lineHeight: 38 * u, letterSpacing: 4 * u, color: 'rgba(255, 255, 255, 0.8)', textShadowColor: 'rgba(0, 0, 0, 0.5)',
       textShadowOffset: { width: 0, height: 2 * u }, textShadowRadius: 8 * u }}>{year}</Text>}
-    <View style={{ position: 'absolute', right: 96 * u, top: 120 * u }}><Tag u={u} tint={tint} /></View>
+    {!hide.mark && <View style={{ position: 'absolute', right: 96 * u, top: 120 * u }}><Tag u={u} tint={tint} /></View>}
 
     <View style={{ position: 'absolute', left: 0, right: 0, top: (GROUND - box) * u, alignItems: 'center' }}>
       <View style={{ position: 'absolute', top: (box - 34) * u, width: box * 0.62 * u, height: 56 * u }}>
@@ -306,10 +310,10 @@ function Starter({ kit }: { kit: Kit }) {
     <View style={{ position: 'absolute', left: 80 * u, right: 80 * u, top: (GROUND + 40) * u, alignItems: 'center' }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', alignSelf: 'stretch' }}>
         <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'left', marginBottom: 14 * u }]}>
-          {count ? `#${String(count).padStart(4, '0')}` : ''}</Text>
+          {count && !hide.number ? `#${String(count).padStart(4, '0')}` : ''}</Text>
         <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit
           style={[text(nameSize, fonts.black), { flex: 1, letterSpacing: 2 * u }]}>{title.toUpperCase()}</Text>
-        <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'right', marginBottom: 14 * u }]}>{day}</Text>
+        <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'right', marginBottom: 14 * u }]}>{hide.date ? '' : day}</Text>
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16 * u, marginTop: 14 * u }}>
         {shown.type ? <Pill u={u} label={shown.type} dot={tint} /> : <Pill u={u} label={activity} dot={ROUTE_COLORS[0]} icon={activityIcon} />}

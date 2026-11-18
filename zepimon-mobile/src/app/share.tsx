@@ -9,7 +9,7 @@ import type { SavedRun } from '../progress'
 import { adventureFacts, allAdventures, findAdventure } from '../adventures'
 import { GalleryDenied, exportCard, saveCardToGallery } from '../card-image'
 import { CARD_PIXELS, ShareCard, cardDetails, cardFileName, cardTitle, cardWidth, spriteStyles, usePixelArt } from '../ShareCard'
-import type { CardBackground, CardDesign, CardDetail, CardOptions, SpriteSize, SpriteStyle } from '../ShareCard'
+import type { CardBackground, CardDesign, CardDetail, CardHidden, CardOptions, SpriteSize, SpriteStyle } from '../ShareCard'
 import { habitatTheme } from '../HabitatScene'
 import { FilterSection } from '../PokedexFilters'
 import { PixelSprite } from '../games/TeamPicker'
@@ -27,9 +27,11 @@ const SIZES: [SpriteSize, string][] = [['small', 'Small'], ['medium', 'Medium'],
 const BACKGROUNDS: [CardBackground, string][] = [['dark', 'Dark'], ['clear', 'Clear'], ['habitat', 'Habitat']]
 const DETAILS: [CardDetail, string][] = [['type', 'Type'], ['best', 'Personal best'], ['evolution', 'Evolutions'], ['hatch', 'Hatch time'],
   ['steps', 'Steps'], ['clock', 'Start and finish time']]
+const HIDDEN: [CardHidden, string, string][] = [['date', 'Dates', 'The day, month and year'], ['mark', 'Zepimon mark', 'The small Zepimon logo'],
+  ['number', 'Adventure number', 'Which adventure this was, like #0042']]
 // The choices stay as you left them until the app closes, like the egg list's filters. The Pokemon starts as the one
 // each adventure reached, and a detail an adventure lacks is simply left off its card.
-let remembered: CardOptions = { design: 'classic', style: 'default', size: 'medium', background: 'dark', details: [] }
+let remembered: CardOptions = { design: 'classic', style: 'default', size: 'medium', background: 'dark', details: [], hidden: [] }
 const remember = (options: CardOptions) => { remembered = options }
 
 export default function ShareScreen() {
@@ -74,6 +76,9 @@ function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
     const value = { ...chosen, ...next }
     setChosen(value)
     remember(value)
+  }
+  function hide(item: CardHidden) {
+    change({ hidden: chosen.hidden.includes(item) ? chosen.hidden.filter(value => value !== item) : [...chosen.hidden, item] })
   }
   function toggle(detail: CardDetail) {
     change({ details: chosen.details.includes(detail) ? chosen.details.filter(item => item !== detail) : [...chosen.details, detail] })
@@ -132,6 +137,11 @@ function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
         <Text style={share.label}>SHOW ON THE CARD</Text>
         {DETAILS.filter(([detail]) => details[detail]).map(([detail, label]) => <Check key={detail} label={label} hint={details[detail]!}
           checked={options.details.includes(detail)} onPress={() => toggle(detail)} />)}
+      </View>
+      <View style={{ gap: 4 }}>
+        <Text style={share.label}>HIDE ON THE CARD</Text>
+        {HIDDEN.filter(([item]) => item !== 'number' || (options.design === 'starter' && count)).map(([item, label, hint]) =>
+          <Check key={item} label={label} hint={hint} checked={options.hidden.includes(item)} onPress={() => hide(item)} />)}
       </View>
     </Panel>
     {Platform.OS === 'web' ? <Button title="Download PNG" loading={busy === 'share'} disabled={art === undefined || !!busy}
