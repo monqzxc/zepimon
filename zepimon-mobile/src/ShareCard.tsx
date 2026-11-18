@@ -29,7 +29,7 @@ export const CARD_PIXELS = [1080, 1920] as const
 export const cardWidth = () => CARD_PIXELS[0] / PixelRatio.get()
 
 // classic puts the stats over the route, like Strava; split puts the route on top and the Pokemon and stats below;
-// starter shows the Pokemon as a starter pick over a big Zepimon wordmark, with the run as its Dex entry.
+// starter shows the Pokemon as a starter pick over a big Zepimon wordmark, with the run's stats below.
 export type CardDesign = 'classic' | 'split' | 'starter'
 // default is the battle sprite; front is the overworld sprite as the Dex shows it, and running the same sprite seen
 // from the side, mid-stride to the right.
@@ -242,8 +242,8 @@ function Split({ kit }: { kit: Kit }) {
 }
 
 // Starter: a "choose your starter" screen made from the adventure. The Pokemon stands in the middle
-// in front of its route, and below come which adventure it was (#0042 is the 42nd), its name, type,
-// the run's stats and a Dex-style entry written from the details picked on the share screen.
+// in front of its route, and below come its name, which adventure it was (#0042 is the 42nd), its type and
+// the run's stats. It is made for stories, so it carries no longer write-up.
 const STARTER_SKY = ['#18202B', '#2A3848', '#5D7A96']
 const STARTER_SIZES: Record<SpriteSize, number> = { small: 380, medium: 520, large: 640, huge: 760 }
 // The sprite stands on this line.
@@ -263,12 +263,8 @@ function Starter({ kit }: { kit: Kit }) {
   const hide = { date: options.hidden.includes('date'), mark: options.hidden.includes('mark'), number: options.hidden.includes('number') }
   const activity = record.activity === 'running' ? 'Run' : record.activity ? 'Walk' : 'Adventure'
   const activityIcon = record.activity === 'running' ? 'run' : record.activity ? 'walk' : 'explore'
-  const entry = starterEntry(kit)
   const stats = [['Distance', km(record.meters).replace(' km', ''), 'km'],
     ['Pace', averagePace(record.elapsedSeconds, record.meters).replace(' /km', ''), '/km'], ['Time', cardTime(record.elapsedSeconds), '']]
-  // The swipe-up handle always shows. It fits under a one-line entry (about 48 characters), drops nearer the edge
-  // under two lines, and under a longer entry keeps only its orb.
-  const handle = entry.length <= 48 ? 'full' : entry.length <= 96 ? 'low' : 'orb'
   // Sized to the name, since the web cannot shrink text to fit: about 0.7 em a letter across the 920 px row.
   const nameSize = Math.min(112, Math.floor(920 / (title.length * 0.7)))
   const best = shown.best && facts.bests.length > 1 ? `★ ${facts.bests.length} personal bests` : shown.best
@@ -329,24 +325,9 @@ function Starter({ kit }: { kit: Kit }) {
             {value}{!!unit && <Text style={{ fontFamily: fonts.heavy, fontSize: 30 * u }}> {unit}</Text>}</Text>
         </View>)}
       </View>
-      {!!entry && <Text allowFontScaling={false} style={[text(34, fonts.heavy, 'rgba(255, 255, 255, 0.92)'),
-        { textAlign: 'left', alignSelf: 'stretch', marginTop: 36 * u, lineHeight: 46 * u }]}>{entry}</Text>}
     </View>
-    <View style={{ position: 'absolute', left: 0, right: 0, bottom: (handle === 'full' ? 96 : 40) * u, alignItems: 'center' }}>
-      <Handle u={u} tint={tint} orbOnly={handle === 'orb'} /></View>
+    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 96 * u, alignItems: 'center' }}><Handle u={u} tint={tint} /></View>
   </View>
-}
-
-// The Dex entry: the run told as a sentence or two, then the details picked on the share screen.
-function starterEntry({ title, record, shown, pokemon }: Kit): string {
-  const moved = record.activity === 'walking' ? 'walked' : 'ran'
-  const name = pokemon === 'Egg' ? `This ${title.replace(/ egg$/, '')} egg` : title
-  const sentences = [`${name} ${moved} ${km(record.meters)} at ${averagePace(record.elapsedSeconds, record.meters)}.`]
-  if (shown.evolution) sentences.push(`It grew ${shown.evolution.split(' › ').join(' to ')} on the way.`)
-  if (shown.hatch) sentences.push(`${shown.hatch.replace('Hatched', 'The egg hatched')}.`)
-  if (shown.steps) sentences.push(`${shown.steps[0].toUpperCase()}${shown.steps.slice(1)} together.`)
-  if (shown.clock) sentences.push(`Out from ${shown.clock.replace(' – ', ' to ')}.`)
-  return sentences.join(' ')
 }
 
 // A small "made with Zepimon" mark for the corner: a tiny orb in the Pokemon's type color and the name.
@@ -370,15 +351,15 @@ function Pill({ u, label, dot, icon }: { u: number, label: string, dot: string, 
 }
 
 // A story's swipe-up handle: chevrons in a pill, ending in an orb in the Pokemon's type color.
-function Handle({ u, tint, orbOnly }: { u: number, tint: string, orbOnly?: boolean }) {
+function Handle({ u, tint }: { u: number, tint: string }) {
   return <View style={{ alignItems: 'center' }}>
-    {!orbOnly && <View style={{ width: 86 * u, paddingTop: 20 * u, paddingBottom: 62 * u, borderRadius: 43 * u, alignItems: 'center', gap: 6 * u,
+    <View style={{ width: 86 * u, paddingTop: 20 * u, paddingBottom: 62 * u, borderRadius: 43 * u, alignItems: 'center', gap: 6 * u,
       backgroundColor: 'rgba(235, 240, 246, 0.9)' }}>
       {[0, 1, 2].map(i => <Svg key={i} width={40 * u} height={22 * u} viewBox="0 0 40 22">
         <Path d="M6 18 L20 5 L34 18" fill="none" stroke="#1E2733" strokeOpacity={0.45 + i * 0.2} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
       </Svg>)}
-    </View>}
-    <View style={{ marginTop: orbOnly ? 0 : -56 * u }}>
+    </View>
+    <View style={{ marginTop: -56 * u }}>
       <Svg width={112 * u} height={112 * u} viewBox="0 0 124 124">
         <Defs>
           <RadialGradient id="starter-orb" cx="0.38" cy="0.32" r="0.75">

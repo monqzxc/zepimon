@@ -27,6 +27,8 @@ const SIZES: [SpriteSize, string][] = [['small', 'Small'], ['medium', 'Medium'],
 const BACKGROUNDS: [CardBackground, string][] = [['dark', 'Dark'], ['clear', 'Clear'], ['habitat', 'Habitat']]
 const DETAILS: [CardDetail, string][] = [['type', 'Type'], ['best', 'Personal best'], ['evolution', 'Evolutions'], ['hatch', 'Hatch time'],
   ['steps', 'Steps'], ['clock', 'Start and finish time']]
+// Starter shows only these, as pills; the rest would need the longer write-up a story card leaves out.
+const STARTER_DETAILS: CardDetail[] = ['type', 'best']
 const HIDDEN: [CardHidden, string, string][] = [['date', 'Dates', 'The day, month and year'], ['mark', 'Zepimon mark', 'The small Zepimon logo'],
   ['number', 'Adventure number', 'Which adventure this was, like #0042']]
 // The choices stay as you left them until the app closes, like the egg list's filters. The Pokemon starts as the one
@@ -135,7 +137,7 @@ function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
         : 'A dark card, ready to post as it is.'}</Copy>
       <View style={{ gap: 4 }}>
         <Text style={share.label}>SHOW ON THE CARD</Text>
-        {DETAILS.filter(([detail]) => details[detail]).map(([detail, label]) => <Check key={detail} label={label} hint={details[detail]!}
+        {DETAILS.filter(([detail]) => details[detail] && (options.design !== 'starter' || STARTER_DETAILS.includes(detail))).map(([detail, label]) => <Check key={detail} label={label} hint={details[detail]!}
           checked={options.details.includes(detail)} onPress={() => toggle(detail)} />)}
       </View>
       <View style={{ gap: 4 }}>
