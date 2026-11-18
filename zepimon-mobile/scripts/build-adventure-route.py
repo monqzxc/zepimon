@@ -123,7 +123,7 @@ def main():
         for name, (_, data) in built.items())
     # The trainer running, in the Zepimon outfit, for when Run is picked; walking uses the Safari Zone's strips.
     runners = {}
-    for name in safari.RECOLOUR:
+    for name in ('brendan', 'may'):
         image, frames, width, height = safari.trainer(name, 'running')
         image.save(OUT / f'{name}-run.png', optimize=True)
         runners[name] = f"  {name}: {{ source: require('../../assets/route/{name}-run.png'), frames: {frames}, width: {width}, height: {height} }}"

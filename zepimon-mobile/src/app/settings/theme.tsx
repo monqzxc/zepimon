@@ -1,23 +1,27 @@
-import { Pressable, Text, View } from 'react-native'
+import { Image, Pressable, Text, View } from 'react-native'
 import type { DimensionValue } from 'react-native'
-import { PixelSprite } from '../../games/TeamPicker'
 import { Screen, colors, displayFont, fonts, gradient, retro, themedStyles, useTheme } from '../../ui'
 import { themes } from '../../palettes'
 import type { Palette, ThemeName } from '../../palettes'
 import { setPreference, usePreferences } from '../../preferences'
 import type { Appearance } from '../../preferences'
 import { SettingsGroup, SettingsRadio } from '../../SettingsList'
+import { peekArt } from '../../TabBar'
 import type { IconName } from '../../ui'
 
-// Settings → Theme: four cards in a 2 × 2 grid, each a tiny Settings screen in that theme's colors with its Pokemon
-// perched on the tab bar, shown in the current light or dark. Below, the appearance: follow the phone, or always light
+// Settings → Theme: four cards in a 2 × 2 grid, each a tiny Settings screen in that theme's colors, shown in the current
+// light or dark, with the theme's Pokemon peeking over the card's top edge as it does over the tab bar. Below, the appearance: follow the phone, or always light
 // or dark.
-const choices: { value: ThemeName, label: string, pokemon: string, detail: string }[] = [
-  { value: 'emerald', label: 'Emerald', pokemon: 'Rayquaza', detail: 'Hoenn’s GBA menus' },
-  { value: 'gengar', label: 'Gengar', pokemon: 'Gengar', detail: 'Ghostly violet' },
-  { value: 'deoxys', label: 'Deoxys', pokemon: 'Deoxys', detail: 'Cosmic red and teal' },
-  { value: 'pikachu', label: 'Pikachu', pokemon: 'Pikachu', detail: 'Electric yellow' }
+const choices: { value: ThemeName, label: string, detail: string }[] = [
+  { value: 'emerald', label: 'Emerald', detail: 'Hoenn’s GBA menus' },
+  { value: 'gengar', label: 'Gengar', detail: 'Ghostly violet' },
+  { value: 'deoxys', label: 'Deoxys', detail: 'Cosmic red and teal' },
+  { value: 'pikachu', label: 'Pikachu', detail: 'Electric yellow' }
 ]
+// The peek art is the tab bar's: a 120 × 100 grid whose row 72 meets the edge it peeks over.
+const PEEK = 60
+const UNIT = PEEK / 120
+const PEEK_ROOM = 72 * UNIT
 const appearances: { value: Appearance, label: string, icon: IconName, detail?: string }[] = [
   { value: 'system', label: 'System', icon: 'contrast', detail: 'Matches your phone' },
   { value: 'light', label: 'Light', icon: 'sun' },
@@ -36,8 +40,12 @@ export default function ThemeScreen() {
           return <Pressable key={choice.value} accessibilityRole="radio" accessibilityState={{ checked: on }}
             accessibilityLabel={`${choice.label}. ${choice.detail}`} onPress={() => setPreference('theme', choice.value)}
             style={({ pressed }) => [look.card, { opacity: pressed ? 0.8 : 1 }]}>
-            <View style={[look.frame, on && look.frameOn]}>
-              <Preview palette={themes[choice.value][mode]} pokemon={choice.pokemon} />
+            <View style={look.stage}>
+              <Peek theme={choice.value} part="head" />
+              <View style={[look.frame, on && look.frameOn]}>
+                <Preview palette={themes[choice.value][mode]} />
+              </View>
+              <Peek theme={choice.value} part="paws" />
             </View>
             <View style={look.labelRow}>
               <View style={[look.radio, on && look.radioOn]}>{on && <View style={look.radioDot} />}</View>
@@ -55,9 +63,18 @@ export default function ThemeScreen() {
   </Screen>
 }
 
+// The head is drawn before the card, so the card hides what lies below its top edge, and the paws after it, gripping
+// the edge.
+function Peek({ theme, part }: { theme: ThemeName, part: 'head' | 'paws' }) {
+  return <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+    style={look.peek}>
+    <Image source={peekArt(theme)[part]} fadeDuration={0} style={{ width: PEEK, height: 100 * UNIT }} />
+  </View>
+}
+
 // A miniature of the Settings tab in palette's colors, whatever the theme: title, profile, button, a card of rows, and
-// the floating tab bar with the theme's Pokemon standing on it.
-function Preview({ palette, pokemon }: { palette: Palette, pokemon: string }) {
+// the floating tab bar.
+function Preview({ palette }: { palette: Palette }) {
   const bar = (width: DimensionValue, color: string, height = 4) => <View style={{ width, height, borderRadius: height / 2, backgroundColor: color }} />
   return <View style={[look.preview, { backgroundColor: palette.bg }]}>
     <View style={{ alignSelf: 'center' }}>{bar(30, palette.ink, 5)}</View>
@@ -74,7 +91,6 @@ function Preview({ palette, pokemon }: { palette: Palette, pokemon: string }) {
         {row === 1 ? <View style={{ width: 12, height: 7, borderRadius: 4, backgroundColor: palette.edge }} /> : bar(4, palette.muted, 3)}
       </View>)}
     </View>
-    <View style={look.perch}><PixelSprite name={pokemon} size={52} /></View>
     <View style={[look.tabs, { borderColor: palette.tabHalo }, gradient(`linear-gradient(180deg, ${palette.tabTop} 0%, ${palette.tabBottom} 100%)`, palette.tabBottom)]}>
       {[0, 1, 2].map(tab => <View key={tab} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: tab === 1 ? palette.tabActive : palette.tabInk, opacity: tab === 1 ? 1 : 0.5 }} />)}
     </View>
@@ -85,12 +101,12 @@ const look = themedStyles(() => ({
   section: { fontFamily: displayFont(fonts.bold), fontSize: 14, lineHeight: 19, color: colors.muted, paddingHorizontal: 4 },
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   card: { width: '47%', flexGrow: 1, gap: 8 },
-  frame: { aspectRatio: 0.85, borderRadius: retro() ? 10 : 16, borderWidth: 2, borderColor: colors.line, overflow: 'hidden' },
+  stage: { paddingTop: PEEK_ROOM },
+  peek: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
+  frame: { aspectRatio: 1.1, borderRadius: retro() ? 10 : 16, borderWidth: 2, borderColor: colors.line, overflow: 'hidden' },
   // The chosen theme glows in Emerald.
   frameOn: { borderColor: colors.edge, borderWidth: 2.5, ...(retro() ? { boxShadow: `0px 0px 12px ${colors.glow}` } : null) },
   preview: { flex: 1, padding: 8, gap: 7 },
-  // The Pokemon stands on the tab bar, as Gengar does on the real one.
-  perch: { position: 'absolute', left: 0, right: 0, bottom: 18, alignItems: 'center' },
   tabs: { position: 'absolute', left: 8, right: 8, bottom: 8, height: 16, borderRadius: 8, borderWidth: 1,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 2 },

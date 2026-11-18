@@ -1,4 +1,4 @@
-import { familyOf, isLegendary, pickWeighted, stageOf, wildPool } from './roster.ts'
+import { battleType, familyOf, isLegendary, pickWeighted, stageOf, wildPool } from './roster.ts'
 import type { DexRecord, Journal } from '../journal.ts'
 
 export const SAFARI_BALLS = 24
@@ -39,10 +39,17 @@ export function shinyOdds(game: SafariGame, name: string): number {
   return game.chain.name === name ? Math.max(8, SHINY_BASE - 23 * game.chain.count) : SHINY_BASE
 }
 
+// Water types live in the water: they only ever walk out onto (and swim about on) water tiles, everyone else on land.
+export const livesInWater = (name: string) => battleType(name) === 'water'
+export type Habitat = 'water' | 'land'
+const habitatPools = Object.fromEntries(Object.entries(pools).map(([zone, pool]) => [zone, {
+  water: pool.filter(wild => livesInWater(wild.name)), land: pool.filter(wild => !livesInWater(wild.name)) }])) as Record<Zone, Record<Habitat, typeof pools[Zone]>>
+export const hasHabitat = (zone: Zone, habitat: Habitat) => habitatPools[zone][habitat].length > 0
+
 // A wild Pokemon from the zone's pool, Shiny or not, as it walks out onto the map. A chained species comes back 35% of
-// the time when it lives in that zone.
-export function rollWild(game: SafariGame, zone: Zone, random = Math.random): SafariCatch {
-  const pool = pools[zone]
+// the time when it lives in that zone. With a habitat, only the zone's water (or land) Pokemon are rolled.
+export function rollWild(game: SafariGame, zone: Zone, random = Math.random, habitat?: Habitat): SafariCatch {
+  const pool = habitat ? habitatPools[zone][habitat] : pools[zone]
   const chained = game.chain.count > 0 && pool.some(wild => wild.name === game.chain.name) && random() < 0.35
   const name = chained ? game.chain.name : pickWeighted(pool, random).name
   return { name, shiny: random() < 1 / shinyOdds(game, name) }

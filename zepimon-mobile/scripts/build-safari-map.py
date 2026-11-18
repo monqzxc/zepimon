@@ -11,13 +11,14 @@ A layout that breaks a rule (see read_layout) stops the build before anything is
 
 Writes assets/safari/*.png, src/generated/safari-map.js (plain data) and src/generated/safari-assets.js (image
 requires). Everything is enlarged 4x with nearest-neighbour scaling,
-so one 16 px tile is 64 px and the pixels stay crisp. Brendan and May wear a Zepimon outfit: RECOLOUR swaps palette
-colours inside the cap and shirt rows only, so the same colour elsewhere (bags, shoes, skin) keeps Emerald's look.
+so one 16 px tile is 64 px and the pixels stay crisp. Brendan and May wear Zepimon's running outfit, drawn over
+Emerald's frames by scripts/trainer_outfit.py.
 Credits: see SPRITE-CREDITS.md.
 """
 import json
 import sys
 from PIL import Image
+import trainer_outfit as outfit
 from emerald_tiles import ROOT, Tilesets, chunk_images, enlarge, indexed, palette_file, reference, rgba, save_scaled, fetch
 
 OUT = ROOT / 'assets' / 'safari'
@@ -57,16 +58,6 @@ CAVE = 'cave'
 CAVE_FLOOR, CAVE_ROCK = 0x201, 0x202
 CAVE_TINT = (0.78, 0.76, 0.84)
 
-# Trainer outfit: (first row, last row, {palette index: colour}) on the 16 x 32 frame, applied before enlarging.
-PURPLE_LIGHT, PURPLE = (0xA4, 0x74, 0xEE), (0x6A, 0x3F, 0xC8)
-BLACK, DARK_GREY = (0x28, 0x28, 0x30), (0x48, 0x48, 0x56)
-WHITE_SHADE, WHITE = (0xCE, 0xCE, 0xDE), (0xF8, 0xF8, 0xF8)
-RECOLOUR = {
-    'brendan': [(0, 19, {10: PURPLE_LIGHT, 11: PURPLE}),
-                (21, 27, {8: BLACK, 4: DARK_GREY, 13: WHITE_SHADE, 12: WHITE})],
-    'may': [(0, 17, {10: PURPLE_LIGHT, 11: PURPLE}),
-            (21, 27, {13: BLACK, 12: DARK_GREY})],
-}
 # Emerald's walking sheet: S, N, W standing, then two steps each for S, N and W. East mirrors west.
 WALK_ORDER = {'south': (0, 3, 4), 'north': (1, 5, 6), 'west': (2, 7, 8)}
 
@@ -86,19 +77,23 @@ BATTLES = {'battleGrass': 'long_grass', 'battlePond': 'pond_water'}
 FILES = {'safariBall': 'safari-ball', 'battleGrass': 'battle-grass', 'battlePond': 'battle-pond'}
 
 
-def trainer(name, sheet='walking'):
+def trainer(name, sheet_name='walking'):
     """A trainer's strip from one of Emerald's 144 x 32 sheets: walking here, running for the Adventure tab's route map
     (scripts/build-adventure-route.py), which lays its frames out the same way."""
-    sheet = indexed(f'graphics/object_events/pics/people/{name}/{sheet}.png', (144, 32))
+    sheet = indexed(f'graphics/object_events/pics/people/{name}/{sheet_name}.png', (144, 32))
     palette = sheet.getpalette()
-
-    def colour(index, x, y):
-        for top, bottom, swap in RECOLOUR[name]:
-            if top <= y <= bottom and index in swap:
-                return swap[index]
-        return tuple(palette[index * 3:index * 3 + 3])
-    poses = rgba(sheet, colour)
-    frame = [poses.crop((i * 16, 0, i * 16 + 16, 32)) for i in range(9)]
+    pixels = sheet.load()
+    cells = [[[pixels[i * 16 + x, y] for x in range(16)] for y in range(32)] for i in range(9)]
+    frame = []
+    for i, cell in enumerate(cells):
+        standing = next(WALK_ORDER[d][0] for d in WALK_ORDER if i in WALK_ORDER[d])
+        colours = outfit.recolour(name, sheet_name, i, cell, palette, outfit.top(cells[standing]))
+        image = Image.new('RGBA', (16, 32))
+        for y, row in enumerate(colours):
+            for x, colour in enumerate(row):
+                if colour:
+                    image.putpixel((x, y), colour + (255,))
+        frame.append(image)
     order = [frame[i] for direction in ('south', 'north', 'west') for i in WALK_ORDER[direction]]
     order += [frame[i].transpose(Image.Transpose.FLIP_LEFT_RIGHT) for i in WALK_ORDER['west']]
     return enlarge(order)
@@ -277,7 +272,7 @@ def write_assets(sprites, chunks):
 
 
 def build_sprites():
-    built = {name: trainer(name) for name in RECOLOUR}
+    built = {name: trainer(name) for name in ('brendan', 'may')}
     built.update({key: sprite(path, boxes) for key, (path, boxes) in SPRITES.items()})
     built.update({key: battle_background(environment) for key, environment in BATTLES.items()})
     OUT.mkdir(parents=True, exist_ok=True)

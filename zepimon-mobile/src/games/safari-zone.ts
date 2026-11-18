@@ -1,5 +1,5 @@
-import { SAFARI_BALLS, ZONES, catchChance, fleeChance, likesBerry, ringScale, rollWild, startSafari, throwQuality } from './safari.ts'
-import type { SafariGame, ThrowQuality, Zone } from './safari.ts'
+import { SAFARI_BALLS, ZONES, catchChance, fleeChance, hasHabitat, likesBerry, livesInWater, ringScale, rollWild, startSafari, throwQuality } from './safari.ts'
+import type { Habitat, SafariGame, ThrowQuality, Zone } from './safari.ts'
 import { BALLS_PER_KM, BONUS_KM_CAP } from './adventure.ts'
 import { safariMap as generatedMap } from '../generated/safari-map.js'
 
@@ -59,6 +59,8 @@ const called = (wild: { name: string, shiny: boolean }) => `${wild.shiny ? 'Shin
 export const isWalkable = (tile: string) => '.go@12345'.includes(tile)
 // Where a wild Pokemon may stand: open ground and tall grass, never an item ball or the gate's doorstep.
 export const isRoamable = (tile: string) => '.g12345'.includes(tile)
+// Where this Pokemon may stand: a water type only on water, anyone else on open ground or grass.
+export const standsOn = (name: string, tile: string) => livesInWater(name) ? tile === '~' : isRoamable(tile)
 
 // The map as the trainer can walk it right now: water is open once Lapras carries you, and the desert is closed ('X')
 // from outside until Flygon's goggles. A round that starts in the desert is already past the storm's edge.
@@ -145,7 +147,7 @@ export function walk(game: ZoneGame, direction: Direction, map = safariMap, now 
   if (met) {
     const zone = areaAt(met.at, map)
     const back = move(met.at, direction)
-    const room = isRoamable(tileAt(back, map)) && tileAt(back, land) !== 'X' && areaAt(back, map) === zone && !same(back, game.buddy) &&
+    const room = standsOn(met.name, tileAt(back, map)) && tileAt(back, land) !== 'X' && areaAt(back, map) === zone && !same(back, game.buddy) &&
       !game.wilds.some(wild => same(wild.at, back))
     return { game: { ...turned, zone: zone === 'gate' ? game.zone : zone, act: null,
       encounter: { id: met.id, name: met.name, shiny: met.shiny, mood: 'calm', since: now },
@@ -208,22 +210,37 @@ const TIME_UP = "Ding-dong! Time's up!"
 const NO_BALLS = "You're out of Safari Balls!"
 
 // The tiles a new Pokemon may walk out on: within a short walk of the trainer as things stand (so it can always be
-// reached: never across water without Lapras, or in the sandstorm without goggles), on land, SPAWN_NEAR
-// to SPAWN_FAR tiles away, outside the gate area and not where anyone stands.
-function spawnTiles(game: ZoneGame, map: SafariMap): Point[] {
+// reached: never across water without Lapras, or in the sandstorm without goggles), SPAWN_NEAR to SPAWN_FAR tiles away,
+// outside the gate area and not where anyone stands. Land tiles are for land Pokemon; water tiles for water Pokemon, and
+// only where you can get at one: water right beside the shore (you walk into it from the bank), or anywhere you can
+// reach on Lapras.
+type Spawn = { at: Point, habitat: Habitat }
+function spawnTiles(game: ZoneGame, map: SafariMap): Spawn[] {
   const land = terrain(game, map)
   const seen = new Set([pointKey(game.at)])
-  const found: Point[] = []
+  const offered = new Set<string>()
+  const found: Spawn[] = []
+  const consider = (point: Point) => {
+    const key = pointKey(point), tile = tileAt(point, map), zone = areaAt(point, map)
+    const habitat: Habitat | null = tile === '~' ? 'water' : isRoamable(tile) ? 'land' : null
+    if (offered.has(key) || !habitat || zone === 'gate' || !hasHabitat(zone, habitat) || apart(point, game.at) < SPAWN_NEAR ||
+        apart(point, game.at) > SPAWN_FAR || same(point, game.buddy) || game.wilds.some(wild => same(wild.at, point))) return
+    offered.add(key)
+    found.push({ at: point, habitat })
+  }
   let edge = [game.at]
   for (let step = 0; step < SPAWN_FAR * 2 && edge.length; step++) {
     const further: Point[] = []
     for (const point of edge) {
+      for (const direction of ORDER) {
+        const shore = move(point, direction)
+        if (tileAt(shore, map) === '~') consider(shore)
+      }
       for (const [, next] of moves(point, land)) {
         if (seen.has(pointKey(next)) || apart(next, game.at) > SPAWN_FAR) continue
         seen.add(pointKey(next))
         further.push(next)
-        if (apart(next, game.at) >= SPAWN_NEAR && isRoamable(tileAt(next, map)) && areaAt(next, map) !== 'gate' && !same(next, game.buddy) &&
-            !game.wilds.some(wild => same(wild.at, next))) found.push(next)
+        consider(next)
       }
     }
     edge = further
@@ -231,15 +248,15 @@ function spawnTiles(game: ZoneGame, map: SafariMap): Point[] {
   return found
 }
 
-// One wild Pokemon thinking: it rests, or turns and steps if that way is open ground or grass with no one on it. It
-// never leaves the area it lives in.
+// One wild Pokemon thinking: it rests, or turns and steps if that way is its own ground (water for a water type, open
+// ground or grass for the rest) with no one on it. It never leaves the area it lives in.
 function stroll(game: ZoneGame, wild: Wild, now: number, random: () => number, map: SafariMap): Wild {
   const rested = random() < REST
   const moveAt = now + ROAM_MS + Math.floor(random() * ROAM_SPREAD_MS)
   if (rested) return { ...wild, moveAt }
   const facing = ORDER[Math.min(ORDER.length - 1, Math.floor(random() * ORDER.length))]
   const to = move(wild.at, facing)
-  const open = isRoamable(tileAt(to, map)) && areaAt(to, map) === areaAt(wild.at, map) && !same(to, game.at) && !same(to, game.buddy) &&
+  const open = standsOn(wild.name, tileAt(to, map)) && areaAt(to, map) === areaAt(wild.at, map) && !same(to, game.at) && !same(to, game.buddy) &&
     !game.wilds.some(other => other !== wild && same(other.at, to))
   return open ? { ...wild, at: to, facing, steps: wild.steps + 1, moveAt } : { ...wild, facing, moveAt }
 }
@@ -263,8 +280,8 @@ export function roam(game: ZoneGame, now: number, random = Math.random, map = sa
     const tiles = spawnTiles(next, map)
     next = { ...next, spawnAt: now + SPAWN_MS }
     if (tiles.length) {
-      const at = tiles[Math.min(tiles.length - 1, Math.floor(random() * tiles.length))]
-      const wild = rollWild(next, areaAt(at, map) as Zone, random)
+      const { at, habitat } = tiles[Math.min(tiles.length - 1, Math.floor(random() * tiles.length))]
+      const wild = rollWild(next, areaAt(at, map) as Zone, random, habitat)
       next = { ...next, spawned: next.spawned + 1,
         wilds: [...next.wilds, { ...wild, id: next.spawned + 1, at, facing: 'south', steps: 0, moveAt: now + ROAM_MS + Math.floor(random() * ROAM_SPREAD_MS) }] }
     }
@@ -416,8 +433,8 @@ export function planWalk(from: Point, to: Point, map = safariMap): Direction[] |
 export function planHunt(game: ZoneGame, to: Point, map = safariMap): Direction[] | null {
   const land = terrain(game, map)
   const others = new Set(game.wilds.filter(wild => !same(wild.at, to)).map(wild => pointKey(wild.at)))
-  // A helper Pokemon is walked up to and into, like a wild one.
-  const helper = !!HELPERS[tileAt(to, map)]
+  // A helper Pokemon is walked up to and into, like a wild one; so is a wild one swimming off the bank.
+  const helper = !!HELPERS[tileAt(to, map)] || (tileAt(to, land) === '~' && game.wilds.some(wild => same(wild.at, to)))
   const plan = (through: SafariMap) => {
     if (!helper) return planWalk(game.at, to, through)
     const open = { ...through, tiles: through.tiles.map((row, y) => y === to.y ? row.slice(0, to.x) + '.' + row.slice(to.x + 1) : row) }

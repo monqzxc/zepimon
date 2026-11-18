@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { RING_MS, SAFARI_BALLS, ZONES, addSafariCatch, catchChance, fleeChance, likesBerry, pauseSafari, readySafari, restoreSafariDex, resumeSafari,
-  ringScale, rollWild, shinyOdds, startSafari, throwQuality, withSafariCatches } from '../src/games/safari.ts'
+  hasHabitat, livesInWater, ringScale, rollWild, shinyOdds, startSafari, throwQuality, withSafariCatches } from '../src/games/safari.ts'
 import { wildPool } from '../src/games/roster.ts'
 import { dexEntries } from '../src/journal.ts'
 import { emptyProgress, missions } from '../src/progress.ts'
@@ -102,4 +102,12 @@ test('Safari catches join the Dex with no walking record, never hide watch recor
   const sparkle = missions(merged, emptyProgress()).find(mission => mission.id === 'shiny-friend')
   assert.equal(team.value, 1, 'Only the walked Pidgey counts toward A growing team')
   assert.equal(sparkle.value, 0, 'A Safari Shiny does not earn the Shiny badge')
+})
+
+test('a habitat rolls only the zone’s water or land Pokemon', () => {
+  for (let seed = 0; seed < 50; seed++) {
+    assert.ok(livesInWater(rollWild(startSafari('lake', 0), 'lake', always(seed / 50), 'water').name))
+    assert.ok(!livesInWater(rollWild(startSafari('lake', 0), 'lake', always(seed / 50), 'land').name))
+  }
+  assert.ok(hasHabitat('lake', 'water') && hasHabitat('lake', 'land') && !hasHabitat('meadow', 'water'))
 })

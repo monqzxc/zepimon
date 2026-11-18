@@ -244,9 +244,9 @@ over the open tab, floats out of a ball in its colors (Gengar's violet, an
 orange-red Deoxys ball with a teal stripe, a yellow Pikachu ball with a stripe as
 red as its cheeks) through the same six workout poses, and steps on the ball
 during an adventure. With reduced motion the poses change only on a tap. The
-floating poses, and Deoxys's and Pikachu's peeking art, are cut from the
-`*-fitness*.png` sheets in `pokemon_data/` by `scripts/build-nav-poses.py`;
-Pikachu's sheet has no shut-eyed face, so its blink is drawn. Every text color
+floating poses are cut from the `*-fitness*.png` sheets in `pokemon_data/` by
+`scripts/build-nav-poses.py`; the peeking heads and paws are vector art drawn in
+one style by `scripts/build-nav-peek.mjs`. Every text color
 keeps at least 4.5:1 contrast in all eight palettes, which
 `tests/palettes.test.js` checks. Share images and the route map keep their own
 colors. The palettes are in `src/palettes.ts` and the active one in
@@ -610,7 +610,7 @@ The map is Emerald's own tiles (the General and Lilycove tilesets its Safari Zon
 
 Both defense games use type matchups (super-effective hits do double damage) and let a befriended Expedition Legendary strike every foe once per battle; its move lands on each of them.
 
-**Egg moves.** Pokemon hatched from an egg on the watch are like bred Pokemon: they know their family's real egg moves from the Gen II–IV games (Gold/Silver/Crystal through HeartGold/SoulSilver), shared by the whole evolution chain. Team cards and the battle board (EGG) show the egg move used in battle, and the Dex record lists the family's egg moves.
+**Egg moves.** Pokemon hatched from an egg on the watch are like bred Pokemon: they know their family's real egg moves from the Gen II–IV games (Gold/Silver/Crystal through HeartGold/SoulSilver), shared by the whole evolution chain. Team cards and the battle board mark them with a gold halo and show the egg move used in battle, and the Dex record lists the family's egg moves.
 
 - Attackers use the damaging egg move that improves the most type matchups over their own type (power breaks ties), and every hit uses whichever type is stronger. For example, Charmander's Crunch lets it hit Psychic and Ghost foes as Dark.
 - With only same-type damaging egg moves, attacks deal 20% more damage; with only status egg moves (such as Chatot's Agility), the Pokemon has 30% more health.

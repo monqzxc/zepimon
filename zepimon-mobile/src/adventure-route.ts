@@ -4,6 +4,8 @@
 // drawn.
 import { kantoPlaces } from './kanto-map.ts'
 import { johtoPlaces } from './johto-map.ts'
+import { hoennPlaces } from './hoenn-map.ts'
+import { sinnohPlaces } from './sinnoh-map.ts'
 
 export const MILESTONE = 3000
 export const STRIP_METERS = 4 * MILESTONE
@@ -16,21 +18,14 @@ export type RouteLayout = { strips: PlacedStrip[], rows: number, milestones: Mil
 
 // Every milestone is a town, city or route, in the order the games visit them: Kanto, then Johto, Hoenn, Sinnoh and
 // Unova. 0 km is Pallet Town; the 3 km leading up to a milestone are that place, so you walk Route 1 to reach 3 km.
-// Kanto and Johto follow the story's walkthrough across their own maps (src/kanto-map.ts, src/johto-map.ts). After
+// Kanto, Johto, Hoenn and Sinnoh follow the story's walkthrough across their own maps (src/kanto-map.ts,
+// src/johto-map.ts, src/hoenn-map.ts, src/sinnoh-map.ts). After
 // Unova the journey starts over in Pallet Town, one tour further on.
 export const regions: { name: string, places: string[] }[] = [
   { name: 'Kanto', places: kantoPlaces },
   { name: 'Johto', places: johtoPlaces },
-  { name: 'Hoenn', places: ['Littleroot Town', 'Route 101', 'Oldale Town', 'Route 103', 'Route 102', 'Petalburg City', 'Route 104',
-    'Rustboro City', 'Route 116', 'Route 105', 'Route 106', 'Dewford Town', 'Route 107', 'Route 108', 'Route 109', 'Slateport City',
-    'Route 110', 'Mauville City', 'Route 117', 'Verdanturf Town', 'Route 111', 'Route 112', 'Route 113', 'Fallarbor Town', 'Route 114',
-    'Lavaridge Town', 'Route 118', 'Route 119', 'Fortree City', 'Route 120', 'Route 121', 'Lilycove City', 'Route 124', 'Mossdeep City',
-    'Route 125', 'Route 127', 'Route 128', 'Sootopolis City', 'Route 129', 'Route 130', 'Route 131', 'Pacifidlog Town', 'Route 132',
-    'Route 133', 'Route 134', 'Ever Grande City'] },
-  { name: 'Sinnoh', places: ['Twinleaf Town', 'Route 201', 'Sandgem Town', 'Route 202', 'Jubilife City', 'Route 203', 'Oreburgh City',
-    'Route 204', 'Floaroma Town', 'Route 205', 'Eterna City', 'Route 206', 'Route 207', 'Route 208', 'Hearthome City', 'Route 209',
-    'Solaceon Town', 'Route 210', 'Celestic Town', 'Route 211', 'Route 212', 'Pastoria City', 'Route 213', 'Route 214', 'Veilstone City',
-    'Route 215', 'Route 218', 'Canalave City', 'Route 216', 'Route 217', 'Snowpoint City', 'Route 222', 'Sunyshore City', 'Route 223'] },
+  { name: 'Hoenn', places: hoennPlaces },
+  { name: 'Sinnoh', places: sinnohPlaces },
   { name: 'Unova', places: ['Nuvema Town', 'Route 1', 'Accumula Town', 'Route 2', 'Striaton City', 'Route 3', 'Nacrene City',
     'Castelia City', 'Route 4', 'Nimbasa City', 'Route 5', 'Driftveil City', 'Route 6', 'Mistralton City', 'Route 7', 'Icirrus City',
     'Route 8', 'Opelucid City', 'Route 9', 'Route 10', 'Route 11', 'Route 12', 'Lacunosa Town', 'Route 13', 'Undella Town', 'Route 14',
