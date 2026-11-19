@@ -31,7 +31,7 @@ import { Squish } from '../../JournalDashboard'
 import { allAdventures } from '../../adventures'
 import type { Adventure } from '../../adventures'
 import { MILESTONE, reachedBy } from '../../adventure-route'
-import { mysteryLine, spokenLine } from '../../pokedex'
+import { mysteryForm, mysteryLine, spokenForm, spokenLine } from '../../pokedex'
 import { averagePace as runPace, clock, fastestPace, paceText, splits } from '../../running'
 import { BottomSheet } from '../../BottomSheet'
 import { summary } from '../../journal-calendar'
@@ -150,7 +150,8 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
   // The Mega forms to pick from, or Urshifu's and Toxtricity's two Gigantamax forms.
   const choices = formChoices(family)
   // What the egg becomes stays ??? until you have caught it.
-  const line = mysteryLine(family, name => !!(dex[name] || dex[`Shiny ${name}`]))
+  const caught = (name: string) => !!(dex[name] || dex[`Shiny ${name}`])
+  const line = mysteryLine(family, caught)
   const last = lastRecord(journal, family)
   const sentToWatch = plannedFamily(plan, opened) === family
   // An older watch only shows its adventure in progress through its last sync.
@@ -265,7 +266,8 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
         at 42 km{gigantamax.length ? ' and Gigantamaxes at 50 km' : ''}.</Copy>
       {choices.length > 0 && <>
         <Copy small>{megas.length ? 'Mega form at 21 km:' : 'Gigantamax form at 50 km:'}</Copy>
-        <View style={styles.row}>{choices.map(name => <Chip key={name} label={name} selected={(mega ?? choices[0]) === name} onPress={() => pickMega(name)} />)}</View>
+        <View style={styles.row}>{choices.map(name => <Chip key={name} label={mysteryForm(name, family, caught)}
+          spokenLabel={spokenForm(mysteryForm(name, family, caught))} selected={(mega ?? choices[0]) === name} onPress={() => pickMega(name)} />)}</View>
       </>}
       <Copy small>{!session || !linked ? 'Link your watch in Settings, and the egg you choose here waits on its title screen too. Adventures saved here reach its Dex as well.'
         : sentToWatch ? 'Your watch offers this egg next: open Zepimon there and tap Walk or Run.' : 'Choose an egg to send it to your watch as well.'}</Copy>

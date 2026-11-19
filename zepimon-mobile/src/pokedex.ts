@@ -75,11 +75,23 @@ export type EggFilter = Filter & { status: EggStatus }
 export const defaultEggFilter: EggFilter = { query: '', sort: 'number', generation: 0, type: null, status: 'all' }
 export const caughtCount = (family: string[], caught: (name: string) => boolean) => family.filter(caught).length
 // An egg's family as you know it: what it hatches into or evolves into is ??? until that Pokemon is in your Dex. The
-// first is always named, since the egg is named after it.
-export const mysteryLine = (family: string[], caught: (name: string) => boolean) =>
-  family.map((name, i) => i === 0 || caught(name) ? name : '???')
+// first is always named, since the egg is named after it. The unknown stages at the end fold into one ???, so the line
+// does not give away how many times the egg evolves.
+export function mysteryLine(family: string[], caught: (name: string) => boolean) {
+  const line = family.map((name, i) => i === 0 || caught(name) ? name : '???')
+  while (line.length > 2 && line[line.length - 1] === '???' && line[line.length - 2] === '???') line.pop()
+  return line
+}
+// A Mega or Gigantamax form as you know it: the Pokemon it is the form of stays ??? until that Pokemon or the form is in
+// your Dex, keeping what tells two forms apart ("Mega ??? X", "Gigantamax ??? Rapid Strike").
+export function mysteryForm(form: string, family: string[], caught: (name: string) => boolean) {
+  if (caught(form)) return form
+  return family.slice(1).filter(name => !caught(name))
+    .reduce((label, name) => label.replace(name, '???'), form)
+}
 // The same, as a screen reader should say it, rather than "question mark" three times.
 export const spokenLine = (line: string[]) => line.map(name => name === '???' ? 'unknown' : name).join(', ')
+export const spokenForm = (label: string) => label.replace(/\?\?\?/g, 'unknown')
 
 // A family matches when any of its Pokemon does, so the Pichu egg shows under Kanto (Pikachu) and Electric. Families
 // that start alike (the Eevee branches) are ordered by the whole family, so every order is exact both ways.
