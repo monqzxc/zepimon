@@ -8,8 +8,9 @@ import { cloudClient } from '../../cloud-client'
 import { pokemonType } from '../../catalog'
 import { PixelSprite } from '../../games/TeamPicker'
 import { PokeballIcon, Screen, colors, fonts, gradient, themedStyles, typeTints, useTheme } from '../../ui'
-import { ChoiceSheet, SettingsGroup, SettingsRow, SettingsSwitch } from '../../SettingsList'
+import { ChoiceSheet, SettingsGroup, SettingsRow, SettingsSlider, SettingsSwitch } from '../../SettingsList'
 import { setPreference, usePreferences } from '../../preferences'
+import { previewMusicVolume } from '../../music'
 import { setScreenOnly, useTracker } from '../../tracker'
 import { CoachTarget } from '../../CoachMarks'
 import { replayTour, useCoach } from '../../tour'
@@ -26,7 +27,7 @@ const title = (word: string) => word[0].toUpperCase() + word.slice(1)
 
 export default function SettingsScreen() {
   useTheme()
-  const { activity, motion, theme, appearance, voiceCues, voiceSplits } = usePreferences()
+  const { activity, motion, theme, appearance, voiceCues, voiceSplits, music, musicVolume } = usePreferences()
   const { screenOnly } = useTracker()
   const [choosing, setChoosing] = useState(false)
   const [problem, setProblem] = useState('')
@@ -44,6 +45,11 @@ export default function SettingsScreen() {
         onChange={value => { setProblem(''); setScreenOnly(!value).catch(() => setProblem('Could not switch recording. Try again.')) }} />}
     </SettingsGroup></CoachTarget>
     {!!problem && <Text style={[page.note, { color: colors.danger }]}>{problem}</Text>}
+    <SettingsGroup label="Sound" footer="Music plays while Zepimon is open and pauses when you leave the app. It follows your phone's silent mode, plays alongside your own music, and gets quieter while a voice cue speaks.">
+      <SettingsSwitch icon="music" label="Music" value={music} onChange={value => setPreference('music', value)} />
+      <SettingsSlider icon="volume" label="Music volume" value={musicVolume} disabled={!music}
+        onChange={previewMusicVolume} onCommit={value => setPreference('musicVolume', value)} />
+    </SettingsGroup>
     <SettingsGroup label="Gym Training" footer="During a Gym session your phone speaks each step (“Jog for 90 seconds”) and, if you like, each kilometre's time. It uses your phone's text-to-speech voice and media volume.">
       <SettingsSwitch icon="trophy" label="Voice cues" value={voiceCues} onChange={value => setPreference('voiceCues', value)} />
       <SettingsSwitch icon="map" label="Speak kilometre splits" value={voiceSplits} onChange={value => setPreference('voiceSplits', value)} />

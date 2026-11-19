@@ -59,3 +59,15 @@ test('voice cues are on and kilometre splits off until changed', () => {
   assert.deepEqual(pick(prefs.restorePreferences({ voiceCues: false, voiceSplits: true })), { voiceCues: false, voiceSplits: true })
   assert.deepEqual(pick(prefs.restorePreferences({ voiceCues: 'no', voiceSplits: 1 })), { voiceCues: true, voiceSplits: false })
 })
+
+test('music is on at half volume until changed, and an odd saved volume is clamped to a 5% step', () => {
+  const pick = ({ music, musicVolume }) => ({ music, musicVolume })
+  assert.deepEqual(pick(prefs.defaultPreferences), { music: true, musicVolume: 0.5 })
+  assert.deepEqual(pick(prefs.restorePreferences({})), { music: true, musicVolume: 0.5 })
+  assert.deepEqual(pick(prefs.restorePreferences({ music: false, musicVolume: 0.8 })), { music: false, musicVolume: 0.8 })
+  assert.deepEqual(pick(prefs.restorePreferences({ music: 'no', musicVolume: '1' })), { music: true, musicVolume: 0.5 })
+  assert.equal(prefs.restorePreferences({ musicVolume: 0.333 }).musicVolume, 0.35)
+  assert.equal(prefs.restorePreferences({ musicVolume: 4 }).musicVolume, 1)
+  assert.equal(prefs.restorePreferences({ musicVolume: -1 }).musicVolume, 0)
+  assert.equal(prefs.restorePreferences({ musicVolume: Number.NaN }).musicVolume, 0.5)
+})

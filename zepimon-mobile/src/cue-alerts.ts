@@ -3,6 +3,7 @@ import * as Speech from 'expo-speech'
 import { clearCue, nativeCues, showCue } from '../modules/zepimon-live'
 import type { ActiveAdventure } from './phone-adventure'
 import { getPreferences } from './preferences'
+import { duckMusic, resetMusicDuck } from './music'
 import { findSession } from './training-plans'
 import { cueAt, isEffort, remainingText, stepLabel, walkBreak } from './training-cues'
 import type { Cue } from './training-cues'
@@ -27,7 +28,12 @@ export function alertCue(active: ActiveAdventure | null, now: number): { cue: Cu
     index => !!session.steps[index]?.seconds, pause ? pause.walking : undefined)
   state = events.state
   if (events.buzz) Vibration.vibrate(events.buzz)
-  if (preferences.voiceCues) for (const line of events.speech) Speech.speak(line)
+  if (preferences.voiceCues) for (const line of events.speech) {
+    // The background music drops while each line is spoken (src/music.ts).
+    duckMusic(true)
+    const release = () => duckMusic(false)
+    Speech.speak(line, { onDone: release, onStopped: release, onError: release })
+  }
   if (cue.done) clearCue()
   else if (pause?.walking) showCue({ label: 'Walk break', until: Math.round(now + pause.remaining * 1000), remaining: '', next: 'run again', nextEffort: true })
   else showCue({ label: stepLabel(cue.step), remaining: remainingText(cue), next: cue.next ? stepLabel(cue.next) : null,
@@ -41,4 +47,5 @@ export function resetCueAlerts() {
   state = null
   clearCue()
   Speech.stop().catch(() => {})
+  resetMusicDuck()
 }
