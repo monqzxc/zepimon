@@ -1,4 +1,4 @@
-import React, { Fragment } from 'react'
+import React, { Fragment, useRef, useState } from 'react'
 import { Modal, Pressable, ScrollView, Switch, Text, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Icon, colors, displayFont, fonts, retro, shadows, themedStyles } from './ui'
@@ -42,6 +42,65 @@ export function SettingsSwitch({ icon, label, value, onChange }: { icon: IconNam
     <Text style={list.name} numberOfLines={2}>{label}</Text>
     <Switch accessibilityLabel={label} value={value} onValueChange={onChange}
       trackColor={{ true: colors.edge, false: colors.line }} thumbColor="#FFFFFF" ios_backgroundColor={colors.line} />
+  </View>
+}
+
+// A level from 0 to 1 in 5% steps, dragged or tapped along the track. onChange follows the finger; onCommit gets the
+// value once it is let go, so a drag saves once. Screen readers adjust it by 10% with a swipe up or down.
+export function SettingsSlider({ icon, label, value, disabled = false, onChange, onCommit }: {
+  icon: IconName, label: string, value: number, disabled?: boolean, onChange: (value: number) => void, onCommit: (value: number) => void
+}) {
+  const track = useRef<View>(null)
+  const frame = useRef({ x: 0, width: 1 })
+  const latest = useRef(value)
+  const [draft, setDraft] = useState<number | null>(null)
+  const shown = draft ?? value
+  const percent = Math.round(shown * 100)
+  const level = (raw: number) => Math.round(Math.min(1, Math.max(0, raw)) * 20) / 20
+  function move(pageX: number) {
+    const next = level((pageX - frame.current.x) / frame.current.width)
+    if (next === latest.current) return
+    latest.current = next
+    setDraft(next)
+    onChange(next)
+  }
+  function release() {
+    if (latest.current !== value) onCommit(latest.current)
+    setDraft(null)
+  }
+  function step(by: number) {
+    const next = level(value + by)
+    onChange(next)
+    onCommit(next)
+  }
+  return <View style={[list.row, disabled && { opacity: 0.5 }]}>
+    <IconTile name={icon} />
+    <View style={{ flex: 1, gap: 2 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={list.name} numberOfLines={1}>{label}</Text>
+        <Text style={list.value}>{percent}%</Text>
+      </View>
+      <View ref={track} accessible accessibilityRole="adjustable" accessibilityLabel={label} accessibilityState={{ disabled }}
+        accessibilityValue={{ min: 0, max: 100, now: percent, text: `${percent}%` }}
+        accessibilityActions={disabled ? [] : [{ name: 'increment' }, { name: 'decrement' }]}
+        onAccessibilityAction={event => step(event.nativeEvent.actionName === 'increment' ? 0.1 : -0.1)}
+        onStartShouldSetResponder={() => !disabled} onMoveShouldSetResponder={() => !disabled}
+        // Once the finger is on the track, a sideways drag stays with the slider instead of scrolling the page.
+        onResponderTerminationRequest={() => false}
+        onResponderGrant={event => {
+          const pageX = event.nativeEvent.pageX
+          latest.current = value
+          track.current?.measureInWindow((x, _y, width) => { frame.current = { x, width: Math.max(1, width) }; move(pageX) })
+        }}
+        onResponderMove={event => move(event.nativeEvent.pageX)}
+        onResponderRelease={release} onResponderTerminate={release}
+        style={list.slider}>
+        <View style={list.sliderTrack}>
+          <View style={[list.sliderFill, { width: `${percent}%` }]} />
+        </View>
+        <View pointerEvents="none" style={[list.sliderThumb, { left: `${percent}%` }]} />
+      </View>
+    </View>
   </View>
 }
 
@@ -102,6 +161,12 @@ const list = themedStyles(() => ({
     borderWidth: 1, borderColor: colors.line },
   name: { flex: 1, fontFamily: fonts.bold, fontSize: 15, lineHeight: 20, color: colors.ink },
   value: { flexShrink: 1, maxWidth: '45%', fontFamily: fonts.body, fontSize: 14, lineHeight: 19, color: colors.muted, textAlign: 'right' },
+  // The track is thin, but the touch area around it is a full finger tall.
+  slider: { height: 32, justifyContent: 'center', marginHorizontal: 11 },
+  sliderTrack: { height: 6, borderRadius: 3, backgroundColor: colors.line, overflow: 'hidden' },
+  sliderFill: { height: 6, backgroundColor: colors.edge },
+  sliderThumb: { position: 'absolute', width: 22, height: 22, marginLeft: -11, borderRadius: 11, backgroundColor: '#FFFFFF',
+    borderWidth: 1, borderColor: colors.line, ...shadows.card },
   scrim: { flex: 1 },
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 10, gap: 14,
     width: '100%', maxWidth: 720, alignSelf: 'center' },

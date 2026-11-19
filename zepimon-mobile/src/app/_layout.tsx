@@ -22,6 +22,7 @@ import { CoachMarks } from '../CoachMarks'
 import { LaunchIntro } from '../LaunchIntro'
 import { finishIntro } from '../launch-intro'
 import { FriendshipToast } from '../FriendshipCard'
+import { useBackgroundMusic } from '../music'
 
 // An error on any screen shows what happened, with Share, instead of closing the app.
 export const ErrorBoundary = CrashScreen
@@ -41,6 +42,7 @@ function Navigator() {
   const { ready } = useJournal()
   // Waits for the saved theme too, so the app opens in it rather than switching after a moment.
   const preferencesLoaded = usePreferencesLoaded()
+  useBackgroundMusic(preferencesLoaded)
   // And for whether the welcome tour is due, so a first launch opens straight into it.
   const tourLoaded = useTourLoaded()
   const { welcome, coach } = useTour()
