@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultDexFilter, defaultEggFilter, filterDex, filterEggs, generationsOf, isFiltered, mysteryForm, mysteryLine, regionName, speciesNumber, typesOf } from '../src/pokedex.ts'
+import { defaultDexFilter, defaultEggFilter, filterDex, filterEggs, generationsOf, isFiltered, mysteryLine, regionName, speciesNumber, typesOf } from '../src/pokedex.ts'
 import { eggs } from '../src/phone-adventure.ts'
 
 const none = () => false
@@ -107,11 +107,3 @@ test('does not give away how many times an egg evolves', () => {
   assert.deepEqual(mysteryLine(['Tauros'], none), ['Tauros'])
 })
 
-test('hides whose Mega or Gigantamax form it is until that Pokemon is in your Dex', () => {
-  const family = ['Charmander', 'Charmeleon', 'Charizard']
-  assert.equal(mysteryForm('Mega Charizard X', family, none), 'Mega ??? X')
-  assert.equal(mysteryForm('Mega Charizard X', family, name => name === 'Charizard'), 'Mega Charizard X')
-  assert.equal(mysteryForm('Mega Charizard Y', family, name => name === 'Mega Charizard Y'), 'Mega Charizard Y')
-  assert.equal(mysteryForm('Gigantamax Urshifu Rapid Strike', ['Kubfu', 'Urshifu'], none), 'Gigantamax ??? Rapid Strike')
-  assert.equal(mysteryForm('Mega Kangaskhan', ['Kangaskhan'], none), 'Mega Kangaskhan')
-})

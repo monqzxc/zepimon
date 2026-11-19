@@ -99,8 +99,8 @@ export function Button({ title, onPress, secondary = false, disabled = false, lo
   </Pressable>
 }
 // A compact pill for filters and one-of-many choices. In Emerald the chosen one glows.
-export function Chip({ label, spokenLabel, selected, onPress, disabled = false }: { label: string, spokenLabel?: string, selected: boolean, onPress: () => void, disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={spokenLabel} accessibilityState={{ selected, disabled }} hitSlop={4} disabled={disabled} onPress={onPress}
+export function Chip({ label, selected, onPress, disabled = false }: { label: string, selected: boolean, onPress: () => void, disabled?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityState={{ selected, disabled }} hitSlop={4} disabled={disabled} onPress={onPress}
     style={({ pressed }) => [styles.chip, selected && styles.chipOn, { opacity: disabled ? 0.45 : pressed ? 0.8 : 1 }, pressDepth(pressed && !disabled)]}>
     <Text style={[styles.chipText, selected && { color: colors.onEdge }]}>{label}</Text>
   </Pressable>

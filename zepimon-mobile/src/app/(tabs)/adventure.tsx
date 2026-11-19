@@ -14,7 +14,7 @@ import { isDynamax, pokemonType, spriteSource } from '../../catalog'
 import { DynamaxAura } from '../../Sprite'
 import { spriteForm } from '../../generated/forms.js'
 import { walkingFrames } from '../../generated/walking.js'
-import { currentForm, currentPace, earnedForms, pendingForm, shownForm, encodePath, expeditionNews, finishAdventure, formChoices, formStages, gigantamaxChoices, megaChoices,
+import { currentForm, currentPace, earnedForms, pendingForm, shownForm, encodePath, expeditionNews, finishAdventure, formChoices, formStages,
   nextMilestone, openEggs, phoneTrail } from '../../phone-adventure'
 import type { ActiveAdventure, Activity, PhoneRun } from '../../phone-adventure'
 import { clearAdventure, checkLocation, continueAdventure, currentAdventure, dismissHandOver, openLocationSettings, resumeAdventure, seeForm, setScreenOnly, startAdventure, stopAdventure, useTracker } from '../../tracker'
@@ -31,7 +31,7 @@ import { Squish } from '../../JournalDashboard'
 import { allAdventures } from '../../adventures'
 import type { Adventure } from '../../adventures'
 import { MILESTONE, reachedBy } from '../../adventure-route'
-import { mysteryForm, mysteryLine, spokenForm, spokenLine } from '../../pokedex'
+import { mysteryLine, spokenLine } from '../../pokedex'
 import { averagePace as runPace, clock, fastestPace, paceText, splits } from '../../running'
 import { BottomSheet } from '../../BottomSheet'
 import { summary } from '../../journal-calendar'
@@ -39,7 +39,7 @@ import { missions } from '../../progress'
 import { PixelSprite } from '../../games/TeamPicker'
 import { EvolutionScene } from '../../Evolution'
 import { useReducedMotion } from '../../games/hooks'
-import { Button, Chip, Copy, Eyebrow, GradientFill, Heading, Icon, IconBubble, Panel, PokeballLoader, Screen, Title, colors, displayFont, fonts, retro, styles, themedStyles, typeInks, typeTints, glass, useTheme } from '../../ui'
+import { Button, Copy, Eyebrow, GradientFill, Heading, Icon, IconBubble, Panel, PokeballLoader, Screen, Title, colors, displayFont, fonts, retro, styles, themedStyles, typeInks, typeTints, glass, useTheme } from '../../ui'
 import { SessionBanner, SessionResult } from '../../GymCue'
 import { gyms } from '../../training-plans'
 
@@ -145,9 +145,8 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
     const next = plannedFamily(plan, opened)
     if (next) { setFamily(next); setMega(plan.egg!.mega) }
   }
-  const megas = megaChoices(family)
-  const gigantamax = gigantamaxChoices(family)
-  // The Mega forms to pick from, or Urshifu's and Toxtricity's two Gigantamax forms.
+  // The Mega forms, or Urshifu's and Toxtricity's two Gigantamax forms: not offered in the sheet, so with none
+  // planned the adventure takes the first.
   const choices = formChoices(family)
   // What the egg becomes stays ??? until you have caught it.
   const caught = (name: string) => !!(dex[name] || dex[`Shiny ${name}`])
@@ -160,10 +159,6 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
   function choose(next: string[]) {
     setFamily(next); setMega(null)
     chooseEgg(next, null).catch(() => {})
-  }
-  function pickMega(name: string) {
-    setMega(name)
-    chooseEgg(family, name).catch(() => {})
   }
   async function start() {
     // Recording on both would count the same steps twice, so starting here takes a second tap.
@@ -262,13 +257,8 @@ function Setup({ shared, handedOver }: { shared: SharedAdventure | null, handedO
           <Copy small color={colors.gold}>{last ? `Last adventure: ${km(last.meters)}` : 'No adventure with this egg yet'}</Copy>
         </View>
       </View>
-      <Copy small>Every 5 km in one adventure your egg hatches or evolves. {megas.length ? 'It takes its Mega form at 21 km, ' : 'It '}Dynamaxes
-        at 42 km{gigantamax.length ? ' and Gigantamaxes at 50 km' : ''}.</Copy>
-      {choices.length > 0 && <>
-        <Copy small>{megas.length ? 'Mega form at 21 km:' : 'Gigantamax form at 50 km:'}</Copy>
-        <View style={styles.row}>{choices.map(name => <Chip key={name} label={mysteryForm(name, family, caught)}
-          spokenLabel={spokenForm(mysteryForm(name, family, caught))} selected={(mega ?? choices[0]) === name} onPress={() => pickMega(name)} />)}</View>
-      </>}
+      {/* What the egg can become beyond its evolutions (Mega, Dynamax, Gigantamax) stays a surprise of the adventure. */}
+      <Copy small>Every 5 km in one adventure your egg hatches or evolves. Keep going to see what else it can do.</Copy>
       <Copy small>{!session || !linked ? 'Link your watch in Settings, and the egg you choose here waits on its title screen too. Adventures saved here reach its Dex as well.'
         : sentToWatch ? 'Your watch offers this egg next: open Zepimon there and tap Walk or Run.' : 'Choose an egg to send it to your watch as well.'}</Copy>
       <View style={styles.row}>
