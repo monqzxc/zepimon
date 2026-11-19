@@ -6,7 +6,7 @@ import { router } from 'expo-router'
 import { Asset } from 'expo-asset'
 import { File } from 'expo-file-system'
 import Svg, { Circle, Defs, Ellipse, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg'
-import { dexNumber, pokemonType, spriteSource, typeColors } from './catalog'
+import { pokemonType, spriteSource, typeColors } from './catalog'
 import { trailWalkers } from './generated/trail-walkers.js'
 import { walkingFrames } from './generated/walking.js'
 import { averagePace, km, recordForm } from './journal'
@@ -19,6 +19,7 @@ import type { PixelArt } from './pixel-art'
 import { routeShape } from './RouteView'
 import { Backdrop, habitatTheme } from './HabitatScene'
 import { Icon, PokeballIcon, colors, fonts, typeLabel, themedStyles } from './ui'
+import type { IconName } from './ui'
 
 // A saved adventure as a story-sized image, like a Strava share card: the route and a Pokemon from the adventure,
 // drawn as enlarged pixel art, with its distance, pace and time. The share screen (src/app/share.tsx) picks the
@@ -36,7 +37,10 @@ export type SpriteStyle = 'default' | 'front' | 'running'
 export type SpriteSize = 'small' | 'medium' | 'large' | 'huge'
 export type CardBackground = 'dark' | 'clear' | 'habitat'
 export type CardDetail = 'type' | 'best' | 'evolution' | 'hatch' | 'steps' | 'clock' | 'buddy'
-export type CardOptions = { design: CardDesign, style: SpriteStyle, size: SpriteSize, background: CardBackground, details: CardDetail[] }
+// What can be left off a card: the dates, the Zepimon mark and (on Starter) the adventure's number.
+export type CardHidden = 'date' | 'mark' | 'number'
+export type CardOptions = { design: CardDesign, style: SpriteStyle, size: SpriteSize, background: CardBackground, details: CardDetail[],
+  hidden: CardHidden[] }
 
 // The sprite's longest side, before rounding down to a whole-number enlargement. Split shows it smaller below the
 // route, or at the full size in the route's place when there is none.
@@ -144,7 +148,7 @@ export function cardFileName(family: string[], record: DexRecord, form?: string)
 }
 
 type CardProps = { family: string[], record: DexRecord, pokemon: string, points: [number, number][], art: PixelArt | null | undefined,
-  facts: AdventureFacts, options: CardOptions, friend?: string | null }
+  facts: AdventureFacts, options: CardOptions, count?: number | null, friend?: string | null }
 // What both designs draw with: u turns image pixels into layout units, and text styles a line at a pixel size.
 type Kit = CardProps & { u: number, text: (size: number, fontFamily: string, color?: string) => TextStyle, title: string, subtitle: string,
   shown: Partial<Record<CardDetail, string>> }
@@ -161,7 +165,7 @@ export function ShareCard({ ref, width, ...props }: CardProps & { ref?: Ref<View
       textShadowColor: habitat ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.6)', textShadowOffset: { width: 0, height: 3 * u }, textShadowRadius: 14 * u }),
     title: cardTitle(family, record, pokemon),
     subtitle: [record.activity && (record.activity === 'running' ? 'Run' : 'Walk'),
-      Number.isFinite(finished.getTime()) && finished.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })]
+      !props.options.hidden.includes('date') && Number.isFinite(finished.getTime()) && finished.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })]
       .filter(Boolean).join(' · ').toUpperCase(),
     shown: Object.fromEntries(details.filter(detail => available[detail]).map(detail => [detail, available[detail]]))
   }
@@ -188,7 +192,7 @@ function Classic({ kit }: { kit: Kit }) {
     {points.length > 0 && <View style={{ position: 'absolute', left: 60 * u, top: 250 * u }}>
       <RouteArt kit={kit} width={960} height={1420} />
     </View>}
-    <Wordmark kit={kit} size={58} />
+    {!options.hidden.includes('mark') && <Wordmark kit={kit} size={58} />}
     <View style={{ marginTop: 36 * u }}><SpriteArt art={art} kit={kit} box={box} /></View>
     <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit
       style={[text(64, fonts.black), { maxWidth: 960 * u, marginTop: 16 * u }]}>{title}</Text>
@@ -214,7 +218,7 @@ function Split({ kit }: { kit: Kit }) {
   const stats = [['Distance', km(record.meters).replace(' km', ''), 'km'], ['Pace', pace.replace(' /km', ''), '/km'], ['Time', cardTime(record.elapsedSeconds), '']]
   return <View style={{ flex: 1, paddingHorizontal: 70 * u, paddingTop: 100 * u, paddingBottom: 110 * u }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 20 * u }}>
-      <Wordmark kit={kit} size={46} />
+      {options.hidden.includes('mark') ? <View /> : <Wordmark kit={kit} size={46} />}
       {!!subtitle && <Text allowFontScaling={false} style={[text(28, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { letterSpacing: 3 * u, flexShrink: 1 }]}>{subtitle}</Text>}
     </View>
     <View style={{ flex: 1, marginVertical: 40 * u, alignItems: 'center', justifyContent: 'center' }}
@@ -240,7 +244,7 @@ function Split({ kit }: { kit: Kit }) {
 }
 
 // Starter: a "choose your starter" screen made from the adventure. The Pokemon stands in the middle
-// with pastel cards peeking in from the sides for the other forms of its line, and below come its Dex number, name, type,
+// in front of its route, and below come which adventure it was (#0042 is the 42nd), its name, type,
 // the run's stats and a Dex-style entry written from the details picked on the share screen.
 const STARTER_SKY = ['#18202B', '#2A3848', '#5D7A96']
 const STARTER_SIZES: Record<SpriteSize, number> = { small: 380, medium: 520, large: 640, huge: 760 }
@@ -248,19 +252,19 @@ const STARTER_SIZES: Record<SpriteSize, number> = { small: 380, medium: 520, lar
 const GROUND = 1050
 
 function Starter({ kit }: { kit: Kit }) {
-  const { u, text, title, shown, art, points, record, pokemon, family, facts, options } = kit
+  const { u, text, title, shown, art, points, record, pokemon, facts, options, count } = kit
   const dark = options.background === 'dark'
   const habitat = options.background === 'habitat'
   const type = pokemonType(pokemon)
   const tint = typeColors[type] || typeColors.normal
   const box = STARTER_SIZES[options.size]
-  // The forms either side of this one, as on a starter carousel: the egg comes before the first form.
-  const line = ['Egg', ...family]
-  const at = line.indexOf(pokemon)
-  const neighbours = [at > 0 ? line[at - 1] : null, at >= 0 && at < line.length - 1 ? line[at + 1] : null]
   const finished = new Date(record.finishedAt)
   const day = Number.isFinite(finished.getTime()) ? finished.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase() : ''
-  const activity = record.activity === 'running' ? 'Running' : record.activity ? 'Walking' : 'Adventure'
+  // The year sits in the top corner, away from the day and month by the name.
+  const year = Number.isFinite(finished.getTime()) ? String(finished.getFullYear()) : ''
+  const hide = { date: options.hidden.includes('date'), mark: options.hidden.includes('mark'), number: options.hidden.includes('number') }
+  const activity = record.activity === 'running' ? 'Run' : record.activity ? 'Walk' : 'Adventure'
+  const activityIcon = record.activity === 'running' ? 'run' : record.activity ? 'walk' : 'explore'
   const entry = starterEntry(kit)
   const stats = [['Distance', km(record.meters).replace(' km', ''), 'km'],
     ['Pace', averagePace(record.elapsedSeconds, record.meters).replace(' /km', ''), '/km'], ['Time', cardTime(record.elapsedSeconds), '']]
@@ -286,14 +290,15 @@ function Starter({ kit }: { kit: Kit }) {
     </View>}
     {habitat && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 900 * u,
       experimental_backgroundImage: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.6))', backgroundImage: 'linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.6))' } as object} />}
-    {dark && neighbours.map((name, side) => name && <PeekCard key={side} kit={kit} name={name} side={side ? 'right' : 'left'} />)}
-    {points.length > 0 && <View style={{ position: 'absolute', left: 90 * u, top: 360 * u, opacity: habitat ? 0.6 : 0.35 }}>
-      <RouteArt kit={kit} width={900} height={GROUND - 340} />
+    {/* The route behind the Pokemon, raised so most of it shows above the sprite. */}
+    {points.length > 0 && <View style={{ position: 'absolute', left: 90 * u, top: 200 * u, opacity: habitat ? 0.85 : 0.9 }}>
+      <RouteArt kit={kit} width={900} height={GROUND - 300} />
     </View>}
 
-    <Text allowFontScaling={false} style={[text(36, fonts.bold, 'rgba(255, 255, 255, 0.85)'),
-      { position: 'absolute', left: 96 * u, top: 120 * u, textAlign: 'left', fontStyle: 'italic' }]}>{`Your ${activity.toLowerCase()} buddy`}</Text>
-    <View style={{ position: 'absolute', right: 96 * u, top: 120 * u }}><Tag u={u} tint={tint} /></View>
+    {!!year && !hide.date && <Text allowFontScaling={false} style={{ position: 'absolute', left: 96 * u, top: 120 * u, fontFamily: fonts.black, fontSize: 30 * u,
+      lineHeight: 38 * u, letterSpacing: 4 * u, color: 'rgba(255, 255, 255, 0.8)', textShadowColor: 'rgba(0, 0, 0, 0.5)',
+      textShadowOffset: { width: 0, height: 2 * u }, textShadowRadius: 8 * u }}>{year}</Text>}
+    {!hide.mark && <View style={{ position: 'absolute', right: 96 * u, top: 120 * u }}><Tag u={u} tint={tint} /></View>}
 
     <View style={{ position: 'absolute', left: 0, right: 0, top: (GROUND - box) * u, alignItems: 'center' }}>
       <View style={{ position: 'absolute', top: (box - 34) * u, width: box * 0.62 * u, height: 56 * u }}>
@@ -307,13 +312,13 @@ function Starter({ kit }: { kit: Kit }) {
     <View style={{ position: 'absolute', left: 80 * u, right: 80 * u, top: (GROUND + 40) * u, alignItems: 'center' }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', alignSelf: 'stretch' }}>
         <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'left', marginBottom: 14 * u }]}>
-          {dexNumber(pokemon === 'Egg' ? family[0] : pokemon).replace('No. ', '#')}</Text>
+          {count && !hide.number ? `#${String(count).padStart(4, '0')}` : ''}</Text>
         <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit
           style={[text(nameSize, fonts.black), { flex: 1, letterSpacing: 2 * u }]}>{title.toUpperCase()}</Text>
-        <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'right', marginBottom: 14 * u }]}>{day}</Text>
+        <Text allowFontScaling={false} style={[text(40, fonts.heavy, 'rgba(255, 255, 255, 0.85)'), { width: 150 * u, textAlign: 'right', marginBottom: 14 * u }]}>{hide.date ? '' : day}</Text>
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16 * u, marginTop: 14 * u }}>
-        <Pill u={u} label={shown.type ?? activity} dot={shown.type ? tint : ROUTE_COLORS[0]} />
+        {shown.type ? <Pill u={u} label={shown.type} dot={tint} /> : <Pill u={u} label={activity} dot={ROUTE_COLORS[0]} icon={activityIcon} />}
         {best && <Pill u={u} label={best} dot={STAR} />}
       </View>
       <View style={{ flexDirection: 'row', alignSelf: 'stretch', gap: 18 * u, marginTop: 36 * u }}>
@@ -344,35 +349,6 @@ function starterEntry({ title, record, shown, pokemon }: Kit): string {
   return sentences.join(' ')
 }
 
-// Another form of the line, as the next card on a carousel: a tilted pastel card in its type color, cut off by the edge,
-// with polka dots, a sparkle and a little trail of footprints.
-function PeekCard({ kit: { u }, name, side }: { kit: Kit, name: string, side: 'left' | 'right' }) {
-  const color = name === 'Egg' ? '#9AA8B8' : typeColors[pokemonType(name)] || typeColors.normal
-  const left = side === 'left'
-  // The card is 240 wide and shows about 120 of it; drawn for the left side and mirrored for the right.
-  return <View style={{ position: 'absolute', top: 640 * u, [side]: -120 * u, width: 240 * u, height: 520 * u,
-    transform: [{ rotate: `${left ? 7 : -7}deg` }] }}>
-    <Svg width={240 * u} height={520 * u} viewBox="0 0 240 520">
-      <Defs>
-        <LinearGradient id={`peek-${side}`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={WHITE} stopOpacity={0.55} /><Stop offset="1" stopColor={WHITE} stopOpacity={0.2} />
-        </LinearGradient>
-      </Defs>
-      <Rect x={0} y={0} width={240} height={520} rx={64} fill={color} />
-      <Rect x={0} y={0} width={240} height={520} rx={64} fill={`url(#peek-${side})`} />
-      <Rect x={10} y={10} width={220} height={500} rx={56} fill="none" stroke={WHITE} strokeOpacity={0.6} strokeWidth={6} strokeDasharray="2 16" strokeLinecap="round" />
-      {[[left ? 190 : 50, 70, 14], [left ? 160 : 80, 120, 8], [left ? 200 : 40, 170, 10], [left ? 175 : 65, 440, 12], [left ? 205 : 35, 480, 7]]
-        .map(([x, y, r], i) => <Circle key={i} cx={x} cy={y} r={r} fill={WHITE} fillOpacity={0.55} />)}
-      {/* A four-point sparkle. */}
-      <Path d={`M${left ? 175 : 65} 222 Q${left ? 179 : 69} 242 ${left ? 197 : 87} 246 Q${left ? 179 : 69} 250 ${left ? 175 : 65} 270 Q${left ? 171 : 61} 250 ${left ? 153 : 43} 246 Q${left ? 171 : 61} 242 ${left ? 175 : 65} 222 Z`}
-        fill={WHITE} fillOpacity={0.9} />
-      {[[left ? 165 : 75, 330, -14], [left ? 195 : 45, 372, 10], [left ? 168 : 72, 408, -14]].map(([x, y, turn], i) => <Path key={i}
-        transform={`rotate(${left ? turn : -turn} ${x} ${y})`} fill={WHITE} fillOpacity={0.75}
-        d={`M${x - 7} ${y - 2} a7 10 0 1 0 14 0 a7 10 0 1 0 -14 0 M${x - 8} ${y - 18} a3 3.5 0 1 0 6 0 a3 3.5 0 1 0 -6 0 M${x + 2} ${y - 19} a3 3.5 0 1 0 6 0 a3 3.5 0 1 0 -6 0`} />)}
-    </Svg>
-  </View>
-}
-
 // A small "made with Zepimon" mark for the corner: a tiny orb in the Pokemon's type color and the name.
 function Tag({ u, tint }: { u: number, tint: string }) {
   return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 * u, opacity: 0.8 }}>
@@ -382,10 +358,13 @@ function Tag({ u, tint }: { u: number, tint: string }) {
   </View>
 }
 
-function Pill({ u, label, dot }: { u: number, label: string, dot: string }) {
+// A dot in the given color, or with icon, a small badge holding the icon (the activity's figure).
+function Pill({ u, label, dot, icon }: { u: number, label: string, dot: string, icon?: IconName }) {
   return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 * u, paddingLeft: 18 * u, paddingRight: 34 * u, paddingVertical: 12 * u,
     borderRadius: 999, backgroundColor: 'rgba(10, 14, 20, 0.55)', borderWidth: 2 * u, borderColor: 'rgba(255, 255, 255, 0.12)' }}>
-    <View style={{ width: 40 * u, height: 40 * u, borderRadius: 20 * u, backgroundColor: dot, borderWidth: 6 * u, borderColor: 'rgba(255, 255, 255, 0.9)' }} />
+    {icon ? <View style={{ width: 48 * u, height: 48 * u, borderRadius: 24 * u, backgroundColor: dot, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon name={icon} size={34 * u} color={DARK} />
+    </View> : <View style={{ width: 40 * u, height: 40 * u, borderRadius: 20 * u, backgroundColor: dot, borderWidth: 6 * u, borderColor: 'rgba(255, 255, 255, 0.9)' }} />}
     <Text allowFontScaling={false} style={{ fontFamily: fonts.heavy, fontSize: 34 * u, lineHeight: 44 * u, color: WHITE }}>{label}</Text>
   </View>
 }

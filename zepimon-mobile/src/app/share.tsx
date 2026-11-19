@@ -6,10 +6,10 @@ import { useJournal } from '../store'
 import { averagePace, km, recordForm } from '../journal'
 import { decodePath } from '../phone-adventure'
 import type { SavedRun } from '../progress'
-import { adventureFacts, findAdventure } from '../adventures'
+import { adventureFacts, allAdventures, findAdventure } from '../adventures'
 import { GalleryDenied, exportCard, saveCardToGallery } from '../card-image'
 import { CARD_PIXELS, ShareCard, cardDetails, cardFileName, cardTitle, cardWidth, spriteStyles, usePixelArt } from '../ShareCard'
-import type { CardBackground, CardDesign, CardDetail, CardOptions, SpriteSize, SpriteStyle } from '../ShareCard'
+import type { CardBackground, CardDesign, CardDetail, CardHidden, CardOptions, SpriteSize, SpriteStyle } from '../ShareCard'
 import { habitatTheme } from '../HabitatScene'
 import { FilterSection } from '../PokedexFilters'
 import { PixelSprite } from '../games/TeamPicker'
@@ -28,9 +28,11 @@ const SIZES: [SpriteSize, string][] = [['small', 'Small'], ['medium', 'Medium'],
 const BACKGROUNDS: [CardBackground, string][] = [['dark', 'Dark'], ['clear', 'Clear'], ['habitat', 'Habitat']]
 const DETAILS: [CardDetail, string][] = [['type', 'Type'], ['best', 'Personal best'], ['evolution', 'Evolutions'], ['hatch', 'Hatch time'],
   ['steps', 'Steps'], ['clock', 'Start and finish time'], ['buddy', 'Buddy']]
+const HIDDEN: [CardHidden, string, string][] = [['date', 'Dates', 'The day, month and year'], ['mark', 'Zepimon mark', 'The small Zepimon logo'],
+  ['number', 'Adventure number', 'Which adventure this was, like #0042']]
 // The choices stay as you left them until the app closes, like the egg list's filters. The Pokemon starts as the one
 // each adventure reached, and a detail an adventure lacks is simply left off its card.
-let remembered: CardOptions = { design: 'classic', style: 'default', size: 'medium', background: 'dark', details: [] }
+let remembered: CardOptions = { design: 'classic', style: 'default', size: 'medium', background: 'dark', details: [], hidden: [] }
 const remember = (options: CardOptions) => { remembered = options }
 
 export default function ShareScreen() {
@@ -48,9 +50,17 @@ export default function ShareScreen() {
 
 function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
   const { family, record } = run
-  const { journal, friendship, friends } = useJournal()
+  const { journal, progress, phoneRuns, friendship, friends } = useJournal()
   // From three friendship hearts, the buddy this adventure was walked with can join the card (src/friendship.ts).
   const friend = shareLine(run, friendship.log, friends)
+  // Which adventure this was, counting from the first (the list is newest first).
+  const count = useMemo(() => {
+    const list = allAdventures(progress, phoneRuns)
+    // A phone adventure is also saved to the Journal under another id, with the same family and finish time.
+    const line = run.family.join('>')
+    const at = list.findIndex(item => item.id === run.id || (item.record.finishedAt === run.record.finishedAt && item.family.join('>') === line))
+    return at < 0 ? null : list.length - at
+  }, [progress, phoneRuns, run])
   const points = useMemo(() => path ? decodePath(path) : [], [path])
   const facts = useMemo(() => adventureFacts(run, journal), [run, journal])
   const reached = recordForm(family, record)
@@ -69,6 +79,9 @@ function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
     const value = { ...chosen, ...next }
     setChosen(value)
     remember(value)
+  }
+  function hide(item: CardHidden) {
+    change({ hidden: chosen.hidden.includes(item) ? chosen.hidden.filter(value => value !== item) : [...chosen.hidden, item] })
   }
   function toggle(detail: CardDetail) {
     change({ details: chosen.details.includes(detail) ? chosen.details.filter(item => item !== detail) : [...chosen.details, detail] })
@@ -99,7 +112,7 @@ function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
         {/* The card keeps its full size and is shrunk to fit; captures draw it unscaled (see src/card-image.ts). */}
         <View style={{ position: 'absolute', left: 0, top: 0, transform: [{ scale: frame / width }], transformOrigin: 'top left' }}>
           <ShareCard ref={card} family={family} record={record} pokemon={pokemon} points={points} art={art} facts={facts}
-            options={options} width={width} friend={friend} />
+            options={options} width={width} count={count} friend={friend} />
         </View>
       </View>}
     </View>
@@ -127,6 +140,11 @@ function ShareRun({ run, path }: { run: SavedRun, path?: string }) {
         <Text style={share.label}>SHOW ON THE CARD</Text>
         {DETAILS.filter(([detail]) => details[detail]).map(([detail, label]) => <Check key={detail} label={label} hint={details[detail]!}
           checked={options.details.includes(detail)} onPress={() => toggle(detail)} />)}
+      </View>
+      <View style={{ gap: 4 }}>
+        <Text style={share.label}>HIDE ON THE CARD</Text>
+        {HIDDEN.filter(([item]) => item !== 'number' || (options.design === 'starter' && count)).map(([item, label, hint]) =>
+          <Check key={item} label={label} hint={hint} checked={options.hidden.includes(item)} onPress={() => hide(item)} />)}
       </View>
     </Panel>
     {Platform.OS === 'web' ? <Button title="Download PNG" loading={busy === 'share'} disabled={art === undefined || !!busy}
