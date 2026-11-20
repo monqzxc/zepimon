@@ -41,8 +41,11 @@ const pixelated = Platform.OS === 'web' ? { imageRendering: 'pixelated' as const
 const REVEAL_MS = 3500
 // How long the portal ripples before the Legendary is met anew (the save's own pacing is RESET_COOLDOWN).
 const RIPPLE_MS = 1600
+// Lairs are seen from twice as far back as the trails (20 tiles across instead of 10), so the Legendary is in view from
+// the entrance and you can tell at once whether it is Shiny.
+const LAIR_ACROSS = 20
 // The smallest tile a lair is shown whole at; below it the camera follows the trainer instead.
-const MIN_FIT_TILE = 28
+const MIN_FIT_TILE = 14
 const hpColor = (hp: number) => hp <= 20 ? '#E83820' : hp <= 50 ? '#F0B828' : '#48C058'
 type Confirm = 'none' | 'shiny' | 'shiny-final'
 // The full-screen buttons fade like the see-through D-pad: faint while idle, nearly solid while pressed, fainter when off.
@@ -188,11 +191,11 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
     if (route) walker.follow(portal ? [...route, layout.out] : route)
   }
   // The lair at a size. Windowed, the whole room fits the view and the trainer walks across it; in full screen the
-  // tiles are as big as the Safari Zone's and the camera follows the trainer. `extra` snaps the camera after a rotation.
+  // camera follows the trainer, zoomed out to LAIR_ACROSS tiles. `extra` snaps the camera after a rotation.
   const world = (width: number, height: number, extra: number, zoomed: boolean) => {
     // A lair too big to show whole at a playable size (most are, at twice Emerald's size) follows the trainer too.
     const follow = zoomed || fitTile(width, height, layout.map) < MIN_FIT_TILE
-    const tile = follow ? tileSizeFor(width, height) : fitTile(width, height, layout.map)
+    const tile = follow ? tileSizeFor(width, height, LAIR_ACROSS) : fitTile(width, height, layout.map)
     const size = legendarySize(foe.name) * tile
     // Where things are in the lair, in pixels: the Legendary's middle, the ground at its feet, and where the ball
     // hangs open after bouncing off it, back toward wherever the trainer threw from.
@@ -213,7 +216,7 @@ export function LairBattle({ foe, partner, reduced, busy, error, weekKm, engaged
     return <>
       <TileWorld map={layout.map} chunks={chunks} at={battle.at} facing={battle.facing} buddyAt={battle.buddy} buddyFacing={battle.buddyFacing}
         move={move} trainer={safariTrainer} buddy={null} onGrass={false} width={width} height={height}
-        reduced={reduced} jump={extra} background={layout.background} fit={!follow} fitHeight={follow} tapToWalk={safariControls === 'tap' && acting}
+        reduced={reduced} jump={extra} background={layout.background} fit={!follow} fitHeight={follow} across={LAIR_ACROSS} tapToWalk={safariControls === 'tap' && acting}
         onTapTile={tapTile}
         cover={<>
           <SealedPortal layout={layout} tile={tile} reduced={reduced} open={!begun && !practice} />
