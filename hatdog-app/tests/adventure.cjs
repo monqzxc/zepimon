@@ -662,8 +662,12 @@ assert.equal(page.view, 'choose')
 while (page.listPage > 0) click('< Prev')
 chooseNamedEgg('Bulbasaur > Venusaur')
 click('Start')
+const syncsBeforeStart = phoneSyncs
+const sharesBeforeStart = shares.length
 click('Walking')
 assert.equal(page.state.active.activity, 'walking')
+assert.equal(phoneSyncs, syncsBeforeStart, 'Starting sends only the small adventure share, not the whole journal')
+assert.equal(shares.length, sharesBeforeStart + 1, 'Starting shares the adventure at once')
 assert.equal(context.shinyRolls, rollsBeforeMode + 1, 'Starting an adventure rolls exactly once')
 assert.equal(savedActive().activity, 'walking', 'Starting saves the adventure in progress at once')
 assert.equal(JSON.parse(stored).active, null, 'The journal never holds the adventure in progress')
@@ -727,7 +731,7 @@ assert.equal(page.clockStats[1].text, 'Est. pace --:-- /km', 'Reopen recovers di
 click('Finish')
 click('Save & finish')
 assert.equal(page.state.records[0].meters, 5500)
-assert.ok(phoneSyncs >= 2, 'Starting and finishing should trigger phone sync')
+assert.ok(phoneSyncs > syncsBeforeStart, 'Finishing sends the journal to the phone')
 assert.equal(page.state.dex.Bulbasaur.meters, 5500)
 openFromTitle('home')
 context.randomValue = 0

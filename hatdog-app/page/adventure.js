@@ -198,11 +198,6 @@ Page({
     return this.freshRoute()
   },
 
-  syncPhone() {
-    try { companionApp().syncToPhone() }
-    catch (error) { console.log('Zepimon phone sync unavailable:', String(error)) }
-  },
-
   // Tells the phone and Zepp the adventure ended (ended: its last share, or null if it was never shared), then sends
   // the journal without it.
   endShared(ended) {
@@ -634,6 +629,9 @@ Page({
 
   // Starts the adventure without drawing. planAt marks the phone's chosen egg as used, so the title screen moves on.
   // shiny is a kept Shiny roll (a discarded egg offered again); otherwise the egg rolls now.
+  // Only the small adventure share goes to the phone here. The whole journal (hundreds of KB, sent over Bluetooth in
+  // 3.5 KB pieces) used to follow it, which held up the share and the screen for about a minute; the journal has not
+  // changed at the start, and it is sent when the app opens and when the adventure is saved.
   begin(route, activity, mega, planAt, shiny) {
     this.pace = {}
     this.paceText = '--:-- /km'
@@ -646,7 +644,6 @@ Page({
     if (planAt) this.updateNext(next => ({ ...next, usedPlanAt: Math.max(next.usedPlanAt || 0, planAt) }))
     setWakeUpRelaunch({ relaunch: true })
     this.shareProgress(true)
-    this.syncPhone()
   },
 
   // Writes a property only when it changes. The step and distance sensors and the clock each refresh the session

@@ -22,27 +22,6 @@
     }
   },
   "targets": {
-    "default": {
-      "module": {
-        "page": {
-          "pages": [
-            "page/index", "page/adventure"
-          ]
-        },
-        "app-side": {
-          "path": "app-side/index"
-        },
-        "setting": {
-          "path": "setting/index"
-        }
-      },
-      "platforms": [
-        {
-          "st": "r",
-          "dw": 480
-        }
-      ]
-    },
     "bip-5-unity": {
       "module": {
         "page": {

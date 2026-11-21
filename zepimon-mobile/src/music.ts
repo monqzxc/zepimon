@@ -54,8 +54,15 @@ export function resetMusicDuck() {
 export function useBackgroundMusic(ready: boolean) {
   useEffect(() => {
     if (!ready) return
-    // Ambient: mixes with other apps' audio instead of stopping it, and follows the phone's silent mode.
-    setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers', shouldPlayInBackground: false })
+    // Read the app state again now: on Android it can still say "background" when this module loads, and the
+    // "active" event may already have fired before the listener below exists, which would leave the music silent.
+    foreground = AppState.currentState === 'active'
+    // Ambient: mixes with other apps' audio instead of stopping it. On iOS it follows the silent switch. On Android
+    // expo-audio would refuse to play at all unless the ringer is on Sound (vibrate counts as silent), so there the
+    // music follows the media volume instead, like other apps.
+    setAudioModeAsync({
+      playsInSilentMode: Platform.OS !== 'ios', interruptionMode: 'mixWithOthers', shouldPlayInBackground: false,
+    })
       .catch(() => {})
       .finally(apply)
     const unsubscribe = subscribePreferences(apply)

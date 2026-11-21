@@ -195,8 +195,3 @@ primary_types = {row['pokemon_id']:type_names[row['type_id']] for row in rows('p
 type_map = {name:primary_types.get(re.search(r'/(\d+)',src).group(1),'normal') for name,src in sprites.items() if name != 'Egg'}
 (ROOT / 'page/types.js').write_text('export const pokemonTypes = '+json.dumps(type_map,separators=(',',':'))+'\n',encoding='utf-8')
 print(f'Catalog: {len(meta)} species, {len(catalog)} routes, {sum(map(len,megaf.values()))} Mega variants, {sum(map(len,gmaxf.values()))} Gigantamax forms, {len(missing)} sprite fallbacks',flush=True)
-
-# The legacy default targets share the same bundled sprites.
-import shutil
-for target in ['default.r','default.s','default.b']:
-    shutil.copytree(ASSETS, ROOT / 'assets' / target / 'pokemon', dirs_exist_ok=True)

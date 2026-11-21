@@ -218,7 +218,7 @@ sits on a soft violet pill.
 **Music.** Under **Sound** in Settings, **Music** (on by default) loops a
 background theme while the app is open, and **Music volume** sets its level in
 5% steps. It uses `expo-audio` (`src/music.ts`): it pauses whenever the app
-leaves the screen, follows the phone's silent mode, plays alongside other apps'
+leaves the screen, follows the silent switch on iPhone (on Android it follows media volume), plays alongside other apps'
 audio instead of stopping it, and drops to a fifth of its volume while a Gym
 voice cue speaks. The track is `assets/audio/home-theme.mp3`; to change it,
 replace that file. `expo-audio` is a native module, so the change needs a new
